@@ -11,12 +11,50 @@ permissions:
   pull-requests: read # allows SonarCloud to decorate PRs with analysis results
 
 jobs:
+  Build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@master
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.22'
+    - name: Build
+      run: go build -v ./...
+    - name: Test Coverage
+      run: go test -coverprofile=coverage.out
+    - name: Archive code coverage results
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage.out
+        path: coverage.out
+    - name: Test Result
+      run: go test -json > report.json
+    - name: Archive test report
+      uses: actions/upload-artifact@v4
+      with:
+        name: report.json
+        path: report.json
+
   Analysis:
+    needs: build
+    name: Analysis
     runs-on: ubuntu-latest
 
     steps:
+      - name: Clone Repository
+        uses: actions/checkout@master
+      - name: Download coverage results
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage.out
+      - name: Download test report
+        uses: actions/download-artifact@v4
+        with:
+          name: report.json
       - name: Analyze with SonarCloud
-
         uses: sonarsource/sonarcloud-github-action@master
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information
@@ -28,11 +66,11 @@ jobs:
             # mandatory
             -Dsonar.projectKey=gmrtd_gmrtd
             -Dsonar.organization=gmrtd
-            # Comma-separated paths to directories containing main source files.
-            #-Dsonar.sources= # optional, default is project base directory
-            # When you need the analysis to take place in a directory other than the one from which it was launched
-            #-Dsonar.projectBaseDir= # optional, default is .
-            # Comma-separated paths to directories containing test source files.
-            #-Dsonar.tests= # optional. For more info about Code Coverage, please refer to https://docs.sonarcloud.io/enriching/test-coverage/overview/
-            # Adds more detail to both client and server-side analysis logs, activating DEBUG mode for the scanner, and adding client-side environment variables and system properties to the server-side log of analysis report processing.
-            #-Dsonar.verbose= # optional, default is false
+            -Dsonar.sources=.
+            -Dsonar.exclusions=**/*_test.go,**/vendor/**
+            -Dsonar.tests=.
+            -Dsonar.test.inclusions=**/*_test.go
+            -Dsonar.test.exclusions=**/vendor/**
+            -Dsonar.sourceEncoding=UTF-8
+            -Dsonar.go.coverage.reportPaths=coverage.out
+            -Dsonar.go.tests.reportPaths=report.json
