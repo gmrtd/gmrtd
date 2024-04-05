@@ -10,13 +10,13 @@ func TestNewDG14(t *testing.T) {
 	var dg14 *DG14 = NewDG14(dg14bytes)
 
 	// TODO - may want to do a deeper verification of the data
-	if (len(dg14.secInfos.PaceInfos) != 2) ||
-		(len(dg14.secInfos.ActiveAuthInfos) != 0) ||
-		(len(dg14.secInfos.ChipAuthInfos) != 1) ||
-		(len(dg14.secInfos.ChipAuthPubKeyInfos) != 1) ||
-		(len(dg14.secInfos.TermAuthInfos) != 1) ||
-		(len(dg14.secInfos.EfDirInfos) != 0) ||
-		(len(dg14.secInfos.UnhandledInfos) != 0) {
+	if (len(dg14.SecInfos.PaceInfos) != 2) ||
+		(len(dg14.SecInfos.ActiveAuthInfos) != 0) ||
+		(len(dg14.SecInfos.ChipAuthInfos) != 1) ||
+		(len(dg14.SecInfos.ChipAuthPubKeyInfos) != 1) ||
+		(len(dg14.SecInfos.TermAuthInfos) != 1) ||
+		(len(dg14.SecInfos.EfDirInfos) != 0) ||
+		(len(dg14.SecInfos.UnhandledInfos) != 0) {
 		t.Errorf("Unexpected DG14 data")
 	}
 }

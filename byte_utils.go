@@ -73,7 +73,7 @@ func getByteFromBuffer(buf *bytes.Buffer) byte {
 	return tmp[0]
 }
 
-func writeFile(filename string, data []byte) {
+func WriteFile(filename string, data []byte) {
 	if err := os.WriteFile(filename, data, 0666); err != nil {
 		log.Panic(err)
 	}

@@ -68,7 +68,7 @@ func (apdu *CApdu) EncodeLc() []byte {
 			// Lc = 3 bytes
 
 			if lc < 1 || lc > 65535 {
-				log.Panicf("LC must be beteen 1 and 65535 (act:%d)", lc)
+				log.Panicf("LC must be between 1 and 65535 (act:%d)", lc)
 			}
 
 			out = append(out, 0)
@@ -78,7 +78,7 @@ func (apdu *CApdu) EncodeLc() []byte {
 			// Lc = 1 byte
 
 			if lc < 1 || lc > 255 {
-				log.Panicf("LC must be beteen 1 and 255 (act:%d)", lc)
+				log.Panicf("LC must be between 1 and 255 (act:%d)", lc)
 			}
 
 			out = append(out, byte(lc))
@@ -105,7 +105,7 @@ func (apdu *CApdu) EncodeLe() []byte {
 
 			// NB range is 1..65,635 (NOT 65,535!)
 			if apdu.le < 1 || apdu.le > 65536 {
-				log.Panicf("LE must be beteen 1 and 65536 (act:%d)", apdu.le)
+				log.Panicf("LE must be between 1 and 65536 (act:%d)", apdu.le)
 			}
 
 			// TODO  - looks like this is causing an error with extended mode... so removing for now
@@ -122,7 +122,7 @@ func (apdu *CApdu) EncodeLe() []byte {
 
 			// NB range is 1..256 (not 255!)
 			if apdu.le < 1 || apdu.le > 256 {
-				log.Panicf("LE must be beteen 1 and 256 (act:%d)", apdu.le)
+				log.Panicf("LE must be between 1 and 256 (act:%d)", apdu.le)
 			}
 
 			// NB byte will correctly be x00 if 256!

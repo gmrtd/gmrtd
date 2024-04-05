@@ -7,7 +7,7 @@ import (
 
 type DG14 struct {
 	RawData  []byte // TODO - add to test cases (for all other DGs also)
-	secInfos *SecurityInfos
+	SecInfos *SecurityInfos
 }
 
 func NewDG14(data []byte) *DG14 {
@@ -26,7 +26,7 @@ func NewDG14(data []byte) *DG14 {
 		log.Panicf("SecInfosTag (6E) missing from DG14")
 	}
 
-	out.secInfos = DecodeSecurityInfos(secInfosBytes)
+	out.SecInfos = DecodeSecurityInfos(secInfosBytes)
 
 	return out
 }

@@ -52,7 +52,7 @@ func (node TlvNilNode) GetNode(tag TlvTag) TlvNode {
 	return NewTlvNilNode()
 }
 
-func (node TlvNilNode) GetNodeByOccur(tag TlvTag, occurence int) TlvNode {
+func (node TlvNilNode) GetNodeByOccur(tag TlvTag, occurrence int) TlvNode {
 	return NewTlvNilNode()
 }
 
@@ -85,7 +85,7 @@ func (node TlvSimpleNode) GetNode(tag TlvTag) TlvNode {
 	return NewTlvNilNode()
 }
 
-func (node TlvSimpleNode) GetNodeByOccur(tag TlvTag, occurence int) TlvNode {
+func (node TlvSimpleNode) GetNodeByOccur(tag TlvTag, occurrence int) TlvNode {
 	// NB this node type cannot have children
 	return NewTlvNilNode()
 }
@@ -133,8 +133,8 @@ func (node TlvConstructedNode) GetNode(tag TlvTag) TlvNode {
 	return node.Children.GetNode(tag)
 }
 
-func (node TlvConstructedNode) GetNodeByOccur(tag TlvTag, occurence int) TlvNode {
-	return node.Children.GetNodeByOccur(tag, occurence)
+func (node TlvConstructedNode) GetNodeByOccur(tag TlvTag, occurrence int) TlvNode {
+	return node.Children.GetNodeByOccur(tag, occurrence)
 }
 
 func (node TlvConstructedNode) Encode() []byte {
@@ -172,7 +172,7 @@ func (nodes TlvNodes) GetNode(tag TlvTag) TlvNode {
 	return nodes.GetNodeByOccur(tag, 1)
 }
 
-// occurence: 1-n
+// occurrence: 1-n
 func (nodes TlvNodes) GetNodeByOccur(tag TlvTag, occurrence int) TlvNode {
 	if occurrence < 1 {
 		log.Panicf("occurrence must be 1..n")
@@ -223,7 +223,7 @@ type TlvNode interface {
 	GetTag() TlvTag
 	GetValue() []byte
 	GetNode(tag TlvTag) TlvNode
-	GetNodeByOccur(tag TlvTag, occurence int) TlvNode
+	GetNodeByOccur(tag TlvTag, occurrence int) TlvNode
 	Encode() []byte
 	String() string
 	stringWithIndent(indent int) string
