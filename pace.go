@@ -548,7 +548,7 @@ func (pace *Pace) CAM_ECDH(nfc *NfcSession, paceConfig *PaceConfig, domainParams
 		}
 
 		// record that Chip Auth has been performed using PACE-CAM
-		doc.chipAuthStatus = CHIP_AUTH_STATUS_PACE_CAM
+		doc.ChipAuthStatus = CHIP_AUTH_STATUS_PACE_CAM
 	}
 }
 

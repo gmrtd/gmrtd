@@ -183,15 +183,15 @@ func ReadDocument(transceiver Transceiver, password *Password) (doc *Document, e
 	 * Chip / Active Authentication
 	 */
 
-	if doc.chipAuthStatus == CHIP_AUTH_STATUS_NA {
+	if doc.ChipAuthStatus == CHIP_AUTH_STATUS_NA {
 		DoChipAuth(nfc, doc)
 	}
 
-	if doc.chipAuthStatus == CHIP_AUTH_STATUS_NA {
+	if doc.ChipAuthStatus == CHIP_AUTH_STATUS_NA {
 		DoActiveAuth(nfc, doc)
 	}
 
-	slog.Info("** FINISHED **", "ChipAuthStatus", doc.chipAuthStatus)
+	slog.Info("** FINISHED **", "ChipAuthStatus", doc.ChipAuthStatus)
 
 	return
 }

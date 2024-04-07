@@ -212,7 +212,7 @@ func TestDoPace_GM_ECDH(t *testing.T) {
 	}
 
 	// verify chip-auth-status is NA
-	if doc.chipAuthStatus != CHIP_AUTH_STATUS_NA {
+	if doc.ChipAuthStatus != CHIP_AUTH_STATUS_NA {
 		t.Errorf("ChipAuthStatus is not reflecting NA")
 	}
 
@@ -296,7 +296,7 @@ func TestDoPace_CAM_ECDH(t *testing.T) {
 	}
 
 	// verify chip-auth-status reflects PACE-CAM was performed
-	if doc.chipAuthStatus != CHIP_AUTH_STATUS_PACE_CAM {
+	if doc.ChipAuthStatus != CHIP_AUTH_STATUS_PACE_CAM {
 		t.Errorf("ChipAuthStatus is not reflecting PACE-CAM")
 	}
 }

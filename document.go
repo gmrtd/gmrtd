@@ -15,7 +15,7 @@ type Document struct {
 	Dg14           *DG14         // DATA GROUP 14 — Security Options (CONDITIONAL)
 	Dg15           *DG15         // DATA GROUP 15 — Active Authentication Public Key Info (CONDITIONAL)
 	Dg16           *DG16         // DATA GROUP 16 — Person(s) to Notify (OPTIONAL)
-	chipAuthStatus ChipAuthStatus
+	ChipAuthStatus ChipAuthStatus
 }
 
 type ChipAuthStatus int
