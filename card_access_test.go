@@ -2,11 +2,11 @@ package gmrtd
 
 import "testing"
 
-func TestNewDG12NoData(t *testing.T) {
-	if NewDG12(nil) != nil {
+func TestNewCardAccessNoData(t *testing.T) {
+	if NewCardAccess(nil) != nil {
 		t.Errorf("Should be nil when no input data provided")
 	}
-	if NewDG12([]byte{}) != nil {
+	if NewCardAccess([]byte{}) != nil {
 		t.Errorf("Should be nil when no input data provided")
 	}
 }

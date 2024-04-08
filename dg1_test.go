@@ -4,6 +4,15 @@ import (
 	"testing"
 )
 
+func TestNewDG1NoData(t *testing.T) {
+	if NewDG1(nil) != nil {
+		t.Errorf("Should be nil when no input data provided")
+	}
+	if NewDG1([]byte{}) != nil {
+		t.Errorf("Should be nil when no input data provided")
+	}
+}
+
 func TestNewDG1(t *testing.T) {
 	testCases := []struct {
 		dg1  []byte

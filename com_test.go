@@ -5,6 +5,15 @@ import (
 	"testing"
 )
 
+func TestNewCOMNoData(t *testing.T) {
+	if NewCOM(nil) != nil {
+		t.Errorf("Should be nil when no input data provided")
+	}
+	if NewCOM([]byte{}) != nil {
+		t.Errorf("Should be nil when no input data provided")
+	}
+}
+
 func TestNewCOM(t *testing.T) {
 	// EF.COM test data from 9303-p10
 	data := HexToBytes("60145F0104303130365F36063034303030305C026175")

@@ -1,12 +1,15 @@
 package gmrtd
 
-import "testing"
+import (
+	"testing"
+)
 
-func TestNewDG12NoData(t *testing.T) {
-	if NewDG12(nil) != nil {
+func TestNewDG15NoData(t *testing.T) {
+	if NewDG15(nil) != nil {
 		t.Errorf("Should be nil when no input data provided")
 	}
-	if NewDG12([]byte{}) != nil {
+	if NewDG15([]byte{}) != nil {
 		t.Errorf("Should be nil when no input data provided")
 	}
 }
+
