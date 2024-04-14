@@ -3,7 +3,6 @@ package gmrtd
 import (
 	"encoding/binary"
 	"fmt"
-	"log"
 )
 
 const RAPDU_STATUS_SUCCESS = 0x9000
@@ -30,9 +29,9 @@ func (apdu *RApdu) FileNotFound() bool {
 	return apdu.Status == RAPDU_STATUS_FILENOTFOUND
 }
 
-func ParseRApdu(data []byte) (rapdu *RApdu) {
+func ParseRApdu(data []byte) (rapdu *RApdu, err error) {
 	if len(data) < 2 {
-		log.Panicf("rApdu length must be >= 2 (Length:%d)", len(data))
+		return nil, fmt.Errorf("rApdu length must be >= 2 (Length:%d)", len(data))
 	}
 
 	rapdu = new(RApdu)
@@ -42,5 +41,5 @@ func ParseRApdu(data []byte) (rapdu *RApdu) {
 	rapdu.Data = make([]byte, len(data)-2)
 	copy(rapdu.Data, data[0:len(data)-2])
 
-	return rapdu
+	return rapdu, nil
 }

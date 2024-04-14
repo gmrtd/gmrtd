@@ -17,8 +17,15 @@ func TestSelectAidMrtd(t *testing.T) {
 		nfc = NewNfcSession(transceiver)
 	}
 
-	nfc.SelectAid([]byte(HexToBytes(MRTD_AID)))
-	// TODO - error check once changed to return an error
+	selected, err := nfc.SelectAid([]byte(HexToBytes(MRTD_AID)))
+
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+
+	if !selected {
+		t.Errorf("Unable to SELECT AID")
+	}
 }
 
 func TestNfcSessionSecureMessagingTDES(t *testing.T) {
@@ -39,7 +46,12 @@ func TestNfcSessionSecureMessagingTDES(t *testing.T) {
 		nfc = NewNfcSession(transceiver)
 	}
 
-	nfc.sm = NewSecureMessaging(TDES, HexToBytes("979EC13B1CBFE9DCD01AB0FED307EAE5"), HexToBytes("F1CB1F1FB5ADF208806B89DC579DC1F8"))
+	var err error
+
+	nfc.sm, err = NewSecureMessaging(TDES, HexToBytes("979EC13B1CBFE9DCD01AB0FED307EAE5"), HexToBytes("F1CB1F1FB5ADF208806B89DC579DC1F8"))
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
 
 	nfc.sm.SetSSC(HexToBytes("887022120C06C226"))
 
@@ -71,7 +83,12 @@ func TestNfcSessionSecureMessagingAES(t *testing.T) {
 		nfc = NewNfcSession(transceiver)
 	}
 
-	nfc.sm = NewSecureMessaging(AES, HexToBytes("74B94F408BBB2CD92571FD5B6370A94CCE7A2FA42AE3EB4DA47B97CE6EAA24C6"), HexToBytes("9E28D5D9FF1D979BE752E8926BF0E1D35A440FC0AEFC4AA3BC5610055AC8B113"))
+	var err error
+
+	nfc.sm, err = NewSecureMessaging(AES, HexToBytes("74B94F408BBB2CD92571FD5B6370A94CCE7A2FA42AE3EB4DA47B97CE6EAA24C6"), HexToBytes("9E28D5D9FF1D979BE752E8926BF0E1D35A440FC0AEFC4AA3BC5610055AC8B113"))
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
 
 	nfc.sm.SetSSC(HexToBytes("00000000000000000000000000000020"))
 
@@ -84,5 +101,179 @@ func TestNfcSessionSecureMessagingAES(t *testing.T) {
 
 	if !bytes.Equal(nfc.sm.SSC, HexToBytes("00000000000000000000000000000026")) {
 		t.Errorf("Incorrect SSC")
+	}
+}
+
+func TestGetChallengeHappy(t *testing.T) {
+	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{HexToBytes("0123456789ABCDEF9000")})
+
+	challenge, err := nfc.GetChallenge(8)
+
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+
+	if !bytes.Equal(challenge, HexToBytes("0123456789ABCDEF")) {
+		t.Errorf("Challenge differs to expected")
+	}
+}
+
+func TestGetChallengeUnhappyNoRsp(t *testing.T) {
+	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{nil})
+
+	_, err := nfc.GetChallenge(8)
+
+	if err == nil {
+		t.Errorf("Error expected")
+	}
+}
+
+func TestGetChallengeUnhappyErrorStatus(t *testing.T) {
+	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{[]byte{0x6F, 0xFF}}) // card dead
+
+	_, err := nfc.GetChallenge(8)
+
+	if err == nil {
+		t.Errorf("Error expected")
+	}
+}
+
+func TestGetChallengeUnhappyRspLength(t *testing.T) {
+	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{HexToBytes("0123456789ABCDEF119000")}) // 9 bytes instead of 8
+
+	_, err := nfc.GetChallenge(8)
+
+	if err == nil {
+		t.Errorf("Error expected")
+	}
+}
+
+func TestExternalAuthenticateHappy(t *testing.T) {
+	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{HexToBytes("0123456789ABCDEF01239000")})
+
+	rspBytes, err := nfc.ExternalAuthenticate(HexToBytes("01234567"), 10)
+
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+
+	if !bytes.Equal(rspBytes, HexToBytes("0123456789ABCDEF0123")) {
+		t.Errorf("Response differs to expected")
+	}
+}
+
+func TestExternalAuthenticateUnhappyNoRsp(t *testing.T) {
+	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{nil})
+
+	_, err := nfc.ExternalAuthenticate(HexToBytes("01234567"), 10)
+
+	if err == nil {
+		t.Errorf("Error expected")
+	}
+}
+
+func TestExternalAuthenticateUnhappyErrorStatus(t *testing.T) {
+	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{[]byte{0x6F, 0xFF}}) // card dead
+
+	_, err := nfc.ExternalAuthenticate(HexToBytes("01234567"), 10)
+
+	if err == nil {
+		t.Errorf("Error expected")
+	}
+}
+
+func TestExternalAuthenticateUnhappyRspLength(t *testing.T) {
+	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{HexToBytes("0123456789ABCDEF019000")}) // 9 bytes instead of 10
+
+	_, err := nfc.ExternalAuthenticate(HexToBytes("01234567"), 10)
+
+	if err == nil {
+		t.Errorf("Error expected")
+	}
+}
+
+func TestSelectMFHappy(t *testing.T) {
+	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{HexToBytes("9000")})
+
+	err := nfc.SelectMF()
+
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+}
+
+func TestSelectMFUnhappyNoRsp(t *testing.T) {
+	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{nil})
+
+	err := nfc.SelectMF()
+
+	if err == nil {
+		t.Errorf("Error expected")
+	}
+}
+
+func TestSelectMFUnhappyErrorStatus(t *testing.T) {
+	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{[]byte{0x6F, 0xFF}}) // card dead
+
+	err := nfc.SelectMF()
+
+	if err == nil {
+		t.Errorf("Error expected")
+	}
+}
+
+func TestSelectEFHappy(t *testing.T) {
+	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{HexToBytes("9000")})
+
+	selected, err := nfc.SelectEF(0x0101)
+
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+
+	if !selected {
+		t.Errorf("EF should have been selected")
+	}
+}
+
+func TestSelectEFUnhappyNoRsp(t *testing.T) {
+	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{nil})
+
+	selected, err := nfc.SelectEF(0x0101)
+
+	if err == nil {
+		t.Errorf("Error expected")
+	}
+
+	if selected {
+		t.Errorf("EF should NOT have been selected")
+	}
+}
+
+func TestSelectEFHappyFileNotFound(t *testing.T) {
+	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{[]byte{0x6A, 0x82}}) // file not found
+
+	selected, err := nfc.SelectEF(0x0101)
+
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+
+	if selected {
+		t.Errorf("EF should NOT have been selected")
+	}
+}
+
+func TestSelectEFUnhappyErrorStatus(t *testing.T) {
+	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{[]byte{0x6F, 0xFF}}) // card dead
+
+	selected, err := nfc.SelectEF(0x0101)
+
+	if err == nil {
+		t.Errorf("Error expected")
+	}
+
+	if selected {
+		t.Errorf("EF should NOT have been selected")
 	}
 }

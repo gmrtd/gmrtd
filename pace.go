@@ -25,8 +25,10 @@ package gmrtd
 
 import (
 	"bytes"
+	"crypto/cipher"
 	"crypto/elliptic"
 	"encoding/asn1"
+	"fmt"
 	"log"
 	"log/slog"
 	"math/big"
@@ -223,8 +225,15 @@ func getStandardisedDomainParams(paramId int) *PACEDomainParams {
 }
 
 func (paceConfig *PaceConfig) decryptNonce(key []byte, encryptedNonce []byte) []byte {
-	bcipher := GetCipherForKey(paceConfig.cipher, key)
+	var err error
+	var bcipher cipher.Block
+
+	if bcipher, err = GetCipherForKey(paceConfig.cipher, key); err != nil {
+		log.Panicf("Unexpected error: %s", err)
+	}
+
 	iv := make([]byte, bcipher.BlockSize()) // 0'd IV
+
 	return CryptCBC(bcipher, iv, encryptedNonce, false)
 }
 
@@ -253,7 +262,14 @@ func (paceConfig *PaceConfig) computeAuthToken(key []byte, data []byte) []byte {
 		// CMAC-mode with MAC length of 8 bytes
 		// AES [FIPS 197] SHALL be used in CMAC-mode [SP 800-38B] with a MAC length of 8 bytes.
 		var err error
-		authToken, err := cmac.Sum(data, GetCipherForKey(paceConfig.cipher, key), 8)
+		var cipher cipher.Block
+
+		cipher, err = GetCipherForKey(paceConfig.cipher, key)
+		if err != nil {
+			log.Panicf("Unable to get cipher (%s)", err)
+		}
+
+		authToken, err := cmac.Sum(data, cipher, 8)
 		if err != nil {
 			log.Panicf("Unable to generate Auth-Token (CMAC): %s", err.Error())
 		}
@@ -275,13 +291,13 @@ func doECDH(localPrivate []byte, remotePublic *EC_POINT, ec elliptic.Curve) *EC_
 // Hxy: shared secret (derived earlier from ECDH)
 // ec: elliptic curve (domain parameters)
 func doGenericMappingEC(s []byte, H *EC_POINT, ec elliptic.Curve) *EC_POINT {
-	var sG_x, sG_y *big.Int
+	var sGx, sGy *big.Int
 
-	sG_x, sG_y = ec.ScalarBaseMult(s)
+	sGx, sGy = ec.ScalarBaseMult(s)
 
 	var out EC_POINT
 
-	out.x, out.y = ec.Add(sG_x, sG_y, H.x, H.y)
+	out.x, out.y = ec.Add(sGx, sGy, H.x, H.y)
 
 	return &out
 }
@@ -309,7 +325,7 @@ func build_7F49(paceOid []byte, tag86data []byte) []byte {
 }
 
 // TODO - move once it's generic enough
-func doAPDU_MSESetAT(nfc *NfcSession, paceConfig *PaceConfig, passwordType PasswordType) {
+func doAPDU_MSESetAT(nfc *NfcSession, paceConfig *PaceConfig, passwordType PasswordType) (err error) {
 	// manually convert value to reduce reliance on iota values!
 	var passwordTypeValue byte
 	switch passwordType {
@@ -318,7 +334,7 @@ func doAPDU_MSESetAT(nfc *NfcSession, paceConfig *PaceConfig, passwordType Passw
 	case PASSWORD_TYPE_CAN:
 		passwordTypeValue = 2
 	default:
-		log.Panicf("Unsupported PACE Password-Type (%x)", passwordType)
+		return fmt.Errorf("Unsupported PACE Password-Type (%x)", passwordType)
 	}
 
 	paceOid := paceConfig.getOidBytes()
@@ -330,11 +346,16 @@ func doAPDU_MSESetAT(nfc *NfcSession, paceConfig *PaceConfig, passwordType Passw
 	// TODO - move to NfcSession?
 	cApdu := NewCApdu(0x00, 0x22, 0xC1, 0xA4, nodes.Encode(), 0) // TODO - use const
 
-	rApdu := nfc.DoAPDU(cApdu)
+	rApdu, err := nfc.DoAPDU(cApdu)
+	if err != nil {
+		return err
+	}
 
 	if !rApdu.IsSuccess() {
-		log.Panicf("Error performing MSE:Set AT command (Status:%x)", rApdu.Status)
+		return fmt.Errorf("Error performing MSE:Set AT command (Status:%x)", rApdu.Status)
 	}
+
+	return nil
 }
 
 // mapNonce(EC)
@@ -507,7 +528,10 @@ func (pace *Pace) CAM_ECDH(nfc *NfcSession, paceConfig *PaceConfig, domainParams
 
 	// ICAO9303 p11... 4.4.3.3.3 Chip Authentication Mapping
 
-	blockCipher := GetCipherForKey(paceConfig.cipher, KSenc)
+	blockCipher, err := GetCipherForKey(paceConfig.cipher, KSenc)
+	if err != nil {
+		log.Panicf("Unexpected error: %s", err)
+	}
 
 	// IV = K(KSenc,-1)
 	var iv []byte = make([]byte, blockCipher.BlockSize())
@@ -592,8 +616,6 @@ func selectPaceConfig(cardAccess *CardAccess) (paceConfig *PaceConfig, domainPar
 	// evaluate all entries and select the preferred, based on the associated weighting
 	var selPaceInfo *PaceInfo
 	{
-		//secInfos := DecodeSecurityInfos(cardAccessFile)
-
 		for i := range paceInfos {
 			slog.Debug("selectPaceConfig", "paceInfo", paceInfos[i])
 
@@ -627,7 +649,7 @@ func selectPaceConfig(cardAccess *CardAccess) (paceConfig *PaceConfig, domainPar
 	return paceConfig, domainParams
 }
 
-func (pace *Pace) DoPACE(nfc *NfcSession, password *Password, doc *Document) {
+func (pace *Pace) DoPACE(nfc *NfcSession, password *Password, doc *Document) (err error) {
 	// PACE requires card-access
 	if doc.CardAccess == nil {
 		return
@@ -645,7 +667,9 @@ func (pace *Pace) DoPACE(nfc *NfcSession, password *Password, doc *Document) {
 
 	// init PACE (via 'MSE:Set AT' command)
 	// TODO - aren't there some cases where we need to specified the domain params? (i.e. multiple entries)
-	doAPDU_MSESetAT(nfc, paceConfig, password.passwordType)
+	if err = doAPDU_MSESetAT(nfc, paceConfig, password.passwordType); err != nil {
+		return err
+	}
 
 	// get nonce
 	var s []byte = getNonce(nfc, paceConfig, kKdf)
@@ -670,23 +694,29 @@ func (pace *Pace) DoPACE(nfc *NfcSession, password *Password, doc *Document) {
 			ksEnc, ksMac, ecadIC = pace.mutualAuth_GM_ECDH(nfc, paceConfig, domainParams, sharedSecret, kaTermPub, kaChipPub)
 
 			// setup secure messaging
-			nfc.sm = NewSecureMessaging(paceConfig.cipher, ksEnc, ksMac)
+			if nfc.sm, err = NewSecureMessaging(paceConfig.cipher, ksEnc, ksMac); err != nil {
+				return err
+			}
 
 			// Perform Chip Authentication (if applicable)
 			if paceConfig.mapping == CAM {
-				doc.CardSecurity = NewCardSecurity(nfc.ReadFile(MRTDFileIdCardSecurity))
+				if doc.CardSecurity, err = NewCardSecurity(nfc.ReadFile(MRTDFileIdCardSecurity)); err != nil {
+					return err
+				}
 				if doc.CardSecurity == nil {
-					log.Panicf("Cannot proceed with PACE-CAM without CardSecurity file")
+					return fmt.Errorf("Cannot proceed with PACE-CAM without CardSecurity file")
 				}
 				slog.Debug("DoPACE", "CardSecurity", doc.CardSecurity.RawData)
 				pace.CAM_ECDH(nfc, paceConfig, domainParams, ksEnc, pubMapIC, ecadIC, doc)
 			}
 		case false: // DH
-			log.Panicf("PACE GM (DH) NOT IMPLEMENTED")
+			return fmt.Errorf("PACE GM (DH) NOT IMPLEMENTED")
 		}
 	case IM:
-		log.Panicf("PACE IM NOT IMPLEMENTED")
+		return fmt.Errorf("PACE IM NOT IMPLEMENTED")
 	}
 
 	slog.Debug("doPACE - Completed", "SM", nfc.sm)
+
+	return nil
 }

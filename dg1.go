@@ -1,32 +1,45 @@
 package gmrtd
 
 import (
-	"log"
+	"fmt"
 	"slices"
 )
+
+const DG1Tag = 0x61
 
 type DG1 struct {
 	RawData []byte
 	Mrz     *MRZ
 }
 
-func NewDG1(data []byte) *DG1 {
+func NewDG1(data []byte) (dg1 *DG1, err error) {
 	if len(data) < 1 {
-		return nil
+		return nil, nil
 	}
 
-	var out *DG1 = new(DG1)
+	dg1 = new(DG1)
 
-	out.RawData = slices.Clone(data)
+	dg1.RawData = slices.Clone(data)
 
-	tlv := TlvDecode(data)
+	nodes := TlvDecode(dg1.RawData)
 
-	mrzBytes := tlv.GetNode(0x61).GetNode(0x5f1f).GetValue()
-	if mrzBytes == nil {
-		log.Panicf("MRZ Tag (61->5F1F) missing from DG1")
+	rootNode := nodes.GetNode(DG1Tag)
+
+	if !rootNode.IsValidNode() {
+		return nil, fmt.Errorf("root node (%x) missing", DG1Tag)
 	}
 
-	out.Mrz = MrzDecode(string(mrzBytes))
+	{
+		mrzBytes := rootNode.GetNode(0x5f1f).GetValue()
+		if mrzBytes == nil {
+			return nil, fmt.Errorf("MRZ Tag (5F1F) missing")
+		}
 
-	return out
+		dg1.Mrz, err = MrzDecode(string(mrzBytes))
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return dg1, nil
 }

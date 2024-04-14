@@ -1,6 +1,7 @@
 package gmrtd
 
 import (
+	"bytes"
 	"testing"
 )
 
@@ -13,5 +14,29 @@ func TestNewEFDIRNoData(t *testing.T) {
 	}
 }
 
-// TODO - add test case from 9303p10.. Table 31. EF.DIR Format
-//			low priority as EF.DIR only required if multiple apps present
+func TestNewEFDIR(t *testing.T) {
+	// Table 31. (EF.DIR Format) - 9303 p10
+	fileBytes := HexToBytes("61094F07A000000247100161094F07A000000247200161094F07A000000247200261094F07A0000002472003")
+
+	var efDir *EFDIR = NewEFDIR(fileBytes)
+
+	if len(efDir.Application) != 4 {
+		t.Errorf("4 entries expected")
+	}
+
+	if !bytes.Equal(efDir.Application[0].aid, HexToBytes("A0000002471001")) {
+		t.Errorf("Incorrect application #1")
+	}
+
+	if !bytes.Equal(efDir.Application[1].aid, HexToBytes("A0000002472001")) {
+		t.Errorf("Incorrect application #2")
+	}
+
+	if !bytes.Equal(efDir.Application[2].aid, HexToBytes("A0000002472002")) {
+		t.Errorf("Incorrect application #3")
+	}
+
+	if !bytes.Equal(efDir.Application[3].aid, HexToBytes("A0000002472003")) {
+		t.Errorf("Incorrect application #4")
+	}
+}

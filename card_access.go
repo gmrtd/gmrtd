@@ -4,18 +4,22 @@ import "slices"
 
 type CardAccess struct {
 	RawData       []byte
-	SecurityInfos SecurityInfos
+	SecurityInfos *SecurityInfos
 }
 
-func NewCardAccess(data []byte) *CardAccess {
+func NewCardAccess(data []byte) (*CardAccess, error) {
+	var out CardAccess
+	var err error
+
 	if len(data) < 1 {
-		return nil
+		return nil, nil
 	}
 
-	var out *CardAccess = new(CardAccess)
-
 	out.RawData = slices.Clone(data)
-	out.SecurityInfos = *DecodeSecurityInfos(out.RawData)
+	out.SecurityInfos, err = DecodeSecurityInfos(out.RawData)
+	if err != nil {
+		return nil, err
+	}
 
-	return out
+	return &out, nil
 }

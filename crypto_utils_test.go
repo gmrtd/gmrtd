@@ -2,6 +2,7 @@ package gmrtd
 
 import (
 	"bytes"
+	"crypto/cipher"
 	"crypto/elliptic"
 	"math/big"
 	"testing"
@@ -125,7 +126,15 @@ func TestCryptCBC(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		act := CryptCBC(GetCipherForKey(tc.alg, tc.key), tc.iv, tc.in, tc.encrypt)
+		var err error
+		var cipher cipher.Block
+
+		cipher, err = GetCipherForKey(tc.alg, tc.key)
+		if err != nil {
+			t.Errorf("Unexpected error: %s", err)
+		}
+
+		act := CryptCBC(cipher, tc.iv, tc.in, tc.encrypt)
 
 		if !bytes.Equal(act, tc.out) {
 			t.Errorf("CryptCBC failed (Exp:%x) (Act:%x)", tc.out, act)
@@ -304,5 +313,18 @@ func TestX962EcPointEncoding(t *testing.T) {
 		if point.x.Cmp(decodedPoint.x) != 0 || point.y.Cmp(decodedPoint.y) != 0 {
 			t.Errorf("X962 decoding failed")
 		}
+	}
+}
+
+func TestGetCipherForKey(t *testing.T) {
+
+	cipher, err := GetCipherForKey(-1, HexToBytes("0123456789ABCDEF"))
+
+	if err == nil {
+		t.Errorf("Error expected")
+	}
+
+	if cipher != nil {
+		t.Errorf("Cipher not expected for error case")
 	}
 }

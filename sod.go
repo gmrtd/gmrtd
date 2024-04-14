@@ -1,28 +1,37 @@
 package gmrtd
 
-import "slices"
+import (
+	"fmt"
+	"slices"
+)
 
 // TODO - 2 versions of SOD... v1 (preferred) and legacy format v0
 
+const SODTag = 0x77
+
 type SOD struct {
 	RawData []byte
-	nodes   *TlvNodes
+	// nodes   *TlvNodes
 }
 
-func NewSOD(data []byte) *SOD {
+func NewSOD(data []byte) (*SOD, error) {
 	if len(data) < 1 {
-		return nil
+		return nil, nil
 	}
 
 	var out *SOD = new(SOD)
 
 	out.RawData = slices.Clone(data)
 
-	// TODO (HACK) - just decoding, not actually testing anything
+	nodes := TlvDecode(out.RawData)
 
-	out.nodes = TlvDecode(data)
+	rootNode := nodes.GetNode(SODTag)
 
-	//slog.Debug("SOD","tlv",out.nodes)
+	if !rootNode.IsValidNode() {
+		return nil, fmt.Errorf("root node (%x) missing", SODTag)
+	}
 
-	return out
+	// TODO - parse the data
+
+	return out, nil
 }

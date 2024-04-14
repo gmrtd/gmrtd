@@ -62,37 +62,69 @@ const MRTDFileIdDG16 = 0x0110
 
 const MRTD_AID = "A0000002471001"
 
-func readDGs(nfc *NfcSession, doc *Document) {
+// TODO - should dynamically read the files based on the tags from SOD
+//   - SOD is also in the tags, but would need to be read before reading the others
+//   - in addition to the regular DGx files... COM should also be specified in the SOD tags
+func readDGs(nfc *NfcSession, doc *Document) (err error) {
 	slog.Info("Read EF.DG1")
-	doc.Dg1 = NewDG1(nfc.ReadFile(MRTDFileIdDG1))
+	doc.Dg1, err = NewDG1(nfc.ReadFile(MRTDFileIdDG1))
+	if err != nil {
+		return err
+	}
 
 	// TODO - allow caller to specify if they want to skip the photo (DG2)?
 	readDG2 := true
 	if readDG2 {
 		slog.Info("Read EF.DG2")
-		doc.Dg2 = NewDG2(nfc.ReadFile(MRTDFileIdDG2))
+		doc.Dg2, err = NewDG2(nfc.ReadFile(MRTDFileIdDG2))
+		if err != nil {
+			return err
+		}
 	}
 
 	slog.Info("Read EF.DG7")
-	doc.Dg7 = NewDG7(nfc.ReadFile(MRTDFileIdDG7))
+	doc.Dg7, err = NewDG7(nfc.ReadFile(MRTDFileIdDG7))
+	if err != nil {
+		return err
+	}
 
 	slog.Info("Read EF.DG11")
-	doc.Dg11 = NewDG11(nfc.ReadFile(MRTDFileIdDG11))
+	doc.Dg11, err = NewDG11(nfc.ReadFile(MRTDFileIdDG11))
+	if err != nil {
+		return err
+	}
 
 	slog.Info("Read EF.DG12")
-	doc.Dg12 = NewDG12(nfc.ReadFile(MRTDFileIdDG12))
+	doc.Dg12, err = NewDG12(nfc.ReadFile(MRTDFileIdDG12))
+	if err != nil {
+		return err
+	}
 
 	slog.Info("Read EF.DG13")
-	doc.Dg13 = NewDG13(nfc.ReadFile(MRTDFileIdDG13))
+	doc.Dg13, err = NewDG13(nfc.ReadFile(MRTDFileIdDG13))
+	if err != nil {
+		return err
+	}
 
 	slog.Info("Read EF.DG14")
-	doc.Dg14 = NewDG14(nfc.ReadFile(MRTDFileIdDG14))
+	doc.Dg14, err = NewDG14(nfc.ReadFile(MRTDFileIdDG14))
+	if err != nil {
+		return err
+	}
 
 	slog.Info("Read EF.DG15")
-	doc.Dg15 = NewDG15(nfc.ReadFile(MRTDFileIdDG15))
+	doc.Dg15, err = NewDG15(nfc.ReadFile(MRTDFileIdDG15))
+	if err != nil {
+		return err
+	}
 
 	slog.Info("Read EF.DG16")
-	doc.Dg16 = NewDG16(nfc.ReadFile(MRTDFileIdDG16))
+	doc.Dg16, err = NewDG16(nfc.ReadFile(MRTDFileIdDG16))
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // NB returns partial data (MrtdDocument) in the event of an error
@@ -117,7 +149,9 @@ func ReadDocument(transceiver Transceiver, password *Password) (doc *Document, e
 
 	// NB spec recommends not to use, but iOS may pre-select the MRTD AID
 	slog.Info("Selecting MF")
-	nfc.SelectMF()
+	if err = nfc.SelectMF(); err != nil {
+		return doc, err
+	}
 
 	// TODO - EF.ATR/INFO? may contain extended length info
 
@@ -130,7 +164,9 @@ func ReadDocument(transceiver Transceiver, password *Password) (doc *Document, e
 	slog.Info("Read CardAccess")
 
 	// TODO - may not be present (OR may be present but not have PACE info)
-	doc.CardAccess = NewCardAccess(nfc.ReadFile(MRTDFileIdCardAccess))
+	if doc.CardAccess, err = NewCardAccess(nfc.ReadFile(MRTDFileIdCardAccess)); err != nil {
+		return doc, err
+	}
 	if doc.CardAccess != nil {
 		slog.Debug("CardAccess", "bytes", doc.CardAccess.RawData)
 		slog.Debug("CardAccess", "tlv", TlvDecode(doc.CardAccess.RawData))
@@ -142,7 +178,10 @@ func ReadDocument(transceiver Transceiver, password *Password) (doc *Document, e
 	 */
 	// TODO - should we have an option to skip PACE
 	{
-		NewPace().DoPACE(nfc, password, doc)
+		err = NewPace().DoPACE(nfc, password, doc)
+		if err != nil {
+			return doc, err
+		}
 
 		if nfc.sm != nil {
 			slog.Debug("PACE", "sm", nfc.sm)
@@ -150,7 +189,10 @@ func ReadDocument(transceiver Transceiver, password *Password) (doc *Document, e
 	}
 
 	slog.Info("Selecting MRTD AID")
-	nfc.SelectAid(HexToBytes(MRTD_AID))
+	_, err = nfc.SelectAid(HexToBytes(MRTD_AID))
+	if err != nil {
+		return doc, err
+	}
 
 	/*
 	 * Basic Access Control (BAC) - if required
@@ -158,7 +200,10 @@ func ReadDocument(transceiver Transceiver, password *Password) (doc *Document, e
 
 	// NB we only attempt BAC if we don't already have SecureMessaging (i.e. via PACE)
 	if nfc.sm == nil {
-		NewBAC().DoBAC(nfc, password)
+		err = NewBAC().DoBAC(nfc, password)
+		if err != nil {
+			return doc, err
+		}
 
 		if nfc.sm != nil {
 			slog.Debug("BAC", "sm", nfc.sm)
@@ -172,10 +217,16 @@ func ReadDocument(transceiver Transceiver, password *Password) (doc *Document, e
 	 */
 
 	slog.Info("Read EF.SOD")
-	doc.Sod = NewSOD(nfc.ReadFile(MRTDFileIdEFSOD))
+	doc.Sod, err = NewSOD(nfc.ReadFile(MRTDFileIdEFSOD))
+	if err != nil {
+		return doc, err
+	}
 
 	slog.Info("Read EF.COM")
-	doc.Com = NewCOM(nfc.ReadFile(MRTDFileIdEFCOM))
+	doc.Com, err = NewCOM(nfc.ReadFile(MRTDFileIdEFCOM))
+	if err != nil {
+		return doc, err
+	}
 
 	readDGs(nfc, doc)
 

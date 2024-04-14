@@ -1,6 +1,7 @@
 package gmrtd
 
 import (
+	"fmt"
 	"log"
 	"log/slog"
 	"strconv"
@@ -61,7 +62,7 @@ func decodeValue(value string) string {
 	return decodedValue
 }
 
-func MrzDecode(mrz string) *MRZ {
+func MrzDecode(mrz string) (*MRZ, error) {
 	switch len(mrz) {
 	case MRZLengthTD1:
 		return MrzDecodeTD1(mrz)
@@ -69,11 +70,10 @@ func MrzDecode(mrz string) *MRZ {
 		return MrzDecodeTD2(mrz)
 	case MRZLengthTD3:
 		return MrzDecodeTD3(mrz)
-	default:
-		log.Panicf("Unsupported MRZ length (length:%d)", len(mrz))
+		//	default:
 	}
 
-	return nil
+	return nil, fmt.Errorf("Unsupported MRZ length (length:%d)", len(mrz))
 }
 
 func calcCheckdigit(data string) int {
@@ -125,11 +125,11 @@ func verifyCheckdigit(data string, checkDigit string) {
 
 // TODO - TD1/2 have similar handling for extended doc-no... maybe update to use shared code
 
-func MrzDecodeTD1(mrz string) *MRZ {
+func MrzDecodeTD1(mrz string) (*MRZ, error) {
 	slog.Debug("MrzDecodeTD1", "MRZ", mrz)
 
 	if len(mrz) != MRZLengthTD1 {
-		log.Panicf("Invalid MRZ TD1 length (Exp:%d) (Act:%d)", MRZLengthTD1, len(mrz))
+		return nil, fmt.Errorf("Invalid MRZ TD1 length (Exp:%d) (Act:%d)", MRZLengthTD1, len(mrz))
 	}
 
 	// line 1
@@ -184,14 +184,14 @@ func MrzDecodeTD1(mrz string) *MRZ {
 
 	out.NameOfHolder = decodeValue(nameOfHolder)
 
-	return out
+	return out, nil
 }
 
-func MrzDecodeTD2(mrz string) *MRZ {
+func MrzDecodeTD2(mrz string) (*MRZ, error) {
 	slog.Debug("MrzDecodeTD2", "MRZ", mrz)
 
 	if len(mrz) != MRZLengthTD2 {
-		log.Panicf("Invalid MRZ TD2 length (Exp:%d) (Act:%d)", MRZLengthTD2, len(mrz))
+		return nil, fmt.Errorf("Invalid MRZ TD2 length (Exp:%d) (Act:%d)", MRZLengthTD2, len(mrz))
 	}
 
 	// line 1
@@ -241,14 +241,14 @@ func MrzDecodeTD2(mrz string) *MRZ {
 	// composite check digit
 	verifyCheckdigit(mrz[36:46]+mrz[49:56]+mrz[57:71], mrz[71:72])
 
-	return out
+	return out, nil
 }
 
-func MrzDecodeTD3(mrz string) *MRZ {
+func MrzDecodeTD3(mrz string) (*MRZ, error) {
 	slog.Debug("MrzDecodeTD3", "MRZ", mrz)
 
 	if len(mrz) != MRZLengthTD3 {
-		log.Panicf("Invalid MRZ TD3 length (Exp:%d) (Act:%d)", MRZLengthTD3, len(mrz))
+		return nil, fmt.Errorf("Invalid MRZ TD3 length (Exp:%d) (Act:%d)", MRZLengthTD3, len(mrz))
 	}
 
 	// line 1
@@ -288,7 +288,7 @@ func MrzDecodeTD3(mrz string) *MRZ {
 	// composite check digit
 	verifyCheckdigit(mrz[44:54]+mrz[57:64]+mrz[65:87], mrz[87:88])
 
-	return out
+	return out, nil
 }
 
 func (mrz *MRZ) EncodeMrzi() string {

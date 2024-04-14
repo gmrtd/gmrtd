@@ -3,13 +3,12 @@ package gmrtd
 import (
 	"encoding/asn1"
 	"fmt"
-	"log"
 	"log/slog"
 	"strings"
 )
 
 // 9.2.10 EFDIRInfo
-
+// TODO - move to OID
 const id_EFDIR = id_icao_mrtd_security + ".13"
 
 // PACEInfo
@@ -32,6 +31,7 @@ func isActiveAuthenticationInfo(oid string) bool {
 
 // ChipAuthenticationInfo
 // IF OID is a child under... id_PK_DH | id_PK_ECDH
+// TODO - why does above comment indicate something different to what is in code?
 func isChipAuthenticationInfo(oid string) bool {
 	return strings.HasPrefix(oid, id_CA_DH+".") || strings.HasPrefix(oid, id_CA_ECDH+".")
 }
@@ -131,23 +131,33 @@ type UnhandledInfo struct {
 }
 
 // isPartiallyParsed - if false then panics if there is any data remaining after the parsing
-func parseAsn1[T any](data []byte, isPartiallyParsed bool, out *T) {
+func parseAsn1[T any](data []byte, isPartiallyParsed bool, out *T) (err error) {
 	rest, err := asn1.Unmarshal(data, out)
 	if err != nil {
-		log.Panic(err)
+		return err
+		//		log.Panic(err)
 	}
+
+	// TODO - isPartiallyParsed - seems opposite to comment?
 	if isPartiallyParsed && (len(rest) > 0) {
-		log.Panicf("Unexpected data remaining after ASN1 parsing (Data:%x) (Remaining:%x)", data, rest)
+		return fmt.Errorf("unexpected data remaining after ASN1 parsing (Data:%x) (Remaining:%x)", data, rest)
 	}
+
+	return nil
 }
 
-func DecodeSecurityInfos(secInfoData []byte) *SecurityInfos {
-	var out *SecurityInfos = &SecurityInfos{}
+// TODO - currently fails if anything wrong... maybe we should be more tolerant, but record issues?
+func DecodeSecurityInfos(secInfoData []byte) (secInfos *SecurityInfos, err error) {
 	var secInfoOids SecurityInfoOidSET
 
 	// decode OID headers (preserving raw-content)
 	// we only read the OID, so we expect unparsed data to remain
-	parseAsn1(secInfoData, true, &secInfoOids)
+	err = parseAsn1(secInfoData, true, &secInfoOids)
+	if err != nil {
+		return nil, err
+	}
+
+	secInfos = &SecurityInfos{}
 
 	// TODO - inspect data and check.. e.g. expected OIDs / version / ...
 	//			e.g. paceInfo version should be 1
@@ -162,38 +172,59 @@ func DecodeSecurityInfos(secInfoData []byte) *SecurityInfos {
 
 		if isPACEInfo(oid) {
 			var paceInfo PaceInfo
-			parseAsn1(data, false, &paceInfo)
-			out.PaceInfos = append(out.PaceInfos, paceInfo)
+			err = parseAsn1(data, false, &paceInfo)
+			if err != nil {
+				return nil, err
+			}
+			secInfos.PaceInfos = append(secInfos.PaceInfos, paceInfo)
 		} else if isPACEDomainParameterInfo(oid) {
 			var paceDomainParamInfo PaceDomainParameterInfo
-			parseAsn1(data, false, &paceDomainParamInfo)
-			out.PaceDomainParamInfos = append(out.PaceDomainParamInfos, paceDomainParamInfo)
+			err = parseAsn1(data, false, &paceDomainParamInfo)
+			if err != nil {
+				return nil, err
+			}
+			secInfos.PaceDomainParamInfos = append(secInfos.PaceDomainParamInfos, paceDomainParamInfo)
 		} else if isActiveAuthenticationInfo(oid) {
 			var activeAuthInfo ActiveAuthenticationInfo
-			parseAsn1(data, false, &activeAuthInfo)
-			out.ActiveAuthInfos = append(out.ActiveAuthInfos, activeAuthInfo)
+			err = parseAsn1(data, false, &activeAuthInfo)
+			if err != nil {
+				return nil, err
+			}
+			secInfos.ActiveAuthInfos = append(secInfos.ActiveAuthInfos, activeAuthInfo)
 		} else if isChipAuthenticationInfo(oid) {
 			var chipAuthInfo ChipAuthenticationInfo
-			parseAsn1(data, false, &chipAuthInfo)
-			out.ChipAuthInfos = append(out.ChipAuthInfos, chipAuthInfo)
+			err = parseAsn1(data, false, &chipAuthInfo)
+			if err != nil {
+				return nil, err
+			}
+			secInfos.ChipAuthInfos = append(secInfos.ChipAuthInfos, chipAuthInfo)
 		} else if isChipAuthenticationPublicKeyInfo(oid) {
 			var chipAuthPubKeyInfo ChipAuthenticationPublicKeyInfo
-			parseAsn1(data, false, &chipAuthPubKeyInfo)
-			out.ChipAuthPubKeyInfos = append(out.ChipAuthPubKeyInfos, chipAuthPubKeyInfo)
+			err = parseAsn1(data, false, &chipAuthPubKeyInfo)
+			if err != nil {
+				return nil, err
+			}
+			secInfos.ChipAuthPubKeyInfos = append(secInfos.ChipAuthPubKeyInfos, chipAuthPubKeyInfo)
 		} else if isTerminalAuthenticationInfo(oid) {
 			var termAuthInfo TerminalAuthenticationInfo
-			parseAsn1(data, false, &termAuthInfo)
-			out.TermAuthInfos = append(out.TermAuthInfos, termAuthInfo)
+			err = parseAsn1(data, false, &termAuthInfo)
+			if err != nil {
+				return nil, err
+			}
+			secInfos.TermAuthInfos = append(secInfos.TermAuthInfos, termAuthInfo)
 		} else if isEFDIRInfo(oid) {
 			var efDirInfo EFDirInfo
-			parseAsn1(data, false, &efDirInfo)
-			out.EfDirInfos = append(out.EfDirInfos, efDirInfo)
+			err = parseAsn1(data, false, &efDirInfo)
+			if err != nil {
+				return nil, err
+			}
+			secInfos.EfDirInfos = append(secInfos.EfDirInfos, efDirInfo)
 		} else {
 			// unsupported - so simply record
 			var unhandledInfo UnhandledInfo = UnhandledInfo{Protocol: secInfoOids[i].Protocol, RawData: secInfoOids[i].Raw}
-			out.UnhandledInfos = append(out.UnhandledInfos, unhandledInfo)
+			secInfos.UnhandledInfos = append(secInfos.UnhandledInfos, unhandledInfo)
 		}
 	}
 
-	return out
+	return secInfos, nil
 }

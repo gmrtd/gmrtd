@@ -114,3 +114,51 @@ func TestTlvLength(t *testing.T) {
 		}
 	}
 }
+
+func TestTlvParseAndAccess(t *testing.T) {
+	//	70
+	//		02: 0x123456
+	//		A0
+	//			01: 0x7890
+	//			02: 0x45
+	//			01: 0x67
+
+	var tlvBytes []byte = HexToBytes("70110203123456A00A01027890020145010167")
+
+	var nodes *TlvNodes = TlvDecode(tlvBytes)
+
+	/*
+	* basic tests for value access
+	 */
+	if !bytes.Equal(nodes.GetNode(0x70).GetNode(0x02).GetValue(), HexToBytes("123456")) ||
+		!bytes.Equal(nodes.GetNode(0x70).GetNode(0xA0).GetNodeByOccur(0x01, 1).GetValue(), HexToBytes("7890")) ||
+		!bytes.Equal(nodes.GetNode(0x70).GetNode(0xA0).GetNodeByOccur(0x02, 1).GetValue(), HexToBytes("45")) ||
+		!bytes.Equal(nodes.GetNode(0x70).GetNode(0xA0).GetNodeByOccur(0x01, 2).GetValue(), HexToBytes("67")) {
+		t.Errorf("Error fetching value from TLV")
+	}
+
+	/*
+	* IsValidNode - positive cases
+	 */
+	if !nodes.IsValidNode() ||
+		!nodes.GetNode(0x70).IsValidNode() ||
+		!nodes.GetNode(0x70).GetNode(0x02).IsValidNode() ||
+		!nodes.GetNode(0x70).GetNode(0xA0).IsValidNode() {
+		t.Errorf("IsValidNode error for positive cases")
+	}
+
+	/*
+	* test that trying to access absent tags does not cause problems
+	 */
+
+	if nodes.GetNode(0x71).IsValidNode() ||
+		nodes.GetNode(0x70).GetNode(0x02).GetNode(0x01).IsValidNode() ||
+		nodes.GetNode(0x70).GetNode(0x02).GetNodeByOccur(0x01, 3).IsValidNode() ||
+		nodes.GetNode(0x70).GetNode(0x02).GetNode(0x01).GetNode(0x01).IsValidNode() ||
+		nodes.GetNode(0x70).GetNode(0x02).GetNode(0x01).GetNodeByOccur(0x01, 1).IsValidNode() ||
+		(nodes.GetNode(0x70).GetNode(0x02).GetNode(0x01).GetNode(0x01).GetTag() != -1) ||
+		nodes.GetNodeByOccur(0x70, 2).IsValidNode() ||
+		nodes.GetNode(0x70).GetNode(0xA0).GetNodeByOccur(0x02, 2).IsValidNode() {
+		t.Errorf("Absent tags not handled correctly")
+	}
+}

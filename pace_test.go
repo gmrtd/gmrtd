@@ -114,8 +114,22 @@ func TestBuild7F49(t *testing.T) {
 
 func TestSelectPaceForConfig(t *testing.T) {
 	// NB card-access file has 2 entries.. we test with both in different orders to verify priority based selection
-	var cardAccess1 *CardAccess = NewCardAccess(HexToBytes("31283012060a04007f000702020402040201020201103012060a04007f00070202040604020102020110"))
-	var cardAccess2 *CardAccess = NewCardAccess(HexToBytes("31283012060a04007f000702020406040201020201103012060a04007f00070202040204020102020110"))
+	var cardAccessBytes1 []byte = HexToBytes("31283012060a04007f000702020402040201020201103012060a04007f00070202040604020102020110")
+	var cardAccessBytes2 []byte = HexToBytes("31283012060a04007f000702020406040201020201103012060a04007f00070202040204020102020110")
+
+	var err error
+
+	var cardAccess1 *CardAccess
+	cardAccess1, err = NewCardAccess(cardAccessBytes1)
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+
+	var cardAccess2 *CardAccess
+	cardAccess2, err = NewCardAccess(cardAccessBytes2)
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
 
 	// TODO - verify other params... move to table based test?... include single entry test
 
@@ -186,11 +200,15 @@ func TestDoPace_GM_ECDH(t *testing.T) {
 		}
 	}
 
+	var err error
 	var doc Document
 
 	// PACEInfo: 3012060A 04007F00 07020204 02020201 0202010D
 	//				** NB added 3114 to start
-	doc.CardAccess = NewCardAccess(HexToBytes("31143012060A04007F0007020204020202010202010D"))
+	doc.CardAccess, err = NewCardAccess(HexToBytes("31143012060A04007F0007020204020202010202010D"))
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
 
 	// password (MRZ)
 	var password *Password = NewPasswordMrzi("T22000129", "640812", "101031")
@@ -204,7 +222,10 @@ func TestDoPace_GM_ECDH(t *testing.T) {
 
 	// verify Secure-Messaging was setup correctly
 	{
-		smExp := NewSecureMessaging(AES, HexToBytes("F5F0E35C0D7161EE6724EE513A0D9A7F"), HexToBytes("FE251C7858B356B24514B3BD5F4297D1"))
+		smExp, err := NewSecureMessaging(AES, HexToBytes("F5F0E35C0D7161EE6724EE513A0D9A7F"), HexToBytes("FE251C7858B356B24514B3BD5F4297D1"))
+		if err != nil {
+			t.Errorf("Unexpected error: %s", err)
+		}
 
 		if !reflect.DeepEqual(smExp, nfc.sm) {
 			t.Errorf("SecureMessaging differs to expected")
@@ -269,11 +290,15 @@ func TestDoPace_CAM_ECDH(t *testing.T) {
 		}
 	}
 
+	var err error
 	var doc Document
 
 	// PACEInfo: 3012060A04007F0007020204060202010202010D
 	//				** NB added 3114 to start
-	doc.CardAccess = NewCardAccess(HexToBytes("31143012060A04007F0007020204060202010202010D"))
+	doc.CardAccess, err = NewCardAccess(HexToBytes("31143012060A04007F0007020204060202010202010D"))
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
 
 	// password (MRZ)
 	var password *Password = NewPasswordMrzi("C11T002JM", "960812", "231031")
@@ -287,7 +312,11 @@ func TestDoPace_CAM_ECDH(t *testing.T) {
 
 	// verify Secure-Messaging state (inc final SSC) is correct
 	{
-		sm_exp := NewSecureMessaging(AES, HexToBytes("0A9DA4DB03BDDE39FC5202BC44B2E89E"), HexToBytes("4B1C06491ED5140CA2B537D344C6C0B1"))
+		sm_exp, err := NewSecureMessaging(AES, HexToBytes("0A9DA4DB03BDDE39FC5202BC44B2E89E"), HexToBytes("4B1C06491ED5140CA2B537D344C6C0B1"))
+		if err != nil {
+			t.Errorf("Unexpected error: %s", err)
+		}
+
 		sm_exp.SetSSC(HexToBytes("00000000000000000000000000000006"))
 
 		if !reflect.DeepEqual(sm_exp, nfc.sm) {
@@ -299,4 +328,62 @@ func TestDoPace_CAM_ECDH(t *testing.T) {
 	if doc.ChipAuthStatus != CHIP_AUTH_STATUS_PACE_CAM {
 		t.Errorf("ChipAuthStatus is not reflecting PACE-CAM")
 	}
+}
+
+func TestGetStandardisedDomainParams(t *testing.T) {
+	testCases := []struct {
+		paramId int
+		bitSize int
+	}{
+		{
+			paramId: 9,
+			bitSize: 192,
+		},
+		{
+			paramId: 10,
+			bitSize: 224,
+		},
+		{
+			paramId: 11,
+			bitSize: 224,
+		},
+		{
+			paramId: 12,
+			bitSize: 256,
+		},
+		{
+			paramId: 13,
+			bitSize: 256,
+		},
+		{
+			paramId: 14,
+			bitSize: 320,
+		},
+		{
+			paramId: 15,
+			bitSize: 384,
+		},
+		{
+			paramId: 16,
+			bitSize: 384,
+		},
+		{
+			paramId: 17,
+			bitSize: 512,
+		},
+		{
+			paramId: 18,
+			bitSize: 521,
+		},
+	}
+	for _, tc := range testCases {
+		var domainParams *PACEDomainParams = getStandardisedDomainParams(tc.paramId)
+
+		if domainParams.ec.Params().BitSize != tc.bitSize {
+			t.Errorf("Incorrect BitSize (ParamId:%d, Exp:%d, Act%d:)", tc.paramId, tc.bitSize, domainParams.ec.Params().BitSize)
+		}
+
+		// TODO - deeper testing.. including EC key?
+	}
+
 }

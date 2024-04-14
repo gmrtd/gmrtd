@@ -1,32 +1,37 @@
 package gmrtd
 
 import (
-	"log"
+	"fmt"
 	"slices"
 )
+
+const DG14Tag = 0x6E
 
 type DG14 struct {
 	RawData  []byte // TODO - add to test cases (for all other DGs also)
 	SecInfos *SecurityInfos
 }
 
-func NewDG14(data []byte) *DG14 {
+func NewDG14(data []byte) (dg14 *DG14, err error) {
 	if len(data) < 1 {
-		return nil
+		return nil, nil
 	}
 
-	var out *DG14 = new(DG14)
+	dg14 = new(DG14)
 
-	out.RawData = slices.Clone(data)
+	dg14.RawData = slices.Clone(data)
 
-	tlv := TlvDecode(data)
+	nodes := TlvDecode(dg14.RawData)
 
-	secInfosBytes := tlv.GetNode(0x6e).GetValue()
-	if secInfosBytes == nil {
-		log.Panicf("SecInfosTag (6E) missing from DG14")
+	rootNode := nodes.GetNode(DG14Tag)
+
+	if !rootNode.IsValidNode() {
+		return nil, fmt.Errorf("root node (%x) missing", DG14Tag)
 	}
 
-	out.SecInfos = DecodeSecurityInfos(secInfosBytes)
+	if dg14.SecInfos, err = DecodeSecurityInfos(rootNode.GetValue()); err != nil {
+		return nil, err
+	}
 
-	return out
+	return dg14, nil
 }

@@ -57,7 +57,7 @@ func (ec EC_POINT) String() string {
 }
 
 // NB expects double-key(16 bytes) for TDES
-func GetCipherForKey(alg BlockCipherAlg, key []byte) cipher.Block {
+func GetCipherForKey(alg BlockCipherAlg, key []byte) (cipher.Block, error) {
 	var out cipher.Block
 	var err error
 
@@ -72,12 +72,13 @@ func GetCipherForKey(alg BlockCipherAlg, key []byte) cipher.Block {
 		err = fmt.Errorf("unsupported cipher (%d)", alg)
 	}
 
+	// TODO - add tests.... valid... valid alg, but wrong key length... unknown alg
+
 	if err != nil {
-		log.Panicf("Unable to get cipher (%s)", err.Error())
-		return nil
+		return nil, fmt.Errorf("unable to get cipher (alg:%d) (%w)", alg, err)
 	}
 
-	return out
+	return out, nil
 }
 
 // NB expects keySizeBits=112 for TDES
@@ -180,10 +181,12 @@ func ISO9797Method2Unpad(data []byte) []byte {
 
 // ISO-9797 Retail MAC (DES)
 // key: 16 bytes (double) DES key
-func ISO9797RetailMacDes(key []byte, data []byte) []byte {
-	VerifyByteLength(key, 16)
+func ISO9797RetailMacDes(key []byte, data []byte) (mac []byte, err error) {
+	if len(key) != 16 {
+		return nil, fmt.Errorf("key must be 16 bytes (act:%d)", len(key))
+	}
 	if (len(data) < DES_BLOCK_SIZE_BYTES) || (len(data)%DES_BLOCK_SIZE_BYTES != 0) {
-		log.Panicf("Data must consist of 1 or more blocks (BlockSize:%d, ActLen:%d)", DES_BLOCK_SIZE_BYTES, len(data))
+		return nil, fmt.Errorf("data must consist of 1 or more blocks (BlockSize:%d, ActLen:%d)", DES_BLOCK_SIZE_BYTES, len(data))
 	}
 
 	k1 := make([]byte, 8)
@@ -192,8 +195,15 @@ func ISO9797RetailMacDes(key []byte, data []byte) []byte {
 	copy(k1, key[0:8])
 	copy(k2, key[8:16])
 
-	cipherK1 := GetCipherForKey(DES, k1)
-	cipherK2 := GetCipherForKey(DES, k2)
+	var cipherK1 cipher.Block
+	var cipherK2 cipher.Block
+
+	if cipherK1, err = GetCipherForKey(DES, k1); err != nil {
+		return nil, err
+	}
+	if cipherK2, err = GetCipherForKey(DES, k2); err != nil {
+		return nil, err
+	}
 
 	tmp := CryptCBC(cipherK1, make([]byte, DES_BLOCK_SIZE_BYTES), data, true)
 
@@ -203,7 +213,9 @@ func ISO9797RetailMacDes(key []byte, data []byte) []byte {
 
 	cbcBlock2 := CryptCBC(cipherK2, make([]byte, DES_BLOCK_SIZE_BYTES), cbcBlock1, false)
 
-	return CryptCBC(cipherK1, make([]byte, DES_BLOCK_SIZE_BYTES), cbcBlock2, true)
+	mac = CryptCBC(cipherK1, make([]byte, DES_BLOCK_SIZE_BYTES), cbcBlock2, true)
+
+	return mac, nil
 }
 
 func CryptoHash(alg HashAlg, data []byte) []byte {

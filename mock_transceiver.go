@@ -33,3 +33,11 @@ func (transceiver *MockTransceiver) Transceive(capdu []byte) []byte {
 
 	return nil
 }
+
+type StaticTransceiver struct {
+	rapdu []byte
+}
+
+func (transceiver *StaticTransceiver) Transceive(capdu []byte) []byte {
+	return transceiver.rapdu
+}

@@ -2,6 +2,7 @@ package gmrtd
 
 import (
 	"bytes"
+	"crypto/cipher"
 	"encoding/binary"
 	"fmt"
 	"log"
@@ -33,25 +34,36 @@ import (
 const CLA_MASK byte = 0x0C
 
 type SecureMessaging struct {
-	alg   BlockCipherAlg
-	KSenc []byte
-	KSmac []byte
-	SSC   []byte
+	alg       BlockCipherAlg
+	KSenc     []byte
+	KSmac     []byte
+	SSC       []byte
+	encCipher cipher.Block
+	macCipher cipher.Block
 }
 
-func NewSecureMessaging(alg BlockCipherAlg, KSenc []byte, KSmac []byte) *SecureMessaging {
-	var sm SecureMessaging
+func NewSecureMessaging(alg BlockCipherAlg, KSenc []byte, KSmac []byte) (sm *SecureMessaging, err error) {
+	sm = new(SecureMessaging)
 
+	// TODO - should we sanity check these? esp enc/mac length?
 	sm.alg = alg
 	sm.KSenc = KSenc
 	sm.KSmac = KSmac
 
+	if sm.encCipher, err = GetCipherForKey(sm.alg, KSenc); err != nil {
+		return nil, err
+	}
+
+	if sm.macCipher, err = GetCipherForKey(sm.alg, KSmac); err != nil {
+		return nil, err
+	}
+
 	// init SSC (based on block size)
-	sm.SSC = make([]byte, GetCipherForKey(sm.alg, KSmac).BlockSize())
+	sm.SSC = make([]byte, sm.macCipher.BlockSize()) // TODO - why mac and not enc?
 
 	slog.Debug("NewSecureMessaging", "SM", sm)
 
-	return &sm
+	return sm, nil
 }
 
 func (sm *SecureMessaging) SetSSC(ssc []byte) {
@@ -82,46 +94,45 @@ func (sm *SecureMessaging) SSCIncrement() {
 }
 
 func (sm *SecureMessaging) cbcCrypt(data []byte, encrypt bool) []byte {
-	blockCipher := GetCipherForKey(sm.alg, sm.KSenc)
-
 	// create 0'd IV
-	iv := make([]byte, blockCipher.BlockSize())
+	iv := make([]byte, sm.encCipher.BlockSize())
 
 	// special IV setup for AES
 	if sm.alg == AES {
 		// IV = K(KSenc,SSC)
-		blockCipher.Encrypt(iv, sm.SSC)
+		sm.encCipher.Encrypt(iv, sm.SSC)
 	}
 
-	out := CryptCBC(blockCipher, iv, data, encrypt)
+	out := CryptCBC(sm.encCipher, iv, data, encrypt)
 
 	return out
 }
 
 // NB data must be padded to block boundary before calling
-func (sm *SecureMessaging) generateMac(data []byte) []byte {
-	var out []byte
-
+func (sm *SecureMessaging) generateMac(data []byte) (mac []byte, err error) {
 	switch sm.alg {
 	case TDES:
-		out = ISO9797RetailMacDes(sm.KSmac, data)
+		if mac, err = ISO9797RetailMacDes(sm.KSmac, data); err != nil {
+			return nil, err
+		}
 	case AES:
 		var err error
 		// CMAC-mode with MAC length of 8 bytes
 		// AES [FIPS 197] SHALL be used in CMAC-mode [SP 800-38B] with a MAC length of 8 bytes.
-		out, err = cmac.Sum(data, GetCipherForKey(sm.alg, sm.KSmac), 8)
+		mac, err = cmac.Sum(data, sm.macCipher, 8)
 		if err != nil {
-			log.Panicf("Unable to generate Auth-Token (CMAC): %s", err.Error())
+			return nil, fmt.Errorf("Unable to generate Auth-Token (CMAC): %s", err.Error())
 		}
 	}
 
-	slog.Debug("GenerateMac", "Data", data, "MAC", out)
+	slog.Debug("GenerateMac", "Data", data, "MAC", mac)
 
-	return out
+	return mac, nil
 }
 
 func (sm *SecureMessaging) cryptoPad(data []byte) []byte {
-	blockSize := GetCipherForKey(sm.alg, sm.KSenc).BlockSize()
+	// TODO - using the enc cipher.. but function also used for mac... should be ok.. but could be diff
+	blockSize := sm.encCipher.BlockSize()
 
 	return ISO9797Method2Pad(data, blockSize)
 }
@@ -131,11 +142,11 @@ func (sm *SecureMessaging) cryptoUnpad(data []byte) []byte {
 	return ISO9797Method2Unpad(data)
 }
 
-func (sm *SecureMessaging) Encode(cApdu *CApdu, maxLe uint64) *CApdu {
+func (sm *SecureMessaging) Encode(cApdu *CApdu, maxLe uint64) (out *CApdu, err error) {
 	// 9303p11 - page 63 (Message Structure of SM APDUs)
 
 	if cApdu == nil {
-		log.Panic("CAPDU missing")
+		return nil, fmt.Errorf("CAPDU missing")
 	}
 
 	// increment SSC
@@ -178,23 +189,27 @@ func (sm *SecureMessaging) Encode(cApdu *CApdu, maxLe uint64) *CApdu {
 		macData = append(macData, cmdHeaderPadded...)
 		macData = append(macData, tlv.Encode()...)
 
-		mac := sm.generateMac(sm.cryptoPad(macData))
+		var mac []byte
+		if mac, err = sm.generateMac(sm.cryptoPad(macData)); err != nil {
+			return nil, err
+		}
 
 		tlv.AddNode(NewTlvSimpleNode(TlvTag(0x8E), mac))
 	}
 
-	return NewCApdu(CLA_MASK, cApdu.ins, cApdu.p1, cApdu.p2, tlv.Encode(), int(maxLe))
+	out = NewCApdu(CLA_MASK, cApdu.ins, cApdu.p1, cApdu.p2, tlv.Encode(), int(maxLe))
+
+	return out, nil
 }
 
-func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu) {
-	if len(rApduBytes) < 2 {
-		log.Panicf("RAPDU must be 2 bytes or more (act-len:%d)", len(rApduBytes))
-	}
-
+func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
 	// increment SSC
 	sm.SSCIncrement()
 
-	smRApdu := ParseRApdu(rApduBytes)
+	var smRApdu *RApdu
+	if smRApdu, err = ParseRApdu(rApduBytes); err != nil {
+		return nil, err
+	}
 	// TODO - check status code? error if not success
 	// TODO - this should match the status-code in the payload... should check later
 
@@ -212,7 +227,7 @@ func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu) {
 		tag8E := tlv.GetNode(0x8E)
 
 		if !tag8E.IsValidNode() {
-			log.Panicf("Tag 0x8E must be present")
+			return nil, fmt.Errorf("Tag 0x8E must be present")
 		}
 
 		// verify the MAC
@@ -223,10 +238,13 @@ func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu) {
 			tmpData = append(tmpData, tlv.GetNode(0x87).Encode()...)
 			tmpData = append(tmpData, tlv.GetNode(0x99).Encode()...)
 
-			expMAC := sm.generateMac(sm.cryptoPad(tmpData))
+			var expMAC []byte
+			if expMAC, err = sm.generateMac(sm.cryptoPad(tmpData)); err != nil {
+				return nil, err
+			}
 
 			if !bytes.Equal(expMAC, tag8E.GetValue()) {
-				log.Panicf("MAC mismatch (Exp: %x) (Act: %x)", expMAC, tag8E.GetValue())
+				return nil, fmt.Errorf("MAC mismatch (Exp: %x) (Act: %x)", expMAC, tag8E.GetValue())
 			}
 		}
 
@@ -239,7 +257,7 @@ func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu) {
 
 			// verify that 'verison' is 0x01 before removing
 			if tmpBytes[0] != 0x01 {
-				log.Panic("Version not set to 0x01")
+				return nil, fmt.Errorf("Version not set to 0x01")
 			}
 
 			// remove the leading 'version' byte
@@ -251,5 +269,5 @@ func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu) {
 		rApdu = NewRApdu(binary.BigEndian.Uint16(tag99.GetValue()), rapduData)
 	}
 
-	return rApdu
+	return rApdu, err
 }

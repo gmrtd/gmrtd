@@ -2,7 +2,8 @@ package gmrtd
 
 import (
 	"bytes"
-	"log"
+	"crypto/cipher"
+	"fmt"
 )
 
 type BAC struct {
@@ -22,7 +23,7 @@ func generateKseed(MRZi string) []byte {
 // rnd_ifd: 8 bytes
 // rnd_icc: 8 bytes
 // kifd: 16 bytes
-func bacCmdData(rndIfd []byte, rndIcc []byte, kIfd []byte, kEnc []byte, kMac []byte) []byte {
+func bacCmdData(rndIfd []byte, rndIcc []byte, kIfd []byte, kEnc []byte, kMac []byte) (cmd []byte, err error) {
 	VerifyByteLength(rndIfd, 8)
 	VerifyByteLength(rndIcc, 8)
 	VerifyByteLength(kIfd, 16)
@@ -33,22 +34,31 @@ func bacCmdData(rndIfd []byte, rndIcc []byte, kIfd []byte, kEnc []byte, kMac []b
 	copy(s[16:32], kIfd[0:16])
 
 	// eifd = encrypt with TDES key 'kenc'
-	eIfd := CryptCBC(GetCipherForKey(TDES, kEnc), make([]byte, DES_BLOCK_SIZE_BYTES), s, true)
+	var cipher cipher.Block
+	if cipher, err = GetCipherForKey(TDES, kEnc); err != nil {
+		return nil, err
+	}
+
+	eIfd := CryptCBC(cipher, make([]byte, DES_BLOCK_SIZE_BYTES), s, true)
 
 	// mifd = mac over eifd with kmac
-	mIfd := ISO9797RetailMacDes(kMac, ISO9797Method2Pad(eIfd, DES_BLOCK_SIZE_BYTES))
+	var mIfd []byte
+	if mIfd, err = ISO9797RetailMacDes(kMac, ISO9797Method2Pad(eIfd, DES_BLOCK_SIZE_BYTES)); err != nil {
+		return nil, err
+	}
 
 	// return eifd + mifd (40 bytes)
-	out := make([]byte, 40)
-	copy(out[0:32], eIfd[0:32])
-	copy(out[32:40], mIfd[0:8])
+	cmd = make([]byte, 40)
+	copy(cmd[0:32], eIfd[0:32])
+	copy(cmd[32:40], mIfd[0:8])
 
-	return out
+	return cmd, nil
 }
 
-func (bac *BAC) DoBAC(nfc *NfcSession, password *Password) {
+func (bac *BAC) DoBAC(nfc *NfcSession, password *Password) (err error) {
 	if password.passwordType != PASSWORD_TYPE_MRZi {
-		log.Panicf("BAC only supports MRZi passwords (PasswordType:%d)", password.passwordType)
+		// not supported, but not an error as caller shouldn't care
+		return nil
 	}
 
 	kSEED := generateKseed(password.password)
@@ -57,8 +67,12 @@ func (bac *BAC) DoBAC(nfc *NfcSession, password *Password) {
 
 	kMAC := KDF(kSEED, KDF_COUNTER_KSMAC, TDES, 112)
 
+	var rxRNDIC []byte
 	// request challenge (RND.IC) from the chip
-	rxRNDIC := nfc.GetChallenge(8)
+	if rxRNDIC, err = nfc.GetChallenge(8); err != nil {
+		return err
+	}
+
 	VerifyByteLength(rxRNDIC, 8)
 
 	// RND.IFD
@@ -68,13 +82,19 @@ func (bac *BAC) DoBAC(nfc *NfcSession, password *Password) {
 	txKIFD := bac.randomBytesFn(16)
 
 	// bac_cmd_data (40 bytes).. rnd-ifd(8), rnd_icc(8) kifd(16).. then encrypt (using kenc) and add 8 byte hmac
-	bacCmd := bacCmdData(txRNDIFD, rxRNDIC, txKIFD, kENC, kMAC)
+	var bacCmd []byte
+	if bacCmd, err = bacCmdData(txRNDIFD, rxRNDIC, txKIFD, kENC, kMAC); err != nil {
+		return err
+	}
 
 	VerifyByteLength(bacCmd, 40)
 
 	// TODO - any error code for indicating BAC is not supported?
 	// external authenticate
-	extAuthBytes := nfc.ExternalAuthenticate(bacCmd, 40)
+	var extAuthBytes []byte
+	if extAuthBytes, err = nfc.ExternalAuthenticate(bacCmd, 40); err != nil {
+		return err
+	}
 
 	rxEIC := make([]byte, 32)
 	copy(rxEIC, extAuthBytes[0:32])
@@ -84,14 +104,23 @@ func (bac *BAC) DoBAC(nfc *NfcSession, password *Password) {
 
 	// verify MAC
 	{
-		expMAC := ISO9797RetailMacDes(kMAC, ISO9797Method2Pad(rxEIC, DES_BLOCK_SIZE_BYTES))
+		var expMAC []byte
+
+		if expMAC, err = ISO9797RetailMacDes(kMAC, ISO9797Method2Pad(rxEIC, DES_BLOCK_SIZE_BYTES)); err != nil {
+			return err
+		}
+
 		if !bytes.Equal(rxMIC, expMAC) {
-			log.Panicf("MAC mismatch\n[Act] %x\n[Exp] %x", rxMIC, expMAC)
+			return fmt.Errorf("MAC mismatch\n[Act] %x\n[Exp] %x", rxMIC, expMAC)
 		}
 	}
 
 	// decrypt the cryptogram EIC
-	rxEICplaintext := CryptCBC(GetCipherForKey(TDES, kENC), make([]byte, 8), rxEIC, false)
+	var cipher cipher.Block
+	if cipher, err = GetCipherForKey(TDES, kENC); err != nil {
+		return err
+	}
+	rxEICplaintext := CryptCBC(cipher, make([]byte, 8), rxEIC, false)
 
 	rxRNDIC2 := make([]byte, 8)
 	copy(rxRNDIC2, rxEICplaintext[0:8])
@@ -104,13 +133,13 @@ func (bac *BAC) DoBAC(nfc *NfcSession, password *Password) {
 
 	// verify RND.IFD matches original value
 	if !bytes.Equal(rxRNDIFD, txRNDIFD) {
-		log.Panicf("RND.IFD mismatch (Exp: %x) (Act: %x)", txRNDIFD, rxRNDIFD)
+		return fmt.Errorf("RND.IFD mismatch (Exp: %x) (Act: %x)", txRNDIFD, rxRNDIFD)
 	}
 
 	// verify RND.IC matches original value
 	// NB spec doesn't explicitly mention this check, but they should match
 	if !bytes.Equal(rxRNDIC, rxRNDIC2) {
-		log.Panicf("RND.IC mismatch (Exp: %x) (Act: %x)", rxRNDIC, rxRNDIC2)
+		return fmt.Errorf("RND.IC mismatch (Exp: %x) (Act: %x)", rxRNDIC, rxRNDIC2)
 	}
 
 	kXor := XorBytes(txKIFD, rxKIC)
@@ -118,7 +147,9 @@ func (bac *BAC) DoBAC(nfc *NfcSession, password *Password) {
 	KSenc := KDF(kXor, KDF_COUNTER_KSENC, TDES, 112)
 	KSmac := KDF(kXor, KDF_COUNTER_KSMAC, TDES, 112)
 
-	nfc.sm = NewSecureMessaging(TDES, KSenc, KSmac)
+	if nfc.sm, err = NewSecureMessaging(TDES, KSenc, KSmac); err != nil {
+		return err
+	}
 
 	// set the SSC (special handling for BAC)
 	{
@@ -128,4 +159,6 @@ func (bac *BAC) DoBAC(nfc *NfcSession, password *Password) {
 
 		nfc.sm.SetSSC(ssc)
 	}
+
+	return nil
 }

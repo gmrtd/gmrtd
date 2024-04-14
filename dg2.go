@@ -15,10 +15,13 @@ package gmrtd
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"log"
 	"slices"
 )
+
+const DG2Tag = 0x75
 
 type DG2 struct {
 	RawData []byte
@@ -109,16 +112,22 @@ type ImageInfo struct {
 //					88: 0008
 //				5f2e:				** 5F2E or 7F2E
 
-func NewDG2(data []byte) *DG2 {
+func NewDG2(data []byte) (*DG2, error) {
 	if len(data) < 1 {
-		return nil
+		return nil, nil
 	}
 
 	var out *DG2 = new(DG2)
 
 	out.RawData = slices.Clone(data)
 
-	tlv := TlvDecode(data)
+	nodes := TlvDecode(out.RawData)
+
+	rootNode := nodes.GetNode(DG2Tag)
+
+	if !rootNode.IsValidNode() {
+		return nil, fmt.Errorf("root node (%x) missing", DG2Tag)
+	}
 
 	{
 		// TODO
@@ -126,10 +135,10 @@ func NewDG2(data []byte) *DG2 {
 		//			- read biometric templates
 
 		// TODO - should handle multiple BITs
-		out.BITs = append(out.BITs, out.processBIT(tlv.GetNode(0x75).GetNode(0x7f61).GetNode(0x7f60)))
+		out.BITs = append(out.BITs, out.processBIT(rootNode.GetNode(0x7f61).GetNode(0x7f60)))
 	}
 
-	return out
+	return out, nil
 }
 
 // processes the Biometric Information Template (Tag:7F60)

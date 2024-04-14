@@ -1,9 +1,11 @@
 package gmrtd
 
 import (
-	"log"
+	"fmt"
 	"slices"
 )
+
+const COMTag = 0x60
 
 type COM struct {
 	RawData []byte
@@ -13,33 +15,37 @@ type COM struct {
 	TagList        []byte
 }
 
-func NewCOM(data []byte) *COM {
+func NewCOM(data []byte) (*COM, error) {
 	if len(data) < 1 {
-		return nil
+		return nil, nil
 	}
 
 	var out *COM = new(COM)
 
 	out.RawData = slices.Clone(data)
 
-	nodes := TlvDecode(data)
+	nodes := TlvDecode(out.RawData)
 
-	tag60 := nodes.GetNode(0x60)
-	if !tag60.IsValidNode() {
-		log.Panicf("EF.COM tag 60 missing")
+	rootNode := nodes.GetNode(COMTag)
+
+	if !rootNode.IsValidNode() {
+		return nil, fmt.Errorf("root node (%x) missing", COMTag)
 	}
 
-	out.LdsVersion = tag60.GetNode(0x5F01).GetValue()
-	if len(out.LdsVersion) != 4 {
-		log.Panicf("EF.COM tag 5f01 (LdsVersion) must be 4 bytes")
+	{
+		out.LdsVersion = rootNode.GetNode(0x5F01).GetValue()
+		if len(out.LdsVersion) != 4 {
+			return nil, fmt.Errorf("EF.COM tag 5f01 (LdsVersion) must be 4 bytes")
+		}
+
+		out.UnicodeVersion = rootNode.GetNode(0x5F36).GetValue()
+		if len(out.UnicodeVersion) != 6 {
+			return nil, fmt.Errorf("EF.COM tag 5f36 (UnicodeVersion) must be 6 bytes")
+		}
+
+		out.TagList = rootNode.GetNode(0x5C).GetValue()
+
 	}
 
-	out.UnicodeVersion = tag60.GetNode(0x5F36).GetValue()
-	if len(out.UnicodeVersion) != 6 {
-		log.Panicf("EF.COM tag 5f36 (UnicodeVersion) must be 6 bytes")
-	}
-
-	out.TagList = tag60.GetNode(0x5C).GetValue()
-
-	return out
+	return out, nil
 }

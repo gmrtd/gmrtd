@@ -56,7 +56,10 @@ func TestMrzDecode(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		mrz := MrzDecode(tc.data)
+		mrz, err := MrzDecode(tc.data)
+		if err != nil {
+			t.Errorf("Unexpected error: %s", err)
+		}
 
 		if !reflect.DeepEqual(mrz, &(tc.exp)) {
 			t.Errorf("Incorrect MRZ\n[Act] %+v\n[Exp] %+v", mrz, tc.exp)
@@ -86,10 +89,64 @@ func TestMrzDecodeMrziEncode(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		actMrzi := MrzDecode(tc.inp_mrz).EncodeMrzi()
+		mrz, err := MrzDecode(tc.inp_mrz)
+		if err != nil {
+			t.Errorf("Unexpected error: %s", err)
+		}
+
+		actMrzi := mrz.EncodeMrzi()
 
 		if tc.exp_mrzi != string(actMrzi) {
 			t.Errorf("Bad MRZi (Exp:%s) (Act:%s)", tc.exp_mrzi, actMrzi)
 		}
+	}
+}
+
+func TestMrzDecodeTD1BadLen(t *testing.T) {
+	// TD1 (90 chars)
+	// *** removed last character to make length invalid!
+	inp_mrz := "I<UTOD23145890<7349<<<<<<<<<<<3407127M9507122UTO<<<<<<<<<<<2STEVENSON<<PETER<JOHN<<<<<<<<"
+
+	mrz, err := MrzDecodeTD1(inp_mrz)
+
+	if err == nil {
+		t.Errorf("Error expected")
+	}
+
+	if mrz != nil {
+		t.Errorf("MRZ not expected for error case")
+	}
+}
+
+func TestMrzDecodeTD2BadLen(t *testing.T) {
+	// TD1 (90 chars)
+	// TD2 (72 chars)
+	// *** removed last character to make length invalid!
+	inp_mrz := "I<UTOSTEVENSON<<PETER<JOHN<<<<<<<<<<D23145890<UTO3407127M95071227349<<<"
+
+	mrz, err := MrzDecodeTD2(inp_mrz)
+
+	if err == nil {
+		t.Errorf("Error expected")
+	}
+
+	if mrz != nil {
+		t.Errorf("MRZ not expected for error case")
+	}
+}
+
+func TestMrzDecodeTD3BadLen(t *testing.T) {
+	// TD3 (88 chars)
+	// *** removed last character to make length invalid!
+	inp_mrz := "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<L898902C36UTO7408122F1204159ZE184226B<<<<<1"
+
+	mrz, err := MrzDecodeTD3(inp_mrz)
+
+	if err == nil {
+		t.Errorf("Error expected")
+	}
+
+	if mrz != nil {
+		t.Errorf("MRZ not expected for error case")
 	}
 }

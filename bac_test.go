@@ -52,7 +52,10 @@ func TestBacCmdData(t *testing.T) {
 
 	exp := HexToBytes("72C29C2371CC9BDB65B779B8E8D37B29ECC154AA56A8799FAE2F498F76ED92F25F1448EEA8AD90A7")
 
-	out := bacCmdData(rndIfd, rndIcc, kIfd, kEnc, kMac)
+	out, err := bacCmdData(rndIfd, rndIcc, kIfd, kEnc, kMac)
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
 
 	if !bytes.Equal(exp, out) {
 		t.Errorf("CmdData mismatch")
@@ -107,15 +110,37 @@ func TestDoBAC(t *testing.T) {
 	// override random-byte generator
 	bac.randomBytesFn = getTestRandomBytesFn()
 
-	bac.DoBAC(nfc, password)
+	err := bac.DoBAC(nfc, password)
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
 
 	// verify Secure-Messaging was setup correctly
 	{
-		smExp := NewSecureMessaging(TDES, HexToBytes("979EC13B1CBFE9DCD01AB0FED307EAE5"), HexToBytes("F1CB1F1FB5ADF208806B89DC579DC1F8"))
+		smExp, err := NewSecureMessaging(TDES, HexToBytes("979EC13B1CBFE9DCD01AB0FED307EAE5"), HexToBytes("F1CB1F1FB5ADF208806B89DC579DC1F8"))
+		if err != nil {
+			t.Errorf("Unexpected error: %s", err)
+		}
+
 		smExp.SetSSC(HexToBytes("887022120C06C226"))
 
 		if !reflect.DeepEqual(smExp, nfc.sm) {
 			t.Errorf("SecureMessaging differs to expected")
 		}
+	}
+}
+
+func TestDoBACPasswordTypeCAN(t *testing.T) {
+	// BAC only supports MRZi passwords, so test with CAN
+
+	var nfc *NfcSession = NewNfcSession(new(MockTransceiver))
+
+	var password *Password = NewPasswordCan("123456")
+
+	var bac *BAC = NewBAC()
+
+	err := bac.DoBAC(nfc, password)
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
 	}
 }
