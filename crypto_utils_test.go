@@ -329,15 +329,29 @@ func TestGetCipherForKey(t *testing.T) {
 	}
 }
 
-func TestISO9797RetailMacDes(t *testing.T) {
-	// TODO - convert to table based test
-
-	{
-		// TODO - error - bad key length (8 bytes instead of 16)
-		var key []byte = HexToBytes("0123456789ABCDEF")
-		var data []byte = HexToBytes("0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF")
-
-		mac, err := ISO9797RetailMacDes(key, data)
+func TestISO9797RetailMacDesErrors(t *testing.T) {
+	testCases := []struct {
+		key  []byte
+		data []byte
+	}{
+		{
+			// bad key length (8 bytes instead of 16)
+			key:  HexToBytes("0123456789ABCDEF"),
+			data: HexToBytes("0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF"),
+		},
+		{
+			// bad key length (24 bytes instead of 16)
+			key:  HexToBytes("0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF"),
+			data: HexToBytes("0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF"),
+		},
+		{
+			// data not aligned with block boundary (ie not multiple of 8 bytes)
+			key:  HexToBytes("0123456789ABCDEF0123456789ABCDEF"),
+			data: HexToBytes("0123456789ABCDEF01"),
+		},
+	}
+	for _, tc := range testCases {
+		mac, err := ISO9797RetailMacDes(tc.key, tc.data)
 
 		if err == nil {
 			t.Errorf("Error expected")
@@ -346,41 +360,5 @@ func TestISO9797RetailMacDes(t *testing.T) {
 		if mac != nil {
 			t.Errorf("MAC not expected for error case")
 		}
-
 	}
-
-	{
-		// TODO - error - bad key length (24 bytes instead of 16)
-		var key []byte = HexToBytes("0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF")
-		var data []byte = HexToBytes("0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF")
-
-		mac, err := ISO9797RetailMacDes(key, data)
-
-		if err == nil {
-			t.Errorf("Error expected")
-		}
-
-		if mac != nil {
-			t.Errorf("MAC not expected for error case")
-		}
-
-	}
-
-	{
-		// TODO - error - data not aligned with block boundary (ie not multiple of 8 bytes)
-		var key []byte = HexToBytes("0123456789ABCDEF0123456789ABCDEF")
-		var data []byte = HexToBytes("0123456789ABCDEF01")
-
-		mac, err := ISO9797RetailMacDes(key, data)
-
-		if err == nil {
-			t.Errorf("Error expected")
-		}
-
-		if mac != nil {
-			t.Errorf("MAC not expected for error case")
-		}
-
-	}
-
 }
