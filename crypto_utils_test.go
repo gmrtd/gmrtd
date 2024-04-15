@@ -328,3 +328,59 @@ func TestGetCipherForKey(t *testing.T) {
 		t.Errorf("Cipher not expected for error case")
 	}
 }
+
+func TestISO9797RetailMacDes(t *testing.T) {
+	// TODO - convert to table based test
+
+	{
+		// TODO - error - bad key length (8 bytes instead of 16)
+		var key []byte = HexToBytes("0123456789ABCDEF")
+		var data []byte = HexToBytes("0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF")
+
+		mac, err := ISO9797RetailMacDes(key, data)
+
+		if err == nil {
+			t.Errorf("Error expected")
+		}
+
+		if mac != nil {
+			t.Errorf("MAC not expected for error case")
+		}
+
+	}
+
+	{
+		// TODO - error - bad key length (24 bytes instead of 16)
+		var key []byte = HexToBytes("0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF")
+		var data []byte = HexToBytes("0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF")
+
+		mac, err := ISO9797RetailMacDes(key, data)
+
+		if err == nil {
+			t.Errorf("Error expected")
+		}
+
+		if mac != nil {
+			t.Errorf("MAC not expected for error case")
+		}
+
+	}
+
+	{
+		// TODO - error - data not aligned with block boundary (ie not multiple of 8 bytes)
+		var key []byte = HexToBytes("0123456789ABCDEF0123456789ABCDEF")
+		var data []byte = HexToBytes("0123456789ABCDEF01")
+
+		mac, err := ISO9797RetailMacDes(key, data)
+
+		if err == nil {
+			t.Errorf("Error expected")
+		}
+
+		if mac != nil {
+			t.Errorf("MAC not expected for error case")
+		}
+
+	}
+
+}

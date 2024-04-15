@@ -277,3 +277,61 @@ func TestSelectEFUnhappyErrorStatus(t *testing.T) {
 		t.Errorf("EF should NOT have been selected")
 	}
 }
+
+// TODO - the following (and others) should be table based tests
+
+func TestSelectAidHappy(t *testing.T) {
+	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{HexToBytes("9000")})
+
+	selected, err := nfc.SelectAid([]byte("A0000002471001"))
+
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+
+	if !selected {
+		t.Errorf("AID should have been selected")
+	}
+}
+
+func TestSelectAidHappyFileNotFound(t *testing.T) {
+	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{[]byte{0x6A, 0x82}}) // file not found
+
+	selected, err := nfc.SelectAid([]byte("A0000002471001"))
+
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+
+	if selected {
+		t.Errorf("AID should NOT have been selected")
+	}
+}
+
+func TestSelectAidUnhappyNoRsp(t *testing.T) {
+	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{nil})
+
+	selected, err := nfc.SelectAid([]byte("A0000002471001"))
+
+	if err == nil {
+		t.Errorf("Error expected")
+	}
+
+	if selected {
+		t.Errorf("AID should NOT have been selected")
+	}
+}
+
+func TestSelectAidUnhappyErrorStatus(t *testing.T) {
+	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{[]byte{0x6F, 0xFF}}) // card dead
+
+	selected, err := nfc.SelectAid([]byte("A0000002471001"))
+
+	if err == nil {
+		t.Errorf("Error expected")
+	}
+
+	if selected {
+		t.Errorf("AID should NOT have been selected")
+	}
+}

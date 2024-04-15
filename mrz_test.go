@@ -107,7 +107,7 @@ func TestMrzDecodeTD1BadLen(t *testing.T) {
 	// *** removed last character to make length invalid!
 	inp_mrz := "I<UTOD23145890<7349<<<<<<<<<<<3407127M9507122UTO<<<<<<<<<<<2STEVENSON<<PETER<JOHN<<<<<<<<"
 
-	mrz, err := MrzDecodeTD1(inp_mrz)
+	mrz, err := decodeTD1(inp_mrz)
 
 	if err == nil {
 		t.Errorf("Error expected")
@@ -124,7 +124,7 @@ func TestMrzDecodeTD2BadLen(t *testing.T) {
 	// *** removed last character to make length invalid!
 	inp_mrz := "I<UTOSTEVENSON<<PETER<JOHN<<<<<<<<<<D23145890<UTO3407127M95071227349<<<"
 
-	mrz, err := MrzDecodeTD2(inp_mrz)
+	mrz, err := decodeTD2(inp_mrz)
 
 	if err == nil {
 		t.Errorf("Error expected")
@@ -140,7 +140,7 @@ func TestMrzDecodeTD3BadLen(t *testing.T) {
 	// *** removed last character to make length invalid!
 	inp_mrz := "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<L898902C36UTO7408122F1204159ZE184226B<<<<<1"
 
-	mrz, err := MrzDecodeTD3(inp_mrz)
+	mrz, err := decodeTD3(inp_mrz)
 
 	if err == nil {
 		t.Errorf("Error expected")

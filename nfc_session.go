@@ -83,7 +83,7 @@ func GeneralAuthenticate(nfc *NfcSession, commandChaining bool, data []byte) *RA
 
 	rApdu, err := nfc.DoAPDU(cApdu)
 	if err != nil {
-		log.Panicf("TODO")
+		log.Panicf("DoAPDU error: %s", err)
 	}
 
 	return rApdu
@@ -142,14 +142,18 @@ func (nfc *NfcSession) SelectEF(fileId int) (selected bool, err error) {
 }
 
 func (nfc *NfcSession) SelectAid(aid []byte) (selected bool, err error) {
-	rapdu, err := nfc.DoAPDU(NewCApdu(0x00, INS_SELECT, 0x04, 0x0C, aid, 0))
+	rApdu, err := nfc.DoAPDU(NewCApdu(0x00, INS_SELECT, 0x04, 0x0C, aid, 0))
 	if err != nil {
 		return false, err
 	}
 
 	// TODO - may want to pass status back to caller as error may be tolerated
-	if !rapdu.IsSuccess() {
-		return false, fmt.Errorf("[SelectAid] Status:%x, AID:%x", rapdu.Status, aid)
+	if !rApdu.IsSuccess() {
+		if rApdu.FileNotFound() {
+			return false, nil
+		} else {
+			return false, fmt.Errorf("[SelectAid] Status:%x, AID:%x", rApdu.Status, aid)
+		}
 	}
 
 	return true, nil
@@ -161,7 +165,7 @@ func (nfc *NfcSession) ReadBinaryFromOffset(offset int, length int) []byte {
 
 	rapdu, err := nfc.DoAPDU(capdu)
 	if err != nil {
-		log.Panicf("TODO")
+		log.Panicf("DoAPDU error: %s", err)
 	}
 
 	if !rapdu.IsSuccess() {

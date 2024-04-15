@@ -28,6 +28,20 @@ func TestNewDG1UnhappyRootTag(t *testing.T) {
 	}
 }
 
+func TestNewDG1UnhappyTag5F1F(t *testing.T) {
+	var dg1bytes []byte = HexToBytes("6109010212340203123456") // valid TLV but invalid DG1, as tag 5F1F is missing (under root)
+
+	dg1, err := NewDG1(dg1bytes)
+
+	if err == nil {
+		t.Errorf("Error expected")
+	}
+
+	if dg1 != nil {
+		t.Errorf("DG1 not expected for error case")
+	}
+}
+
 func TestNewDG1(t *testing.T) {
 	testCases := []struct {
 		dg1  []byte

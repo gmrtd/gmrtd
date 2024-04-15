@@ -84,10 +84,6 @@ type ChipAuthenticationInfo struct {
 	KeyId    int `asn1:"optional"`
 }
 
-func (info ChipAuthenticationInfo) String() string {
-	return fmt.Sprintf("Protocol:%s, Version:%d, KeyId:%d", info.Protocol.String(), info.Version, info.KeyId)
-}
-
 type ChipAuthenticationPublicKeyInfo struct {
 	Protocol                    asn1.ObjectIdentifier
 	ChipAuthenticationPublicKey SubjectPublicKeyInfo

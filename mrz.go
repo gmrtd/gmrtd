@@ -65,11 +65,11 @@ func decodeValue(value string) string {
 func MrzDecode(mrz string) (*MRZ, error) {
 	switch len(mrz) {
 	case MRZLengthTD1:
-		return MrzDecodeTD1(mrz)
+		return decodeTD1(mrz)
 	case MRZLengthTD2:
-		return MrzDecodeTD2(mrz)
+		return decodeTD2(mrz)
 	case MRZLengthTD3:
-		return MrzDecodeTD3(mrz)
+		return decodeTD3(mrz)
 		//	default:
 	}
 
@@ -125,8 +125,8 @@ func verifyCheckdigit(data string, checkDigit string) {
 
 // TODO - TD1/2 have similar handling for extended doc-no... maybe update to use shared code
 
-func MrzDecodeTD1(mrz string) (*MRZ, error) {
-	slog.Debug("MrzDecodeTD1", "MRZ", mrz)
+func decodeTD1(mrz string) (*MRZ, error) {
+	slog.Debug("decodeTD1", "MRZ", mrz)
 
 	if len(mrz) != MRZLengthTD1 {
 		return nil, fmt.Errorf("Invalid MRZ TD1 length (Exp:%d) (Act:%d)", MRZLengthTD1, len(mrz))
@@ -187,8 +187,8 @@ func MrzDecodeTD1(mrz string) (*MRZ, error) {
 	return out, nil
 }
 
-func MrzDecodeTD2(mrz string) (*MRZ, error) {
-	slog.Debug("MrzDecodeTD2", "MRZ", mrz)
+func decodeTD2(mrz string) (*MRZ, error) {
+	slog.Debug("decodeTD2", "MRZ", mrz)
 
 	if len(mrz) != MRZLengthTD2 {
 		return nil, fmt.Errorf("Invalid MRZ TD2 length (Exp:%d) (Act:%d)", MRZLengthTD2, len(mrz))
@@ -244,8 +244,8 @@ func MrzDecodeTD2(mrz string) (*MRZ, error) {
 	return out, nil
 }
 
-func MrzDecodeTD3(mrz string) (*MRZ, error) {
-	slog.Debug("MrzDecodeTD3", "MRZ", mrz)
+func decodeTD3(mrz string) (*MRZ, error) {
+	slog.Debug("decodeTD3", "MRZ", mrz)
 
 	if len(mrz) != MRZLengthTD3 {
 		return nil, fmt.Errorf("Invalid MRZ TD3 length (Exp:%d) (Act:%d)", MRZLengthTD3, len(mrz))

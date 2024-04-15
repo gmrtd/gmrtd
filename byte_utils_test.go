@@ -28,3 +28,27 @@ func TestBytesToHex(t *testing.T) {
 		t.Errorf("BytesToHex conversion error (exp:%s, act:%s)", exp, act)
 	}
 }
+
+func TestPrintableBytes(t *testing.T) {
+	// TODO - convert to table based test
+
+	if !PrintableBytes([]byte("This is a printable string!")) {
+		t.Errorf("Should be printable")
+	}
+
+	if PrintableBytes([]byte("This is not \a printable string!")) {
+		t.Errorf("Should NOT be printable")
+	}
+
+}
+
+func TestIsImage(t *testing.T) {
+	// invalid image data - i.e. doesn't have a recognised image header
+	var imageBytes []byte = HexToBytes("0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF")
+
+	if isImage(imageBytes) {
+		t.Errorf("Should NOT be an image")
+	}
+
+	// TODO - should have positive tests also
+}

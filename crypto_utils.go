@@ -56,6 +56,7 @@ func (ec EC_POINT) String() string {
 	return fmt.Sprintf("X:%x, Y:%x", ec.x.Bytes(), ec.y.Bytes())
 }
 
+// TODO - maybe this should panic.. as this should only be caused by a code issue
 // NB expects double-key(16 bytes) for TDES
 func GetCipherForKey(alg BlockCipherAlg, key []byte) (cipher.Block, error) {
 	var out cipher.Block
