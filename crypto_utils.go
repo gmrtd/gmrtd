@@ -57,7 +57,7 @@ func (ec EC_POINT) String() string {
 }
 
 // TODO - maybe this should panic.. as this should only be caused by a code issue
-// NB expects double-key(16 bytes) for TDES
+// NB supports 8/16/24 byte key lengths for DES
 func GetCipherForKey(alg BlockCipherAlg, key []byte) (cipher.Block, error) {
 	var out cipher.Block
 	var err error
@@ -66,7 +66,7 @@ func GetCipherForKey(alg BlockCipherAlg, key []byte) (cipher.Block, error) {
 	case DES:
 		out, err = des.NewCipher(key)
 	case TDES:
-		out, err = des.NewTripleDESCipher(tdesKey128to192(key))
+		out, err = des.NewTripleDESCipher(tdesKey(key))
 	case AES:
 		out, err = aes.NewCipher(key)
 	default:
@@ -122,15 +122,25 @@ func KDF(k []byte, c KDFCounterType, alg BlockCipherAlg, keySizeBits int) []byte
 	return out
 }
 
-// converts a double-key(16 bytes) to a triple-key(24 bytes)
-func tdesKey128to192(key []byte) []byte { // TODO - refer to this as 112 in other place??? should be consistent between 128 and 112
-	if len(key) != 128/8 { // 112-bit key
-		log.Panicf("Key-length not 128 bits (Act:%d)", len(key)*8)
-	}
-
+// generate a TDES key (24 bytes) from a 8/16/24 byte key
+// panics if input key length is invalid
+func tdesKey(key []byte) []byte {
 	out := make([]byte, 24)
-	copy(out[0:16], key[0:16])
-	copy(out[16:24], key[0:8])
+
+	switch len(key) {
+	case 8:
+		copy(out[0:8], key[0:8])
+		copy(out[8:16], key[0:8])
+		copy(out[16:24], key[0:8])
+	case 16:
+		copy(out[0:16], key[0:16])
+		copy(out[16:24], key[0:8])
+	case 24:
+		// just copy
+		copy(out, key)
+	default:
+		log.Panicf("Invalid input key length (ActBytes:%d, ExpBytes:8/16/24)", len(key))
+	}
 
 	return out
 }
@@ -182,6 +192,7 @@ func ISO9797Method2Unpad(data []byte) []byte {
 
 // ISO-9797 Retail MAC (DES)
 // key: 16 bytes (double) DES key
+// error: if invalid key length (not 16 bytes) or data not aligned to block boundary (8 bytes)
 func ISO9797RetailMacDes(key []byte, data []byte) (mac []byte, err error) {
 	if len(key) != 16 {
 		return nil, fmt.Errorf("key must be 16 bytes (act:%d)", len(key))
