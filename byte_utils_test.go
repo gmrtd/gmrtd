@@ -30,16 +30,26 @@ func TestBytesToHex(t *testing.T) {
 }
 
 func TestPrintableBytes(t *testing.T) {
-	// TODO - convert to table based test
-
-	if !PrintableBytes([]byte("This is a printable string!")) {
-		t.Errorf("Should be printable")
+	testCases := []struct {
+		str string
+		exp bool
+	}{
+		{
+			str: "This is a printable string!",
+			exp: true,
+		},
+		{
+			str: "This is not \a printable string!",
+			exp: false,
+		},
 	}
+	for _, tc := range testCases {
+		act := PrintableBytes([]byte(tc.str))
 
-	if PrintableBytes([]byte("This is not \a printable string!")) {
-		t.Errorf("Should NOT be printable")
+		if act != tc.exp {
+			t.Errorf("PrintableBytes error (Exp:%t, Act:%t)", tc.exp, act)
+		}
 	}
-
 }
 
 func TestIsImage(t *testing.T) {
