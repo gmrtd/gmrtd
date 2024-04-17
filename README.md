@@ -10,4 +10,4 @@
 [![Technical Debt](https://sonarcloud.io/api/project_badges/measure?project=gmrtd_gmrtd&metric=sqale_index)](https://sonarcloud.io/summary/new_code?id=gmrtd_gmrtd)
 
 # gmrtd
-gmrtd: Machine Readable Travel Document library
+GO library for reading Machine Readable Travel Documents (MRTDs), such as Passports and Identity Cards.
