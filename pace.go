@@ -89,14 +89,18 @@ func (paceConfig *PaceConfig) getOidBytes() []byte {
 		tmp := strings.Split(paceConfig.oid, ".")
 		oidIntArr = make([]int, len(tmp))
 		for i, v := range tmp {
-			oidIntArr[i], _ = strconv.Atoi(v) // TODO - error check?
+			var err error
+			oidIntArr[i], err = strconv.Atoi(v)
+			if err != nil {
+				log.Panicf("Atoi error (idx:%d): %s", i, err)
+			}
 		}
 	}
 
 	// convert OID ([]int) to ASN1 bytes (including tag/length)
 	asn1bytes, err := asn1.Marshal(oidIntArr)
 	if err != nil {
-		log.Panicf("Unable to encode OID []int] (%s)", err.Error())
+		log.Panicf("Unable to encode OID []int (%s)", err.Error())
 	}
 
 	return TlvDecode(asn1bytes).GetNode(0x06).GetValue()
@@ -441,15 +445,16 @@ func (pace *Pace) keyAgreement_GM_ECDH(nfc *NfcSession, domainParams *PACEDomain
 	return sharedSecret, termPub, chipPub
 }
 
+// performs mutual authentication and sets up secure messaging
 // ecadIC: only populated for CAM
-func (pace *Pace) mutualAuth_GM_ECDH(nfc *NfcSession, paceConfig *PaceConfig, domainParams *PACEDomainParams, sharedSecret []byte, termPub *EC_POINT, chipPub *EC_POINT) (ksenc []byte, ksmac []byte, ecadIC []byte) {
+func (pace *Pace) mutualAuth_GM_ECDH(nfc *NfcSession, paceConfig *PaceConfig, domainParams *PACEDomainParams, sharedSecret []byte, termPub *EC_POINT, chipPub *EC_POINT) (ecadIC []byte) {
 	// derive KSenc / KSmac
-	var KSenc, KSmac []byte
+	var ksEnc, ksMac []byte
 	{
-		KSenc = KDF(sharedSecret, KDF_COUNTER_KSENC, paceConfig.cipher, paceConfig.keyLength)
-		KSmac = KDF(sharedSecret, KDF_COUNTER_KSMAC, paceConfig.cipher, paceConfig.keyLength)
+		ksEnc = KDF(sharedSecret, KDF_COUNTER_KSENC, paceConfig.cipher, paceConfig.keyLength)
+		ksMac = KDF(sharedSecret, KDF_COUNTER_KSMAC, paceConfig.cipher, paceConfig.keyLength)
 
-		slog.Debug("mutualAuth_GM_ECDH", "ksEnc", KSenc, "ksMac", KSmac)
+		slog.Debug("mutualAuth_GM_ECDH", "ksEnc", ksEnc, "ksMac", ksMac)
 	}
 
 	// generate auth tokens
@@ -461,8 +466,8 @@ func (pace *Pace) mutualAuth_GM_ECDH(nfc *NfcSession, paceConfig *PaceConfig, do
 		tIcData := build_7F49(rawOID, EncodeX962EcPoint(domainParams.ec, termPub))
 
 		// generate auth tokens
-		tIfd = paceConfig.computeAuthToken(KSmac, tIfdData)
-		tIc = paceConfig.computeAuthToken(KSmac, tIcData)
+		tIfd = paceConfig.computeAuthToken(ksMac, tIfdData)
+		tIc = paceConfig.computeAuthToken(ksMac, tIcData)
 	}
 
 	// exchange/verify auth tokens (tifd/tic) with passport
@@ -491,7 +496,15 @@ func (pace *Pace) mutualAuth_GM_ECDH(nfc *NfcSession, paceConfig *PaceConfig, do
 		}
 	}
 
-	return KSenc, KSmac, ecadIC
+	// setup secure messaging
+	{
+		var err error
+		if nfc.sm, err = NewSecureMessaging(paceConfig.cipher, ksEnc, ksMac); err != nil {
+			log.Panicf("Error setting up Secure Messaging: %s", err)
+		}
+	}
+
+	return ecadIC
 }
 
 func getIcPubKeyECForCAM(domainParams *PACEDomainParams, cardSecurity *CardSecurity) *EC_POINT {
@@ -688,15 +701,8 @@ func (pace *Pace) DoPACE(nfc *NfcSession, password *Password, doc *Document) (er
 			var kaTermPub, kaChipPub *EC_POINT
 			sharedSecret, kaTermPub, kaChipPub = pace.keyAgreement_GM_ECDH(nfc, domainParams, mappedG)
 
-			// TODO - why not just get this to set SM... then no need to return ksEnc/Mac
 			var ecadIC []byte
-			var ksEnc, ksMac []byte
-			ksEnc, ksMac, ecadIC = pace.mutualAuth_GM_ECDH(nfc, paceConfig, domainParams, sharedSecret, kaTermPub, kaChipPub)
-
-			// setup secure messaging
-			if nfc.sm, err = NewSecureMessaging(paceConfig.cipher, ksEnc, ksMac); err != nil {
-				return err
-			}
+			ecadIC = pace.mutualAuth_GM_ECDH(nfc, paceConfig, domainParams, sharedSecret, kaTermPub, kaChipPub)
 
 			// Perform Chip Authentication (if applicable)
 			if paceConfig.mapping == CAM {
@@ -704,10 +710,10 @@ func (pace *Pace) DoPACE(nfc *NfcSession, password *Password, doc *Document) (er
 					return err
 				}
 				if doc.CardSecurity == nil {
-					return fmt.Errorf("Cannot proceed with PACE-CAM without CardSecurity file")
+					return fmt.Errorf("cannot proceed with PACE-CAM without CardSecurity file")
 				}
 				slog.Debug("DoPACE", "CardSecurity", doc.CardSecurity.RawData)
-				pace.CAM_ECDH(nfc, paceConfig, domainParams, ksEnc, pubMapIC, ecadIC, doc)
+				pace.CAM_ECDH(nfc, paceConfig, domainParams, nfc.sm.KSenc, pubMapIC, ecadIC, doc)
 			}
 		case false: // DH
 			return fmt.Errorf("PACE GM (DH) NOT IMPLEMENTED")
