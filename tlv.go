@@ -107,7 +107,7 @@ func (node TlvSimpleNode) stringWithIndent(indent int) string {
 		oidName := oid_lookup[oid]
 		sb.WriteString(fmt.Sprintf(" [%s: %s]", oid, oidName))
 	} else if PrintableBytes(node.Value) {
-		sb.WriteString(fmt.Sprintf(" [\"%s\"]", string(node.Value)))
+		sb.WriteString(fmt.Sprintf(" [%s]", string(node.Value)))
 	}
 	sb.WriteString("\n")
 	return sb.String()
