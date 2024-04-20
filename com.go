@@ -7,12 +7,14 @@ import (
 
 const COMTag = 0x60
 
+// Note: EF.COM is largely deprecated by EF.SOD, to access LDS/Unicode version the helpers on Document
+//		 should be used as these will give priority to data within EF.SOD
+
 type COM struct {
-	RawData []byte
-	// TODO - could format... e.g. lds/unicode are actually strings... tag-list could be split
-	LdsVersion     []byte
-	UnicodeVersion []byte
-	TagList        []byte
+	RawData        []byte
+	LdsVersion     string
+	UnicodeVersion string
+	TagList        []byte // TODO - should format tagList into an array of tags
 }
 
 func NewCOM(data []byte) (*COM, error) {
@@ -33,14 +35,14 @@ func NewCOM(data []byte) (*COM, error) {
 	}
 
 	{
-		out.LdsVersion = rootNode.GetNode(0x5F01).GetValue()
+		out.LdsVersion = string(rootNode.GetNode(0x5F01).GetValue())
 		if len(out.LdsVersion) != 4 {
-			return nil, fmt.Errorf("EF.COM tag 5f01 (LdsVersion) must be 4 bytes")
+			return nil, fmt.Errorf("LdsVersion must be 4 characters")
 		}
 
-		out.UnicodeVersion = rootNode.GetNode(0x5F36).GetValue()
+		out.UnicodeVersion = string(rootNode.GetNode(0x5F36).GetValue())
 		if len(out.UnicodeVersion) != 6 {
-			return nil, fmt.Errorf("EF.COM tag 5f36 (UnicodeVersion) must be 6 bytes")
+			return nil, fmt.Errorf("UnicodeVersion must be 6 characters")
 		}
 
 		out.TagList = rootNode.GetNode(0x5C).GetValue()

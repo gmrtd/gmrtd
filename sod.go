@@ -56,6 +56,26 @@ func NewSOD(data []byte) (*SOD, error) {
 	return out, nil
 }
 
+func (sod *SOD) ldsVersion() string {
+	if sod != nil {
+		if sod.LdsSecurityObject != nil {
+			return sod.LdsSecurityObject.LdsVersionInfo.LdsVersion
+		}
+	}
+
+	return ""
+}
+
+func (sod *SOD) unicodeVersion() string {
+	if sod != nil {
+		if sod.LdsSecurityObject != nil {
+			return sod.LdsSecurityObject.LdsVersionInfo.UnicodeVersion
+		}
+	}
+
+	return ""
+}
+
 // TODO - maybe handle this internally
 type SignedData struct {
 	Oid asn1.ObjectIdentifier ``

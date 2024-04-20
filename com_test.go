@@ -23,11 +23,11 @@ func TestNewCOM(t *testing.T) {
 		t.Errorf("Unexpected error: %s", err)
 	}
 
-	if !bytes.Equal(com.LdsVersion, HexToBytes("30313036")) {
+	if com.LdsVersion != "0106" {
 		t.Errorf("Incorrect LdsVersion")
 	}
 
-	if !bytes.Equal(com.UnicodeVersion, HexToBytes("303430303030")) {
+	if com.UnicodeVersion != "040000" {
 		t.Errorf("Incorrect UnicodeVersion")
 	}
 
