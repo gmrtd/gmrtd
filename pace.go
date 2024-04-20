@@ -665,7 +665,7 @@ func selectPaceConfig(cardAccess *CardAccess) (paceConfig *PaceConfig, domainPar
 func (pace *Pace) DoPACE(nfc *NfcSession, password *Password, doc *Document) (err error) {
 	// PACE requires card-access
 	if doc.CardAccess == nil {
-		return
+		return nil
 	}
 
 	// TODO - need to check that local/remote public keys are not the same... check 9303 specs for PACE.. and other checks

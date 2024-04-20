@@ -2,6 +2,7 @@ package gmrtd
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"runtime/debug"
 )
@@ -31,10 +32,6 @@ import (
 
 // TODO - review chip access procedure (p11 - page 16)
 
-// TODO - shouldn't we determine what DGs are present from EF.COM/EF.SOD?
-
-// TODO - aren't we only supposed to attempt reading DGs that are referenced by the SoD?
-
 // TODO - docs say should move over to EF.SOD (LDS 1.8)... (p10 page 33)
 
 // TODO - should probably do CA/AA first and then read data files
@@ -62,66 +59,89 @@ const MRTDFileIdDG16 = 0x0110
 
 const MRTD_AID = "A0000002471001"
 
-// TODO - should dynamically read the files based on the tags from SOD
-//   - SOD is also in the tags, but would need to be read before reading the others
-//   - in addition to the regular DGx files... COM should also be specified in the SOD tags
-func readDGs(nfc *NfcSession, doc *Document) (err error) {
-	slog.Info("Read EF.DG1")
-	doc.Dg1, err = NewDG1(nfc.ReadFile(MRTDFileIdDG1))
-	if err != nil {
-		return err
-	}
-
-	// TODO - allow caller to specify if they want to skip the photo (DG2)?
-	readDG2 := true
-	if readDG2 {
-		slog.Info("Read EF.DG2")
-		doc.Dg2, err = NewDG2(nfc.ReadFile(MRTDFileIdDG2))
+// reads the requested data-group (dgNumber: 1-16)
+func readDG(dgNumber int, nfc *NfcSession, doc *Document) (err error) {
+	switch dgNumber {
+	case 1:
+		slog.Info("Read EF.DG1")
+		doc.Dg1, err = NewDG1(nfc.ReadFile(MRTDFileIdDG1))
 		if err != nil {
 			return err
 		}
+	case 2:
+		// TODO - allow caller to specify if they want to skip the photo (DG2)?
+		readDG2 := true
+		if readDG2 {
+			slog.Info("Read EF.DG2")
+			doc.Dg2, err = NewDG2(nfc.ReadFile(MRTDFileIdDG2))
+			if err != nil {
+				return err
+			}
+		}
+	case 7:
+		slog.Info("Read EF.DG7")
+		doc.Dg7, err = NewDG7(nfc.ReadFile(MRTDFileIdDG7))
+		if err != nil {
+			return err
+		}
+	case 11:
+		slog.Info("Read EF.DG11")
+		doc.Dg11, err = NewDG11(nfc.ReadFile(MRTDFileIdDG11))
+		if err != nil {
+			return err
+		}
+	case 12:
+		slog.Info("Read EF.DG12")
+		doc.Dg12, err = NewDG12(nfc.ReadFile(MRTDFileIdDG12))
+		if err != nil {
+			return err
+		}
+	case 13:
+		slog.Info("Read EF.DG13")
+		doc.Dg13, err = NewDG13(nfc.ReadFile(MRTDFileIdDG13))
+		if err != nil {
+			return err
+		}
+	case 14:
+		slog.Info("Read EF.DG14")
+		doc.Dg14, err = NewDG14(nfc.ReadFile(MRTDFileIdDG14))
+		if err != nil {
+			return err
+		}
+	case 15:
+		slog.Info("Read EF.DG15")
+		doc.Dg15, err = NewDG15(nfc.ReadFile(MRTDFileIdDG15))
+		if err != nil {
+			return err
+		}
+	case 16:
+		slog.Info("Read EF.DG16")
+		doc.Dg16, err = NewDG16(nfc.ReadFile(MRTDFileIdDG16))
+		if err != nil {
+			return err
+		}
+	default:
+		slog.Info("Skipping read of DG", "DG", dgNumber)
 	}
 
-	slog.Info("Read EF.DG7")
-	doc.Dg7, err = NewDG7(nfc.ReadFile(MRTDFileIdDG7))
-	if err != nil {
-		return err
+	return nil
+}
+
+// reads the data-groups (DGs) based on the DG hashes present in EF.SOD
+// error if <2 DG hashes are present in SOD (as DG1/2 are always mandatory)
+func readDGs(nfc *NfcSession, doc *Document) (err error) {
+	dgHashes := doc.Sod.LdsSecurityObject.DataGroupHashValues
+	if len(dgHashes) < 2 {
+		return fmt.Errorf("SOD must have at least two datagroup hashes")
 	}
 
-	slog.Info("Read EF.DG11")
-	doc.Dg11, err = NewDG11(nfc.ReadFile(MRTDFileIdDG11))
-	if err != nil {
-		return err
-	}
+	// TODO - may want to filter out restricted files.. e.g. DG3/4.. currently we ignore in readDG
 
-	slog.Info("Read EF.DG12")
-	doc.Dg12, err = NewDG12(nfc.ReadFile(MRTDFileIdDG12))
-	if err != nil {
-		return err
-	}
-
-	slog.Info("Read EF.DG13")
-	doc.Dg13, err = NewDG13(nfc.ReadFile(MRTDFileIdDG13))
-	if err != nil {
-		return err
-	}
-
-	slog.Info("Read EF.DG14")
-	doc.Dg14, err = NewDG14(nfc.ReadFile(MRTDFileIdDG14))
-	if err != nil {
-		return err
-	}
-
-	slog.Info("Read EF.DG15")
-	doc.Dg15, err = NewDG15(nfc.ReadFile(MRTDFileIdDG15))
-	if err != nil {
-		return err
-	}
-
-	slog.Info("Read EF.DG16")
-	doc.Dg16, err = NewDG16(nfc.ReadFile(MRTDFileIdDG16))
-	if err != nil {
-		return err
+	for _, dgHash := range dgHashes {
+		err = readDG(dgHash.DataGroupNumber, nfc, doc)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -162,15 +182,9 @@ func ReadDocument(transceiver Transceiver, password *Password) (doc *Document, e
 	}
 
 	slog.Info("Read CardAccess")
-
-	// TODO - may not be present (OR may be present but not have PACE info)
+	// may not be present (OR may be present but not have PACE info)
 	if doc.CardAccess, err = NewCardAccess(nfc.ReadFile(MRTDFileIdCardAccess)); err != nil {
 		return doc, err
-	}
-	if doc.CardAccess != nil {
-		slog.Debug("CardAccess", "bytes", doc.CardAccess.RawData)
-		slog.Debug("CardAccess", "tlv", TlvDecode(doc.CardAccess.RawData))
-		slog.Debug("CardAccess", "sec-infos", doc.CardAccess.SecurityInfos)
 	}
 
 	/*
