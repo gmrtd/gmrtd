@@ -529,7 +529,7 @@ func getIcPubKeyECForCAM(domainParams *PACEDomainParams, cardSecurity *CardSecur
 
 // pubMapIC: IC Public Key from earlier mapping operation
 // ecadIC: encrypted chip authentication data (tag:8A) from 'mutual auth' response
-func (pace *Pace) CAM_ECDH(nfc *NfcSession, paceConfig *PaceConfig, domainParams *PACEDomainParams, KSenc []byte, pubMapIC *EC_POINT, ecadIC []byte, doc *Document) {
+func (pace *Pace) doCamEcdh(nfc *NfcSession, paceConfig *PaceConfig, domainParams *PACEDomainParams, pubMapIC *EC_POINT, ecadIC []byte, doc *Document) {
 	if paceConfig.mapping != CAM {
 		log.Panicf("Unexpected mapping during CAM processing (Mapping:%d)", paceConfig.mapping)
 	}
@@ -537,11 +537,11 @@ func (pace *Pace) CAM_ECDH(nfc *NfcSession, paceConfig *PaceConfig, domainParams
 		log.Panicf("ECAD missing")
 	}
 
-	slog.Debug("CAM_ECDH", "ECAD-IC", ecadIC)
+	slog.Debug("doCamEcdh", "ECAD-IC", ecadIC)
 
 	// ICAO9303 p11... 4.4.3.3.3 Chip Authentication Mapping
 
-	blockCipher, err := GetCipherForKey(paceConfig.cipher, KSenc)
+	blockCipher, err := GetCipherForKey(paceConfig.cipher, nfc.sm.KSenc)
 	if err != nil {
 		log.Panicf("Unexpected error: %s", err)
 	}
@@ -558,7 +558,7 @@ func (pace *Pace) CAM_ECDH(nfc *NfcSession, paceConfig *PaceConfig, domainParams
 	{
 		// TODO - variable names? (and ecad)
 		CA_IC = ISO9797Method2Unpad(CryptCBC(blockCipher, iv, ecadIC, false))
-		slog.Debug("CAM_ECDH", "CA-IC", CA_IC)
+		slog.Debug("doCamEcdh", "CA-IC", CA_IC)
 	}
 
 	// 4.4.3.5.2 Verification by the terminal
@@ -575,7 +575,7 @@ func (pace *Pace) CAM_ECDH(nfc *NfcSession, paceConfig *PaceConfig, domainParams
 		var PK_IC *EC_POINT = getIcPubKeyECForCAM(domainParams, doc.CardSecurity)
 
 		var KA *EC_POINT = doECDH(CA_IC, PK_IC, domainParams.ec)
-		slog.Debug("CAM_ECDH", "KA", KA)
+		slog.Debug("doCamEcdh", "KA", KA)
 
 		//
 		// Verify that PKMAP,IC = KA(CAIC, PKIC, DIC).
@@ -713,7 +713,7 @@ func (pace *Pace) doPACE(nfc *NfcSession, password *Password, doc *Document) (er
 					return fmt.Errorf("cannot proceed with PACE-CAM without CardSecurity file")
 				}
 				slog.Debug("DoPACE", "CardSecurity", doc.CardSecurity.RawData)
-				pace.CAM_ECDH(nfc, paceConfig, domainParams, nfc.sm.KSenc, pubMapIC, ecadIC, doc)
+				pace.doCamEcdh(nfc, paceConfig, domainParams, pubMapIC, ecadIC, doc)
 			}
 		case false: // DH
 			return fmt.Errorf("PACE GM (DH) NOT IMPLEMENTED")
