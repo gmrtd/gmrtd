@@ -78,7 +78,7 @@ func (sm SecureMessaging) String() string {
 }
 
 // increments the SSC and returns the post-increment value
-func (sm *SecureMessaging) SSCIncrement() {
+func (sm *SecureMessaging) sscIncrement() {
 	switch sm.alg {
 	case TDES:
 		binary.BigEndian.PutUint64(sm.SSC, binary.BigEndian.Uint64(sm.SSC)+1)
@@ -121,7 +121,7 @@ func (sm *SecureMessaging) generateMac(data []byte) (mac []byte, err error) {
 		// AES [FIPS 197] SHALL be used in CMAC-mode [SP 800-38B] with a MAC length of 8 bytes.
 		mac, err = cmac.Sum(data, sm.macCipher, 8)
 		if err != nil {
-			return nil, fmt.Errorf("Unable to generate Auth-Token (CMAC): %s", err.Error())
+			return nil, fmt.Errorf("unable to generate Auth-Token (CMAC): %s", err)
 		}
 	}
 
@@ -150,7 +150,7 @@ func (sm *SecureMessaging) Encode(cApdu *CApdu, maxLe uint64) (out *CApdu, err e
 	}
 
 	// increment SSC
-	sm.SSCIncrement()
+	sm.sscIncrement()
 
 	tlv := NewTlvNodes()
 
@@ -204,7 +204,7 @@ func (sm *SecureMessaging) Encode(cApdu *CApdu, maxLe uint64) (out *CApdu, err e
 
 func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
 	// increment SSC
-	sm.SSCIncrement()
+	sm.sscIncrement()
 
 	var smRApdu *RApdu
 	if smRApdu, err = ParseRApdu(rApduBytes); err != nil {
