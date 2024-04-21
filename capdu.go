@@ -3,7 +3,6 @@ package gmrtd
 import (
 	"fmt"
 	"log"
-	"log/slog"
 )
 
 // Smart card application protocol data unit
@@ -52,7 +51,7 @@ func (apdu *CApdu) HaveLe() bool {
 }
 
 func (apdu *CApdu) EncodeLc() []byte {
-	var out []byte
+	var lcBytes []byte
 
 	// Lc: 0,1,3 bytes
 	//
@@ -63,33 +62,36 @@ func (apdu *CApdu) EncodeLc() []byte {
 
 	var lc int = len(apdu.data)
 
-	if lc > 0 {
-		if apdu.IsExtended() {
-			// Lc = 3 bytes
-
-			if lc < 1 || lc > 65535 {
-				log.Panicf("LC must be between 1 and 65535 (act:%d)", lc)
-			}
-
-			out = append(out, 0)
-			out = append(out, byte((lc/256)%0xff))
-			out = append(out, byte(lc%256))
-		} else {
-			// Lc = 1 byte
-
-			if lc < 1 || lc > 255 {
-				log.Panicf("LC must be between 1 and 255 (act:%d)", lc)
-			}
-
-			out = append(out, byte(lc))
-		}
+	if lc <= 0 {
+		// Lc = 0 bytes
+		return lcBytes
 	}
 
-	return out
+	if apdu.IsExtended() {
+		// Lc = 3 bytes
+
+		if lc < 1 || lc > 65535 {
+			log.Panicf("LC must be between 1 and 65535 (act:%d)", lc)
+		}
+
+		lcBytes = append(lcBytes, 0)
+		lcBytes = append(lcBytes, byte((lc/256)%0xff))
+		lcBytes = append(lcBytes, byte(lc%256))
+	} else {
+		// Lc = 1 byte
+
+		if lc < 1 || lc > 255 {
+			log.Panicf("LC must be between 1 and 255 (act:%d)", lc)
+		}
+
+		lcBytes = append(lcBytes, byte(lc))
+	}
+
+	return lcBytes
 }
 
 func (apdu *CApdu) EncodeLe() []byte {
-	var out []byte
+	var leBytes []byte
 
 	// Le: 0,1,2,3 bytes
 	//
@@ -99,40 +101,41 @@ func (apdu *CApdu) EncodeLe() []byte {
 	// 2 bytes (if extended Lc was present in the command) in the range 1 to 65 535 denotes Ne of that value, or two zero bytes denotes 65 536
 	// 3 bytes (if Lc was not present in the command), the first of which must be 0, denote Ne in the same way as two-byte Le
 
-	if apdu.le > 0 {
-		if apdu.IsExtended() {
-			// Lc = 2 or 3 bytes
-
-			// NB range is 1..65,635 (NOT 65,535!)
-			if apdu.le < 1 || apdu.le > 65536 {
-				log.Panicf("LE must be between 1 and 65536 (act:%d)", apdu.le)
-			}
-
-			// TODO  - looks like this is causing an error with extended mode... so removing for now
-			//if len(apdu.data) < 1 {
-			//	// Lc = 3 bytes (with 1st byte set to x00)
-			//	out = append(out, 0)
-			//}
-
-			// NB bytes will correctly be x0000 if 65536!
-			out = append(out, byte((apdu.le/256)&0xff))
-			out = append(out, byte(apdu.le%256))
-		} else {
-			// Lc = 1 byte
-
-			// NB range is 1..256 (not 255!)
-			if apdu.le < 1 || apdu.le > 256 {
-				log.Panicf("LE must be between 1 and 256 (act:%d)", apdu.le)
-			}
-
-			// NB byte will correctly be x00 if 256!
-			out = append(out, byte(apdu.le%256))
-		}
+	if apdu.le <= 0 {
+		// Lc = 0 bytes
+		return leBytes
 	}
 
-	slog.Debug("EncodeLe", "Le", apdu.le, "Le-bytes", out)
+	if apdu.IsExtended() {
+		// Lc = 2 or 3 bytes
 
-	return out
+		// NB range is 1..65,635 (NOT 65,535!)
+		if apdu.le < 1 || apdu.le > 65536 {
+			log.Panicf("LE must be between 1 and 65536 (act:%d)", apdu.le)
+		}
+
+		// TODO - looks like the following may be causing an issue with ext-mode.. need to investigate
+		if len(apdu.data) < 1 {
+			// Lc = 3 bytes (with 1st byte set to x00)
+			leBytes = append(leBytes, 0)
+		}
+
+		// NB bytes will correctly be x0000 if 65536!
+		leBytes = append(leBytes, byte((apdu.le/256)&0xff))
+		leBytes = append(leBytes, byte(apdu.le%256))
+	} else {
+		// Lc = 1 byte
+
+		// NB range is 1..256 (not 255!)
+		if apdu.le < 1 || apdu.le > 256 {
+			log.Panicf("LE must be between 1 and 256 (act:%d)", apdu.le)
+		}
+
+		// NB byte will correctly be x00 if 256!
+		leBytes = append(leBytes, byte(apdu.le%256))
+	}
+
+	return leBytes
 }
 
 func (apdu *CApdu) HaveData() bool {
