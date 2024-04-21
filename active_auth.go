@@ -1,6 +1,6 @@
 package gmrtd
 
-func DoActiveAuth(nfc *NfcSession, doc *Document) {
+func doActiveAuth(nfc *NfcSession, doc *Document) {
 	// active-authentication is only supported if DG15 is present
 	if doc.Dg15 == nil {
 		return

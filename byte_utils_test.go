@@ -11,7 +11,7 @@ func TestXorBytes(t *testing.T) {
 	in2 := []byte{0x00, 0xFF, 0x00, 0xFF}
 	exp := []byte{0x00, 0xFF, 0xFF, 0x00}
 
-	out := XorBytes(in1, in2)
+	out := xorBytes(in1, in2)
 
 	if !bytes.Equal(exp, out) {
 		t.Errorf("XOR mismatch")

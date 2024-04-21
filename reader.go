@@ -192,7 +192,7 @@ func ReadDocument(transceiver Transceiver, password *Password) (doc *Document, e
 	 */
 	// TODO - should we have an option to skip PACE
 	{
-		err = NewPace().DoPACE(nfc, password, doc)
+		err = NewPace().doPACE(nfc, password, doc)
 		if err != nil {
 			return doc, err
 		}
@@ -214,7 +214,7 @@ func ReadDocument(transceiver Transceiver, password *Password) (doc *Document, e
 
 	// NB we only attempt BAC if we don't already have SecureMessaging (i.e. via PACE)
 	if nfc.sm == nil {
-		err = NewBAC().DoBAC(nfc, password)
+		err = NewBAC().doBAC(nfc, password)
 		if err != nil {
 			return doc, err
 		}
@@ -249,11 +249,11 @@ func ReadDocument(transceiver Transceiver, password *Password) (doc *Document, e
 	 */
 
 	if doc.ChipAuthStatus == CHIP_AUTH_STATUS_NA {
-		DoChipAuth(nfc, doc)
+		doChipAuth(nfc, doc)
 	}
 
 	if doc.ChipAuthStatus == CHIP_AUTH_STATUS_NA {
-		DoActiveAuth(nfc, doc)
+		doActiveAuth(nfc, doc)
 	}
 
 	slog.Info("** FINISHED **", "ChipAuthStatus", doc.ChipAuthStatus)

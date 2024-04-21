@@ -110,7 +110,7 @@ func TestDoBAC(t *testing.T) {
 	// override random-byte generator
 	bac.randomBytesFn = getTestRandomBytesFn()
 
-	err := bac.DoBAC(nfc, password)
+	err := bac.doBAC(nfc, password)
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
@@ -139,7 +139,7 @@ func TestDoBACPasswordTypeCAN(t *testing.T) {
 
 	var bac *BAC = NewBAC()
 
-	err := bac.DoBAC(nfc, password)
+	err := bac.doBAC(nfc, password)
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}

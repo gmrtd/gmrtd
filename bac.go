@@ -24,9 +24,9 @@ func generateKseed(MRZi string) []byte {
 // rnd_icc: 8 bytes
 // kifd: 16 bytes
 func bacCmdData(rndIfd []byte, rndIcc []byte, kIfd []byte, kEnc []byte, kMac []byte) (cmd []byte, err error) {
-	VerifyByteLength(rndIfd, 8)
-	VerifyByteLength(rndIcc, 8)
-	VerifyByteLength(kIfd, 16)
+	verifyByteLength(rndIfd, 8)
+	verifyByteLength(rndIcc, 8)
+	verifyByteLength(kIfd, 16)
 
 	s := make([]byte, 32)
 	copy(s[0:8], rndIfd[0:8])
@@ -56,7 +56,7 @@ func bacCmdData(rndIfd []byte, rndIcc []byte, kIfd []byte, kEnc []byte, kMac []b
 }
 
 // TODO - return an indicator as to whether or not BAC was performed... same for PACE also
-func (bac *BAC) DoBAC(nfc *NfcSession, password *Password) (err error) {
+func (bac *BAC) doBAC(nfc *NfcSession, password *Password) (err error) {
 	if password.passwordType != PASSWORD_TYPE_MRZi {
 		// not supported, but not an error as caller shouldn't care
 		return nil
@@ -74,7 +74,7 @@ func (bac *BAC) DoBAC(nfc *NfcSession, password *Password) (err error) {
 		return err
 	}
 
-	VerifyByteLength(rxRndIC, 8)
+	verifyByteLength(rxRndIC, 8)
 
 	// RND.IFD
 	txRndIfd := bac.randomBytesFn(8)
@@ -88,7 +88,7 @@ func (bac *BAC) DoBAC(nfc *NfcSession, password *Password) (err error) {
 		return err
 	}
 
-	VerifyByteLength(bacCmd, 40)
+	verifyByteLength(bacCmd, 40)
 
 	// TODO - any error code for indicating BAC is not supported?
 	// external authenticate
@@ -143,7 +143,7 @@ func (bac *BAC) DoBAC(nfc *NfcSession, password *Password) (err error) {
 		return fmt.Errorf("RND.IC mismatch (Exp: %x) (Act: %x)", rxRndIC, rxRndIc2)
 	}
 
-	kXor := XorBytes(txKIFD, rxKIC)
+	kXor := xorBytes(txKIFD, rxKIC)
 
 	KSenc := KDF(kXor, KDF_COUNTER_KSENC, TDES, 112)
 	KSmac := KDF(kXor, KDF_COUNTER_KSMAC, TDES, 112)

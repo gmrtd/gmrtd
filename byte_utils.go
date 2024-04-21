@@ -10,7 +10,7 @@ import (
 	"unicode"
 )
 
-func XorBytes(arr1 []byte, arr2 []byte) []byte {
+func xorBytes(arr1 []byte, arr2 []byte) []byte {
 	if len(arr1) != len(arr2) {
 		log.Panic("Arrays must be the same length")
 	}
@@ -24,7 +24,7 @@ func XorBytes(arr1 []byte, arr2 []byte) []byte {
 	return out
 }
 
-func VerifyByteLength(data []byte, length int) {
+func verifyByteLength(data []byte, length int) {
 	if len(data) != length {
 		log.Panic("Incorrect byte slice length")
 	}

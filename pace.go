@@ -662,7 +662,7 @@ func selectPaceConfig(cardAccess *CardAccess) (paceConfig *PaceConfig, domainPar
 	return paceConfig, domainParams
 }
 
-func (pace *Pace) DoPACE(nfc *NfcSession, password *Password, doc *Document) (err error) {
+func (pace *Pace) doPACE(nfc *NfcSession, password *Password, doc *Document) (err error) {
 	// PACE requires card-access
 	if doc.CardAccess == nil {
 		return nil

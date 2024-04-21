@@ -218,7 +218,7 @@ func TestDoPace_GM_ECDH(t *testing.T) {
 	// override EC key-generator (to ensure predictable keys)
 	pace.keyGeneratorEc = getTestKeyGenEc()
 
-	pace.DoPACE(nfc, password, &doc)
+	pace.doPACE(nfc, password, &doc)
 
 	// verify Secure-Messaging was setup correctly
 	{
@@ -308,7 +308,7 @@ func TestDoPace_CAM_ECDH(t *testing.T) {
 	// override EC key-generator (to ensure predictable keys)
 	pace.keyGeneratorEc = getTestKeyGenEc()
 
-	pace.DoPACE(nfc, password, &doc)
+	pace.doPACE(nfc, password, &doc)
 
 	// verify Secure-Messaging state (inc final SSC) is correct
 	{
