@@ -61,6 +61,22 @@ func TestNewSOD_MY(t *testing.T) {
 		t.Errorf("SOD expected")
 	}
 
+	{
+		expLdsVersion := ""
+		actLdsVersion := sod.ldsVersion()
+		if actLdsVersion != expLdsVersion {
+			t.Errorf("LDS Version differs to expected (exp:%s, act:%s)", expLdsVersion, actLdsVersion)
+		}
+	}
+
+	{
+		expUnicodeVersion := ""
+		actUnicodeVersion := sod.unicodeVersion()
+		if actUnicodeVersion != expUnicodeVersion {
+			t.Errorf("Unicode Version differs to expected (exp:%s, act:%s)", expUnicodeVersion, actUnicodeVersion)
+		}
+	}
+
 	// TODO - test cases?
 }
 
@@ -77,6 +93,22 @@ func TestNewSOD_SG(t *testing.T) {
 
 	if sod == nil {
 		t.Errorf("SOD expected")
+	}
+
+	{
+		expLdsVersion := "0108"
+		actLdsVersion := sod.ldsVersion()
+		if actLdsVersion != expLdsVersion {
+			t.Errorf("LDS Version differs to expected (exp:%s, act:%s)", expLdsVersion, actLdsVersion)
+		}
+	}
+
+	{
+		expUnicodeVersion := "040000"
+		actUnicodeVersion := sod.unicodeVersion()
+		if actUnicodeVersion != expUnicodeVersion {
+			t.Errorf("Unicode Version differs to expected (exp:%s, act:%s)", expUnicodeVersion, actUnicodeVersion)
+		}
 	}
 
 	// TODO - test cases?
