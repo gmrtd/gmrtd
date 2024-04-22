@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/cipher"
 	"crypto/elliptic"
+	"encoding/asn1"
 	"math/big"
 	"testing"
 
@@ -226,47 +227,52 @@ func TestCryptoMAC(t *testing.T) {
 	// TODO
 }
 
-func TestCryptoSHA1(t *testing.T) {
-	inp := []byte{0x23, 0x9A, 0xB9, 0xCB, 0x28, 0x2D, 0xAF, 0x66, 0x23, 0x1D, 0xC5, 0xA4, 0xDF, 0x6B, 0xFB, 0xAE, 0x00, 0x00, 0x00, 0x02}
-	exp := []byte{0x78, 0x62, 0xD9, 0xEC, 0xE0, 0x3C, 0x1B, 0xCD, 0x4D, 0x77, 0x08, 0x9D, 0xCF, 0x13, 0x14, 0x42, 0x81, 0x4E, 0xA7, 0x0A}
-
-	out := CryptoHash(SHA1, inp)
-
-	if !bytes.Equal(exp, out) {
-		t.Errorf("SHA1 failed")
-	}
-}
-
-func TestCryptoHash(t *testing.T) {
+func TestCryptoHashByOid(t *testing.T) {
+	// test vectors from:
+	//		https://www.febooti.com/products/filetweak/members/hash-and-crc/test-vectors/
 	testCases := []struct {
-		alg     HashAlg
+		algOid  asn1.ObjectIdentifier
 		data    []byte
 		expHash []byte
 	}{
 		{
-			alg:     SHA1,
-			data:    HexToBytes("616263"),
-			expHash: HexToBytes("a9993e364706816aba3e25717850c26c9cd0d89d"),
+			algOid:  oidHashAlgorithmMD5,
+			data:    []byte("The quick brown fox jumps over the lazy dog"),
+			expHash: HexToBytes("9e107d9d372bb6826bd81d3542a419d6"),
 		},
 		{
-			alg:     SHA256,
-			data:    HexToBytes(""),
-			expHash: HexToBytes("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"),
+			algOid:  oidHashAlgorithmSHA1,
+			data:    []byte("The quick brown fox jumps over the lazy dog"),
+			expHash: HexToBytes("2fd4e1c67a2d28fced849ee1bb76e7391b93eb12"),
 		},
 		{
-			alg:     SHA256,
-			data:    HexToBytes("de188941a3375d3a8a061e67576e926d"),
-			expHash: HexToBytes("067c531269735ca7f541fdaca8f0dc76305d3cada140f89372a410fe5eff6e4d"),
+			algOid:  oidHashAlgorithmSHA256,
+			data:    []byte("The quick brown fox jumps over the lazy dog"),
+			expHash: HexToBytes("d7a8fbb307d7809469ca9abcb0082e4f8d5651e46d3cdb762d02d0bf37c9e592"),
+		},
+		{
+			algOid:  oidHashAlgorithmSHA384,
+			data:    []byte("The quick brown fox jumps over the lazy dog"),
+			expHash: HexToBytes("ca737f1014a48f4c0b6dd43cb177b0afd9e5169367544c494011e3317dbf9a509cb1e5dc1e85a941bbee3d7f2afbc9b1"),
+		},
+		{
+			algOid:  oidHashAlgorithmSHA512,
+			data:    []byte("The quick brown fox jumps over the lazy dog"),
+			expHash: HexToBytes("07e547d9586f6a73f73fbac0435ed76951218fb7d0c8d788a309d785436bbb642e93a252a954f23912547d1e8a3b5ed6e1bfd7097821233fa0538f3db854fee6"),
+		},
+		{
+			algOid:  oidHashAlgorithmSHA224,
+			data:    []byte("The quick brown fox jumps over the lazy dog"),
+			expHash: HexToBytes("730e109bd7a8a32b1cb9d9a09aa2325d2430587ddbc0c38bad911525"),
 		},
 	}
 	for _, tc := range testCases {
-		actHash := CryptoHash(tc.alg, tc.data)
+		actHash := CryptoHashByOid(tc.algOid, tc.data)
 
 		if !bytes.Equal(tc.expHash, actHash) {
-			t.Errorf("CryptoHash failed (Exp:%x) (Act:%x)", tc.expHash, actHash)
+			t.Errorf("CryptoHashByOid failed for OID:%s (Exp:%x) (Act:%x)", tc.algOid.String(), tc.expHash, actHash)
 		}
 	}
-
 }
 
 func TestDesAdjustParity(t *testing.T) {

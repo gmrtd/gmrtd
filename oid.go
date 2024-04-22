@@ -97,6 +97,15 @@ const id_TA = bsi_de_protocols_smartcard + ".2"
 //const id_TA_ECDSA_SHA_384 = id_TA_ECDSA + ".4"
 //const id_TA_ECDSA_SHA_512 = id_TA_ECDSA + ".5"
 
+var (
+	oidHashAlgorithmMD5    = asn1.ObjectIdentifier{1, 2, 840, 113549, 2, 5}
+	oidHashAlgorithmSHA1   = asn1.ObjectIdentifier{1, 3, 14, 3, 2, 26}
+	oidHashAlgorithmSHA256 = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 2, 1}
+	oidHashAlgorithmSHA384 = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 2, 2}
+	oidHashAlgorithmSHA512 = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 2, 3}
+	oidHashAlgorithmSHA224 = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 2, 4}
+)
+
 func DecodeAsn1objectId(data []byte) string {
 	var oid asn1.ObjectIdentifier
 
@@ -115,40 +124,45 @@ func DecodeAsn1objectId(data []byte) string {
 }
 
 var oid_lookup = map[string]string{
-	"0.4.0.127.0.7.1.2":       "bsiEcKeyType",
-	"0.4.0.127.0.7.2.2.1.2":   "id-PK-ECDH",
-	"0.4.0.127.0.7.2.2.2":     "id-TA",
-	"0.4.0.127.0.7.2.2.3.2.4": "id-TA-ECDSA-SHA-256",
-	"0.4.0.127.0.7.2.2.4.2.2": "id-PACE-ECDH-GM-AES-CBC-CMAC-128",
-	"0.4.0.127.0.7.2.2.4.2.4": "id-PACE-ECDH-GM-AES-CBC-CMAC-256",
-	"0.4.0.127.0.7.2.2.4.6.4": "id-PACE-ECDH-CAM-AES-CBC-CMAC-256",
-	"1.2.840.10045.1.1":       "prime-field",
-	"1.2.840.10045.2.1":       "id-ecPublicKey",
-	"1.2.840.10045.4.3.2":     "ecdsa-with-SHA256",
-	"1.2.840.10045.4.3.3":     "ecdsa-with-SHA384",
-	"1.2.840.113549.1.1.1":    "rsaEncryption",
-	"1.2.840.113549.1.1.8":    "id-mgf1",
-	"1.2.840.113549.1.1.10":   "id-RSASSA-PSS",
-	"1.2.840.113549.1.7.2":    "id-signedData",
-	"1.2.840.113549.1.9.3":    "contentType",
-	"1.2.840.113549.1.9.4":    "id-messageDigest",
-	"1.2.840.113549.1.9.5":    "signing-time",
-	"2.5.4.3":                 "commonName",
-	"2.5.4.5":                 "serialNumber",
-	"2.5.4.6":                 "countryName",
-	"2.5.4.7":                 "localityName",
-	"2.5.4.8":                 "stateOrProvinceName",
-	"2.5.4.10":                "organizationName",
-	"2.5.4.11":                "organizationalUnitName",
-	"2.5.29.15":               "id-ce-keyUsage",
-	"2.5.29.16":               "privateKeyUsagePeriod",
-	"2.5.29.17":               "subjectAltName",
-	"2.5.29.18":               "id-ce-issuerAltName",
-	"2.5.29.31":               "id-ce-cRLDistributionPoints",
-	"2.5.29.32":               "certificatePolicies",
-	"2.5.29.35":               "authorityKeyIdentifier",
-	"2.5.29.14":               "subjectKeyIdentifier",
-	"2.16.840.1.101.3.4.2.1":  "id-sha256",
-	"2.23.136.1.1.1":          "ldsSecurityObject",
-	"2.23.136.1.1.6.2":        "documentTypeList",
+	"0.4.0.127.0.7.1.2":             "bsiEcKeyType",
+	"0.4.0.127.0.7.2.2.1.2":         "id-PK-ECDH",
+	"0.4.0.127.0.7.2.2.2":           "id-TA",
+	"0.4.0.127.0.7.2.2.3.2.4":       "id-TA-ECDSA-SHA-256",
+	"0.4.0.127.0.7.2.2.4.2.2":       "id-PACE-ECDH-GM-AES-CBC-CMAC-128",
+	"0.4.0.127.0.7.2.2.4.2.4":       "id-PACE-ECDH-GM-AES-CBC-CMAC-256",
+	"0.4.0.127.0.7.2.2.4.6.4":       "id-PACE-ECDH-CAM-AES-CBC-CMAC-256",
+	"1.2.840.10045.1.1":             "prime-field",
+	"1.2.840.10045.2.1":             "id-ecPublicKey",
+	"1.2.840.10045.4.3.2":           "ecdsa-with-SHA256",
+	"1.2.840.10045.4.3.3":           "ecdsa-with-SHA384",
+	"1.2.840.113549.1.1.1":          "rsaEncryption",
+	"1.2.840.113549.1.1.8":          "id-mgf1",
+	"1.2.840.113549.1.1.10":         "id-RSASSA-PSS",
+	"1.2.840.113549.1.7.2":          "id-signedData",
+	"1.2.840.113549.1.9.3":          "contentType",
+	"1.2.840.113549.1.9.4":          "id-messageDigest",
+	"1.2.840.113549.1.9.5":          "signing-time",
+	"2.5.4.3":                       "commonName",
+	"2.5.4.5":                       "serialNumber",
+	"2.5.4.6":                       "countryName",
+	"2.5.4.7":                       "localityName",
+	"2.5.4.8":                       "stateOrProvinceName",
+	"2.5.4.10":                      "organizationName",
+	"2.5.4.11":                      "organizationalUnitName",
+	"2.5.29.15":                     "id-ce-keyUsage",
+	"2.5.29.16":                     "privateKeyUsagePeriod",
+	"2.5.29.17":                     "subjectAltName",
+	"2.5.29.18":                     "id-ce-issuerAltName",
+	"2.5.29.31":                     "id-ce-cRLDistributionPoints",
+	"2.5.29.32":                     "certificatePolicies",
+	"2.5.29.35":                     "authorityKeyIdentifier",
+	"2.5.29.14":                     "subjectKeyIdentifier",
+	oidHashAlgorithmMD5.String():    "md5",
+	oidHashAlgorithmSHA1.String():   "sha1",
+	oidHashAlgorithmSHA256.String(): "sha256",
+	oidHashAlgorithmSHA384.String(): "sha384",
+	oidHashAlgorithmSHA512.String(): "sha512",
+	oidHashAlgorithmSHA224.String(): "sha224",
+	"2.23.136.1.1.1":                "ldsSecurityObject",
+	"2.23.136.1.1.6.2":              "documentTypeList",
 }

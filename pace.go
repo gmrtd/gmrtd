@@ -25,6 +25,7 @@ package gmrtd
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/cipher"
 	"crypto/elliptic"
 	"encoding/asn1"
@@ -595,7 +596,7 @@ func getKeyForPassword(paceConfig *PaceConfig, password *Password) []byte {
 	switch password.passwordType {
 	case PASSWORD_TYPE_MRZi:
 		// k = SHA1(mrzi)
-		k = CryptoHash(SHA1, []byte(password.password))
+		k = CryptoHash(crypto.SHA1, []byte(password.password))
 	case PASSWORD_TYPE_CAN:
 		// k = CAN
 		k = []byte(password.password) // TODO - ISO 8859-1 encoded

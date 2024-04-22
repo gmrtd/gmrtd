@@ -2,13 +2,17 @@ package gmrtd
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/des"
 	"crypto/elliptic"
+	"crypto/md5"
 	"crypto/rand"
 	"crypto/sha1"
 	"crypto/sha256"
+	"crypto/sha512"
+	"encoding/asn1"
 	"encoding/binary"
 	"fmt"
 	"hash"
@@ -26,12 +30,15 @@ const (
 	AES
 )
 
-type HashAlg int
+//type HashAlg int
 
-const (
-	SHA1 HashAlg = iota
-	SHA256
-)
+//const (
+//	SHA1 HashAlg = iota
+//	SHA224
+//	SHA256
+//	SHA384
+//	SHA512
+//)
 
 const DES_BLOCK_SIZE_BYTES = 8
 
@@ -96,7 +103,7 @@ func KDF(k []byte, c KDFCounterType, alg BlockCipherAlg, keySizeBits int) []byte
 	case TDES:
 		switch keySizeBits {
 		case 112:
-			out = CryptoHash(SHA1, kc)
+			out = CryptoHash(crypto.SHA1, kc)
 			out = out[0:16]
 			out = DesKeyAdjustParity(out)
 		default:
@@ -105,13 +112,13 @@ func KDF(k []byte, c KDFCounterType, alg BlockCipherAlg, keySizeBits int) []byte
 	case AES:
 		switch keySizeBits {
 		case 128:
-			out = CryptoHash(SHA1, kc)
+			out = CryptoHash(crypto.SHA1, kc)
 			out = out[0:16]
 		case 192:
-			out = CryptoHash(SHA256, kc)
+			out = CryptoHash(crypto.SHA256, kc)
 			out = out[0:24]
 		case 256:
-			out = CryptoHash(SHA256, kc)
+			out = CryptoHash(crypto.SHA256, kc)
 		default:
 			log.Panicf("Unsupported AES key-size (key-size(bits):%d)", keySizeBits)
 		}
@@ -230,14 +237,45 @@ func ISO9797RetailMacDes(key []byte, data []byte) (mac []byte, err error) {
 	return mac, nil
 }
 
-func CryptoHash(alg HashAlg, data []byte) []byte {
+// Maps hash algorithm OIDs to crypto.Hash values
+var oidHashAlgorithmToCryptoHash = map[string]crypto.Hash{
+	oidHashAlgorithmMD5.String():    crypto.MD5,
+	oidHashAlgorithmSHA1.String():   crypto.SHA1,
+	oidHashAlgorithmSHA256.String(): crypto.SHA256,
+	oidHashAlgorithmSHA384.String(): crypto.SHA384,
+	oidHashAlgorithmSHA512.String(): crypto.SHA512,
+	oidHashAlgorithmSHA224.String(): crypto.SHA224,
+}
+
+// hashes the data using the hash algorithm specified by oid
+// panics if hash algorithm is not supported
+func CryptoHashByOid(oid asn1.ObjectIdentifier, data []byte) []byte {
+	hash, ok := oidHashAlgorithmToCryptoHash[oid.String()]
+
+	if !ok {
+		log.Panicf("unable to resolve hash algorithm OID (oid: %s)", oid.String())
+	}
+
+	return CryptoHash(hash, data)
+}
+
+func CryptoHash(alg crypto.Hash, data []byte) []byte {
 	var hashFn hash.Hash
 
+	// NB we manually call instead of using '(Hash).New()' to force the hash algorithms to be included in the binary
 	switch alg {
-	case SHA1:
+	case crypto.MD5:
+		hashFn = md5.New()
+	case crypto.SHA1:
 		hashFn = sha1.New()
-	case SHA256:
+	case crypto.SHA224:
+		hashFn = sha256.New224()
+	case crypto.SHA256:
 		hashFn = sha256.New()
+	case crypto.SHA384:
+		hashFn = sha512.New384()
+	case crypto.SHA512:
+		hashFn = sha512.New()
 	default:
 		log.Panicf("Unsupported hash algorithm (alg:%d)", alg)
 	}

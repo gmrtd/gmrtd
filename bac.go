@@ -2,6 +2,7 @@ package gmrtd
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/cipher"
 	"fmt"
 )
@@ -15,7 +16,7 @@ func NewBAC() *BAC {
 }
 
 func generateKseed(MRZi string) []byte {
-	out := CryptoHash(SHA1, []byte(MRZi))
+	out := CryptoHash(crypto.SHA1, []byte(MRZi))
 	out = out[0:16]
 	return out
 }
