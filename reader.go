@@ -1,6 +1,7 @@
 package gmrtd
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -97,7 +98,17 @@ func readDGs(nfc *NfcSession, doc *Document) (err error) {
 			return err
 		}
 
-		// TODO - should check the hash?
+		// validate the DG hash against the hash in the SOD
+		// TODO - need to decide whether to keep this here or move to passive-auth to have everything in one place
+		{
+			actHash := CryptoHashByOid(doc.Sod.LdsSecurityObject.HashAlgorithm.Algorithm, dgBytes)
+
+			if !bytes.Equal(actHash, dgHash.DataGroupHashValue) {
+				return fmt.Errorf("DG%d hash invalid (Exp:%x, Act:%x)", dgHash.DataGroupNumber, dgHash.DataGroupHashValue, actHash)
+			}
+
+			slog.Info("Valid DG hash", "DG", dgHash.DataGroupNumber, "Hash-Act", actHash, "Hash-Exp", dgHash.DataGroupHashValue)
+		}
 	}
 
 	return nil
