@@ -1,7 +1,7 @@
 package gmrtd
 
 import (
-	"bytes"
+	"slices"
 	"testing"
 )
 
@@ -18,21 +18,25 @@ func TestNewCOM(t *testing.T) {
 	// EF.COM test data from 9303-p10
 	data := HexToBytes("60145F0104303130365F36063034303030305C026175")
 
+	var expLdsVersion string = "0106"
+	var expUnicodeVersion = "040000"
+	var expTagList []TlvTag = []TlvTag{0x61, 0x75}
+
 	com, err := NewCOM(data)
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
 
-	if com.LdsVersion != "0106" {
-		t.Errorf("Incorrect LdsVersion")
+	if com.LdsVersion != expLdsVersion {
+		t.Errorf("Incorrect LdsVersion (Exp:%s, Act:%s)", expLdsVersion, com.LdsVersion)
 	}
 
-	if com.UnicodeVersion != "040000" {
-		t.Errorf("Incorrect UnicodeVersion")
+	if com.UnicodeVersion != expUnicodeVersion {
+		t.Errorf("Incorrect UnicodeVersion (Exp:%s, Act:%s)", expUnicodeVersion, com.UnicodeVersion)
 	}
 
-	if !bytes.Equal(com.TagList, HexToBytes("6175")) {
-		t.Errorf("Incorrect TagList")
+	if !slices.Equal(com.TagList, expTagList) {
+		t.Errorf("TagList differs to expected")
 	}
 }
 

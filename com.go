@@ -1,6 +1,7 @@
 package gmrtd
 
 import (
+	"bytes"
 	"fmt"
 	"slices"
 )
@@ -14,7 +15,7 @@ type COM struct {
 	RawData        []byte
 	LdsVersion     string
 	UnicodeVersion string
-	TagList        []byte // TODO - should format tagList into an array of tags
+	TagList        []TlvTag
 }
 
 func NewCOM(data []byte) (*COM, error) {
@@ -34,19 +35,32 @@ func NewCOM(data []byte) (*COM, error) {
 		return nil, fmt.Errorf("root node (%x) missing", COMTag)
 	}
 
+	// LDS version
+	out.LdsVersion = string(rootNode.GetNode(0x5F01).GetValue())
+	if len(out.LdsVersion) != 4 {
+		return nil, fmt.Errorf("LdsVersion must be 4 characters")
+	}
+
+	// Unicode version
+	out.UnicodeVersion = string(rootNode.GetNode(0x5F36).GetValue())
+	if len(out.UnicodeVersion) != 6 {
+		return nil, fmt.Errorf("UnicodeVersion must be 6 characters")
+	}
+
+	// Tag list
 	{
-		out.LdsVersion = string(rootNode.GetNode(0x5F01).GetValue())
-		if len(out.LdsVersion) != 4 {
-			return nil, fmt.Errorf("LdsVersion must be 4 characters")
+		tagListBytes := rootNode.GetNode(0x5C).GetValue()
+		buf := bytes.NewBuffer(tagListBytes)
+
+		for {
+			if buf.Len() <= 0 {
+				break
+			}
+
+			tag := TlvGetTag(buf)
+
+			out.TagList = append(out.TagList, tag)
 		}
-
-		out.UnicodeVersion = string(rootNode.GetNode(0x5F36).GetValue())
-		if len(out.UnicodeVersion) != 6 {
-			return nil, fmt.Errorf("UnicodeVersion must be 6 characters")
-		}
-
-		out.TagList = rootNode.GetNode(0x5C).GetValue()
-
 	}
 
 	return out, nil
