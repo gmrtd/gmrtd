@@ -59,72 +59,17 @@ const MRTDFileIdDG16 = 0x0110
 
 const MRTD_AID = "A0000002471001"
 
-// reads the requested data-group (dgNumber: 1-16)
-func readDG(dgNumber int, nfc *NfcSession, doc *Document) (err error) {
-	switch dgNumber {
-	case 1:
-		slog.Info("Read EF.DG1")
-		doc.Dg1, err = NewDG1(nfc.ReadFile(MRTDFileIdDG1))
-		if err != nil {
-			return err
-		}
-	case 2:
-		// TODO - allow caller to specify if they want to skip the photo (DG2)?
-		readDG2 := true
-		if readDG2 {
-			slog.Info("Read EF.DG2")
-			doc.Dg2, err = NewDG2(nfc.ReadFile(MRTDFileIdDG2))
-			if err != nil {
-				return err
-			}
-		}
-	case 7:
-		slog.Info("Read EF.DG7")
-		doc.Dg7, err = NewDG7(nfc.ReadFile(MRTDFileIdDG7))
-		if err != nil {
-			return err
-		}
-	case 11:
-		slog.Info("Read EF.DG11")
-		doc.Dg11, err = NewDG11(nfc.ReadFile(MRTDFileIdDG11))
-		if err != nil {
-			return err
-		}
-	case 12:
-		slog.Info("Read EF.DG12")
-		doc.Dg12, err = NewDG12(nfc.ReadFile(MRTDFileIdDG12))
-		if err != nil {
-			return err
-		}
-	case 13:
-		slog.Info("Read EF.DG13")
-		doc.Dg13, err = NewDG13(nfc.ReadFile(MRTDFileIdDG13))
-		if err != nil {
-			return err
-		}
-	case 14:
-		slog.Info("Read EF.DG14")
-		doc.Dg14, err = NewDG14(nfc.ReadFile(MRTDFileIdDG14))
-		if err != nil {
-			return err
-		}
-	case 15:
-		slog.Info("Read EF.DG15")
-		doc.Dg15, err = NewDG15(nfc.ReadFile(MRTDFileIdDG15))
-		if err != nil {
-			return err
-		}
-	case 16:
-		slog.Info("Read EF.DG16")
-		doc.Dg16, err = NewDG16(nfc.ReadFile(MRTDFileIdDG16))
-		if err != nil {
-			return err
-		}
-	default:
-		slog.Info("Skipping read of DG", "DG", dgNumber)
-	}
-
-	return nil
+// Maps DG (1-16) to File Identifier
+var dgToFileId = map[int]int{
+	1:  MRTDFileIdDG1,
+	2:  MRTDFileIdDG2,
+	7:  MRTDFileIdDG7,
+	11: MRTDFileIdDG11,
+	12: MRTDFileIdDG12,
+	13: MRTDFileIdDG13,
+	14: MRTDFileIdDG14,
+	15: MRTDFileIdDG15,
+	16: MRTDFileIdDG16,
 }
 
 // reads the data-groups (DGs) based on the DG hashes present in EF.SOD
@@ -132,16 +77,27 @@ func readDG(dgNumber int, nfc *NfcSession, doc *Document) (err error) {
 func readDGs(nfc *NfcSession, doc *Document) (err error) {
 	dgHashes := doc.Sod.LdsSecurityObject.DataGroupHashValues
 	if len(dgHashes) < 2 {
-		return fmt.Errorf("SOD must have at least two datagroup hashes")
+		return fmt.Errorf("EF.SOD must have at least two datagroup hashes")
 	}
 
-	// TODO - may want to filter out restricted files.. e.g. DG3/4.. currently we ignore in readDG
-
 	for _, dgHash := range dgHashes {
-		err = readDG(dgHash.DataGroupNumber, nfc, doc)
+		fileId, fileIdOk := dgToFileId[dgHash.DataGroupNumber]
+		if !fileIdOk {
+			// ignore if cannot resolve to file-id
+			slog.Info("Skipping DG", "DG", dgHash.DataGroupNumber)
+			continue
+		}
+
+		slog.Info("Reading DG", "DG", dgHash.DataGroupNumber)
+
+		var dgBytes []byte = nfc.ReadFile(fileId)
+
+		err = doc.NewDG(dgHash.DataGroupNumber, dgBytes)
 		if err != nil {
 			return err
 		}
+
+		// TODO - should check the hash?
 	}
 
 	return nil

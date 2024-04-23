@@ -1,5 +1,7 @@
 package gmrtd
 
+import "fmt"
+
 type Document struct {
 	CardAccess     *CardAccess
 	CardSecurity   *CardSecurity // NB only read for PACE-CAM - read during PACE flow
@@ -65,4 +67,31 @@ func (doc Document) UnicodeVersion() string {
 	}
 
 	return unicodeVer
+}
+
+func (doc *Document) NewDG(dg int, data []byte) (err error) {
+	switch dg {
+	case 1:
+		doc.Dg1, err = NewDG1(data)
+	case 2:
+		doc.Dg2, err = NewDG2(data)
+	case 7:
+		doc.Dg7, err = NewDG7(data)
+	case 11:
+		doc.Dg11, err = NewDG11(data)
+	case 12:
+		doc.Dg12, err = NewDG12(data)
+	case 13:
+		doc.Dg13, err = NewDG13(data)
+	case 14:
+		doc.Dg14, err = NewDG14(data)
+	case 15:
+		doc.Dg15, err = NewDG15(data)
+	case 16:
+		doc.Dg16, err = NewDG16(data)
+	default:
+		err = fmt.Errorf("unsupported DG in NewDG call (DG:%d)", dg)
+	}
+
+	return nil
 }
