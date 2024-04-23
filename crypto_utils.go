@@ -30,16 +30,6 @@ const (
 	AES
 )
 
-//type HashAlg int
-
-//const (
-//	SHA1 HashAlg = iota
-//	SHA224
-//	SHA256
-//	SHA384
-//	SHA512
-//)
-
 const DES_BLOCK_SIZE_BYTES = 8
 
 type KDFCounterType int
