@@ -93,5 +93,5 @@ func (doc *Document) NewDG(dg int, data []byte) (err error) {
 		err = fmt.Errorf("unsupported DG in NewDG call (DG:%d)", dg)
 	}
 
-	return nil
+	return err
 }
