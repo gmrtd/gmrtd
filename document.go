@@ -5,8 +5,8 @@ import "fmt"
 type Document struct {
 	CardAccess     *CardAccess
 	CardSecurity   *CardSecurity // NB only read for PACE-CAM - read during PACE flow
-	Dir            *EFDIR        // TODO - not fully used (or even present generally)
-	Com            *COM          // TODO - BSI doc indicates this is deprecated
+	Dir            *EFDIR        // indicates which applications are present - generally not acvailable
+	Com            *COM          // largely deprecated by SOD, but used to determine Lds/Unicode Version if older SOD formatis present
 	Sod            *SOD          // Document Security Object EF.SOD (MANDATORY)
 	Dg1            *DG1          // DATA GROUP 1 — Machine Readable Zone Information (MANDATORY)
 	Dg2            *DG2          // DATA GROUP 2 — Encoded Identification Features — Face (MANDATORY)

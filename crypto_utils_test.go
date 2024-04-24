@@ -223,10 +223,6 @@ func TestCryptoUnpad(t *testing.T) {
 	}
 }
 
-func TestCryptoMAC(t *testing.T) {
-	// TODO
-}
-
 func TestCryptoHashByOid(t *testing.T) {
 	// test vectors from:
 	//		https://www.febooti.com/products/filetweak/members/hash-and-crc/test-vectors/
@@ -324,13 +320,13 @@ func TestX962EcPointEncoding(t *testing.T) {
 		point.x = new(big.Int).SetBytes(tc.x)
 		point.y = new(big.Int).SetBytes(tc.y)
 
-		actBytes := EncodeX962EcPoint(tc.ec, &point)
+		actBytes := encodeX962EcPoint(tc.ec, &point)
 
 		if !bytes.Equal(tc.expBytes, actBytes) {
 			t.Errorf("X962 encoding failed (Exp:%x) (Act:%x)", tc.expBytes, actBytes)
 		}
 
-		decodedPoint := DecodeX962EcPoint(tc.ec, actBytes)
+		decodedPoint := decodeX962EcPoint(tc.ec, actBytes)
 
 		if point.x.Cmp(decodedPoint.x) != 0 || point.y.Cmp(decodedPoint.y) != 0 {
 			t.Errorf("X962 decoding failed")

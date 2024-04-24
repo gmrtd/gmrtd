@@ -313,11 +313,11 @@ func KeyGeneratorEc(ec elliptic.Curve) (pri []byte, pub *EC_POINT) {
 	return
 }
 
-func EncodeX962EcPoint(ec elliptic.Curve, point *EC_POINT) []byte {
+func encodeX962EcPoint(ec elliptic.Curve, point *EC_POINT) []byte {
 	return elliptic.Marshal(ec, point.x, point.y)
 }
 
-func DecodeX962EcPoint(ec elliptic.Curve, data []byte) *EC_POINT {
+func decodeX962EcPoint(ec elliptic.Curve, data []byte) *EC_POINT {
 	var point EC_POINT
 	point.x, point.y = elliptic.Unmarshal(ec, data)
 	return &point

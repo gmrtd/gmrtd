@@ -376,14 +376,14 @@ func (pace *Pace) mapNonce_GM_ECDH(nfc *NfcSession, domainParams *PACEDomainPara
 
 	// do public-key exchange to get chip pub-key
 	{
-		reqData := encode_7C_XX(0x81, EncodeX962EcPoint(domainParams.ec, termPub))
+		reqData := encode_7C_XX(0x81, encodeX962EcPoint(domainParams.ec, termPub))
 
 		rApdu := GeneralAuthenticate(nfc, true, reqData)
 		if !rApdu.IsSuccess() {
 			log.Panicf("Error mapping the nonce - GM-EC (Status:%x)", rApdu.Status)
 		}
 
-		pubMapIC = DecodeX962EcPoint(domainParams.ec, decode_7C_XX(0x82, rApdu.Data))
+		pubMapIC = decodeX962EcPoint(domainParams.ec, decode_7C_XX(0x82, rApdu.Data))
 		slog.Debug("mapNonce_GM_ECDH", "pubMapIC", pubMapIC)
 	}
 
@@ -423,14 +423,14 @@ func (pace *Pace) keyAgreement_GM_ECDH(nfc *NfcSession, domainParams *PACEDomain
 
 		// exchange terminal public-key with chip and get chip's public-key
 		{
-			reqData := encode_7C_XX(0x83, EncodeX962EcPoint(domainParams.ec, termPub))
+			reqData := encode_7C_XX(0x83, encodeX962EcPoint(domainParams.ec, termPub))
 
 			rApdu := GeneralAuthenticate(nfc, true, reqData)
 			if !rApdu.IsSuccess() {
 				log.Panicf("Error performing key agreement - GM-EC (Status:%x)", rApdu.Status)
 			}
 
-			chipPub = DecodeX962EcPoint(domainParams.ec, decode_7C_XX(0x84, rApdu.Data))
+			chipPub = decodeX962EcPoint(domainParams.ec, decode_7C_XX(0x84, rApdu.Data))
 		}
 	}
 
@@ -463,8 +463,8 @@ func (pace *Pace) mutualAuth_GM_ECDH(nfc *NfcSession, paceConfig *PaceConfig, do
 	{
 		rawOID := paceConfig.getOidBytes()
 
-		tIfdData := build_7F49(rawOID, EncodeX962EcPoint(domainParams.ec, chipPub))
-		tIcData := build_7F49(rawOID, EncodeX962EcPoint(domainParams.ec, termPub))
+		tIfdData := build_7F49(rawOID, encodeX962EcPoint(domainParams.ec, chipPub))
+		tIcData := build_7F49(rawOID, encodeX962EcPoint(domainParams.ec, termPub))
 
 		// generate auth tokens
 		tIfd = paceConfig.computeAuthToken(ksMac, tIfdData)
@@ -518,7 +518,7 @@ func getIcPubKeyECForCAM(domainParams *PACEDomainParams, cardSecurity *CardSecur
 	for i := range caPubKeyInfos {
 		if caPubKeyInfos[i].ChipAuthenticationPublicKey.Algorithm.Parameters == domainParams.id {
 			var tmpKey []byte = caPubKeyInfos[i].ChipAuthenticationPublicKey.SubjectPublicKey.Bytes
-			return DecodeX962EcPoint(domainParams.ec, tmpKey)
+			return decodeX962EcPoint(domainParams.ec, tmpKey)
 		}
 
 	}

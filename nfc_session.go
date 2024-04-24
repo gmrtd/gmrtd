@@ -23,7 +23,7 @@ const INS_READ_BINARY = byte(0xB0)
 // The support of the READ BINARY command with an odd INS byte by an eMRTD is CONDITIONAL. The eMRTD
 // SHALL support this command variant if it supports data groups with 32 768 bytes or more.
 
-// TODO - look at using 'short-file' id's
+// TODO - review and align with 9303 p10.. 3.6 Command Formats and Parameter Options (LDS1 and LDS2)
 
 type NfcSession struct {
 	transceiver Transceiver
