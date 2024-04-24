@@ -33,8 +33,6 @@ import (
 	"log"
 	"log/slog"
 	"math/big"
-	"strconv"
-	"strings"
 
 	"github.com/aead/cmac"
 	"github.com/ebfe/brainpool"
@@ -74,32 +72,18 @@ const (
 )
 
 type PaceConfig struct {
-	oid             string
+	oid             asn1.ObjectIdentifier
 	mapping         PACEMapping
 	cipher          BlockCipherAlg
-	keyLength       int // bits
+	keyLengthBits   int
 	secureMessaging PACESeccureMessaging
 	authToken       PACEAuthToken
 	weighting       int
 }
 
 func (paceConfig *PaceConfig) getOidBytes() []byte {
-	// convert OID string into []int
-	var oidIntArr asn1.ObjectIdentifier
-	{
-		tmp := strings.Split(paceConfig.oid, ".")
-		oidIntArr = make([]int, len(tmp))
-		for i, v := range tmp {
-			var err error
-			oidIntArr[i], err = strconv.Atoi(v)
-			if err != nil {
-				log.Panicf("Atoi error (idx:%d): %s", i, err)
-			}
-		}
-	}
-
 	// convert OID ([]int) to ASN1 bytes (including tag/length)
-	asn1bytes, err := asn1.Marshal(oidIntArr)
+	asn1bytes, err := asn1.Marshal(paceConfig.oid)
 	if err != nil {
 		log.Panicf("Unable to encode OID []int (%s)", err.Error())
 	}
@@ -133,29 +117,29 @@ func (paceConfig *PaceConfig) getOidBytes() []byte {
 
 var paceConfig = map[string]PaceConfig{
 
-	id_PACE_DH_GM_3DES_CBC_CBC:     {id_PACE_DH_GM_3DES_CBC_CBC, GM, TDES, 112, CBC_CBC, CBC, 200},
-	id_PACE_DH_GM_AES_CBC_CMAC_128: {id_PACE_DH_GM_AES_CBC_CMAC_128, GM, AES, 128, CBC_CMAC, CMAC, 201},
-	id_PACE_DH_GM_AES_CBC_CMAC_192: {id_PACE_DH_GM_AES_CBC_CMAC_192, GM, AES, 192, CBC_CMAC, CMAC, 202},
-	id_PACE_DH_GM_AES_CBC_CMAC_256: {id_PACE_DH_GM_AES_CBC_CMAC_256, GM, AES, 256, CBC_CMAC, CMAC, 203},
+	oidPaceDhGm3DesCbcCbc.String():    {oidPaceDhGm3DesCbcCbc, GM, TDES, 112, CBC_CBC, CBC, 200},
+	oidPaceDhGmAesCbcCmac128.String(): {oidPaceDhGmAesCbcCmac128, GM, AES, 128, CBC_CMAC, CMAC, 201},
+	oidPaceDhGmAesCbcCmac192.String(): {oidPaceDhGmAesCbcCmac192, GM, AES, 192, CBC_CMAC, CMAC, 202},
+	oidPaceDhGmAesCbcCmac256.String(): {oidPaceDhGmAesCbcCmac256, GM, AES, 256, CBC_CMAC, CMAC, 203},
 
-	id_PACE_ECDH_GM_3DES_CBC_CBC:     {id_PACE_ECDH_GM_3DES_CBC_CBC, GM, TDES, 112, CBC_CBC, CBC, 250},
-	id_PACE_ECDH_GM_AES_CBC_CMAC_128: {id_PACE_ECDH_GM_AES_CBC_CMAC_128, GM, AES, 128, CBC_CMAC, CMAC, 251},
-	id_PACE_ECDH_GM_AES_CBC_CMAC_192: {id_PACE_ECDH_GM_AES_CBC_CMAC_192, GM, AES, 192, CBC_CMAC, CMAC, 252},
-	id_PACE_ECDH_GM_AES_CBC_CMAC_256: {id_PACE_ECDH_GM_AES_CBC_CMAC_256, GM, AES, 256, CBC_CMAC, CMAC, 253},
+	oidPaceEcdhGm3DesCbcCbc.String():    {oidPaceEcdhGm3DesCbcCbc, GM, TDES, 112, CBC_CBC, CBC, 250},
+	oidPaceEcdhGmAesCbcCmac128.String(): {oidPaceEcdhGmAesCbcCmac128, GM, AES, 128, CBC_CMAC, CMAC, 251},
+	oidPaceEcdhGmAesCbcCmac192.String(): {oidPaceEcdhGmAesCbcCmac192, GM, AES, 192, CBC_CMAC, CMAC, 252},
+	oidPaceEcdhGmAesCbcCmac256.String(): {oidPaceEcdhGmAesCbcCmac256, GM, AES, 256, CBC_CMAC, CMAC, 253},
 
-	id_PACE_DH_IM_3DES_CBC_CBC:     {id_PACE_DH_IM_3DES_CBC_CBC, IM, TDES, 112, CBC_CBC, CBC, 100},
-	id_PACE_DH_IM_AES_CBC_CMAC_128: {id_PACE_DH_IM_AES_CBC_CMAC_128, IM, AES, 128, CBC_CMAC, CMAC, 101},
-	id_PACE_DH_IM_AES_CBC_CMAC_192: {id_PACE_DH_IM_AES_CBC_CMAC_192, IM, AES, 192, CBC_CMAC, CMAC, 102},
-	id_PACE_DH_IM_AES_CBC_CMAC_256: {id_PACE_DH_IM_AES_CBC_CMAC_256, IM, AES, 256, CBC_CMAC, CMAC, 103},
+	oidPaceDhIm3DesCbcCbc.String():    {oidPaceDhIm3DesCbcCbc, IM, TDES, 112, CBC_CBC, CBC, 100},
+	oidPaceDhImAesCbcCmac128.String(): {oidPaceDhImAesCbcCmac128, IM, AES, 128, CBC_CMAC, CMAC, 101},
+	oidPaceDhImAesCbcCmac192.String(): {oidPaceDhImAesCbcCmac192, IM, AES, 192, CBC_CMAC, CMAC, 102},
+	oidPaceDhImAesCbcCmac256.String(): {oidPaceDhImAesCbcCmac256, IM, AES, 256, CBC_CMAC, CMAC, 103},
 
-	id_PACE_ECDH_IM_3DES_CBC_CBC:     {id_PACE_ECDH_IM_3DES_CBC_CBC, IM, TDES, 112, CBC_CBC, CBC, 150},
-	id_PACE_ECDH_IM_AES_CBC_CMAC_128: {id_PACE_ECDH_IM_AES_CBC_CMAC_128, IM, AES, 128, CBC_CMAC, CMAC, 151},
-	id_PACE_ECDH_IM_AES_CBC_CMAC_192: {id_PACE_ECDH_IM_AES_CBC_CMAC_192, IM, AES, 192, CBC_CMAC, CMAC, 152},
-	id_PACE_ECDH_IM_AES_CBC_CMAC_256: {id_PACE_ECDH_IM_AES_CBC_CMAC_256, IM, AES, 256, CBC_CMAC, CMAC, 153},
+	oidPaceEcdhIm3DesCbcCbc.String():    {oidPaceEcdhIm3DesCbcCbc, IM, TDES, 112, CBC_CBC, CBC, 150},
+	oidPaceEcdhImAesCbcCmac128.String(): {oidPaceEcdhImAesCbcCmac128, IM, AES, 128, CBC_CMAC, CMAC, 151},
+	oidPaceEcdhImAesCbcCmac192.String(): {oidPaceEcdhImAesCbcCmac192, IM, AES, 192, CBC_CMAC, CMAC, 152},
+	oidPaceEcdhImAesCbcCmac256.String(): {oidPaceEcdhImAesCbcCmac256, IM, AES, 256, CBC_CMAC, CMAC, 153},
 
-	id_PACE_ECDH_CAM_AES_CBC_CMAC_128: {id_PACE_ECDH_CAM_AES_CBC_CMAC_128, CAM, AES, 128, CBC_CMAC, CMAC, 300},
-	id_PACE_ECDH_CAM_AES_CBC_CMAC_192: {id_PACE_ECDH_CAM_AES_CBC_CMAC_192, CAM, AES, 192, CBC_CMAC, CMAC, 301},
-	id_PACE_ECDH_CAM_AES_CBC_CMAC_256: {id_PACE_ECDH_CAM_AES_CBC_CMAC_256, CAM, AES, 256, CBC_CMAC, CMAC, 302},
+	oidPaceEcdhCamAesCbcCmac128.String(): {oidPaceEcdhCamAesCbcCmac128, CAM, AES, 128, CBC_CMAC, CMAC, 300},
+	oidPaceEcdhCamAesCbcCmac192.String(): {oidPaceEcdhCamAesCbcCmac192, CAM, AES, 192, CBC_CMAC, CMAC, 301},
+	oidPaceEcdhCamAesCbcCmac256.String(): {oidPaceEcdhCamAesCbcCmac256, CAM, AES, 256, CBC_CMAC, CMAC, 302},
 }
 
 type PACEDomainParams struct {
@@ -164,8 +148,8 @@ type PACEDomainParams struct {
 	ec     elliptic.Curve
 }
 
-func paceConfigGetByOID(oid string) *PaceConfig {
-	out, ok := paceConfig[oid]
+func paceConfigGetByOID(oid asn1.ObjectIdentifier) *PaceConfig {
+	out, ok := paceConfig[oid.String()]
 
 	if !ok {
 		log.Panicf("paceConfigGetByOID error - OID not found (oid: %s)", oid)
@@ -452,8 +436,8 @@ func (pace *Pace) mutualAuth_GM_ECDH(nfc *NfcSession, paceConfig *PaceConfig, do
 	// derive KSenc / KSmac
 	var ksEnc, ksMac []byte
 	{
-		ksEnc = KDF(sharedSecret, KDF_COUNTER_KSENC, paceConfig.cipher, paceConfig.keyLength)
-		ksMac = KDF(sharedSecret, KDF_COUNTER_KSMAC, paceConfig.cipher, paceConfig.keyLength)
+		ksEnc = KDF(sharedSecret, KDF_COUNTER_KSENC, paceConfig.cipher, paceConfig.keyLengthBits)
+		ksMac = KDF(sharedSecret, KDF_COUNTER_KSMAC, paceConfig.cipher, paceConfig.keyLengthBits)
 
 		slog.Debug("mutualAuth_GM_ECDH", "ksEnc", ksEnc, "ksMac", ksMac)
 	}
@@ -604,7 +588,7 @@ func getKeyForPassword(paceConfig *PaceConfig, password *Password) []byte {
 		log.Panicf("Unsupported password-type (type:%d)", password.passwordType)
 	}
 
-	return KDF(k, KDF_COUNTER_PACE, paceConfig.cipher, paceConfig.keyLength)
+	return KDF(k, KDF_COUNTER_PACE, paceConfig.cipher, paceConfig.keyLengthBits)
 }
 
 func getNonce(nfc *NfcSession, paceConfig *PaceConfig, kKdf []byte) []byte {
@@ -640,9 +624,9 @@ func selectPaceConfig(cardAccess *CardAccess) (paceConfig *PaceConfig, domainPar
 
 			if selPaceInfo == nil {
 				selPaceInfo = &paceInfos[i]
-				paceConfig = paceConfigGetByOID(selPaceInfo.Protocol.String())
+				paceConfig = paceConfigGetByOID(selPaceInfo.Protocol)
 			} else {
-				tmpPaceConfig := paceConfigGetByOID(paceInfos[i].Protocol.String())
+				tmpPaceConfig := paceConfigGetByOID(paceInfos[i].Protocol)
 
 				if tmpPaceConfig.weighting > paceConfig.weighting {
 					selPaceInfo = &paceInfos[i]

@@ -4,54 +4,49 @@ import (
 	"encoding/asn1"
 	"fmt"
 	"log/slog"
-	"strings"
 )
-
-// 9.2.10 EFDIRInfo
-// TODO - move to OID
-const id_EFDIR = id_icao_mrtd_security + ".13"
 
 // PACEInfo
 // IF OID is a child under... id_PACE_DH_GM | id_PACE_ECDH_GM | id_PACE_DH_IM | id_PACE_ECDH_IM | id_PACE_ECDH_CAM
-func isPACEInfo(oid string) bool {
-	return strings.HasPrefix(oid, id_PACE_DH_GM+".") || strings.HasPrefix(oid, id_PACE_ECDH_GM+".") || strings.HasPrefix(oid, id_PACE_DH_IM+".") || strings.HasPrefix(oid, id_PACE_ECDH_IM+".") || strings.HasPrefix(oid, id_PACE_ECDH_CAM+".")
+func isPACEInfo(oid asn1.ObjectIdentifier) bool {
+	return oidHasPrefix(oid, oidPaceDhGm) || oidHasPrefix(oid, oidPaceEcdhGm) || oidHasPrefix(oid, oidPaceDhIm) || oidHasPrefix(oid, oidPaceEcdhIm) || oidHasPrefix(oid, oidPaceEcdhCam)
 }
 
 // PACEDomainParameterInfo
 // IF OID exactly matches... id_PACE_DH_GM | id_PACE_ECDH_GM | id_PACE_DH_IM | id_PACE_ECDH_IM | id_PACE_ECDH_CAM
-func isPACEDomainParameterInfo(oid string) bool {
-	return (oid == id_PACE_DH_GM) || (oid == id_PACE_ECDH_GM) || (oid == id_PACE_DH_IM) || (oid == id_PACE_ECDH_IM) || (oid == id_PACE_ECDH_CAM)
+func isPACEDomainParameterInfo(oid asn1.ObjectIdentifier) bool {
+	return oid.Equal(oidPaceDhGm) || oid.Equal(oidPaceEcdhGm) || oid.Equal(oidPaceDhIm) || oid.Equal(oidPaceEcdhIm) || oid.Equal(oidPaceEcdhCam)
 }
 
 // ActiveAuthenticationInfo
 // IF OID exactly matches... id_icao_mrtd_security_aaProtocolObject
-func isActiveAuthenticationInfo(oid string) bool {
-	return oid == id_icao_mrtd_security_aaProtocolObject
+func isActiveAuthenticationInfo(oid asn1.ObjectIdentifier) bool {
+	return oid.Equal(oidIcaoMrtdSecurityAaProtocolObject)
 }
 
 // ChipAuthenticationInfo
 // IF OID is a child under... id_PK_DH | id_PK_ECDH
 // TODO - why does above comment indicate something different to what is in code?
-func isChipAuthenticationInfo(oid string) bool {
-	return strings.HasPrefix(oid, id_CA_DH+".") || strings.HasPrefix(oid, id_CA_ECDH+".")
+func isChipAuthenticationInfo(oid asn1.ObjectIdentifier) bool {
+	return oidHasPrefix(oid, oidCaDh) || oidHasPrefix(oid, oidCaEcdh)
 }
 
 // ChipAuthenticationPublicKeyInfo
 // IF OID exactly matches... id_PK_DH or id_PK_ECDH
-func isChipAuthenticationPublicKeyInfo(oid string) bool {
-	return (oid == id_PK_DH) || (oid == id_PK_ECDH)
+func isChipAuthenticationPublicKeyInfo(oid asn1.ObjectIdentifier) bool {
+	return oid.Equal(oidPkDh) || oid.Equal(oidPkEcdh)
 }
 
 // TerminalAuthenticationInfo
 // If OID starts/matches... id_TA		(not clear from spec... seems to imply id_TA)
-func isTerminalAuthenticationInfo(oid string) bool {
-	return strings.HasPrefix(oid, id_TA)
+func isTerminalAuthenticationInfo(oid asn1.ObjectIdentifier) bool {
+	return oidHasPrefix(oid, oidTa) || oid.Equal(oidTa) // TODO - looks like equal NOT prefix, but need to verify
 }
 
 // EFDIRInfo
 // IF OID exactly matches... id_EFDIR
-func isEFDIRInfo(oid string) bool {
-	return oid == id_EFDIR
+func isEFDIRInfo(oid asn1.ObjectIdentifier) bool {
+	return oid.Equal(oidEfDir)
 }
 
 type SecurityInfoOid struct {
@@ -161,7 +156,7 @@ func DecodeSecurityInfos(secInfoData []byte) (secInfos *SecurityInfos, err error
 
 	// process each record, based on the record-type (derived from OID)
 	for i := range secInfoOids {
-		oid := secInfoOids[i].Protocol.String()
+		oid := secInfoOids[i].Protocol
 		data := secInfoOids[i].Raw
 
 		slog.Debug("parsing secInfo", "oid", oid, "tlv", TlvDecode(data))

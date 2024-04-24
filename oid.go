@@ -5,97 +5,85 @@ import (
 	"log"
 )
 
-const bsi_de = "0.4.0.127.0.7"
-
-// const bsi_de_algorithms = bsi_de + ".1"
-const bsi_de_protocols = bsi_de + ".2"
-const bsi_de_protocols_smartcard = bsi_de_protocols + ".2"
-
-//const standardizedDomainParameters = bsi_de_algorithms + ".2"
-
-const id_icao = "1.3.27"
-const id_icao_mrtd_security = id_icao + ".1.1"
-
-//const ldsSecurityObject = id_icao_mrtd_security + ".1"
-
+// OIDs taken from:
+//
 // 9.2.1 PACEInfo
 // 9.2.2 PACEDomainParameterInfo
 // 9.2.3 PACE Object Identifier
-
-const id_PACE = bsi_de_protocols_smartcard + ".4"
-
-const id_PACE_DH_GM = id_PACE + ".1"
-const id_PACE_DH_GM_3DES_CBC_CBC = id_PACE_DH_GM + ".1"
-const id_PACE_DH_GM_AES_CBC_CMAC_128 = id_PACE_DH_GM + ".2"
-const id_PACE_DH_GM_AES_CBC_CMAC_192 = id_PACE_DH_GM + ".3"
-const id_PACE_DH_GM_AES_CBC_CMAC_256 = id_PACE_DH_GM + ".4"
-
-const id_PACE_ECDH_GM = id_PACE + ".2"
-const id_PACE_ECDH_GM_3DES_CBC_CBC = id_PACE_ECDH_GM + ".1"
-const id_PACE_ECDH_GM_AES_CBC_CMAC_128 = id_PACE_ECDH_GM + ".2"
-const id_PACE_ECDH_GM_AES_CBC_CMAC_192 = id_PACE_ECDH_GM + ".3"
-const id_PACE_ECDH_GM_AES_CBC_CMAC_256 = id_PACE_ECDH_GM + ".4"
-
-const id_PACE_DH_IM = id_PACE + ".3"
-const id_PACE_DH_IM_3DES_CBC_CBC = id_PACE_DH_IM + ".1"
-const id_PACE_DH_IM_AES_CBC_CMAC_128 = id_PACE_DH_IM + ".2"
-const id_PACE_DH_IM_AES_CBC_CMAC_192 = id_PACE_DH_IM + ".3"
-const id_PACE_DH_IM_AES_CBC_CMAC_256 = id_PACE_DH_IM + ".4"
-
-const id_PACE_ECDH_IM = id_PACE + ".4"
-const id_PACE_ECDH_IM_3DES_CBC_CBC = id_PACE_ECDH_IM + ".1"
-const id_PACE_ECDH_IM_AES_CBC_CMAC_128 = id_PACE_ECDH_IM + ".2"
-const id_PACE_ECDH_IM_AES_CBC_CMAC_192 = id_PACE_ECDH_IM + ".3"
-const id_PACE_ECDH_IM_AES_CBC_CMAC_256 = id_PACE_ECDH_IM + ".4"
-
-const id_PACE_ECDH_CAM = id_PACE + ".6"
-const id_PACE_ECDH_CAM_AES_CBC_CMAC_128 = id_PACE_ECDH_CAM + ".2"
-const id_PACE_ECDH_CAM_AES_CBC_CMAC_192 = id_PACE_ECDH_CAM + ".3"
-const id_PACE_ECDH_CAM_AES_CBC_CMAC_256 = id_PACE_ECDH_CAM + ".4"
-
 // 9.2.4 ActiveAuthenticationInfo
-
-const id_icao_mrtd_security_aaProtocolObject = id_icao_mrtd_security + ".5"
-
 // 9.2.5 ChipAuthenticationInfo
 // 9.2.6 ChipAuthenticationPublicKeyInfo
 // 9.2.7 Chip Authentication Object Identifier
-
-const id_PK = bsi_de_protocols_smartcard + ".1"
-
-const id_PK_DH = id_PK + ".1"
-const id_PK_ECDH = id_PK + ".2"
-
-const id_CA = bsi_de_protocols_smartcard + ".3"
-
-const id_CA_DH = id_CA + ".1"
-
-//const id_CA_DH_3DES_CBC_CBC = id_CA_DH + ".1"
-//const id_CA_DH_AES_CBC_CMAC_128 = id_CA_DH + ".2"
-//const id_CA_DH_AES_CBC_CMAC_192 = id_CA_DH + ".3"
-//const id_CA_DH_AES_CBC_CMAC_256 = id_CA_DH + ".4"
-
-const id_CA_ECDH = id_CA + ".2"
-
-//const id_CA_ECDH_3DES_CBC_CBC = id_CA_ECDH + ".1"
-//const id_CA_ECDH_AES_CBC_CMAC_128 = id_CA_ECDH + ".2"
-//const id_CA_ECDH_AES_CBC_CMAC_192 = id_CA_ECDH + ".3"
-//const id_CA_ECDH_AES_CBC_CMAC_256 = id_CA_ECDH + ".4"
-
 // 9.2.8 TerminalAuthenticationInfo
 // 9.2.9 Terminal Authentication Object Identifiers
+// 9.2.10 EFDIRInfo
 
-const id_TA = bsi_de_protocols_smartcard + ".2"
+var (
+	oidIcao             = asn1.ObjectIdentifier{1, 3, 27}
+	oidIcaoMrtdSecurity = asn1.ObjectIdentifier{1, 3, 27, 1, 1}
+	// const ldsSecurityObject = id_icao_mrtd_security + ".1"
+	oidIcaoMrtdSecurityAaProtocolObject = asn1.ObjectIdentifier{1, 3, 27, 1, 1, 5}
+	oidEfDir                            = asn1.ObjectIdentifier{1, 3, 27, 1, 1, 13}
 
-//const id_TA_RSA = id_TA + ".1"
-//const id_TA_RSA_PSS_SHA_256 = id_TA_RSA + ".4"
-//const id_TA_RSA_PSS_SHA_512 = id_TA_RSA + ".6"
+	oidBsiDe           = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7}
+	oidBsiDeAlgorithms = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 1}
+	// const standardizedDomainParameters = bsi_de_algorithms + ".2"
+	oidBsiDeProtocols          = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2}
+	oidBsiDeProtocolsSmartcard = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2}
+	oidPk                      = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 1}
+	oidPkDh                    = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 1, 1}
+	oidPkEcdh                  = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 1, 2}
+	oidTa                      = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 2}
+	// const id_TA_RSA = id_TA + ".1"
+	// const id_TA_RSA_PSS_SHA_256 = id_TA_RSA + ".4"
+	// const id_TA_RSA_PSS_SHA_512 = id_TA_RSA + ".6"
+	// const id_TA_ECDSA = id_TA + ".2"
+	// const id_TA_ECDSA_SHA_224 = id_TA_ECDSA + ".2"
+	// const id_TA_ECDSA_SHA_256 = id_TA_ECDSA + ".3"
+	// const id_TA_ECDSA_SHA_384 = id_TA_ECDSA + ".4"
+	// const id_TA_ECDSA_SHA_512 = id_TA_ECDSA + ".5"
+	oidCa   = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3}
+	oidCaDh = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 1}
+	// const id_CA_DH_3DES_CBC_CBC = id_CA_DH + ".1"
+	// const id_CA_DH_AES_CBC_CMAC_128 = id_CA_DH + ".2"
+	// const id_CA_DH_AES_CBC_CMAC_192 = id_CA_DH + ".3"
+	// const id_CA_DH_AES_CBC_CMAC_256 = id_CA_DH + ".4"
+	oidCaEcdh = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 2}
+	// const id_CA_ECDH_3DES_CBC_CBC = id_CA_ECDH + ".1"
+	// const id_CA_ECDH_AES_CBC_CMAC_128 = id_CA_ECDH + ".2"
+	// const id_CA_ECDH_AES_CBC_CMAC_192 = id_CA_ECDH + ".3"
+	// const id_CA_ECDH_AES_CBC_CMAC_256 = id_CA_ECDH + ".4"
+	oidPace = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4}
 
-//const id_TA_ECDSA = id_TA + ".2"
-//const id_TA_ECDSA_SHA_224 = id_TA_ECDSA + ".2"
-//const id_TA_ECDSA_SHA_256 = id_TA_ECDSA + ".3"
-//const id_TA_ECDSA_SHA_384 = id_TA_ECDSA + ".4"
-//const id_TA_ECDSA_SHA_512 = id_TA_ECDSA + ".5"
+	oidPaceDhGm              = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 1}
+	oidPaceDhGm3DesCbcCbc    = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 1, 1}
+	oidPaceDhGmAesCbcCmac128 = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 1, 2}
+	oidPaceDhGmAesCbcCmac192 = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 1, 3}
+	oidPaceDhGmAesCbcCmac256 = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 1, 4}
+
+	oidPaceEcdhGm              = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 2}
+	oidPaceEcdhGm3DesCbcCbc    = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 2, 1}
+	oidPaceEcdhGmAesCbcCmac128 = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 2, 2}
+	oidPaceEcdhGmAesCbcCmac192 = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 2, 3}
+	oidPaceEcdhGmAesCbcCmac256 = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 2, 4}
+
+	oidPaceDhIm              = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 3}
+	oidPaceDhIm3DesCbcCbc    = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 3, 1}
+	oidPaceDhImAesCbcCmac128 = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 3, 2}
+	oidPaceDhImAesCbcCmac192 = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 3, 3}
+	oidPaceDhImAesCbcCmac256 = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 3, 4}
+
+	oidPaceEcdhIm              = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 4}
+	oidPaceEcdhIm3DesCbcCbc    = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 4, 1}
+	oidPaceEcdhImAesCbcCmac128 = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 4, 2}
+	oidPaceEcdhImAesCbcCmac192 = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 4, 3}
+	oidPaceEcdhImAesCbcCmac256 = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 4, 4}
+
+	oidPaceEcdhCam              = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 6}
+	oidPaceEcdhCamAesCbcCmac128 = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 6, 2}
+	oidPaceEcdhCamAesCbcCmac192 = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 6, 3}
+	oidPaceEcdhCamAesCbcCmac256 = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 6, 4}
+)
 
 var (
 	oidHashAlgorithmMD5    = asn1.ObjectIdentifier{1, 2, 840, 113549, 2, 5}
@@ -105,6 +93,16 @@ var (
 	oidHashAlgorithmSHA512 = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 2, 3}
 	oidHashAlgorithmSHA224 = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 2, 4}
 )
+
+// determines if 'oid' starts with 'prefix' (but not equal to - i.e. oid != prefix)
+func oidHasPrefix(oid asn1.ObjectIdentifier, prefixOid asn1.ObjectIdentifier) bool {
+	// oid must be longer than prefix
+	if len(oid) <= len(prefixOid) {
+		return false
+	}
+
+	return prefixOid.Equal(oid[:len(prefixOid)])
+}
 
 func DecodeAsn1objectId(data []byte) string {
 	var oid asn1.ObjectIdentifier
@@ -123,6 +121,7 @@ func DecodeAsn1objectId(data []byte) string {
 	return oid.String()
 }
 
+// TODO - replace with OID variable refs
 var oid_lookup = map[string]string{
 	"0.4.0.127.0.7.1.2":             "bsiEcKeyType",
 	"0.4.0.127.0.7.2.2.1.2":         "id-PK-ECDH",

@@ -12,7 +12,7 @@ import (
 
 func TestDecryptNonce(t *testing.T) {
 
-	pace := paceConfigGetByOID(id_PACE_ECDH_GM_AES_CBC_CMAC_128)
+	pace := paceConfigGetByOID(oidPaceEcdhGmAesCbcCmac128)
 	encryptedNonce := HexToBytes("95A3A016522EE98D01E76CB6B98B42C3")
 	kKdf := HexToBytes("89DED1B26624EC1E634C1989302849DD")
 
@@ -135,7 +135,7 @@ func TestSelectPaceForConfig(t *testing.T) {
 
 	paceConfig1, domainParams1 := selectPaceConfig(cardAccess1)
 
-	if paceConfig1.oid != "0.4.0.127.0.7.2.2.4.6.4" {
+	if paceConfig1.oid.String() != "0.4.0.127.0.7.2.2.4.6.4" {
 		t.Errorf("Invalid PACE OID (1) (%s)", paceConfig1.oid)
 	}
 
@@ -145,7 +145,7 @@ func TestSelectPaceForConfig(t *testing.T) {
 
 	paceConfig2, domainParams2 := selectPaceConfig(cardAccess2)
 
-	if paceConfig2.oid != "0.4.0.127.0.7.2.2.4.6.4" {
+	if paceConfig2.oid.String() != "0.4.0.127.0.7.2.2.4.6.4" {
 		t.Errorf("Invalid PACE OID (2) (%s)", paceConfig2.oid)
 	}
 
