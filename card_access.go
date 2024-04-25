@@ -1,6 +1,8 @@
 package gmrtd
 
-import "slices"
+import (
+	"slices"
+)
 
 type CardAccess struct {
 	RawData       []byte

@@ -26,13 +26,11 @@ func TestNewDG14(t *testing.T) {
 
 	// TODO - may want to do a deeper verification of the data
 	if (len(dg14.SecInfos.PaceInfos) != 2) ||
-		(len(dg14.SecInfos.ActiveAuthInfos) != 0) ||
 		(len(dg14.SecInfos.ChipAuthInfos) != 1) ||
 		(len(dg14.SecInfos.ChipAuthPubKeyInfos) != 1) ||
 		(len(dg14.SecInfos.TermAuthInfos) != 1) ||
-		(len(dg14.SecInfos.EfDirInfos) != 0) ||
-		(len(dg14.SecInfos.UnhandledInfos) != 0) {
-		t.Errorf("Unexpected DG14 data")
+		(dg14.SecInfos.TotalCnt != 5) {
+		t.Errorf("Unexpected DG14 data - %+v", dg14.SecInfos)
 	}
 }
 
