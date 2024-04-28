@@ -130,12 +130,24 @@ func NewDG2(data []byte) (*DG2, error) {
 	}
 
 	{
-		// TODO
-		//			- num instances of this type of biometric
-		//			- read biometric templates
+		tag7F61 := rootNode.GetNode(0x7f61)
+		if !tag7F61.IsValidNode() {
+			return nil, fmt.Errorf("missing tag (7F61)")
+		}
 
-		// TODO - should handle multiple BITs
-		out.BITs = append(out.BITs, out.processBIT(rootNode.GetNode(0x7f61).GetNode(0x7f60)))
+		numInstances := bytesToInt(tag7F61.GetNode(0x02).GetValue())
+		if (numInstances < 1) || (numInstances > 9) {
+			return nil, fmt.Errorf("numInstances (tag 7f61->02) must be 1-9 (act:%d)", numInstances)
+		}
+
+		for occur := 1; occur <= numInstances; occur++ {
+			tag7F60 := tag7F61.GetNodeByOccur(0x7f60, 1)
+			if !tag7F60.IsValidNode() {
+				return nil, fmt.Errorf("missing tag (7F60) (Occur:%d)", occur)
+			}
+
+			out.BITs = append(out.BITs, out.processBIT(tag7F60))
+		}
 	}
 
 	return out, nil

@@ -94,3 +94,14 @@ func isImage(imageBytes []byte) bool {
 
 	return true
 }
+
+func bytesToInt(bytes []byte) int {
+	var out int
+
+	for i := 0; i < len(bytes); i++ {
+		out <<= 8
+		out += int(bytes[i])
+	}
+
+	return out
+}

@@ -62,3 +62,38 @@ func TestIsImage(t *testing.T) {
 
 	// TODO - should have positive tests also
 }
+
+func TestBytesToInt(t *testing.T) {
+	testCases := []struct {
+		bytes []byte
+		exp   int
+	}{
+		{
+			bytes: nil,
+			exp:   0,
+		},
+		{
+			bytes: []byte{},
+			exp:   0,
+		},
+		{
+			bytes: []byte{0xff},
+			exp:   255,
+		},
+		{
+			bytes: []byte{0xff, 0xff},
+			exp:   65535,
+		},
+		{
+			bytes: []byte{0x1, 0x0, 0x1},
+			exp:   65537,
+		},
+	}
+	for _, tc := range testCases {
+		act := bytesToInt(tc.bytes)
+
+		if act != tc.exp {
+			t.Errorf("bytesToInt error (Bytes:%x, Exp:%d, Act:%d)", tc.bytes, tc.exp, act)
+		}
+	}
+}
