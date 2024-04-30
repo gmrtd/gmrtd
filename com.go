@@ -56,10 +56,7 @@ func NewCOM(data []byte) (*COM, error) {
 			if buf.Len() <= 0 {
 				break
 			}
-
-			tag := TlvGetTag(buf)
-
-			out.TagList = append(out.TagList, tag)
+			out.TagList = append(out.TagList, TlvGetTag(buf))
 		}
 	}
 
