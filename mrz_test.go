@@ -42,17 +42,17 @@ func TestMrzDecode(t *testing.T) {
 		{
 			// TD1
 			data: "I<UTOD231458907<<<<<<<<<<<<<<<7408122F1204159UTO<<<<<<<<<<<6ERIKSSON<<ANNA<MARIA<<<<<<<<<<",
-			exp:  MRZ{DocumentCode: "I", IssuingState: "UTO", NameOfHolder: "ERIKSSON  ANNA MARIA", DocumentNumber: "D23145890", Nationality: "UTO", DateOfBirth: "740812", Sex: "F", DateOfExpiry: "120415", OptionalData: "", OptionalData2: ""},
+			exp:  MRZ{DocumentCode: "I", IssuingState: "UTO", NameOfHolder: MrzName{Primary: "ERIKSSON", Secondary: "ANNA MARIA"}, DocumentNumber: "D23145890", Nationality: "UTO", DateOfBirth: "740812", Sex: "F", DateOfExpiry: "120415", OptionalData: "", OptionalData2: ""},
 		},
 		{
 			// TD2
 			data: "I<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<D231458907UTO7408122F1204159<<<<<<<6",
-			exp:  MRZ{DocumentCode: "I", IssuingState: "UTO", NameOfHolder: "ERIKSSON  ANNA MARIA", DocumentNumber: "D23145890", Nationality: "UTO", DateOfBirth: "740812", Sex: "F", DateOfExpiry: "120415", OptionalData: ""},
+			exp:  MRZ{DocumentCode: "I", IssuingState: "UTO", NameOfHolder: MrzName{Primary: "ERIKSSON", Secondary: "ANNA MARIA"}, DocumentNumber: "D23145890", Nationality: "UTO", DateOfBirth: "740812", Sex: "F", DateOfExpiry: "120415", OptionalData: ""},
 		},
 		{
 			// TD3
 			data: "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<L898902C36UTO7408122F1204159ZE184226B<<<<<10",
-			exp:  MRZ{DocumentCode: "P", IssuingState: "UTO", NameOfHolder: "ERIKSSON  ANNA MARIA", DocumentNumber: "L898902C3", Nationality: "UTO", DateOfBirth: "740812", Sex: "F", DateOfExpiry: "120415", OptionalData: "ZE184226B"},
+			exp:  MRZ{DocumentCode: "P", IssuingState: "UTO", NameOfHolder: MrzName{Primary: "ERIKSSON", Secondary: "ANNA MARIA"}, DocumentNumber: "L898902C3", Nationality: "UTO", DateOfBirth: "740812", Sex: "F", DateOfExpiry: "120415", OptionalData: "ZE184226B"},
 		},
 	}
 	for _, tc := range testCases {

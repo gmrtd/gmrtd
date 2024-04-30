@@ -10,10 +10,15 @@ import (
 
 // TODO - check that MRZ only contains 0-9,A-Z and filler ('<')
 
+type MrzName struct {
+	Primary   string
+	Secondary string // optional
+}
+
 type MRZ struct {
 	DocumentCode   string
 	IssuingState   string
-	NameOfHolder   string
+	NameOfHolder   MrzName
 	DocumentNumber string
 	Nationality    string
 	DateOfBirth    string
@@ -30,6 +35,26 @@ type MRZ struct {
 const MRZLengthTD1 = 90
 const MRZLengthTD2 = 72
 const MRZLengthTD3 = 88
+
+// parses the name into primary and secondary (if present) components
+// NB field separator is '  ' as we've already converted '<' to ' ' earlier
+func parseName(name string) MrzName {
+	var out MrzName
+
+	strArr := strings.Split(name, "  ")
+
+	switch len(strArr) {
+	case 1:
+		out.Primary = strArr[0]
+	case 2:
+		out.Primary = strArr[0]
+		out.Secondary = strArr[1]
+	default:
+		log.Panicf("Incorrect number of name components: %d", len(strArr))
+	}
+
+	return out
+}
 
 // min/maxLength can be -1
 func encodeValue(value string, minLength int, maxLength int) string {
@@ -182,7 +207,7 @@ func decodeTD1(mrz string) (*MRZ, error) {
 	// composite check digit
 	verifyCheckdigit(mrz[5:30]+mrz[30:37]+mrz[38:45]+mrz[48:59], mrz[59:60])
 
-	out.NameOfHolder = decodeValue(nameOfHolder)
+	out.NameOfHolder = parseName(decodeValue(nameOfHolder))
 
 	return out, nil
 }
@@ -226,7 +251,7 @@ func decodeTD2(mrz string) (*MRZ, error) {
 
 	out.DocumentCode = decodeValue(documentCode)
 	out.IssuingState = decodeValue(issuingState)
-	out.NameOfHolder = decodeValue(nameOfHolder)
+	out.NameOfHolder = parseName(decodeValue(nameOfHolder))
 
 	out.DocumentNumber = decodeValue(documentNumber)
 	verifyCheckdigit(documentNumber, documentNumberCD)
@@ -272,7 +297,7 @@ func decodeTD3(mrz string) (*MRZ, error) {
 
 	out.DocumentCode = decodeValue(documentCode)
 	out.IssuingState = decodeValue(issuingState)
-	out.NameOfHolder = decodeValue(nameOfHolder)
+	out.NameOfHolder = parseName(decodeValue(nameOfHolder))
 
 	out.DocumentNumber = decodeValue(documentNumber)
 	verifyCheckdigit(documentNumber, documentNumberCD)
