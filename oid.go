@@ -42,17 +42,21 @@ var (
 	// const id_TA_ECDSA_SHA_256 = id_TA_ECDSA + ".3"
 	// const id_TA_ECDSA_SHA_384 = id_TA_ECDSA + ".4"
 	// const id_TA_ECDSA_SHA_512 = id_TA_ECDSA + ".5"
-	oidCa   = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3}
-	oidCaDh = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 1}
-	// const id_CA_DH_3DES_CBC_CBC = id_CA_DH + ".1"
-	// const id_CA_DH_AES_CBC_CMAC_128 = id_CA_DH + ".2"
-	// const id_CA_DH_AES_CBC_CMAC_192 = id_CA_DH + ".3"
-	// const id_CA_DH_AES_CBC_CMAC_256 = id_CA_DH + ".4"
-	oidCaEcdh = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 2}
-	// const id_CA_ECDH_3DES_CBC_CBC = id_CA_ECDH + ".1"
-	// const id_CA_ECDH_AES_CBC_CMAC_128 = id_CA_ECDH + ".2"
-	// const id_CA_ECDH_AES_CBC_CMAC_192 = id_CA_ECDH + ".3"
-	// const id_CA_ECDH_AES_CBC_CMAC_256 = id_CA_ECDH + ".4"
+
+	oidCa = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3}
+
+	oidCaDh              = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 1}
+	oidCaDh3DesCbcCbc    = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 1, 1}
+	oidCaDhAesCbcCmac128 = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 1, 2}
+	oidCaDhAesCbcCmac192 = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 1, 3}
+	oidCaDhAesCbcCmac256 = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 1, 4}
+
+	oidCaEcdh              = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 2}
+	oidCaEcdh3DesCbcCbc    = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 2, 1}
+	oidCaEcdhAesCbcCmac128 = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 2, 2}
+	oidCaEcdhAesCbcCmac192 = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 2, 3}
+	oidCaEcdhAesCbcCmac256 = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 2, 4}
+
 	oidPace = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4}
 
 	oidPaceDhGm              = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 1}
@@ -124,8 +128,10 @@ func DecodeAsn1objectId(data []byte) string {
 // TODO - replace with OID variable refs
 var oid_lookup = map[string]string{
 	"0.4.0.127.0.7.1.2":             "bsiEcKeyType",
-	"0.4.0.127.0.7.2.2.1.2":         "id-PK-ECDH",
-	"0.4.0.127.0.7.2.2.2":           "id-TA",
+	oidPk.String():                  "id-PK",
+	oidPkDh.String():                "id-PK-DH",
+	oidPkEcdh.String():              "id-PK-ECDH",
+	oidTa.String():                  "id-TA",
 	"0.4.0.127.0.7.2.2.3.2.4":       "id-TA-ECDSA-SHA-256",
 	"0.4.0.127.0.7.2.2.4.2.2":       "id-PACE-ECDH-GM-AES-CBC-CMAC-128",
 	"0.4.0.127.0.7.2.2.4.2.4":       "id-PACE-ECDH-GM-AES-CBC-CMAC-256",
@@ -164,4 +170,18 @@ var oid_lookup = map[string]string{
 	oidHashAlgorithmSHA224.String(): "sha224",
 	"2.23.136.1.1.1":                "ldsSecurityObject",
 	"2.23.136.1.1.6.2":              "documentTypeList",
+
+	oidCa.String(): "id-CA",
+
+	oidCaDh.String():              "id-CA-DH",
+	oidCaDh3DesCbcCbc.String():    "id-CA-DH-3DES-CBC-CBC",
+	oidCaDhAesCbcCmac128.String(): "id-CA-DH-AES-CBC-CMAC-128",
+	oidCaDhAesCbcCmac192.String(): "id-CA-DH-AES-CBC-CMAC-192",
+	oidCaDhAesCbcCmac256.String(): "id-CA-DH-AES-CBC-CMAC-256",
+
+	oidCaEcdh.String():              "id-CA-ECDH",
+	oidCaEcdh3DesCbcCbc.String():    "id-CA-ECDH-3DES-CBC-CBC",
+	oidCaEcdhAesCbcCmac128.String(): "id-CA-ECDH-AES-CBC-CMAC-128",
+	oidCaEcdhAesCbcCmac192.String(): "id-CA-ECDH-AES-CBC-CMAC-192",
+	oidCaEcdhAesCbcCmac256.String(): "id-CA-ECDH-AES-CBC-CMAC-256",
 }
