@@ -82,17 +82,17 @@ type ChipAuthenticationInfo struct {
 type ChipAuthenticationPublicKeyInfo struct {
 	Protocol                    asn1.ObjectIdentifier
 	ChipAuthenticationPublicKey SubjectPublicKeyInfo
-	KeyId                       int `asn1:"optional"`
+	KeyId                       int `asn1:"optional"` // TODO - shouldn't we set these to actual default values?
 }
 
 type SubjectPublicKeyInfo struct {
 	Algorithm        AlgorithmIdentifier
-	SubjectPublicKey asn1.BitString
+	SubjectPublicKey asn1.BitString // TODO - pace breaks if we change this!
 }
 
 type AlgorithmIdentifier struct {
 	Algorithm  asn1.ObjectIdentifier
-	Parameters int `asn1:"optional"` // TODO - spec technically says ANY type
+	Parameters asn1.RawValue //int `asn1:"optional"` // TODO - spec technically says ANY type
 }
 
 type TerminalAuthenticationInfo struct {
@@ -114,7 +114,7 @@ type SecurityInfos struct {
 	TermAuthInfos        []TerminalAuthenticationInfo
 	EfDirInfos           []EFDirInfo
 	UnhandledInfos       []UnhandledInfo
-	TotalCnt int
+	TotalCnt             int
 }
 
 type UnhandledInfo struct {
@@ -197,6 +197,8 @@ func DecodeSecurityInfos(secInfoData []byte) (secInfos *SecurityInfos, err error
 				return nil, err
 			}
 			secInfos.ChipAuthPubKeyInfos = append(secInfos.ChipAuthPubKeyInfos, chipAuthPubKeyInfo)
+			// TODO - may want to record warning/error if OID is not one of the 8 supported (i.e. 4 DH, 4 ECDH)
+			//			see 9303p11 - 6.2.3 Cryptographic Specifications
 		} else if isTerminalAuthenticationInfo(oid) {
 			var termAuthInfo TerminalAuthenticationInfo
 			err = parseAsn1(data, false, &termAuthInfo)
@@ -218,15 +220,17 @@ func DecodeSecurityInfos(secInfoData []byte) (secInfos *SecurityInfos, err error
 		}
 	}
 
-	secInfos.TotalCnt = 
+	secInfos.TotalCnt =
 		len(secInfos.PaceInfos) +
-		len(secInfos.PaceDomainParamInfos) +
-		len(secInfos.ActiveAuthInfos) +
-		len(secInfos.ChipAuthInfos) +
-		len(secInfos.ChipAuthPubKeyInfos) +
-		len(secInfos.TermAuthInfos) +
-		len(secInfos.EfDirInfos) +
-		len(secInfos.UnhandledInfos)
+			len(secInfos.PaceDomainParamInfos) +
+			len(secInfos.ActiveAuthInfos) +
+			len(secInfos.ChipAuthInfos) +
+			len(secInfos.ChipAuthPubKeyInfos) +
+			len(secInfos.TermAuthInfos) +
+			len(secInfos.EfDirInfos) +
+			len(secInfos.UnhandledInfos)
+
+	//log.Printf("SecInfos:\n%+v", secInfos)
 
 	return secInfos, nil
 }

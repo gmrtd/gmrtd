@@ -81,16 +81,6 @@ type PaceConfig struct {
 	weighting       int
 }
 
-func (paceConfig *PaceConfig) getOidBytes() []byte {
-	// convert OID ([]int) to ASN1 bytes (including tag/length)
-	asn1bytes, err := asn1.Marshal(paceConfig.oid)
-	if err != nil {
-		log.Panicf("Unable to encode OID []int (%s)", err.Error())
-	}
-
-	return TlvDecode(asn1bytes).GetNode(0x06).GetValue()
-}
-
 //OID								Mapping				Cipher	Keylength	Secure Messaging	Auth. Token
 //
 //id-PACE-DH-GM-3DES-CBC-CBC 		Generic 			3DES 	112 		CBC / CBC 			CBC
@@ -270,6 +260,7 @@ func (paceConfig *PaceConfig) computeAuthToken(key []byte, data []byte) []byte {
 	return nil
 }
 
+// TODO - During Diffie-Hellman key agreement, the IC and the inspection system SHOULD check that the two public keys PKDH,IC and PKDH,IFD differ.
 func doECDH(localPrivate []byte, remotePublic *EC_POINT, ec elliptic.Curve) *EC_POINT {
 	var point EC_POINT
 	point.x, point.y = ec.ScalarMult(remotePublic.x, remotePublic.y, localPrivate)
@@ -313,7 +304,7 @@ func build_7F49(paceOid []byte, tag86data []byte) []byte {
 	return node.Encode()
 }
 
-// TODO - move once it's generic enough
+// TODO - move once it's generic enough.. ChipAuth has similar but different (e.g. P1/P2)
 func doAPDU_MSESetAT(nfc *NfcSession, paceConfig *PaceConfig, passwordType PasswordType) (err error) {
 	// manually convert value to reduce reliance on iota values!
 	var passwordTypeValue byte
@@ -326,10 +317,10 @@ func doAPDU_MSESetAT(nfc *NfcSession, paceConfig *PaceConfig, passwordType Passw
 		return fmt.Errorf("Unsupported PACE Password-Type (%x)", passwordType)
 	}
 
-	paceOid := paceConfig.getOidBytes()
+	paceOidBytes := oidBytes(paceConfig.oid)
 
 	nodes := NewTlvNodes()
-	nodes.AddNode(NewTlvSimpleNode(0x80, paceOid))
+	nodes.AddNode(NewTlvSimpleNode(0x80, paceOidBytes))
 	nodes.AddNode(NewTlvSimpleNode(0x83, []byte{passwordTypeValue}))
 
 	// TODO - move to NfcSession?
@@ -341,7 +332,7 @@ func doAPDU_MSESetAT(nfc *NfcSession, paceConfig *PaceConfig, passwordType Passw
 	}
 
 	if !rApdu.IsSuccess() {
-		return fmt.Errorf("Error performing MSE:Set AT command (Status:%x)", rApdu.Status)
+		return fmt.Errorf("Error performing PACE MSE:Set AT command (Status:%x)", rApdu.Status)
 	}
 
 	return nil
@@ -445,10 +436,10 @@ func (pace *Pace) mutualAuth_GM_ECDH(nfc *NfcSession, paceConfig *PaceConfig, do
 	// generate auth tokens
 	var tIfd, tIc []byte
 	{
-		rawOID := paceConfig.getOidBytes()
+		oidBytes := oidBytes(paceConfig.oid)
 
-		tIfdData := build_7F49(rawOID, encodeX962EcPoint(domainParams.ec, chipPub))
-		tIcData := build_7F49(rawOID, encodeX962EcPoint(domainParams.ec, termPub))
+		tIfdData := build_7F49(oidBytes, encodeX962EcPoint(domainParams.ec, chipPub))
+		tIcData := build_7F49(oidBytes, encodeX962EcPoint(domainParams.ec, termPub))
 
 		// generate auth tokens
 		tIfd = paceConfig.computeAuthToken(ksMac, tIfdData)
@@ -481,6 +472,7 @@ func (pace *Pace) mutualAuth_GM_ECDH(nfc *NfcSession, paceConfig *PaceConfig, do
 		}
 	}
 
+	// TODO - should this have been done before the last GeneralAuthenticate? (see above)
 	// setup secure messaging
 	{
 		var err error
@@ -500,7 +492,10 @@ func getIcPubKeyECForCAM(domainParams *PACEDomainParams, cardSecurity *CardSecur
 	}
 
 	for i := range caPubKeyInfos {
-		if caPubKeyInfos[i].ChipAuthenticationPublicKey.Algorithm.Parameters == domainParams.id {
+		// TODO - shouldn't we also check that the Alg.Protocol is as expected (e.g. == standardizedDomainParameters)
+		//			- code is here and elsewhere also
+		//			- would be good to have a helper that gets the INTfor us
+		if bytesToInt(caPubKeyInfos[i].ChipAuthenticationPublicKey.Algorithm.Parameters.Bytes) == domainParams.id {
 			var tmpKey []byte = caPubKeyInfos[i].ChipAuthenticationPublicKey.SubjectPublicKey.Bytes
 			return decodeX962EcPoint(domainParams.ec, tmpKey)
 		}

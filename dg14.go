@@ -23,6 +23,8 @@ func NewDG14(data []byte) (dg14 *DG14, err error) {
 
 	nodes := TlvDecode(dg14.RawData)
 
+	//log.Printf("DG14 TLV:\n%s", nodes)
+
 	rootNode := nodes.GetNode(DG14Tag)
 
 	if !rootNode.IsValidNode() {
@@ -32,6 +34,8 @@ func NewDG14(data []byte) (dg14 *DG14, err error) {
 	if dg14.SecInfos, err = DecodeSecurityInfos(rootNode.GetValue()); err != nil {
 		return nil, err
 	}
+
+	//log.Printf("DG14 SecInfos:\n%+v", dg14.SecInfos)
 
 	return dg14, nil
 }

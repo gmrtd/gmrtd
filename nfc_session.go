@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"log"
+	"log/slog"
 )
 
 const INS_EXTERNAL_AUTHENTICATE = byte(0x82)
@@ -261,6 +262,8 @@ func (nfc *NfcSession) DoAPDU(capdu *CApdu) (rapdu *RApdu, err error) {
 	}
 
 	rapduBytes := nfc.transceiver.Transceive(capduBytes)
+
+	slog.Debug("DoAPDU", "cApduBytes", BytesToHex(capduBytes), "rApduBytes", BytesToHex(rapduBytes))
 
 	if nfc.sm != nil {
 		rapdu, err = nfc.sm.Decode(rapduBytes)

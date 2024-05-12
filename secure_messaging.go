@@ -71,6 +71,7 @@ func (sm *SecureMessaging) SetSSC(ssc []byte) {
 		log.Panicf("SSC length mismatch (exp:%d, act:%d)", len(sm.SSC), len(ssc))
 	}
 	copy(sm.SSC, ssc)
+	slog.Debug("SetSSC", "SSC", sm.SSC)
 }
 
 func (sm SecureMessaging) String() string {

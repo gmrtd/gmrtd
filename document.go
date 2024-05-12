@@ -2,6 +2,14 @@ package gmrtd
 
 import "fmt"
 
+// TODO - 9303p11 indicates that PubKey for regular Chip Auth can be in DG14/CardSecurity
+//
+// 2. Chip Authentication, as defined in Section 6.2. Support of Chip Authentication is indicated by the presence
+// of corresponding SecurityInfos in EF.DG14/EF.CardSecurity. If available, the terminal MAY read and
+// verify EF.DG14/EF.CardSecurity and perform Chip Authentication.
+//
+// currently we're only attempting to read CardSecurity during PACE-CAM!
+
 type Document struct {
 	CardAccess     *CardAccess
 	CardSecurity   *CardSecurity // NB only read for PACE-CAM - read during PACE flow
@@ -23,7 +31,7 @@ type Document struct {
 type ChipAuthStatus int
 
 const (
-	CHIP_AUTH_STATUS_NA ChipAuthStatus = iota
+	CHIP_AUTH_STATUS_NA ChipAuthStatus = iota // TODO - rename to NONE?
 	CHIP_AUTH_STATUS_PACE_CAM
 	CHIP_AUTH_STATUS_CA
 	CHIP_AUTH_STATUS_AA

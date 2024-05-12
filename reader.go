@@ -140,7 +140,7 @@ func ReadDocument(transceiver Transceiver, password *Password) (doc *Document, e
 		return doc, err
 	}
 
-	// TODO - EF.ATR/INFO? may contain extended length info
+	// TODO - EF.ATR/INFO? (0x2F01) may contain extended length info... get 6B00 error on SG passport
 
 	slog.Info("Read EF.DIR")
 	doc.Dir = NewEFDIR(nfc.ReadFile(MRTDFileIdEFDIR))
@@ -163,10 +163,6 @@ func ReadDocument(transceiver Transceiver, password *Password) (doc *Document, e
 		if err != nil {
 			return doc, err
 		}
-
-		if nfc.sm != nil {
-			slog.Debug("PACE", "sm", nfc.sm)
-		}
 	}
 
 	slog.Info("Selecting MRTD AID")
@@ -184,10 +180,6 @@ func ReadDocument(transceiver Transceiver, password *Password) (doc *Document, e
 		err = NewBAC().doBAC(nfc, password)
 		if err != nil {
 			return doc, err
-		}
-
-		if nfc.sm != nil {
-			slog.Debug("BAC", "sm", nfc.sm)
 		}
 	}
 
@@ -213,10 +205,12 @@ func ReadDocument(transceiver Transceiver, password *Password) (doc *Document, e
 
 	/*
 	 * Chip / Active Authentication
+	 *
+	 * NB requires DG data, so performed after DG read
 	 */
 
 	if doc.ChipAuthStatus == CHIP_AUTH_STATUS_NA {
-		doChipAuth(nfc, doc)
+		err = NewChipAuth().doChipAuth(nfc, doc)
 	}
 
 	if doc.ChipAuthStatus == CHIP_AUTH_STATUS_NA {

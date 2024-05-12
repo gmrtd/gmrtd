@@ -27,7 +27,7 @@ var (
 
 	oidBsiDe           = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7}
 	oidBsiDeAlgorithms = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 1}
-	// const standardizedDomainParameters = bsi_de_algorithms + ".2"
+	// const standardizedDomainParameters = bsi_de_algorithms + ".2"		// TODO - this is what PACE-CAM is using... maybe have common handling
 	oidBsiDeProtocols          = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2}
 	oidBsiDeProtocolsSmartcard = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2}
 	oidPk                      = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 1}
@@ -98,6 +98,11 @@ var (
 	oidHashAlgorithmSHA224 = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 2, 4}
 )
 
+var (
+	oidPrimeField  = asn1.ObjectIdentifier{1, 2, 840, 10045, 1, 1}
+	oidEcPublicKey = asn1.ObjectIdentifier{1, 2, 840, 10045, 2, 1}
+)
+
 // determines if 'oid' starts with 'prefix' (but not equal to - i.e. oid != prefix)
 func oidHasPrefix(oid asn1.ObjectIdentifier, prefixOid asn1.ObjectIdentifier) bool {
 	// oid must be longer than prefix
@@ -108,6 +113,18 @@ func oidHasPrefix(oid asn1.ObjectIdentifier, prefixOid asn1.ObjectIdentifier) bo
 	return prefixOid.Equal(oid[:len(prefixOid)])
 }
 
+// TODO - get the raw bytes.. i.e. without the tag/length (0x06,<len>)
+func oidBytes(oid asn1.ObjectIdentifier) []byte {
+	asn1bytes, err := asn1.Marshal(oid)
+	if err != nil {
+		log.Panicf("Unable to encode OID []int (%s)", err.Error())
+	}
+
+	return TlvDecode(asn1bytes).GetNode(0x06).GetValue()
+
+}
+
+// TODO - why not just convert to asn1.ObjectIdentifier and then use String method?
 func DecodeAsn1objectId(data []byte) string {
 	var oid asn1.ObjectIdentifier
 
@@ -136,8 +153,8 @@ var oid_lookup = map[string]string{
 	"0.4.0.127.0.7.2.2.4.2.2":       "id-PACE-ECDH-GM-AES-CBC-CMAC-128",
 	"0.4.0.127.0.7.2.2.4.2.4":       "id-PACE-ECDH-GM-AES-CBC-CMAC-256",
 	"0.4.0.127.0.7.2.2.4.6.4":       "id-PACE-ECDH-CAM-AES-CBC-CMAC-256",
-	"1.2.840.10045.1.1":             "prime-field",
-	"1.2.840.10045.2.1":             "id-ecPublicKey",
+	oidPrimeField.String():          "prime-field",
+	oidEcPublicKey.String():         "id-ecPublicKey",
 	"1.2.840.10045.4.3.2":           "ecdsa-with-SHA256",
 	"1.2.840.10045.4.3.3":           "ecdsa-with-SHA384",
 	"1.2.840.113549.1.1.1":          "rsaEncryption",
