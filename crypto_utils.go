@@ -50,7 +50,7 @@ type EC_POINT struct {
 }
 
 func (ec EC_POINT) String() string {
-	return fmt.Sprintf("X:%x, Y:%x", ec.x.Bytes(), ec.y.Bytes())
+	return fmt.Sprintf("(x:%x, y:%x)", ec.x.Bytes(), ec.y.Bytes())
 }
 
 // TODO - maybe this should panic.. as this should only be caused by a code issue
@@ -309,7 +309,7 @@ func KeyGeneratorEc(ec elliptic.Curve) (pri []byte, pub *EC_POINT) {
 	if err != nil {
 		log.Panic(err)
 	}
-	slog.Debug("KeyGeneratorEc", "Pri", pri, "Pub", pub)
+	slog.Debug("KeyGeneratorEc", "Pri", BytesToHex(pri), "Pub", pub.String())
 	return
 }
 

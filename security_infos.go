@@ -4,6 +4,7 @@ import (
 	"encoding/asn1"
 	"fmt"
 	"log/slog"
+	"math/big"
 )
 
 // PACEInfo
@@ -76,13 +77,13 @@ type ActiveAuthenticationInfo struct {
 type ChipAuthenticationInfo struct {
 	Protocol asn1.ObjectIdentifier
 	Version  int
-	KeyId    int `asn1:"optional"`
+	KeyId    *big.Int `asn1:"optional"`
 }
 
 type ChipAuthenticationPublicKeyInfo struct {
 	Protocol                    asn1.ObjectIdentifier
 	ChipAuthenticationPublicKey SubjectPublicKeyInfo
-	KeyId                       int `asn1:"optional"` // TODO - shouldn't we set these to actual default values?
+	KeyId                       *big.Int `asn1:"optional"` // TODO - shouldn't we set these to actual default values?
 }
 
 type SubjectPublicKeyInfo struct {

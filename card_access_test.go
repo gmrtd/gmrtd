@@ -47,7 +47,7 @@ func TestNewCardAccessHappyAT(t *testing.T) {
 		t.Errorf("1 SecInfo expected")
 	}
 
-	if !reflect.DeepEqual(cardAccess.SecurityInfos.PaceInfos,expPaceInfos) {
+	if !reflect.DeepEqual(cardAccess.SecurityInfos.PaceInfos, expPaceInfos) {
 		t.Errorf("PaceInfos differ to expected")
 	}
 
@@ -72,7 +72,7 @@ func TestNewCardAccessHappyDE(t *testing.T) {
 		t.Errorf("2 SecInfos expected")
 	}
 
-	if !reflect.DeepEqual(cardAccess.SecurityInfos.PaceInfos,expPaceInfos) {
+	if !reflect.DeepEqual(cardAccess.SecurityInfos.PaceInfos, expPaceInfos) {
 		t.Errorf("PaceInfos differ to expected")
 	}
 }

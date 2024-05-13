@@ -40,6 +40,8 @@ func NewNfcSession(transceiver Transceiver) *NfcSession {
 }
 
 func (nfc *NfcSession) GetChallenge(length int) (out []byte, err error) {
+	slog.Debug("GetChallenge", "length", length)
+
 	rapdu, err := nfc.DoAPDU(NewCApdu(0x00, INS_GET_CHALLENGE, 0x00, 0x00, nil, length))
 	if err != nil {
 		return nil, err
@@ -53,10 +55,14 @@ func (nfc *NfcSession) GetChallenge(length int) (out []byte, err error) {
 		return nil, fmt.Errorf("[GetChallenge] Incorrect length (exp:%d, act:%d)", length, len(rapdu.Data))
 	}
 
+	slog.Debug("GetChallenge", "challenge", BytesToHex(rapdu.Data))
+
 	return rapdu.Data, nil
 }
 
 func (nfc *NfcSession) ExternalAuthenticate(data []byte, le int) (out []byte, err error) {
+	slog.Debug("ExternalAuthenticate", "data", BytesToHex(data), "le", le)
+
 	rapdu, err := nfc.DoAPDU(NewCApdu(0x00, INS_EXTERNAL_AUTHENTICATE, 0x00, 0x00, data, le))
 	if err != nil {
 		return nil, err
@@ -70,10 +76,14 @@ func (nfc *NfcSession) ExternalAuthenticate(data []byte, le int) (out []byte, er
 		return nil, fmt.Errorf("[ExternalAuthenticate] Incorrect length (exp:%d, act:%d)", le, len(rapdu.Data))
 	}
 
+	slog.Debug("ExternalAuthenticate", "out", BytesToHex(rapdu.Data))
+
 	return rapdu.Data, nil
 }
 
 func GeneralAuthenticate(nfc *NfcSession, commandChaining bool, data []byte) *RApdu {
+	slog.Debug("GeneralAuthenticate", "cmdChaining", commandChaining, "data", BytesToHex(data))
+
 	// TODO - use const
 	cla := 0x00
 	if commandChaining {
@@ -87,6 +97,8 @@ func GeneralAuthenticate(nfc *NfcSession, commandChaining bool, data []byte) *RA
 		log.Panicf("DoAPDU error: %s", err)
 	}
 
+	slog.Debug("GeneralAuthenticate", "rApdu", rApdu.String())
+
 	return rApdu
 }
 
@@ -94,9 +106,13 @@ func GeneralAuthenticate(nfc *NfcSession, commandChaining bool, data []byte) *RA
 //
 //	0 0 0 0 1 0 0 0	– Select from MF (data field=path without the identifier of the MF)
 func (nfc *NfcSession) SelectMF() (err error) {
+	slog.Debug("SelectMF")
+
 	//If P1-P2=’0000′ and if the data field is empty or equal to ‘3F00’, then select the MF.
 	// https://cardwerk.com/smart-card-standard-iso7816-4-section-6-basic-interindustry-commands/
-	var capdu *CApdu = NewCApdu(0x00, INS_SELECT, 0x00, 0x00, []byte{0x3f, 0x00}, 0) // TODO - P2 was 0C
+
+	// TODO - as per spec, but specify 3F00 (MF)?
+	var capdu *CApdu = NewCApdu(0x00, INS_SELECT, 0x00, 0x0C, []byte{0x3f, 0x00}, 0)
 
 	rapdu, err := nfc.DoAPDU(capdu)
 	if err != nil {
@@ -105,9 +121,9 @@ func (nfc *NfcSession) SelectMF() (err error) {
 
 	if !rapdu.IsSuccess() {
 		// TODO - AT/DE passports were giving 6700 response error.. so we'll tolerate this (at least for now)
-		if rapdu.Status == 0x6700 {
-			return nil
-		}
+		//if rapdu.Status == 0x6700 {
+		//	return nil
+		//}
 
 		return fmt.Errorf("[SelectMF] Status:%x", rapdu.Status)
 	}
@@ -117,6 +133,8 @@ func (nfc *NfcSession) SelectMF() (err error) {
 
 // returns: false if file-not-found, otherwise true
 func (nfc *NfcSession) SelectEF(fileId int) (selected bool, err error) {
+	slog.Debug("SelectEF", "fileId", fileId)
+
 	fileIdBytes := make([]byte, 2)
 	binary.BigEndian.PutUint16(fileIdBytes, uint16(fileId))
 	var capdu *CApdu = NewCApdu(0x00, INS_SELECT, 0x02, 0x0C, fileIdBytes, 0)
@@ -143,6 +161,8 @@ func (nfc *NfcSession) SelectEF(fileId int) (selected bool, err error) {
 }
 
 func (nfc *NfcSession) SelectAid(aid []byte) (selected bool, err error) {
+	slog.Debug("SelectAid", "aid", BytesToHex(aid)) // TODO - this is normally a string
+
 	rApdu, err := nfc.DoAPDU(NewCApdu(0x00, INS_SELECT, 0x04, 0x0C, aid, 0))
 	if err != nil {
 		return false, err
@@ -162,6 +182,8 @@ func (nfc *NfcSession) SelectAid(aid []byte) (selected bool, err error) {
 
 // NB may not return requested length
 func (nfc *NfcSession) ReadBinaryFromOffset(offset int, length int) []byte {
+	slog.Debug("ReadBinaryFromOffset", "offset", offset, "length", length)
+
 	var capdu *CApdu = NewCApdu(0x00, INS_READ_BINARY, byte(offset/256), byte(offset%256), nil, length)
 
 	rapdu, err := nfc.DoAPDU(capdu)
@@ -180,6 +202,7 @@ func (nfc *NfcSession) ReadBinaryFromOffset(offset int, length int) []byte {
 
 // returns: file contents OR nil if file not found
 func (nfc *NfcSession) ReadFile(fileId int) (fileData []byte) {
+	slog.Debug("ReadFile", "fileId", fileData)
 
 	// TODO - read (without select) using short-EF is mandatory for MRTD (p10-page-18).. so maybe better to do this rather than selecting the file first
 	//			- although having problems getting it to work

@@ -45,6 +45,10 @@ func NewSOD(data []byte) (*SOD, error) {
 			return nil, err
 		}
 
+		// verify the content-type is as expected
+		if !sd.SD2.Content.EContentType.Equal(oidLdsSecurityObject) {
+			return nil, fmt.Errorf("incorrect ContentType (got:%s)", sd.SD2.Content.EContentType.String())
+		}
 		eContent := sd.SD2.Content.EContent
 
 		out.LdsSecurityObject, err = parseLdsSecurityObject(eContent)

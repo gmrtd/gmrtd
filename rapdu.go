@@ -18,7 +18,7 @@ func NewRApdu(status uint16, data []byte) *RApdu {
 }
 
 func (apdu *RApdu) String() string {
-	return fmt.Sprintf("Status:%04x, Data:%x", apdu.Status, apdu.Data)
+	return fmt.Sprintf("(Status:%04x, Data:%x)", apdu.Status, apdu.Data)
 }
 
 func (apdu *RApdu) IsSuccess() bool {

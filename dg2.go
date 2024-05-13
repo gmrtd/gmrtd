@@ -156,7 +156,7 @@ func NewDG2(data []byte) (*DG2, error) {
 // processes the Biometric Information Template (Tag:7F60)
 func (dg2 *DG2) processBIT(node TlvNode) BiometricInfoTemplate {
 	if node.GetTag() != 0x7F60 {
-		log.Panicf("Incorrect BIT tag (Exp:7F60) (Act:%X)", node.GetTag())
+		log.Panicf("Incorrect BIT tag (Exp:7F60) (Act:%x)", node.GetTag())
 	}
 
 	var out BiometricInfoTemplate
@@ -189,7 +189,7 @@ func (dg2 *DG2) processBIT(node TlvNode) BiometricInfoTemplate {
 // process the Biometric Header Template (BHT) (Tag:A1)
 func processBHT(node TlvNode) BiometricHeaderTemplate {
 	if node.GetTag() != 0xA1 {
-		log.Panicf("Incorrect BHT tag (Exp:A1) (Act:%X)", node.GetTag())
+		log.Panicf("Incorrect BHT tag (Exp:A1) (Act:%x)", node.GetTag())
 	}
 
 	var out BiometricHeaderTemplate
@@ -217,7 +217,7 @@ func processISO19794(data []byte) (*Facial, error) {
 			return nil, err
 		}
 		if !bytes.Equal(fh.FormatID[:], []byte{0x46, 0x41, 0x43, 0}) {
-			log.Panicf("Invalid FacialHeader.FormatID (Act:%X)", fh.FormatID)
+			log.Panicf("Invalid FacialHeader.FormatID (Act:%x)", fh.FormatID)
 		}
 	}
 
@@ -278,7 +278,7 @@ func parseISO19794_Image(r *bytes.Reader) (*Image, error) {
 	}
 
 	if !isImage(imageBytes) {
-		log.Panicf("Unknown image type [prefixBytes:%X]", imageBytes[0:10])
+		log.Panicf("Unknown image type [prefixBytes:%x]", imageBytes[0:10])
 	}
 
 	var img Image = Image{

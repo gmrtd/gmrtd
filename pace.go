@@ -81,6 +81,11 @@ type PaceConfig struct {
 	weighting       int
 }
 
+func (cfg *PaceConfig) String() string {
+	return fmt.Sprintf("(oid:%s, mapping:%d, cipher:%d, keyLenBits:%d, secureMessaging:%d, authToken:%d, weighting:%d)",
+		cfg.oid.String(), cfg.mapping, cfg.cipher, cfg.keyLengthBits, cfg.secureMessaging, cfg.authToken, cfg.weighting)
+}
+
 //OID								Mapping				Cipher	Keylength	Secure Messaging	Auth. Token
 //
 //id-PACE-DH-GM-3DES-CBC-CBC 		Generic 			3DES 	112 		CBC / CBC 			CBC
@@ -232,6 +237,7 @@ func (paceConfig *PaceConfig) decryptNonce(key []byte, encryptedNonce []byte) []
 //
 // AES [FIPS 197] SHALL be used in CMAC-mode [SP 800-38B] with a MAC length of 8 bytes.
 func (paceConfig *PaceConfig) computeAuthToken(key []byte, data []byte) []byte {
+	slog.Debug("computeAuthToken", "key", BytesToHex(key), "data", BytesToHex(data))
 
 	switch paceConfig.authToken {
 	case CBC:
@@ -252,6 +258,8 @@ func (paceConfig *PaceConfig) computeAuthToken(key []byte, data []byte) []byte {
 		if err != nil {
 			log.Panicf("Unable to generate Auth-Token (CMAC): %s", err.Error())
 		}
+
+		slog.Debug("computeAuthToken", "authToken", BytesToHex(authToken))
 		return authToken
 	}
 
@@ -306,6 +314,8 @@ func build_7F49(paceOid []byte, tag86data []byte) []byte {
 
 // TODO - move once it's generic enough.. ChipAuth has similar but different (e.g. P1/P2)
 func doAPDU_MSESetAT(nfc *NfcSession, paceConfig *PaceConfig, passwordType PasswordType) (err error) {
+	slog.Debug("doAPDU_MSESetAT")
+
 	// manually convert value to reduce reliance on iota values!
 	var passwordTypeValue byte
 	switch passwordType {
@@ -344,6 +354,8 @@ func doAPDU_MSESetAT(nfc *NfcSession, paceConfig *PaceConfig, passwordType Passw
 //   - generates shared secret
 //   - do generic mapping (and return G)
 func (pace *Pace) mapNonce_GM_ECDH(nfc *NfcSession, domainParams *PACEDomainParams, s []byte) (mapped_g *EC_POINT, pubMapIC *EC_POINT) {
+	slog.Debug("mapNonce_GM_ECDH")
+
 	// generate terminal key (private/public)
 	var termPri []byte
 	var termPub *EC_POINT
@@ -359,14 +371,14 @@ func (pace *Pace) mapNonce_GM_ECDH(nfc *NfcSession, domainParams *PACEDomainPara
 		}
 
 		pubMapIC = decodeX962EcPoint(domainParams.ec, decode_7C_XX(0x82, rApdu.Data))
-		slog.Debug("mapNonce_GM_ECDH", "pubMapIC", pubMapIC)
+		slog.Debug("mapNonce_GM_ECDH", "pubMapIC", pubMapIC.String())
 	}
 
 	//
 	// Shared Secret H
 	//
 	var termShared *EC_POINT = doECDH(termPri, pubMapIC, domainParams.ec)
-	slog.Debug("mapNonce_GM_ECDH", "termShared", termShared)
+	slog.Debug("mapNonce_GM_ECDH", "termShared", termShared.String())
 
 	//
 	// Mapped G
@@ -377,6 +389,8 @@ func (pace *Pace) mapNonce_GM_ECDH(nfc *NfcSession, domainParams *PACEDomainPara
 }
 
 func (pace *Pace) keyAgreement_GM_ECDH(nfc *NfcSession, domainParams *PACEDomainParams, G *EC_POINT) (sharedSecret []byte, termPub *EC_POINT, chipPub *EC_POINT) {
+	slog.Debug("keyAgreement_GM_ECDH")
+
 	var termPri []byte
 	{
 		// reader and chip generate/exchange another set of public-keys
@@ -384,7 +398,7 @@ func (pace *Pace) keyAgreement_GM_ECDH(nfc *NfcSession, domainParams *PACEDomain
 		//			- new keys for terminal
 		//			- exchange to get chip keys
 
-		slog.Debug("keyAgreement_GM_ECDH", "Gy", domainParams.ec.Params().Gx, "Gy", domainParams.ec.Params().Gy)
+		slog.Debug("keyAgreement_GM_ECDH", "Gx", BytesToHex(domainParams.ec.Params().Gx.Bytes()), "Gy", BytesToHex(domainParams.ec.Params().Gy.Bytes()))
 
 		// generate key based on domain-params
 		// NB ignore public-key as we'll generate later using the mapped generator (Gx/y)
@@ -394,7 +408,7 @@ func (pace *Pace) keyAgreement_GM_ECDH(nfc *NfcSession, domainParams *PACEDomain
 		termPub = new(EC_POINT)
 		termPub.x, termPub.y = domainParams.ec.ScalarMult(G.x, G.y, termPri)
 
-		slog.Debug("keyAgreement_GM_ECDH", "pri", termPri, "Nx", termPub.x.Bytes(), "Ny", termPub.y.Bytes())
+		slog.Debug("keyAgreement_GM_ECDH", "termPri", BytesToHex(termPri), "termPub", termPub.String())
 
 		// exchange terminal public-key with chip and get chip's public-key
 		{
@@ -415,7 +429,7 @@ func (pace *Pace) keyAgreement_GM_ECDH(nfc *NfcSession, domainParams *PACEDomain
 		// NB secret is just based on 'x'
 		sharedSecret = term_shared.x.Bytes()
 
-		slog.Debug("keyAgreement_GM_ECDH", "shared-secret", sharedSecret)
+		slog.Debug("keyAgreement_GM_ECDH", "shared-secret", BytesToHex(sharedSecret))
 	}
 
 	return sharedSecret, termPub, chipPub
@@ -424,13 +438,15 @@ func (pace *Pace) keyAgreement_GM_ECDH(nfc *NfcSession, domainParams *PACEDomain
 // performs mutual authentication and sets up secure messaging
 // ecadIC: only populated for CAM
 func (pace *Pace) mutualAuth_GM_ECDH(nfc *NfcSession, paceConfig *PaceConfig, domainParams *PACEDomainParams, sharedSecret []byte, termPub *EC_POINT, chipPub *EC_POINT) (ecadIC []byte) {
+	slog.Debug("mutualAuth_GM_ECDH")
+
 	// derive KSenc / KSmac
 	var ksEnc, ksMac []byte
 	{
 		ksEnc = KDF(sharedSecret, KDF_COUNTER_KSENC, paceConfig.cipher, paceConfig.keyLengthBits)
 		ksMac = KDF(sharedSecret, KDF_COUNTER_KSMAC, paceConfig.cipher, paceConfig.keyLengthBits)
 
-		slog.Debug("mutualAuth_GM_ECDH", "ksEnc", ksEnc, "ksMac", ksMac)
+		slog.Debug("mutualAuth_GM_ECDH", "ksEnc", BytesToHex(ksEnc), "ksMac", BytesToHex(ksMac))
 	}
 
 	// generate auth tokens
@@ -485,6 +501,8 @@ func (pace *Pace) mutualAuth_GM_ECDH(nfc *NfcSession, paceConfig *PaceConfig, do
 }
 
 func getIcPubKeyECForCAM(domainParams *PACEDomainParams, cardSecurity *CardSecurity) *EC_POINT {
+	slog.Debug("getIcPubKeyECForCAM")
+
 	var caPubKeyInfos []ChipAuthenticationPublicKeyInfo = cardSecurity.SecurityInfos.ChipAuthPubKeyInfos
 
 	if !domainParams.isECDH {
@@ -517,7 +535,7 @@ func (pace *Pace) doCamEcdh(nfc *NfcSession, paceConfig *PaceConfig, domainParam
 		log.Panicf("ECAD missing")
 	}
 
-	slog.Debug("doCamEcdh", "ECAD-IC", ecadIC)
+	slog.Debug("doCamEcdh", "ECAD-IC", BytesToHex(ecadIC))
 
 	// ICAO9303 p11... 4.4.3.3.3 Chip Authentication Mapping
 
@@ -538,7 +556,7 @@ func (pace *Pace) doCamEcdh(nfc *NfcSession, paceConfig *PaceConfig, domainParam
 	{
 		// TODO - variable names? (and ecad)
 		CA_IC = ISO9797Method2Unpad(CryptCBC(blockCipher, iv, ecadIC, false))
-		slog.Debug("doCamEcdh", "CA-IC", CA_IC)
+		slog.Debug("doCamEcdh", "CA-IC", BytesToHex(CA_IC))
 	}
 
 	// 4.4.3.5.2 Verification by the terminal
@@ -555,13 +573,13 @@ func (pace *Pace) doCamEcdh(nfc *NfcSession, paceConfig *PaceConfig, domainParam
 		var PK_IC *EC_POINT = getIcPubKeyECForCAM(domainParams, doc.CardSecurity)
 
 		var KA *EC_POINT = doECDH(CA_IC, PK_IC, domainParams.ec)
-		slog.Debug("doCamEcdh", "KA", KA)
+		slog.Debug("doCamEcdh", "KA", KA.String())
 
 		//
 		// Verify that PKMAP,IC = KA(CAIC, PKIC, DIC).
 		//
-		if !bytes.Equal(KA.x.Bytes(), pubMapIC.x.Bytes()) || !bytes.Equal(KA.y.Bytes(), pubMapIC.y.Bytes()) {
-			log.Panicf("PACE CAM verification failed (Bad KA.X/Y)")
+		if !bytes.Equal(KA.x.Bytes(), pubMapIC.x.Bytes()) || !bytes.Equal(KA.y.Bytes(), pubMapIC.y.Bytes()) { // TODO - have an equals method?
+			log.Panicf("PACE CAM verification failed (Bad KA.X/Y) KA:%s, pubMapIC:%s", KA.String(), pubMapIC.String())
 		}
 
 		// record that Chip Auth has been performed using PACE-CAM
@@ -604,6 +622,8 @@ func getNonce(nfc *NfcSession, paceConfig *PaceConfig, kKdf []byte) []byte {
 
 // selects the preferred pace-config based on the options advertised in the card-access file
 func selectPaceConfig(cardAccess *CardAccess) (paceConfig *PaceConfig, domainParams *PACEDomainParams) {
+	slog.Debug("selectPaceConfig")
+
 	var paceInfos []PaceInfo = cardAccess.SecurityInfos.PaceInfos
 
 	// evaluate all entries and select the preferred, based on the associated weighting
@@ -643,6 +663,8 @@ func selectPaceConfig(cardAccess *CardAccess) (paceConfig *PaceConfig, domainPar
 }
 
 func (pace *Pace) doPACE(nfc *NfcSession, password *Password, doc *Document) (err error) {
+	slog.Debug("doPACE", "password-type", password.passwordType, "password", password.password)
+
 	// PACE requires card-access
 	if doc.CardAccess == nil {
 		return nil
@@ -655,6 +677,8 @@ func (pace *Pace) doPACE(nfc *NfcSession, password *Password, doc *Document) (er
 
 	paceConfig, domainParams = selectPaceConfig(doc.CardAccess)
 	// TODO - error check?
+
+	slog.Debug("doPace", "selected paceConfig", paceConfig.String())
 
 	var kKdf []byte = getKeyForPassword(paceConfig, password)
 
@@ -686,13 +710,14 @@ func (pace *Pace) doPACE(nfc *NfcSession, password *Password, doc *Document) (er
 
 			// Perform Chip Authentication (if applicable)
 			if paceConfig.mapping == CAM {
+				slog.Debug("doPace - CAM - reading CardSecurity")
+				// TODO - could skip if we already have CardSecurity? (although we shouldn't)
 				if doc.CardSecurity, err = NewCardSecurity(nfc.ReadFile(MRTDFileIdCardSecurity)); err != nil {
 					return err
 				}
 				if doc.CardSecurity == nil {
 					return fmt.Errorf("cannot proceed with PACE-CAM without CardSecurity file")
 				}
-				slog.Debug("DoPACE", "CardSecurity", doc.CardSecurity.RawData)
 				pace.doCamEcdh(nfc, paceConfig, domainParams, pubMapIC, ecadIC, doc)
 			}
 		case false: // DH
@@ -702,7 +727,7 @@ func (pace *Pace) doPACE(nfc *NfcSession, password *Password, doc *Document) (er
 		return fmt.Errorf("PACE IM NOT IMPLEMENTED")
 	}
 
-	slog.Debug("doPACE - Completed", "SM", nfc.sm)
+	slog.Debug("doPACE - Completed", "SM", nfc.sm.String())
 
 	return nil
 }

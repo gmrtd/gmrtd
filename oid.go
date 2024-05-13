@@ -87,6 +87,8 @@ var (
 	oidPaceEcdhCamAesCbcCmac128 = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 6, 2}
 	oidPaceEcdhCamAesCbcCmac192 = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 6, 3}
 	oidPaceEcdhCamAesCbcCmac256 = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 6, 4}
+
+	oidSecurityObject = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 3, 2, 1}
 )
 
 var (
@@ -96,6 +98,8 @@ var (
 	oidHashAlgorithmSHA384 = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 2, 2}
 	oidHashAlgorithmSHA512 = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 2, 3}
 	oidHashAlgorithmSHA224 = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 2, 4}
+
+	oidLdsSecurityObject = asn1.ObjectIdentifier{2, 23, 136, 1, 1, 1}
 )
 
 var (
@@ -152,11 +156,11 @@ var oid_lookup = map[string]string{
 	"0.4.0.127.0.7.2.2.3.2.4":       "id-TA-ECDSA-SHA-256",
 	"0.4.0.127.0.7.2.2.4.2.2":       "id-PACE-ECDH-GM-AES-CBC-CMAC-128",
 	"0.4.0.127.0.7.2.2.4.2.4":       "id-PACE-ECDH-GM-AES-CBC-CMAC-256",
-	"0.4.0.127.0.7.2.2.4.6.4":       "id-PACE-ECDH-CAM-AES-CBC-CMAC-256",
 	oidPrimeField.String():          "prime-field",
 	oidEcPublicKey.String():         "id-ecPublicKey",
 	"1.2.840.10045.4.3.2":           "ecdsa-with-SHA256",
 	"1.2.840.10045.4.3.3":           "ecdsa-with-SHA384",
+	"1.2.840.10045.4.3.4":           "ecdsa-with-sha512",
 	"1.2.840.113549.1.1.1":          "rsaEncryption",
 	"1.2.840.113549.1.1.8":          "id-mgf1",
 	"1.2.840.113549.1.1.10":         "id-RSASSA-PSS",
@@ -185,7 +189,7 @@ var oid_lookup = map[string]string{
 	oidHashAlgorithmSHA384.String(): "sha384",
 	oidHashAlgorithmSHA512.String(): "sha512",
 	oidHashAlgorithmSHA224.String(): "sha224",
-	"2.23.136.1.1.1":                "ldsSecurityObject",
+	oidLdsSecurityObject.String():   "ldsSecurityObject",
 	"2.23.136.1.1.6.2":              "documentTypeList",
 
 	oidCa.String(): "id-CA",
@@ -201,4 +205,11 @@ var oid_lookup = map[string]string{
 	oidCaEcdhAesCbcCmac128.String(): "id-CA-ECDH-AES-CBC-CMAC-128",
 	oidCaEcdhAesCbcCmac192.String(): "id-CA-ECDH-AES-CBC-CMAC-192",
 	oidCaEcdhAesCbcCmac256.String(): "id-CA-ECDH-AES-CBC-CMAC-256",
+
+	oidPaceEcdhCam.String():              "id-PACE-ECDH-CAM",
+	oidPaceEcdhCamAesCbcCmac128.String(): "id-PACE-ECDH-CAM-AES-CBC-CMAC-128",
+	oidPaceEcdhCamAesCbcCmac192.String(): "id-PACE-ECDH-CAM-AES-CBC-CMAC-192",
+	oidPaceEcdhCamAesCbcCmac256.String(): "id-PACE-ECDH-CAM-AES-CBC-CMAC-256",
+
+	oidSecurityObject.String(): "id-SecurityObject",
 }

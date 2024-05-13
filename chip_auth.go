@@ -32,7 +32,7 @@ func NewChipAuth() *ChipAuth {
 
 func (chipAuth *ChipAuth) doChipAuth(nfc *NfcSession, doc *Document) (err error) {
 	if nfc.sm != nil {
-		slog.Debug("doChipAuth SM(pre)", "Alg", nfc.sm.alg, "ksEnc", BytesToHex(nfc.sm.KSenc), "ksMac", BytesToHex(nfc.sm.KSmac), "SSC", BytesToHex(nfc.sm.SSC))
+		slog.Debug("doChipAuth", "SM(pre)", nfc.sm.String())
 	}
 
 	// skip if we have already performed chip authentication
@@ -54,7 +54,7 @@ func (chipAuth *ChipAuth) doChipAuth(nfc *NfcSession, doc *Document) (err error)
 
 	var caAlgInfo *CaAlgorithmInfo = getAlgInfo(caInfo.Protocol)
 
-	var caPubKeyInfo *ChipAuthenticationPublicKeyInfo = selectCAPubKeyInfo(caAlgInfo.targetOid, doc)
+	var caPubKeyInfo *ChipAuthenticationPublicKeyInfo = selectCAPubKeyInfo(caInfo, caAlgInfo, doc)
 	if caPubKeyInfo == nil {
 		return fmt.Errorf("chipAuth: unable to select public-key info") // TODO - what data to log?
 	}
@@ -76,7 +76,7 @@ func (chipAuth *ChipAuth) doChipAuth(nfc *NfcSession, doc *Document) (err error)
 	}
 
 	if nfc.sm != nil {
-		slog.Debug("doChipAuth SM(post)", "Alg", nfc.sm.alg, "ksEnc", BytesToHex(nfc.sm.KSenc), "ksMac", BytesToHex(nfc.sm.KSmac), "SSC", BytesToHex(nfc.sm.SSC))
+		slog.Debug("doChipAuth", "SM(post)", nfc.sm.String())
 	}
 
 	return nil
@@ -94,14 +94,23 @@ func selectCAInfo(doc *Document) *ChipAuthenticationInfo {
 }
 
 // selects the public key matching the target OID (i.e. oidPkDh / oidPkEcdh)
-func selectCAPubKeyInfo(targetOid asn1.ObjectIdentifier, doc *Document) *ChipAuthenticationPublicKeyInfo {
+// TODO - update above... based on caAlgInfo.targetOid + keyId (if present)
+func selectCAPubKeyInfo(caInfo *ChipAuthenticationInfo, caAlgInfo *CaAlgorithmInfo, doc *Document) *ChipAuthenticationPublicKeyInfo {
 
 	for i := range doc.Dg14.SecInfos.ChipAuthPubKeyInfos {
 		var curPubKey *ChipAuthenticationPublicKeyInfo = &(doc.Dg14.SecInfos.ChipAuthPubKeyInfos[i])
 
-		if curPubKey.Protocol.Equal(targetOid) {
-			// TODO - if keyId is specified (need caInfo?) then also check for keyId match
-			return curPubKey
+		if curPubKey.Protocol.Equal(caAlgInfo.targetOid) {
+
+			if caInfo.KeyId == nil {
+				// no key-id specified, so good to use any matching public-key
+				return curPubKey
+			} else {
+				// key-id specified, so need to find matching public-key
+				if caInfo.KeyId.Cmp(curPubKey.KeyId) == 0 { // TODO - nil check on curPubKey.keyId? is it required?
+					return curPubKey
+				}
+			}
 		}
 	}
 
@@ -159,13 +168,12 @@ func (chipAuth *ChipAuth) doCaEcdh(nfc *NfcSession, caInfo *ChipAuthenticationIn
 		slog.Debug("doCaEcdh", "chip pubKey", BytesToHex(chipPubKeyBytes))
 		chipPubKey = decodeX962EcPoint(curve, chipPubKeyBytes)
 	}
-	slog.Debug("doCaEcdh chipPubKey", "x", BytesToHex(chipPubKey.x.Bytes()), "y", BytesToHex(chipPubKey.y.Bytes()))
+	slog.Debug("doCaEcdh","chipPubKey", chipPubKey.String())
 
 	// generate ephemeral key
 	var termPri []byte
 	var termPub *EC_POINT
 	termPri, termPub = chipAuth.keyGeneratorEc(curve)
-	slog.Debug("doCaEcdh Ephemeral-Key", "Pri", BytesToHex(termPri), "Pub.x", BytesToHex(termPub.x.Bytes()), "Pub.y", BytesToHex(termPub.y.Bytes()))
 
 	// MSE:Set AT
 	//
@@ -182,8 +190,10 @@ func (chipAuth *ChipAuth) doCaEcdh(nfc *NfcSession, caInfo *ChipAuthenticationIn
 	{
 		nodes := NewTlvNodes()
 		nodes.AddNode(NewTlvSimpleNode(0x80, oidBytes(caInfo.Protocol)))
-		// TODO - need to indicate key-id (if multiple keys)
-		//nodes.AddNode(NewTlvSimpleNode(0x84, ?key-id)
+		// specify key-id (if required)
+		if caInfo.KeyId != nil {
+			nodes.AddNode(NewTlvSimpleNode(0x84, caInfo.KeyId.Bytes()))
+		}
 
 		// MSE:Set AT (0x41A4: Chip Authentication)
 		cApdu := NewCApdu(0x00, 0x22, 0x41, 0xA4, nodes.Encode(), 0) // TODO - use const

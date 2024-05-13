@@ -37,6 +37,21 @@ const (
 	CHIP_AUTH_STATUS_AA
 )
 
+func (cas ChipAuthStatus) String() string {
+	switch cas {
+	case CHIP_AUTH_STATUS_NA:
+		return "n/a"
+	case CHIP_AUTH_STATUS_PACE_CAM:
+		return "PACE-CAM"
+	case CHIP_AUTH_STATUS_CA:
+		return "Chip Authentication"
+	case CHIP_AUTH_STATUS_AA:
+		return "Active Authentication"
+	}
+
+	return "*UnsupportedValue*"
+}
+
 // gets the LDS Version (e.g. '0108') from EF.SOD or EF.COM
 // returns empty string if valid cannot be determined
 func (doc Document) LdsVersion() string {

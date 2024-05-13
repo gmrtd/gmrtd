@@ -59,7 +59,7 @@ func TestNfcSessionSecureMessagingTDES(t *testing.T) {
 	actEfComData := nfc.ReadFile(MRTDFileIdEFCOM)
 
 	if !bytes.Equal(actEfComData, expEfComData) {
-		t.Errorf("Incorrect EF.COM data (Exp:%X, Act:%X)", expEfComData, actEfComData)
+		t.Errorf("Incorrect EF.COM data (Exp:%x, Act:%x)", expEfComData, actEfComData)
 	}
 
 	if !bytes.Equal(nfc.sm.SSC, HexToBytes("887022120C06C22C")) {
@@ -96,7 +96,7 @@ func TestNfcSessionSecureMessagingAES(t *testing.T) {
 	actEfComData := nfc.ReadFile(MRTDFileIdEFCOM)
 
 	if !bytes.Equal(actEfComData, expEfComData) {
-		t.Errorf("Incorrect EF.COM data (Exp:%X, Act:%X)", expEfComData, actEfComData)
+		t.Errorf("Incorrect EF.COM data (Exp:%x, Act:%x)", expEfComData, actEfComData)
 	}
 
 	if !bytes.Equal(nfc.sm.SSC, HexToBytes("00000000000000000000000000000026")) {

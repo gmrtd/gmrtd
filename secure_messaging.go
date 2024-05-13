@@ -61,7 +61,7 @@ func NewSecureMessaging(alg BlockCipherAlg, KSenc []byte, KSmac []byte) (sm *Sec
 	// init SSC (based on block size)
 	sm.SSC = make([]byte, sm.macCipher.BlockSize()) // TODO - why mac and not enc?
 
-	slog.Debug("NewSecureMessaging", "SM", sm)
+	slog.Debug("NewSecureMessaging", "SM", sm.String())
 
 	return sm, nil
 }
@@ -71,11 +71,11 @@ func (sm *SecureMessaging) SetSSC(ssc []byte) {
 		log.Panicf("SSC length mismatch (exp:%d, act:%d)", len(sm.SSC), len(ssc))
 	}
 	copy(sm.SSC, ssc)
-	slog.Debug("SetSSC", "SSC", sm.SSC)
+	slog.Debug("SetSSC", "SSC", BytesToHex(sm.SSC))
 }
 
 func (sm SecureMessaging) String() string {
-	return fmt.Sprintf("{alg:%d, ksenc:%x, ksmac:%x, ssc:%x}", sm.alg, sm.KSenc, sm.KSmac, sm.SSC)
+	return fmt.Sprintf("(alg:%d, ksenc:%x, ksmac:%x, ssc:%x)", sm.alg, sm.KSenc, sm.KSmac, sm.SSC)
 }
 
 // increments the SSC and returns the post-increment value
@@ -126,7 +126,7 @@ func (sm *SecureMessaging) generateMac(data []byte) (mac []byte, err error) {
 		}
 	}
 
-	slog.Debug("GenerateMac", "Data", data, "MAC", mac)
+	//slog.Debug("GenerateMac", "Data", BytesToHex(data), "MAC", BytesToHex(mac))
 
 	return mac, nil
 }

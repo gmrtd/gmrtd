@@ -35,7 +35,7 @@ func TestSecureMessageEncode(t *testing.T) {
 	out := outCApdu.Encode()
 
 	if !bytes.Equal(sm.SSC, HexToBytes("887022120C06C227")) {
-		t.Errorf("Incorrect SSC - %X", sm.SSC)
+		t.Errorf("Incorrect SSC - %x", sm.SSC)
 	}
 
 	if !bytes.Equal(exp, out) {
@@ -65,7 +65,7 @@ func TestSecureMessageDecode(t *testing.T) {
 	}
 
 	if !bytes.Equal(sm.SSC, HexToBytes("887022120C06C228")) {
-		t.Errorf("Incorrect SSC - %X", sm.SSC)
+		t.Errorf("Incorrect SSC - %x", sm.SSC)
 	}
 
 	if !out.IsSuccess() || len(out.Data) != 0 {

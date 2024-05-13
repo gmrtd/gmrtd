@@ -39,7 +39,7 @@ func HexToBytes(str string) []byte {
 }
 
 func BytesToHex(bytes []byte) string {
-	return fmt.Sprintf("%X", bytes)
+	return fmt.Sprintf("%x", bytes)
 }
 
 func PrintableBytes(data []byte) bool {

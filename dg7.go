@@ -61,7 +61,7 @@ func NewDG7(data []byte) (*DG7, error) {
 			imageBytes := rootNode.GetNodeByOccur(0x5F43, occurrence).GetValue()
 
 			if !isImage(imageBytes) {
-				return nil, fmt.Errorf("unknown image type [prefixBytes:%X]", imageBytes[0:10])
+				return nil, fmt.Errorf("unknown image type [prefixBytes:%x]", imageBytes[0:10])
 			}
 
 			out.Images = append(out.Images, DG7Image{Image: slices.Clone(imageBytes)})

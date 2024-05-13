@@ -104,10 +104,10 @@ func readDGs(nfc *NfcSession, doc *Document) (err error) {
 			actHash := CryptoHashByOid(doc.Sod.LdsSecurityObject.HashAlgorithm.Algorithm, dgBytes)
 
 			if !bytes.Equal(actHash, dgHash.DataGroupHashValue) {
-				return fmt.Errorf("DG%d hash invalid (Exp:%x, Act:%x)", dgHash.DataGroupNumber, dgHash.DataGroupHashValue, actHash)
+				return fmt.Errorf("DG%d hash invalid (Exp:%x, Act:%x)", dgHash.DataGroupNumber, BytesToHex(dgHash.DataGroupHashValue), BytesToHex(actHash))
 			}
 
-			slog.Info("Valid DG hash", "DG", dgHash.DataGroupNumber, "Hash-Act", actHash, "Hash-Exp", dgHash.DataGroupHashValue)
+			slog.Info("Valid DG hash", "DG", dgHash.DataGroupNumber, "Hash-Act", BytesToHex(actHash), "Hash-Exp", BytesToHex(dgHash.DataGroupHashValue))
 		}
 	}
 
@@ -145,7 +145,7 @@ func ReadDocument(transceiver Transceiver, password *Password) (doc *Document, e
 	slog.Info("Read EF.DIR")
 	doc.Dir = NewEFDIR(nfc.ReadFile(MRTDFileIdEFDIR))
 	if doc.Dir != nil {
-		slog.Debug("EF.DIR", "bytes", doc.Dir.RawData)
+		slog.Debug("EF.DIR", "bytes", BytesToHex(doc.Dir.RawData))
 	}
 
 	slog.Info("Read CardAccess")
