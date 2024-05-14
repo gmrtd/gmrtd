@@ -117,7 +117,7 @@ func oidHasPrefix(oid asn1.ObjectIdentifier, prefixOid asn1.ObjectIdentifier) bo
 	return prefixOid.Equal(oid[:len(prefixOid)])
 }
 
-// TODO - get the raw bytes.. i.e. without the tag/length (0x06,<len>)
+// gets the raw OID bytes (without the leading tag/length - 0x06,<len>)
 func oidBytes(oid asn1.ObjectIdentifier) []byte {
 	asn1bytes, err := asn1.Marshal(oid)
 	if err != nil {
