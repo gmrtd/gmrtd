@@ -161,7 +161,7 @@ func (nfc *NfcSession) SelectEF(fileId int) (selected bool, err error) {
 }
 
 func (nfc *NfcSession) SelectAid(aid []byte) (selected bool, err error) {
-	slog.Debug("SelectAid", "aid", BytesToHex(aid)) // TODO - this is normally a string
+	slog.Debug("SelectAid", "aid", BytesToHex(aid))
 
 	rApdu, err := nfc.DoAPDU(NewCApdu(0x00, INS_SELECT, 0x04, 0x0C, aid, 0))
 	if err != nil {
