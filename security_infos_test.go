@@ -22,7 +22,7 @@ func TestDecodeSecurityInfos(t *testing.T) {
 			t.Errorf("Wrong protocol")
 		} else if pi.Version != 2 {
 			t.Errorf("Wrong version")
-		} else if pi.ParameterId != 13 {
+		} else if pi.ParameterId.Int64() != 13 {
 			t.Errorf("Wrong parameterId")
 		}
 	}

@@ -59,13 +59,13 @@ type SecurityInfoOidSET []SecurityInfoOid
 type PaceInfo struct {
 	Protocol    asn1.ObjectIdentifier
 	Version     int
-	ParameterId int `asn1:"optional"`
+	ParameterId *big.Int `asn1:"optional"` // nil if not present // TODO - should have tests to verify (others also)
 }
 
 type PaceDomainParameterInfo struct {
 	Protocol        asn1.ObjectIdentifier
 	DomainParameter AlgorithmIdentifier
-	ParameterId     int `asn1:"optional"`
+	ParameterId     *big.Int `asn1:"optional"` // nil if not present
 }
 
 type ActiveAuthenticationInfo struct {
@@ -83,7 +83,7 @@ type ChipAuthenticationInfo struct {
 type ChipAuthenticationPublicKeyInfo struct {
 	Protocol                    asn1.ObjectIdentifier
 	ChipAuthenticationPublicKey SubjectPublicKeyInfo
-	KeyId                       *big.Int `asn1:"optional"` // TODO - shouldn't we set these to actual default values?
+	KeyId                       *big.Int `asn1:"optional"` // nil if not present
 }
 
 type SubjectPublicKeyInfo struct {
@@ -93,7 +93,7 @@ type SubjectPublicKeyInfo struct {
 
 type AlgorithmIdentifier struct {
 	Algorithm  asn1.ObjectIdentifier
-	Parameters asn1.RawValue //int `asn1:"optional"` // TODO - spec technically says ANY type
+	Parameters asn1.RawValue //int `asn1:"optional"` // nil if not present
 }
 
 type TerminalAuthenticationInfo struct {
