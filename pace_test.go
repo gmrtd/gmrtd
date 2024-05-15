@@ -233,8 +233,8 @@ func TestDoPace_GM_ECDH(t *testing.T) {
 	}
 
 	// verify chip-auth-status is NA
-	if doc.ChipAuthStatus != CHIP_AUTH_STATUS_NA {
-		t.Errorf("ChipAuthStatus is not reflecting NA")
+	if doc.ChipAuthStatus != CHIP_AUTH_STATUS_NONE {
+		t.Errorf("ChipAuthStatus != NONE")
 	}
 
 }
