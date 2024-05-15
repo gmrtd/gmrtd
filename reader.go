@@ -209,11 +209,11 @@ func ReadDocument(transceiver Transceiver, password *Password) (doc *Document, e
 	 * NB requires DG data, so performed after DG read
 	 */
 
-	if doc.ChipAuthStatus == CHIP_AUTH_STATUS_NA {
+	if doc.ChipAuthStatus == CHIP_AUTH_STATUS_NONE {
 		err = NewChipAuth().doChipAuth(nfc, doc)
 	}
 
-	if doc.ChipAuthStatus == CHIP_AUTH_STATUS_NA {
+	if doc.ChipAuthStatus == CHIP_AUTH_STATUS_NONE {
 		doActiveAuth(nfc, doc)
 	}
 

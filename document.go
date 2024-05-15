@@ -31,7 +31,7 @@ type Document struct {
 type ChipAuthStatus int
 
 const (
-	CHIP_AUTH_STATUS_NA ChipAuthStatus = iota // TODO - rename to NONE?
+	CHIP_AUTH_STATUS_NONE ChipAuthStatus = iota
 	CHIP_AUTH_STATUS_PACE_CAM
 	CHIP_AUTH_STATUS_CA
 	CHIP_AUTH_STATUS_AA
@@ -39,7 +39,7 @@ const (
 
 func (cas ChipAuthStatus) String() string {
 	switch cas {
-	case CHIP_AUTH_STATUS_NA:
+	case CHIP_AUTH_STATUS_NONE:
 		return "n/a"
 	case CHIP_AUTH_STATUS_PACE_CAM:
 		return "PACE-CAM"

@@ -36,7 +36,7 @@ func (chipAuth *ChipAuth) doChipAuth(nfc *NfcSession, doc *Document) (err error)
 	}
 
 	// skip if we have already performed chip authentication
-	if doc.ChipAuthStatus != CHIP_AUTH_STATUS_NA {
+	if doc.ChipAuthStatus != CHIP_AUTH_STATUS_NONE {
 		return nil
 	}
 
@@ -168,7 +168,7 @@ func (chipAuth *ChipAuth) doCaEcdh(nfc *NfcSession, caInfo *ChipAuthenticationIn
 		slog.Debug("doCaEcdh", "chip pubKey", BytesToHex(chipPubKeyBytes))
 		chipPubKey = decodeX962EcPoint(curve, chipPubKeyBytes)
 	}
-	slog.Debug("doCaEcdh","chipPubKey", chipPubKey.String())
+	slog.Debug("doCaEcdh", "chipPubKey", chipPubKey.String())
 
 	// generate ephemeral key
 	var termPri []byte
