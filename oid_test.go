@@ -7,9 +7,9 @@ func TestDecodeAsn1objectId(t *testing.T) {
 
 	expOidStr := "0.4.0.127.0.7.2.2.4.2.2"
 
-	actOidStr := DecodeAsn1objectId(oidBytes)
+	actOid := DecodeAsn1objectId(oidBytes)
 
-	if actOidStr != expOidStr {
-		t.Errorf("ASN1 OID decode failure (Exp:%s, Act:%s)", expOidStr, actOidStr)
+	if actOid.String() != expOidStr {
+		t.Errorf("ASN1 OID decode failure (Exp:%s, Act:%s)", expOidStr, actOid.String())
 	}
 }

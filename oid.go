@@ -128,10 +128,8 @@ func oidBytes(oid asn1.ObjectIdentifier) []byte {
 
 }
 
-// TODO - why not just convert to asn1.ObjectIdentifier and then use String method?
-func DecodeAsn1objectId(data []byte) string {
-	var oid asn1.ObjectIdentifier
-
+// decodes the raw OID bytes (excluding the tag/length)
+func DecodeAsn1objectId(data []byte) (oid asn1.ObjectIdentifier) {
 	var dataWithTag []byte
 
 	// wrap data with ASN1 OID tag (0x06)
@@ -143,7 +141,8 @@ func DecodeAsn1objectId(data []byte) string {
 	if rest, err := asn1.Unmarshal(dataWithTag, &oid); len(rest) > 0 || err != nil {
 		log.Panicf("Error parsing ASN1 OID")
 	}
-	return oid.String()
+
+	return oid
 }
 
 // TODO - replace with OID variable refs
