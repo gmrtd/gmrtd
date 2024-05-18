@@ -2,6 +2,7 @@ package gmrtd
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"log"
@@ -103,5 +104,12 @@ func bytesToInt(bytes []byte) int {
 		out += int(bytes[i])
 	}
 
+	return out
+}
+
+// TODO - same also for uint32/64?
+func UInt16ToBytes(value uint16) []byte {
+	var out []byte = make([]byte, 2)
+	binary.BigEndian.PutUint16(out, value)
 	return out
 }

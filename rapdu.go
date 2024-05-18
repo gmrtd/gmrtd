@@ -1,6 +1,7 @@
 package gmrtd
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 )
@@ -42,4 +43,11 @@ func ParseRApdu(data []byte) (rapdu *RApdu, err error) {
 	copy(rapdu.Data, data[0:len(data)-2])
 
 	return rapdu, nil
+}
+
+func (rApdu *RApdu) Encode() []byte {
+	var out []byte
+	out = bytes.Clone(rApdu.Data)
+	out = append(out, UInt16ToBytes(rApdu.Status)...)
+	return out
 }

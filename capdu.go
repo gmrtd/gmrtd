@@ -10,6 +10,8 @@ import (
 // Extended APDU Format
 // https://docs.oracle.com/javacard/3.0.5/prognotes/extended-apdu-format.htm#JCPCL169
 
+// TODO - https://askra.de/software/jcdocs/app-notes-2.2.2/extapdu.html#:%7E:text=The%20ISO%207816%2D4%3A2005,Case%201.&text=LC%20is%20less%20than%20256,data%2C%20and%20LE%20is%20zero.
+
 type CApdu struct {
 	cla  byte
 	ins  byte
@@ -115,7 +117,7 @@ func (apdu *CApdu) EncodeLe() []byte {
 		}
 
 		// TODO - looks like the following may be causing an issue with ext-mode.. need to investigate
-		if len(apdu.data) < 1 {
+		if len(apdu.data) < 1 { // TODO - if no LC
 			// Lc = 3 bytes (with 1st byte set to x00)
 			leBytes = append(leBytes, 0)
 		}

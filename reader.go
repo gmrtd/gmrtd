@@ -217,6 +217,9 @@ func ReadDocument(transceiver Transceiver, password *Password) (doc *Document, e
 		doActiveAuth(nfc, doc)
 	}
 
+	// copy apdu-log over to document
+	doc.Apdus = nfc.apduLog
+
 	slog.Info("** FINISHED **", "ChipAuthStatus", doc.ChipAuthStatus)
 
 	return

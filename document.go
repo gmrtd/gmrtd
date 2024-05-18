@@ -26,6 +26,8 @@ type Document struct {
 	Dg15           *DG15         // DATA GROUP 15 — Active Authentication Public Key Info (CONDITIONAL)
 	Dg16           *DG16         // DATA GROUP 16 — Person(s) to Notify (OPTIONAL)
 	ChipAuthStatus ChipAuthStatus
+
+	Apdus []ApduLog // TODO - should move this out of document
 }
 
 type ChipAuthStatus int
