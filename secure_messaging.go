@@ -211,7 +211,7 @@ func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
 	if smRApdu, err = ParseRApdu(rApduBytes); err != nil {
 		return nil, err
 	}
-	// TODO - check status code? error if not success
+	// TODO - check status code? error if not success.... otherwise we get errors like tag 8E missing
 	// TODO - this should match the status-code in the payload... should check later
 
 	{
@@ -228,7 +228,7 @@ func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
 		tag8E := tlv.GetNode(0x8E)
 
 		if !tag8E.IsValidNode() {
-			return nil, fmt.Errorf("Tag 0x8E must be present")
+			return nil, fmt.Errorf("tag 0x8E must be present")
 		}
 
 		// verify the MAC
@@ -258,7 +258,7 @@ func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
 
 			// verify that 'verison' is 0x01 before removing
 			if tmpBytes[0] != 0x01 {
-				return nil, fmt.Errorf("Version not set to 0x01")
+				return nil, fmt.Errorf("version not set to 0x01")
 			}
 
 			// remove the leading 'version' byte

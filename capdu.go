@@ -3,6 +3,7 @@ package gmrtd
 import (
 	"fmt"
 	"log"
+	"log/slog"
 )
 
 // Smart card application protocol data unit
@@ -79,6 +80,7 @@ func (apdu *CApdu) EncodeLc() []byte {
 		lcBytes = append(lcBytes, 0)
 		lcBytes = append(lcBytes, byte((lc/256)%0xff))
 		lcBytes = append(lcBytes, byte(lc%256))
+		slog.Debug("EncodeLc", "data", BytesToHex(apdu.data), "lcBytes", BytesToHex(lcBytes))
 	} else {
 		// Lc = 1 byte
 

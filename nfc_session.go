@@ -302,6 +302,9 @@ func (nfc *NfcSession) DoAPDU(cApdu *CApdu) (rApdu *RApdu, err error) {
 			}
 
 			rApdu, err = nfc.sm.Decode(encRApdu.Encode())
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		endTime := time.Now()
