@@ -45,7 +45,7 @@ func NewNfcSession(transceiver Transceiver) *NfcSession {
 func (nfc *NfcSession) GetChallenge(length int) (out []byte, err error) {
 	slog.Debug("GetChallenge", "length", length)
 
-	rapdu, err := nfc.DoAPDU(NewCApdu(0x00, INS_GET_CHALLENGE, 0x00, 0x00, nil, length))
+	rapdu, err := nfc.DoAPDU(NewCApdu(0x00, INS_GET_CHALLENGE, 0x00, 0x00, nil, length), "Get Challenge")
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +66,7 @@ func (nfc *NfcSession) GetChallenge(length int) (out []byte, err error) {
 func (nfc *NfcSession) ExternalAuthenticate(data []byte, le int) (out []byte, err error) {
 	slog.Debug("ExternalAuthenticate", "data", BytesToHex(data), "le", le)
 
-	rapdu, err := nfc.DoAPDU(NewCApdu(0x00, INS_EXTERNAL_AUTHENTICATE, 0x00, 0x00, data, le))
+	rapdu, err := nfc.DoAPDU(NewCApdu(0x00, INS_EXTERNAL_AUTHENTICATE, 0x00, 0x00, data, le), "External Authenticate")
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +95,7 @@ func GeneralAuthenticate(nfc *NfcSession, commandChaining bool, data []byte) *RA
 
 	cApdu := NewCApdu(byte(cla), INS_GENERAL_AUTHENTICATE, 0x00, 0x00, data, nfc.maxLe)
 
-	rApdu, err := nfc.DoAPDU(cApdu)
+	rApdu, err := nfc.DoAPDU(cApdu, "General Authenticate")
 	if err != nil {
 		log.Panicf("DoAPDU error: %s", err)
 	}
@@ -117,7 +117,7 @@ func (nfc *NfcSession) SelectMF() (err error) {
 	// TODO - as per spec, but specify 3F00 (MF)?
 	var capdu *CApdu = NewCApdu(0x00, INS_SELECT, 0x00, 0x0C, []byte{0x3f, 0x00}, 0)
 
-	rapdu, err := nfc.DoAPDU(capdu)
+	rapdu, err := nfc.DoAPDU(capdu, "Select MF")
 	if err != nil {
 		return err
 	}
@@ -135,6 +135,7 @@ func (nfc *NfcSession) SelectMF() (err error) {
 }
 
 // returns: false if file-not-found, otherwise true
+// TODO - why not force fileId to uint16?
 func (nfc *NfcSession) SelectEF(fileId int) (selected bool, err error) {
 	slog.Debug("SelectEF", "fileId", fileId)
 
@@ -142,7 +143,7 @@ func (nfc *NfcSession) SelectEF(fileId int) (selected bool, err error) {
 
 	var rApdu *RApdu
 
-	rApdu, err = nfc.DoAPDU(capdu)
+	rApdu, err = nfc.DoAPDU(capdu, fmt.Sprintf("Select EF (fileId:%04x)", fileId))
 	if err != nil {
 		return false, err
 	}
@@ -164,7 +165,7 @@ func (nfc *NfcSession) SelectEF(fileId int) (selected bool, err error) {
 func (nfc *NfcSession) SelectAid(aid []byte) (selected bool, err error) {
 	slog.Debug("SelectAid", "aid", BytesToHex(aid))
 
-	rApdu, err := nfc.DoAPDU(NewCApdu(0x00, INS_SELECT, 0x04, 0x0C, aid, 0))
+	rApdu, err := nfc.DoAPDU(NewCApdu(0x00, INS_SELECT, 0x04, 0x0C, aid, 0), fmt.Sprintf("Select AID (%x)", aid))
 	if err != nil {
 		return false, err
 	}
@@ -187,7 +188,7 @@ func (nfc *NfcSession) ReadBinaryFromOffset(offset int, length int) []byte {
 
 	var capdu *CApdu = NewCApdu(0x00, INS_READ_BINARY, byte(offset/256), byte(offset%256), nil, length)
 
-	rapdu, err := nfc.DoAPDU(capdu)
+	rapdu, err := nfc.DoAPDU(capdu, fmt.Sprintf("Read Binary (offset:%d, length:%d)", offset, length))
 	if err != nil {
 		log.Panicf("DoAPDU error: %s", err)
 	}
@@ -271,20 +272,23 @@ func (nfc *NfcSession) ReadFile(fileId int) (fileData []byte) {
 }
 
 type ApduLog struct {
+	Desc  string
 	Tx    []byte
 	Rx    []byte
 	Child *ApduLog // optional (e.g. if secure-messaging enabled)
 	DurMs int
 }
 
-func (nfc *NfcSession) DoAPDU(cApdu *CApdu) (rApdu *RApdu, err error) {
+// TODO (OSWALD) accept 'desc' for logging context.. add also to doTransceive
+func (nfc *NfcSession) DoAPDU(cApdu *CApdu, desc string) (rApdu *RApdu, err error) {
 	var apduLog *ApduLog
 
 	if nfc.sm == nil {
-		rApdu, apduLog, err = nfc.doTransceive(cApdu)
+		rApdu, apduLog, err = nfc.doTransceive(cApdu, desc)
 	} else {
 		apduLog = new(ApduLog)
 
+		apduLog.Desc = desc
 		apduLog.Tx = bytes.Clone(cApdu.Encode())
 
 		startTime := time.Now()
@@ -296,7 +300,7 @@ func (nfc *NfcSession) DoAPDU(cApdu *CApdu) (rApdu *RApdu, err error) {
 			}
 
 			var encRApdu *RApdu
-			encRApdu, apduLog.Child, err = nfc.doTransceive(encCApdu)
+			encRApdu, apduLog.Child, err = nfc.doTransceive(encCApdu, desc)
 			if err != nil {
 				return nil, err
 			}
@@ -320,8 +324,10 @@ func (nfc *NfcSession) DoAPDU(cApdu *CApdu) (rApdu *RApdu, err error) {
 	return rApdu, err
 }
 
-func (nfc *NfcSession) doTransceive(cApdu *CApdu) (rApdu *RApdu, apduLog *ApduLog, err error) {
+func (nfc *NfcSession) doTransceive(cApdu *CApdu, desc string) (rApdu *RApdu, apduLog *ApduLog, err error) {
 	apduLog = new(ApduLog)
+
+	apduLog.Desc = desc
 	apduLog.Tx = bytes.Clone(cApdu.Encode())
 
 	startTime := time.Now()

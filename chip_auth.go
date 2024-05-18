@@ -185,7 +185,7 @@ func (chipAuth *ChipAuth) doCaEcdh(nfc *NfcSession, caInfo *ChipAuthenticationIn
 	// Exp Rsp: 9000
 	//			Exp errors: 6A80 / 6A88 / ...
 
-	// TODO - move to func
+	// TODO - move to func.. PACE has a similar func
 	slog.Debug("doCaECdh - MSE:Set AT")
 	{
 		nodes := NewTlvNodes()
@@ -198,7 +198,7 @@ func (chipAuth *ChipAuth) doCaEcdh(nfc *NfcSession, caInfo *ChipAuthenticationIn
 		// MSE:Set AT (0x41A4: Chip Authentication)
 		cApdu := NewCApdu(0x00, 0x22, 0x41, 0xA4, nodes.Encode(), 0) // TODO - use const
 
-		rApdu, err := nfc.DoAPDU(cApdu)
+		rApdu, err := nfc.DoAPDU(cApdu, "MSE:Set AT")
 		if err != nil {
 			return err
 		}
