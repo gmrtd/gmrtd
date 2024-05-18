@@ -115,7 +115,7 @@ func readDGs(nfc *NfcSession, doc *Document) (err error) {
 }
 
 // NB returns partial data (MrtdDocument) in the event of an error
-func ReadDocument(transceiver Transceiver, password *Password) (doc *Document, err error) {
+func ReadDocument(transceiver Transceiver, password *Password, atr []byte, ats []byte) (doc *Document, err error) {
 	defer func() {
 		if e := recover(); e != nil {
 			switch x := e.(type) {
@@ -133,6 +133,16 @@ func ReadDocument(transceiver Transceiver, password *Password) (doc *Document, e
 	var nfc *NfcSession = NewNfcSession(transceiver)
 
 	doc = new(Document)
+
+	// record ATR/ATS
+	// NB we don't really do much with these today, just recording
+	doc.Atr = bytes.Clone(atr)
+	doc.Ats = bytes.Clone(ats)
+	slog.Debug("ATR/ATS",
+		"ATR", BytesToHex(doc.Atr),
+		"ATS", BytesToHex(doc.Ats),
+	)
+
 
 	// NB spec recommends not to use, but iOS may pre-select the MRTD AID
 	slog.Info("Selecting MF")

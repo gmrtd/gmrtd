@@ -11,6 +11,9 @@ import "fmt"
 // currently we're only attempting to read CardSecurity during PACE-CAM!
 
 type Document struct {
+	Atr []byte
+	Ats []byte
+
 	CardAccess     *CardAccess
 	CardSecurity   *CardSecurity // NB only read for PACE-CAM - read during PACE flow
 	Dir            *EFDIR        // indicates which applications are present - generally not acvailable
