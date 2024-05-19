@@ -84,6 +84,7 @@ func (nfc *NfcSession) ExternalAuthenticate(data []byte, le int) (out []byte, er
 	return rapdu.Data, nil
 }
 
+// TODO - why is this not a method of nfc?
 func GeneralAuthenticate(nfc *NfcSession, commandChaining bool, data []byte) *RApdu {
 	slog.Debug("GeneralAuthenticate", "cmdChaining", commandChaining, "data", BytesToHex(data))
 
@@ -103,6 +104,21 @@ func GeneralAuthenticate(nfc *NfcSession, commandChaining bool, data []byte) *RA
 	slog.Debug("GeneralAuthenticate", "rApdu", rApdu.String())
 
 	return rApdu
+}
+
+func (nfc *NfcSession) MseSetAT(p1 uint8, p2 uint8, data []byte) (err error) {
+	cApdu := NewCApdu(0x00, 0x22, p1, p2, data, 0) // TODO - use const
+
+	var rApdu *RApdu
+	rApdu, err = nfc.DoAPDU(cApdu, fmt.Sprintf("MSE:Set AT (p1:%02x,p2:%02x)", p1, p2))
+	if err != nil {
+		return err
+	}
+	if !rApdu.IsSuccess() {
+		return fmt.Errorf("MSE:Set AT failed (Status:%x)", rApdu.Status)
+	}
+
+	return nil
 }
 
 // TODO - why not just try to directly select file from MF?
@@ -279,7 +295,6 @@ type ApduLog struct {
 	DurMs int
 }
 
-// TODO (OSWALD) accept 'desc' for logging context.. add also to doTransceive
 func (nfc *NfcSession) DoAPDU(cApdu *CApdu, desc string) (rApdu *RApdu, err error) {
 	var apduLog *ApduLog
 

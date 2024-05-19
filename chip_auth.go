@@ -201,17 +201,10 @@ func (chipAuth *ChipAuth) doCaEcdh(nfc *NfcSession, caInfo *ChipAuthenticationIn
 		}
 
 		// MSE:Set AT (0x41A4: Chip Authentication)
-		cApdu := NewCApdu(0x00, 0x22, 0x41, 0xA4, nodes.Encode(), 0) // TODO - use const
-
-		var rApdu *RApdu
-		rApdu, err = nfc.DoAPDU(cApdu, "MSE:Set AT")
+		err = nfc.MseSetAT(0x41, 0xA4, nodes.Encode())
 		if err != nil {
 			return err
 		}
-		if !rApdu.IsSuccess() {
-			return fmt.Errorf("doCaEcdh: MSE:Set AT failed (Status:%x)", rApdu.Status)
-		}
-
 	}
 
 	// General Authenticate

@@ -333,16 +333,10 @@ func doAPDU_MSESetAT(nfc *NfcSession, paceConfig *PaceConfig, passwordType Passw
 	nodes.AddNode(NewTlvSimpleNode(0x80, paceOidBytes))
 	nodes.AddNode(NewTlvSimpleNode(0x83, []byte{passwordTypeValue}))
 
-	// TODO - move to NfcSession?
-	cApdu := NewCApdu(0x00, 0x22, 0xC1, 0xA4, nodes.Encode(), 0) // TODO - use const
-
-	rApdu, err := nfc.DoAPDU(cApdu,"MSE:Set AT")
+	// MSE:Set AT (0xC1A4: Set Authentication Template for mutual authentication)
+	err = nfc.MseSetAT(0xC1, 0xA4, nodes.Encode())
 	if err != nil {
 		return err
-	}
-
-	if !rApdu.IsSuccess() {
-		return fmt.Errorf("Error performing PACE MSE:Set AT command (Status:%x)", rApdu.Status)
 	}
 
 	return nil
