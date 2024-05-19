@@ -52,7 +52,11 @@ func (chipAuth *ChipAuth) doChipAuth(nfc *NfcSession, doc *Document) (err error)
 		return nil
 	}
 
-	var caAlgInfo *CaAlgorithmInfo = getAlgInfo(caInfo.Protocol)
+	var caAlgInfo *CaAlgorithmInfo
+	caAlgInfo, err = getAlgInfo(caInfo.Protocol)
+	if err != nil {
+		return err
+	}
 
 	var caPubKeyInfo *ChipAuthenticationPublicKeyInfo = selectCAPubKeyInfo(caInfo, caAlgInfo, doc)
 	if caPubKeyInfo == nil {
@@ -82,6 +86,8 @@ func (chipAuth *ChipAuth) doChipAuth(nfc *NfcSession, doc *Document) (err error)
 	return nil
 }
 
+// selects the 'preferred' CA entry (if any are present)
+// returns: nil if none found, otherwise preferred CA entry
 func selectCAInfo(doc *Document) *ChipAuthenticationInfo {
 	var out *ChipAuthenticationInfo
 
@@ -93,8 +99,7 @@ func selectCAInfo(doc *Document) *ChipAuthenticationInfo {
 	return out
 }
 
-// selects the public key matching the target OID (i.e. oidPkDh / oidPkEcdh)
-// TODO - update above... based on caAlgInfo.targetOid + keyId (if present)
+// selects the public key matching the target OID (i.e. oidPkDh / oidPkEcdh) as well as the 'KeyId' (if specified)
 func selectCAPubKeyInfo(caInfo *ChipAuthenticationInfo, caAlgInfo *CaAlgorithmInfo, doc *Document) *ChipAuthenticationPublicKeyInfo {
 
 	for i := range doc.Dg14.SecInfos.ChipAuthPubKeyInfos {
@@ -138,14 +143,14 @@ var caAlgInfo = map[string]CaAlgorithmInfo{
 }
 
 // TODO - return error?
-func getAlgInfo(oid asn1.ObjectIdentifier) *CaAlgorithmInfo {
+func getAlgInfo(oid asn1.ObjectIdentifier) (*CaAlgorithmInfo, error) {
 	out, ok := caAlgInfo[oid.String()]
 
 	if !ok {
-		log.Panicf("getAlgInfo error - OID not found (oid: %s)", oid)
+		return nil, fmt.Errorf("getAlgInfo: OID not found (%s)", oid.String())
 	}
 
-	return &out
+	return &out, nil
 }
 
 // performs Chip Authentication in ECDH mode
@@ -198,7 +203,8 @@ func (chipAuth *ChipAuth) doCaEcdh(nfc *NfcSession, caInfo *ChipAuthenticationIn
 		// MSE:Set AT (0x41A4: Chip Authentication)
 		cApdu := NewCApdu(0x00, 0x22, 0x41, 0xA4, nodes.Encode(), 0) // TODO - use const
 
-		rApdu, err := nfc.DoAPDU(cApdu, "MSE:Set AT")
+		var rApdu *RApdu
+		rApdu, err = nfc.DoAPDU(cApdu, "MSE:Set AT")
 		if err != nil {
 			return err
 		}
