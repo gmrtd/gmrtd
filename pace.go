@@ -23,6 +23,8 @@ package gmrtd
 //  	f) They exchange and verify the authentication token TIFD = MAC(KSMAC,PKDH,IC) and TIC = MAC(KSMAC,PKDH,IFD) as described in Section 4.4.3.4.
 // 4) Conditionally, the eMRTD chip computes Chip Authentication Data CAIC, encrypts them AIC = E(KSEnc, CAIC) and sends them to the terminal (cf. Section 4.4.3.5.1). The terminal decrypts AIC and verifies the authenticity of the chip using the recovered Chip Authentication Data CAIC (cf. Section 4.4.3.5.2).
 
+// TODO - need to check that local/remote public keys are not the same... check 9303 specs for PACE.. and other checks
+
 import (
 	"bytes"
 	"crypto"
@@ -656,6 +658,40 @@ func selectPaceConfig(cardAccess *CardAccess) (paceConfig *PaceConfig, domainPar
 	return paceConfig, domainParams
 }
 
+func (pace *Pace) doPACE_GM_CAM(nfc *NfcSession, paceConfig *PaceConfig, domainParams *PACEDomainParams, s []byte, doc *Document) (err error) {
+	switch domainParams.isECDH {
+	case true: // ECDH
+		// map the nonce
+		var mappedG, pubMapIC *EC_POINT
+		mappedG, pubMapIC = pace.mapNonce_GM_ECDH(nfc, domainParams, s)
+
+		// Perform Key Agreement
+		var sharedSecret []byte
+		var kaTermPub, kaChipPub *EC_POINT
+		sharedSecret, kaTermPub, kaChipPub = pace.keyAgreement_GM_ECDH(nfc, domainParams, mappedG)
+
+		var ecadIC []byte
+		ecadIC = pace.mutualAuth_GM_ECDH(nfc, paceConfig, domainParams, sharedSecret, kaTermPub, kaChipPub)
+
+		// Perform Chip Authentication (if applicable)
+		if paceConfig.mapping == CAM {
+			slog.Debug("doPace - CAM - reading CardSecurity")
+			// TODO - could skip if we already have CardSecurity? (although we shouldn't)
+			if doc.CardSecurity, err = NewCardSecurity(nfc.ReadFile(MRTDFileIdCardSecurity)); err != nil {
+				return err
+			}
+			if doc.CardSecurity == nil {
+				return fmt.Errorf("cannot proceed with PACE-CAM without CardSecurity file")
+			}
+			pace.doCamEcdh(nfc, paceConfig, domainParams, pubMapIC, ecadIC, doc)
+		}
+	case false: // DH
+		return fmt.Errorf("PACE GM (DH) NOT IMPLEMENTED")
+	}
+
+	return nil
+}
+
 func (pace *Pace) doPACE(nfc *NfcSession, password *Password, doc *Document) (err error) {
 	slog.Debug("doPACE", "password-type", password.passwordType, "password", password.password)
 
@@ -663,8 +699,6 @@ func (pace *Pace) doPACE(nfc *NfcSession, password *Password, doc *Document) (er
 	if doc.CardAccess == nil {
 		return nil
 	}
-
-	// TODO - need to check that local/remote public keys are not the same... check 9303 specs for PACE.. and other checks
 
 	var paceConfig *PaceConfig
 	var domainParams *PACEDomainParams
@@ -688,34 +722,9 @@ func (pace *Pace) doPACE(nfc *NfcSession, password *Password, doc *Document) (er
 	// process based on the mapping type (GM/IM/CAM) and the key type (ECDH/DH)
 	switch paceConfig.mapping {
 	case GM, CAM:
-		switch domainParams.isECDH {
-		case true: // ECDH
-			// map the nonce
-			var mappedG, pubMapIC *EC_POINT
-			mappedG, pubMapIC = pace.mapNonce_GM_ECDH(nfc, domainParams, s)
-
-			// Perform Key Agreement
-			var sharedSecret []byte
-			var kaTermPub, kaChipPub *EC_POINT
-			sharedSecret, kaTermPub, kaChipPub = pace.keyAgreement_GM_ECDH(nfc, domainParams, mappedG)
-
-			var ecadIC []byte
-			ecadIC = pace.mutualAuth_GM_ECDH(nfc, paceConfig, domainParams, sharedSecret, kaTermPub, kaChipPub)
-
-			// Perform Chip Authentication (if applicable)
-			if paceConfig.mapping == CAM {
-				slog.Debug("doPace - CAM - reading CardSecurity")
-				// TODO - could skip if we already have CardSecurity? (although we shouldn't)
-				if doc.CardSecurity, err = NewCardSecurity(nfc.ReadFile(MRTDFileIdCardSecurity)); err != nil {
-					return err
-				}
-				if doc.CardSecurity == nil {
-					return fmt.Errorf("cannot proceed with PACE-CAM without CardSecurity file")
-				}
-				pace.doCamEcdh(nfc, paceConfig, domainParams, pubMapIC, ecadIC, doc)
-			}
-		case false: // DH
-			return fmt.Errorf("PACE GM (DH) NOT IMPLEMENTED")
+		err = pace.doPACE_GM_CAM(nfc, paceConfig, domainParams, s, doc)
+		if err != nil {
+			return err
 		}
 	case IM:
 		return fmt.Errorf("PACE IM NOT IMPLEMENTED")
