@@ -106,7 +106,6 @@ func selectCAPubKeyInfo(caInfo *ChipAuthenticationInfo, caAlgInfo *CaAlgorithmIn
 		var curPubKey *ChipAuthenticationPublicKeyInfo = &(doc.Dg14.SecInfos.ChipAuthPubKeyInfos[i])
 
 		if curPubKey.Protocol.Equal(caAlgInfo.targetOid) {
-
 			if caInfo.KeyId == nil {
 				// no key-id specified, so good to use any matching public-key
 				return curPubKey
@@ -190,7 +189,6 @@ func (chipAuth *ChipAuth) doCaEcdh(nfc *NfcSession, caInfo *ChipAuthenticationIn
 	// Exp Rsp: 9000
 	//			Exp errors: 6A80 / 6A88 / ...
 
-	// TODO - move to func.. PACE has a similar func
 	slog.Debug("doCaECdh - MSE:Set AT")
 	{
 		nodes := NewTlvNodes()
@@ -223,7 +221,7 @@ func (chipAuth *ChipAuth) doCaEcdh(nfc *NfcSession, caInfo *ChipAuthenticationIn
 	// TODO - move to func
 	slog.Debug("doCaECdh - General Authenticate")
 	{
-		var rApdu *RApdu = GeneralAuthenticate(nfc, false, encode_7C_XX(0x80, encodeX962EcPoint(curve, termPub)))
+		var rApdu *RApdu = nfc.GeneralAuthenticate(false, encode_7C_XX(0x80, encodeX962EcPoint(curve, termPub)))
 		if !rApdu.IsSuccess() {
 			return fmt.Errorf("doCaEcdh: General Authenticate failed (Status:%d)", rApdu.Status)
 		}

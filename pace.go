@@ -359,7 +359,7 @@ func (pace *Pace) mapNonce_GM_ECDH(nfc *NfcSession, domainParams *PACEDomainPara
 	{
 		reqData := encode_7C_XX(0x81, encodeX962EcPoint(domainParams.ec, termPub))
 
-		rApdu := GeneralAuthenticate(nfc, true, reqData)
+		rApdu := nfc.GeneralAuthenticate(true, reqData)
 		if !rApdu.IsSuccess() {
 			log.Panicf("Error mapping the nonce - GM-EC (Status:%x)", rApdu.Status)
 		}
@@ -408,7 +408,7 @@ func (pace *Pace) keyAgreement_GM_ECDH(nfc *NfcSession, domainParams *PACEDomain
 		{
 			reqData := encode_7C_XX(0x83, encodeX962EcPoint(domainParams.ec, termPub))
 
-			rApdu := GeneralAuthenticate(nfc, true, reqData)
+			rApdu := nfc.GeneralAuthenticate(true, reqData)
 			if !rApdu.IsSuccess() {
 				log.Panicf("Error performing key agreement - GM-EC (Status:%x)", rApdu.Status)
 			}
@@ -460,7 +460,7 @@ func (pace *Pace) mutualAuth_GM_ECDH(nfc *NfcSession, paceConfig *PaceConfig, do
 	{
 		reqData := encode_7C_XX(0x85, tIfd)
 
-		rApdu := GeneralAuthenticate(nfc, false, reqData)
+		rApdu := nfc.GeneralAuthenticate(false, reqData)
 		if !rApdu.IsSuccess() {
 			log.Panicf("Error exchanging auth tokens (Status:%x)", rApdu.Status)
 		}
@@ -602,7 +602,7 @@ func getNonce(nfc *NfcSession, paceConfig *PaceConfig, kKdf []byte) []byte {
 	var nonceE []byte
 	{
 		reqData := []byte{0x7C, 0x00}
-		rApdu := GeneralAuthenticate(nfc, true, reqData)
+		rApdu := nfc.GeneralAuthenticate(true, reqData)
 		if !rApdu.IsSuccess() {
 			log.Panicf("getNonce error (Status:%x)", rApdu.Status)
 		}

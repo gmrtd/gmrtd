@@ -42,26 +42,27 @@ import (
 // TODO - verify DG14 matches unsecured files
 
 // TODO - look at moving to short-file id if that is actually the mandatory one
-const MRTDFileIdCardAccess = 0x011C
-const MRTDFileIdCardSecurity = 0x011D
-const MRTDFileIdEFSOD = 0x011D
-const MRTDFileIdEFCOM = 0x011E
-const MRTDFileIdEFDIR = 0x2F00
 
-const MRTDFileIdDG1 = 0x0101
-const MRTDFileIdDG2 = 0x0102
-const MRTDFileIdDG7 = 0x0107
-const MRTDFileIdDG11 = 0x010B
-const MRTDFileIdDG12 = 0x010C
-const MRTDFileIdDG13 = 0x010D
-const MRTDFileIdDG14 = 0x010E
-const MRTDFileIdDG15 = 0x010F
-const MRTDFileIdDG16 = 0x0110
+const MRTDFileIdCardAccess = uint16(0x011C)
+const MRTDFileIdCardSecurity = uint16(0x011D)
+const MRTDFileIdEFSOD = uint16(0x011D)
+const MRTDFileIdEFCOM = uint16(0x011E)
+const MRTDFileIdEFDIR = uint16(0x2F00)
+
+const MRTDFileIdDG1 = uint16(0x0101)
+const MRTDFileIdDG2 = uint16(0x0102)
+const MRTDFileIdDG7 = uint16(0x0107)
+const MRTDFileIdDG11 = uint16(0x010B)
+const MRTDFileIdDG12 = uint16(0x010C)
+const MRTDFileIdDG13 = uint16(0x010D)
+const MRTDFileIdDG14 = uint16(0x010E)
+const MRTDFileIdDG15 = uint16(0x010F)
+const MRTDFileIdDG16 = uint16(0x0110)
 
 const MRTD_AID = "A0000002471001"
 
 // Maps DG (1-16) to File Identifier
-var dgToFileId = map[int]int{
+var dgToFileId = map[int]uint16{
 	1:  MRTDFileIdDG1,
 	2:  MRTDFileIdDG2,
 	7:  MRTDFileIdDG7,
@@ -91,7 +92,7 @@ func readDGs(nfc *NfcSession, doc *Document) (err error) {
 
 		slog.Info("Reading DG", "DG", dgHash.DataGroupNumber)
 
-		var dgBytes []byte = nfc.ReadFile(fileId)
+		var dgBytes []byte = nfc.ReadFile(uint16(fileId))
 
 		err = doc.NewDG(dgHash.DataGroupNumber, dgBytes)
 		if err != nil {
@@ -142,7 +143,6 @@ func ReadDocument(transceiver Transceiver, password *Password, atr []byte, ats [
 		"ATR", BytesToHex(doc.Atr),
 		"ATS", BytesToHex(doc.Ats),
 	)
-
 
 	// NB spec recommends not to use, but iOS may pre-select the MRTD AID
 	slog.Info("Selecting MF")

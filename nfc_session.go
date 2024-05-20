@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+const INS_MANAGE_SE = byte(0x22)
 const INS_EXTERNAL_AUTHENTICATE = byte(0x82)
 const INS_GET_CHALLENGE = byte(0x84)
 const INS_GENERAL_AUTHENTICATE = byte(0x86)
@@ -30,9 +31,7 @@ type NfcSession struct {
 	transceiver Transceiver
 	sm          *SecureMessaging
 	maxLe       int
-
-	// TODO
-	apduLog []ApduLog
+	apduLog     []ApduLog // TODO - may be better for this to be an optional interface
 }
 
 func NewNfcSession(transceiver Transceiver) *NfcSession {
@@ -84,8 +83,7 @@ func (nfc *NfcSession) ExternalAuthenticate(data []byte, le int) (out []byte, er
 	return rapdu.Data, nil
 }
 
-// TODO - why is this not a method of nfc?
-func GeneralAuthenticate(nfc *NfcSession, commandChaining bool, data []byte) *RApdu {
+func (nfc *NfcSession) GeneralAuthenticate(commandChaining bool, data []byte) *RApdu {
 	slog.Debug("GeneralAuthenticate", "cmdChaining", commandChaining, "data", BytesToHex(data))
 
 	// TODO - use const
@@ -107,7 +105,7 @@ func GeneralAuthenticate(nfc *NfcSession, commandChaining bool, data []byte) *RA
 }
 
 func (nfc *NfcSession) MseSetAT(p1 uint8, p2 uint8, data []byte) (err error) {
-	cApdu := NewCApdu(0x00, 0x22, p1, p2, data, 0) // TODO - use const
+	cApdu := NewCApdu(0x00, INS_MANAGE_SE, p1, p2, data, 0)
 
 	var rApdu *RApdu
 	rApdu, err = nfc.DoAPDU(cApdu, fmt.Sprintf("MSE:Set AT (p1:%02x,p2:%02x)", p1, p2))
@@ -121,9 +119,7 @@ func (nfc *NfcSession) MseSetAT(p1 uint8, p2 uint8, data []byte) (err error) {
 	return nil
 }
 
-// TODO - why not just try to directly select file from MF?
-//
-//	0 0 0 0 1 0 0 0	– Select from MF (data field=path without the identifier of the MF)
+// 0 0 0 0 1 0 0 0	– Select from MF (data field=path without the identifier of the MF)
 func (nfc *NfcSession) SelectMF() (err error) {
 	slog.Debug("SelectMF")
 
@@ -140,6 +136,8 @@ func (nfc *NfcSession) SelectMF() (err error) {
 
 	if !rapdu.IsSuccess() {
 		// TODO - AT/DE passports were giving 6700 response error.. so we'll tolerate this (at least for now)
+		//			- seems to have been fixed since we changed the above command (0x00,0x0C)?
+		//
 		//if rapdu.Status == 0x6700 {
 		//	return nil
 		//}
@@ -151,11 +149,10 @@ func (nfc *NfcSession) SelectMF() (err error) {
 }
 
 // returns: false if file-not-found, otherwise true
-// TODO - why not force fileId to uint16?
-func (nfc *NfcSession) SelectEF(fileId int) (selected bool, err error) {
+func (nfc *NfcSession) SelectEF(fileId uint16) (selected bool, err error) {
 	slog.Debug("SelectEF", "fileId", fileId)
 
-	var capdu *CApdu = NewCApdu(0x00, INS_SELECT, 0x02, 0x0C, UInt16ToBytes(uint16(fileId)), 0)
+	var capdu *CApdu = NewCApdu(0x00, INS_SELECT, 0x02, 0x0C, UInt16ToBytes(fileId), 0)
 
 	var rApdu *RApdu
 
@@ -219,7 +216,7 @@ func (nfc *NfcSession) ReadBinaryFromOffset(offset int, length int) []byte {
 }
 
 // returns: file contents OR nil if file not found
-func (nfc *NfcSession) ReadFile(fileId int) (fileData []byte) {
+func (nfc *NfcSession) ReadFile(fileId uint16) (fileData []byte) {
 	slog.Debug("ReadFile", "fileId", fileData)
 
 	// TODO - read (without select) using short-EF is mandatory for MRTD (p10-page-18).. so maybe better to do this rather than selecting the file first

@@ -96,7 +96,6 @@ func isImage(imageBytes []byte) bool {
 	return true
 }
 
-// TODO - why not uint?
 func bytesToInt(bytes []byte) int {
 	var out int
 
