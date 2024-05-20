@@ -285,11 +285,33 @@ func (nfc *NfcSession) ReadFile(fileId uint16) (fileData []byte) {
 }
 
 type ApduLog struct {
-	Desc  string
-	Tx    []byte
-	Rx    []byte
-	Child *ApduLog // optional (e.g. if secure-messaging enabled)
-	DurMs int
+	Desc      string
+	Tx        []byte
+	Rx        []byte
+	Child     *ApduLog // optional (e.g. if secure-messaging enabled)
+	DurMs     int
+	StartTime time.Time
+}
+
+// creates a new instance, records the desc/tx information and starts the timer
+func NewApduLog(desc string, tx []byte) *ApduLog {
+	var out ApduLog
+
+	out.Desc = desc
+	out.Tx = bytes.Clone(tx)
+
+	out.StartTime = time.Now()
+
+	return &out
+}
+
+// finalises an instance, records rx and calculates duration(ms)
+func (apduLog *ApduLog) Finalise(rx []byte) {
+	endTime := time.Now()
+
+	apduLog.DurMs = int(endTime.Sub(apduLog.StartTime).Milliseconds())
+
+	apduLog.Rx = bytes.Clone(rx)
 }
 
 func (nfc *NfcSession) DoAPDU(cApdu *CApdu, desc string) (rApdu *RApdu, err error) {
@@ -298,36 +320,25 @@ func (nfc *NfcSession) DoAPDU(cApdu *CApdu, desc string) (rApdu *RApdu, err erro
 	if nfc.sm == nil {
 		rApdu, apduLog, err = nfc.doTransceive(cApdu, desc)
 	} else {
-		apduLog = new(ApduLog)
+		apduLog = NewApduLog(desc, cApdu.Encode())
 
-		apduLog.Desc = desc
-		apduLog.Tx = bytes.Clone(cApdu.Encode())
-
-		startTime := time.Now()
-
-		{
-			var encCApdu *CApdu
-			if encCApdu, err = nfc.sm.Encode(cApdu, uint64(nfc.maxLe)); err != nil {
-				return nil, err
-			}
-
-			var encRApdu *RApdu
-			encRApdu, apduLog.Child, err = nfc.doTransceive(encCApdu, desc)
-			if err != nil {
-				return nil, err
-			}
-
-			rApdu, err = nfc.sm.Decode(encRApdu.Encode())
-			if err != nil {
-				return nil, err
-			}
+		var encCApdu *CApdu
+		if encCApdu, err = nfc.sm.Encode(cApdu, uint64(nfc.maxLe)); err != nil {
+			return nil, err
 		}
 
-		endTime := time.Now()
+		var encRApdu *RApdu
+		encRApdu, apduLog.Child, err = nfc.doTransceive(encCApdu, desc)
+		if err != nil {
+			return nil, err
+		}
 
-		apduLog.DurMs = int(endTime.Sub(startTime).Milliseconds())
+		rApdu, err = nfc.sm.Decode(encRApdu.Encode())
+		if err != nil {
+			return nil, err
+		}
 
-		apduLog.Rx = bytes.Clone(rApdu.Encode())
+		apduLog.Finalise(rApdu.Encode())
 	}
 
 	// record the APDU log
@@ -337,18 +348,13 @@ func (nfc *NfcSession) DoAPDU(cApdu *CApdu, desc string) (rApdu *RApdu, err erro
 }
 
 func (nfc *NfcSession) doTransceive(cApdu *CApdu, desc string) (rApdu *RApdu, apduLog *ApduLog, err error) {
-	apduLog = new(ApduLog)
+	cApduBytes := cApdu.Encode()
 
-	apduLog.Desc = desc
-	apduLog.Tx = bytes.Clone(cApdu.Encode())
+	apduLog = NewApduLog(desc, cApduBytes)
 
-	startTime := time.Now()
-	rApduBytes := nfc.transceiver.Transceive(cApdu.Encode())
-	endTime := time.Now()
+	rApduBytes := nfc.transceiver.Transceive(cApduBytes)
 
-	apduLog.DurMs = int(endTime.Sub(startTime).Milliseconds())
-
-	apduLog.Rx = bytes.Clone(rApduBytes)
+	apduLog.Finalise(rApduBytes)
 
 	rApdu, err = ParseRApdu(rApduBytes)
 
