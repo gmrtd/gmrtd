@@ -82,7 +82,7 @@ func (sm SecureMessaging) String() string {
 func (sm *SecureMessaging) sscIncrement() {
 	switch sm.alg {
 	case TDES:
-		binary.BigEndian.PutUint64(sm.SSC, binary.BigEndian.Uint64(sm.SSC)+1)
+		sm.SSC = UInt64ToBytes(binary.BigEndian.Uint64(sm.SSC) + 1)
 	case AES:
 		var sscPre *big.Int = new(big.Int).SetBytes(sm.SSC)
 		var sscPost *big.Int = new(big.Int)

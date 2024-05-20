@@ -96,6 +96,7 @@ func isImage(imageBytes []byte) bool {
 	return true
 }
 
+// TODO - why not uint?
 func bytesToInt(bytes []byte) int {
 	var out int
 
@@ -107,9 +108,20 @@ func bytesToInt(bytes []byte) int {
 	return out
 }
 
-// TODO - same also for uint32/64?
 func UInt16ToBytes(value uint16) []byte {
 	var out []byte = make([]byte, 2)
 	binary.BigEndian.PutUint16(out, value)
+	return out
+}
+
+func UInt32ToBytes(value uint32) []byte {
+	var out []byte = make([]byte, 4)
+	binary.BigEndian.PutUint32(out, value)
+	return out
+}
+
+func UInt64ToBytes(value uint64) []byte {
+	var out []byte = make([]byte, 8)
+	binary.BigEndian.PutUint64(out, value)
 	return out
 }

@@ -13,7 +13,6 @@ import (
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/asn1"
-	"encoding/binary"
 	"fmt"
 	"hash"
 	"log"
@@ -82,9 +81,8 @@ func GetCipherForKey(alg BlockCipherAlg, key []byte) (cipher.Block, error) {
 // NB expects keySizeBits=112 for TDES
 func KDF(k []byte, c KDFCounterType, alg BlockCipherAlg, keySizeBits int) []byte {
 	// combine 'k' and 'c'
-	kc := make([]byte, len(k)+4)
-	copy(kc, k)
-	binary.BigEndian.PutUint32(kc[len(k):], uint32(c))
+	kc := bytes.Clone(k)
+	kc = append(kc, UInt32ToBytes(uint32(c))...)
 
 	var out []byte
 

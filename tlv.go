@@ -328,9 +328,7 @@ func TlvGetLength(buf *bytes.Buffer) (length int) {
 }
 
 func TlvEncodeTag(tag TlvTag) []byte {
-	var tmpBytes []byte = make([]byte, 8)
-	binary.BigEndian.PutUint64(tmpBytes, uint64(tag))
-	return bytes.TrimLeft(tmpBytes, "\x00")
+	return bytes.TrimLeft(UInt64ToBytes(uint64(tag)), "\x00")
 }
 
 func TlvEncodeLength(length int) []byte {
@@ -339,9 +337,7 @@ func TlvEncodeLength(length int) []byte {
 	if length <= 127 {
 		out = append(out, byte(length&0xff))
 	} else if length <= 0xffffffff {
-		var tmpBytes []byte = make([]byte, 4)
-		binary.BigEndian.PutUint32(tmpBytes, uint32(length))
-		significantBytes := bytes.TrimLeft(tmpBytes, "\x00")
+		significantBytes := bytes.TrimLeft(UInt64ToBytes(uint64(length)), "\x00")
 		out = append(out, byte(0x80+len(significantBytes)))
 		out = append(out, significantBytes...)
 	} else {
