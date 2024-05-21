@@ -233,51 +233,46 @@ func (nfc *NfcSession) ReadFile(fileId uint16) (fileData []byte) {
 
 	var fileBuf *bytes.Buffer = new(bytes.Buffer)
 
-	{
-		// read first 4 bytes from file
-		fileHeader := nfc.ReadBinaryFromOffset(0, 4)
-		fileBuf.Write(fileHeader)
+	// read first 4 bytes from file
+	fileHeader := nfc.ReadBinaryFromOffset(0, 4)
+	fileBuf.Write(fileHeader)
 
-		var totalBytes int
-		{
-			// extract length (of parent tag) to determine file size
-			tmpBuf := bytes.NewBuffer(fileHeader)
-			TlvGetTag(tmpBuf)
-			totalBytes = TlvGetLength(tmpBuf)
-			totalBytes += 4 - tmpBuf.Len()
+	var totalBytes int
+	{
+		// extract length (of parent tag) to determine file size
+		tmpBuf := bytes.NewBuffer(fileHeader)
+		TlvGetTag(tmpBuf)
+		totalBytes = TlvGetLength(tmpBuf)
+		totalBytes += 4 - tmpBuf.Len()
+	}
+
+	// read remainder of file
+	if fileBuf.Len() < totalBytes {
+		maxReadAmount := nfc.maxLe
+
+		for {
+			bytesToRead := min(maxReadAmount, totalBytes-fileBuf.Len())
+
+			tmpData := nfc.ReadBinaryFromOffset(fileBuf.Len(), bytesToRead)
+
+			// sanity check that we received some data
+			// TODO - we've seen issues with jmrtd applet where it returns 0 bytes if we ask for 236 bytes of data...
+			//			... may want to try dropping the requested read amount in this scenario.. and retrying
+			if len(tmpData) < 1 {
+				log.Panicf("[ReadFile] Didn't receive any data")
+			}
+
+			fileBuf.Write(tmpData)
+
+			if fileBuf.Len() >= totalBytes {
+				break
+			}
 		}
 
-		// read remainder of file
-		if fileBuf.Len() < totalBytes {
-			maxReadAmount := nfc.maxLe
+		fileData = bytes.Clone(fileBuf.Bytes())
 
-			for {
-				bytesToRead := totalBytes - fileBuf.Len()
-				if bytesToRead > maxReadAmount {
-					bytesToRead = maxReadAmount
-				}
-
-				tmpData := nfc.ReadBinaryFromOffset(fileBuf.Len(), bytesToRead)
-
-				// sanity check that we received some data
-				// TODO - we've seen issues with jmrtd applet where it returns 0 bytes if we ask for 236 bytes of data...
-				//			... may want to try dropping the requested read amount in this scenario.. and retrying
-				if len(tmpData) < 1 {
-					log.Panicf("[ReadFile] Didn't receive any data")
-				}
-
-				fileBuf.Write(tmpData)
-
-				if fileBuf.Len() >= totalBytes {
-					break
-				}
-			}
-
-			fileData = bytes.Clone(fileBuf.Bytes())
-
-			if len(fileData) != totalBytes {
-				log.Panicf("Data read differs to expected length (exp:%d, act:%d)", totalBytes, len(fileData))
-			}
+		if len(fileData) != totalBytes {
+			log.Panicf("Data read differs to expected length (exp:%d, act:%d)", totalBytes, len(fileData))
 		}
 	}
 
