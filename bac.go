@@ -21,6 +21,13 @@ func generateKseed(MRZi string) []byte {
 	return out
 }
 
+// generates kEnc/kMac
+func (bac BAC) generateKeys(seed []byte) (kEnc []byte, kMac []byte) {
+	kEnc = KDF(seed, KDF_COUNTER_KSENC, TDES, 112)
+	kMac = KDF(seed, KDF_COUNTER_KSMAC, TDES, 112)
+	return
+}
+
 // rnd_ifd: 8 bytes
 // rnd_icc: 8 bytes
 // kifd: 16 bytes
@@ -63,11 +70,7 @@ func (bac *BAC) doBAC(nfc *NfcSession, password *Password) (err error) {
 		return nil
 	}
 
-	kSeed := generateKseed(password.password)
-
-	kEnc := KDF(kSeed, KDF_COUNTER_KSENC, TDES, 112)
-
-	kMac := KDF(kSeed, KDF_COUNTER_KSMAC, TDES, 112)
+	kEnc, kMac := bac.generateKeys(generateKseed(password.password))
 
 	var rxRndIC []byte
 	// request challenge (RND.IC) from the chip
@@ -85,7 +88,8 @@ func (bac *BAC) doBAC(nfc *NfcSession, password *Password) (err error) {
 
 	// bac_cmd_data (40 bytes).. rnd-ifd(8), rnd_icc(8) kifd(16).. then encrypt (using kenc) and add 8 byte hmac
 	var bacCmd []byte
-	if bacCmd, err = bacCmdData(txRndIfd, rxRndIC, txKIFD, kEnc, kMac); err != nil {
+	bacCmd, err = bacCmdData(txRndIfd, rxRndIC, txKIFD, kEnc, kMac)
+	if err != nil {
 		return err
 	}
 
@@ -94,7 +98,8 @@ func (bac *BAC) doBAC(nfc *NfcSession, password *Password) (err error) {
 	// TODO - any error code for indicating BAC is not supported?
 	// external authenticate
 	var extAuthBytes []byte
-	if extAuthBytes, err = nfc.ExternalAuthenticate(bacCmd, 40); err != nil {
+	extAuthBytes, err = nfc.ExternalAuthenticate(bacCmd, 40)
+	if err != nil {
 		return err
 	}
 
@@ -146,8 +151,8 @@ func (bac *BAC) doBAC(nfc *NfcSession, password *Password) (err error) {
 
 	kXor := xorBytes(txKIFD, rxKIC)
 
-	KSenc := KDF(kXor, KDF_COUNTER_KSENC, TDES, 112)
-	KSmac := KDF(kXor, KDF_COUNTER_KSMAC, TDES, 112)
+	// TODO - why different variables?
+	KSenc, KSmac := bac.generateKeys(kXor)
 
 	if nfc.sm, err = NewSecureMessaging(TDES, KSenc, KSmac); err != nil {
 		return err
