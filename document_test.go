@@ -4,6 +4,37 @@ import (
 	"testing"
 )
 
+func TestChipAuthStatusString(t *testing.T) {
+	testCases := []struct {
+		chipAuthStatus ChipAuthStatus
+		expStr string
+	}{
+		{
+			chipAuthStatus: CHIP_AUTH_STATUS_NONE,
+			expStr: "n/a",
+		},
+		{
+			chipAuthStatus: CHIP_AUTH_STATUS_PACE_CAM,
+			expStr: "PACE-CAM",
+		},
+		{
+			chipAuthStatus: CHIP_AUTH_STATUS_CA,
+			expStr: "Chip Authentication",
+		},
+		{
+			chipAuthStatus: CHIP_AUTH_STATUS_AA,
+			expStr: "Active Authentication",
+		},
+	}
+	for _, tc := range testCases {
+		actStr := tc.chipAuthStatus.String()
+
+		if actStr != tc.expStr {
+			t.Errorf("ChipAuthStatus string() differs to expected (Exp:%s, Act:%s)", tc.expStr,actStr)
+		}
+	}
+}
+
 // TODO - these could all be table-based tests...
 
 // tests the Lds/Unicode version when only the document is empty (i.e no EF.COM or EF.SOD)

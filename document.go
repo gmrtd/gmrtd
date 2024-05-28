@@ -54,7 +54,7 @@ func (cas ChipAuthStatus) String() string {
 		return "Active Authentication"
 	}
 
-	return "*UnsupportedValue*"
+	return fmt.Sprintf("*UnsupportedValue* (cas:%d)", int(cas))
 }
 
 // gets the LDS Version (e.g. '0108') from EF.SOD or EF.COM
