@@ -135,13 +135,6 @@ func (nfc *NfcSession) SelectMF() (err error) {
 	}
 
 	if !rapdu.IsSuccess() {
-		// TODO - AT/DE passports were giving 6700 response error.. so we'll tolerate this (at least for now)
-		//			- seems to have been fixed since we changed the above command (0x00,0x0C)?
-		//
-		//if rapdu.Status == 0x6700 {
-		//	return nil
-		//}
-
 		return fmt.Errorf("[SelectMF] Status:%x", rapdu.Status)
 	}
 
