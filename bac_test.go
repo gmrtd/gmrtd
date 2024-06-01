@@ -17,14 +17,14 @@ func TestGenerateKseed(t *testing.T) {
 
 	exp := HexToBytes("239AB9CB282DAF66231DC5A4DF6BFBAE")
 
-	out := generateKseed(mrzi)
+	out := NewBAC().generateKseed(mrzi)
 
 	if !bytes.Equal(exp, out) {
 		t.Errorf("Kseed failed (Exp:%x) (Act:%x)", exp, out)
 	}
 }
 
-func TestBacCmdData(t *testing.T) {
+func TestBuildRequest(t *testing.T) {
 	// /5. Calculate the basic access keys (KEnc and KMAC) according to Section 9.7.1/Appendix D.1:
 	//KEnc = ‘AB94FDECF2674FDFB9B391F85D7F76F2’
 	//KMAC = ‘7962D9ECE03D1ACD4C76089DCE131543’
@@ -52,7 +52,7 @@ func TestBacCmdData(t *testing.T) {
 
 	exp := HexToBytes("72C29C2371CC9BDB65B779B8E8D37B29ECC154AA56A8799FAE2F498F76ED92F25F1448EEA8AD90A7")
 
-	out, err := bacCmdData(rndIfd, rndIcc, kIfd, kEnc, kMac)
+	out, err := NewBAC().buildRequest(rndIfd, rndIcc, kIfd, kEnc, kMac)
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
@@ -143,4 +143,6 @@ func TestDoBACPasswordTypeCAN(t *testing.T) {
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
+
+	// TODO - verify SM was setup correctly? (as above)
 }
