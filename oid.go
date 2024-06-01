@@ -27,7 +27,7 @@ var (
 
 	oidBsiDe           = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7}
 	oidBsiDeAlgorithms = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 1}
-	// const standardizedDomainParameters = bsi_de_algorithms + ".2"		// TODO - this is what PACE-CAM is using... maybe have common handling
+	// const standardizedDomainParameters = bsi_de_algorithms + ".2"
 	oidBsiDeProtocols          = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2}
 	oidBsiDeProtocolsSmartcard = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2}
 	oidPk                      = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 1}

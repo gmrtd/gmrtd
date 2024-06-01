@@ -144,5 +144,8 @@ func TestDoBACPasswordTypeCAN(t *testing.T) {
 		t.Errorf("Unexpected error: %s", err)
 	}
 
-	// TODO - verify SM was setup correctly? (as above)
+	// verify SM was NOT setup, as BAC is not supported for password=CAN
+	if nfc.sm != nil {
+		t.Errorf("SM should not have been setup")
+	}
 }
