@@ -25,9 +25,9 @@ var (
 	oidIcaoMrtdSecurityAaProtocolObject = asn1.ObjectIdentifier{1, 3, 27, 1, 1, 5}
 	oidEfDir                            = asn1.ObjectIdentifier{1, 3, 27, 1, 1, 13}
 
-	oidBsiDe           = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7}
-	oidBsiDeAlgorithms = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 1}
-	// const standardizedDomainParameters = bsi_de_algorithms + ".2"
+	oidBsiDe                   = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7}
+	oidBsiDeAlgorithms         = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 1}
+	oidBsiDeEcKeyType          = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 1, 2}
 	oidBsiDeProtocols          = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2}
 	oidBsiDeProtocolsSmartcard = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2}
 	oidPk                      = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 1}
@@ -147,7 +147,7 @@ func DecodeAsn1objectId(data []byte) (oid asn1.ObjectIdentifier) {
 
 // TODO - replace with OID variable refs
 var oid_lookup = map[string]string{
-	"0.4.0.127.0.7.1.2":             "bsiEcKeyType",
+	oidBsiDeEcKeyType.String():      "bsiEcKeyType",
 	oidPk.String():                  "id-PK",
 	oidPkDh.String():                "id-PK-DH",
 	oidPkEcdh.String():              "id-PK-ECDH",
