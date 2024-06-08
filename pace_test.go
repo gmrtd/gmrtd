@@ -42,13 +42,14 @@ func TestDoECDH(t *testing.T) {
 	chipPub.x, _ = new(big.Int).SetString("824FBA91C9CBE26BEF53A0EBE7342A3BF178CEA9F45DE0B70AA601651FBA3F57", 16)
 	chipPub.y, _ = new(big.Int).SetString("30D8C879AAA9C9F73991E61B58F4D52EB87A0A0C709A49DC63719363CCD13C54", 16)
 
-	expSharedSecretX := HexToBytes("60332EF2450B5D247EF6D3868397D398852ED6E8CAF6FFEEF6BF85CA57057FD5")
-	expSharedSecretY := HexToBytes("0840CA7415BAF3E43BD414D35AA4608B93A2CAF3A4E3EA4E82C9C13D03EB7181")
+	var expSharedSecret EC_POINT
+	expSharedSecret.x, _ = new(big.Int).SetString("60332EF2450B5D247EF6D3868397D398852ED6E8CAF6FFEEF6BF85CA57057FD5", 16)
+	expSharedSecret.y, _ = new(big.Int).SetString("0840CA7415BAF3E43BD414D35AA4608B93A2CAF3A4E3EA4E82C9C13D03EB7181", 16)
 
 	{
 		shared := doECDH(termPri.Bytes(), &chipPub, domainParams.ec)
 
-		if !bytes.Equal(expSharedSecretX, shared.x.Bytes()) || !bytes.Equal(expSharedSecretY, shared.y.Bytes()) {
+		if !expSharedSecret.Equal(*shared) {
 			t.Errorf("ECDH error")
 		}
 	}
@@ -56,7 +57,7 @@ func TestDoECDH(t *testing.T) {
 	{
 		shared := doECDH(chipPri.Bytes(), &termPub, domainParams.ec)
 
-		if !bytes.Equal(expSharedSecretX, shared.x.Bytes()) || !bytes.Equal(expSharedSecretY, shared.y.Bytes()) {
+		if !expSharedSecret.Equal(*shared) {
 			t.Errorf("ECDH error")
 		}
 	}
@@ -74,10 +75,11 @@ func TestDoGenericMappingEC(t *testing.T) {
 
 	var mappedG *EC_POINT = doGenericMappingEC(s, &termShared, domainParams.ec)
 
-	expMappedGx := HexToBytes("8CED63C91426D4F0EB1435E7CB1D74A46723A0AF21C89634F65A9AE87A9265E2")
-	expMappedGy := HexToBytes("8C879506743F8611AC33645C5B985C80B5F09A0B83407C1B6A4D857AE76FE522")
+	var expMappedG EC_POINT
+	expMappedG.x, _ = new(big.Int).SetString("8CED63C91426D4F0EB1435E7CB1D74A46723A0AF21C89634F65A9AE87A9265E2", 16)
+	expMappedG.y, _ = new(big.Int).SetString("8C879506743F8611AC33645C5B985C80B5F09A0B83407C1B6A4D857AE76FE522", 16)
 
-	if !bytes.Equal(expMappedGx, mappedG.x.Bytes()) || !bytes.Equal(expMappedGy, mappedG.y.Bytes()) {
+	if !expMappedG.Equal(*mappedG) {
 		t.Errorf("Generic Mapping (EC) error")
 	}
 }

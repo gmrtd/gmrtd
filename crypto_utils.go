@@ -52,6 +52,13 @@ func (ec EC_POINT) String() string {
 	return fmt.Sprintf("(x:%x, y:%x)", ec.x.Bytes(), ec.y.Bytes())
 }
 
+func (ec EC_POINT) Equal(ec2 EC_POINT) bool {
+	if !bytes.Equal(ec.x.Bytes(), ec2.x.Bytes()) || !bytes.Equal(ec.y.Bytes(), ec2.y.Bytes()) {
+		return false
+	}
+	return true
+}
+
 // TODO - maybe this should panic.. as this should only be caused by a code issue
 // NB supports 8/16/24 byte key lengths for DES
 func GetCipherForKey(alg BlockCipherAlg, key []byte) (cipher.Block, error) {

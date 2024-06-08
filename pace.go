@@ -574,7 +574,7 @@ func (pace *Pace) doCamEcdh(nfc *NfcSession, paceConfig *PaceConfig, domainParam
 		//
 		// Verify that PKMAP,IC = KA(CAIC, PKIC, DIC).
 		//
-		if !bytes.Equal(KA.x.Bytes(), pubMapIC.x.Bytes()) || !bytes.Equal(KA.y.Bytes(), pubMapIC.y.Bytes()) { // TODO - have an equals method?
+		if !KA.Equal(*pubMapIC) {
 			log.Panicf("PACE CAM verification failed (Bad KA.X/Y) KA:%s, pubMapIC:%s", KA.String(), pubMapIC.String())
 		}
 
