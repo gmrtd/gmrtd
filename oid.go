@@ -147,6 +147,8 @@ func DecodeAsn1objectId(data []byte) (oid asn1.ObjectIdentifier) {
 
 // TODO - replace with OID variable refs
 var oid_lookup = map[string]string{
+	"1.2.840.113549.1.1.11": "sha256WithRSAEncryption",
+
 	oidBsiDeEcKeyType.String():      "bsiEcKeyType",
 	oidPk.String():                  "id-PK",
 	oidPkDh.String():                "id-PK-DH",

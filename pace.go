@@ -697,6 +697,7 @@ func (pace *Pace) doPACE(nfc *NfcSession, password *Password, doc *Document) (er
 
 	// PACE requires card-access
 	if doc.CardAccess == nil {
+		slog.Debug("doPACE - SKIPPING as no CardAccess file is present")
 		return nil
 	}
 

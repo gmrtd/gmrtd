@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"crypto/cipher"
 	"fmt"
+	"log/slog"
 )
 
 type BAC struct {
@@ -141,8 +142,11 @@ func (bac *BAC) setupSecureMessaging(nfc *NfcSession, kEnc []byte, kMac []byte, 
 
 // TODO - return an indicator as to whether or not BAC was performed... same for PACE also
 func (bac *BAC) doBAC(nfc *NfcSession, password *Password) (err error) {
+	slog.Debug("doPACE", "password-type", password.passwordType, "password", password.password)
+
 	if password.passwordType != PASSWORD_TYPE_MRZi {
 		// not supported, but not an error as caller shouldn't care
+		slog.Debug("doBAC - SKIPPING as BAC is only supported for MRZi password types")
 		return nil
 	}
 
