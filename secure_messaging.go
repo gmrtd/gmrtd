@@ -87,6 +87,9 @@ func (sm *SecureMessaging) sscIncrement() {
 		var sscPre *big.Int = new(big.Int).SetBytes(sm.SSC)
 		var sscPost *big.Int = new(big.Int)
 
+		// TODO - if F's then add 1 then won't this expand by 1 byte and start causing issues?
+		//			- largely non-risk as SSC is 0's, but should still increment without expanding
+		//			- or will FillBytes fail with an error? as receiving buffer is too small?
 		sscPost.Add(sscPre, big.NewInt(1))
 		sscPost.FillBytes(sm.SSC)
 	default:
@@ -245,6 +248,8 @@ func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
 			}
 
 			if !bytes.Equal(expMAC, tag8E.GetValue()) {
+				// TODO - US passport (JMF) seems to have an issue with MAC on the last frame of the file (which file?)
+				//slog.Debug("sm.Decode: MAC mismatch", "Exp", BytesToHex(expMAC), "Act", BytesToHex(tag8E.GetValue()))
 				return nil, fmt.Errorf("MAC mismatch (Exp: %x) (Act: %x)", expMAC, tag8E.GetValue())
 			}
 		}
