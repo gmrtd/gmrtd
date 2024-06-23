@@ -243,11 +243,31 @@ func (paceConfig *PaceConfig) computeAuthToken(key []byte, data []byte) []byte {
 
 	switch paceConfig.authToken {
 	case CBC:
-		// TODO - NOT IMPLEMENTED... looks the same as BAC though.. DES key expansion?
-		log.Panic("CBC Auth Token NOT IMPLEMENTED")
+		// CBC-mode with MAC length of 8 bytes
+		// 3DES [FIPS 46-3] SHALL be used in Retail-mode according to [ISO/IEC 9797-1] MAC algorithm 3 / padding method 2 with block cipher DES and IV=0.
+
+		if paceConfig.cipher != TDES {
+			log.Panicf("CBC Authentication Token is only supported for 3DES (ActCipherAlg:%d)", int(paceConfig.cipher))
+		}
+
+		var err error
+		var authToken []byte
+
+		authToken, err = ISO9797RetailMacDes(key, ISO9797Method2Pad(data, DES_BLOCK_SIZE_BYTES))
+		if err != nil {
+			log.Panicf("Unable to generate Auth-Token (CBC): %s", err.Error())
+		}
+
+		slog.Debug("computeAuthToken", "authToken(CBC)", BytesToHex(authToken))
+		return authToken
 	case CMAC:
 		// CMAC-mode with MAC length of 8 bytes
 		// AES [FIPS 197] SHALL be used in CMAC-mode [SP 800-38B] with a MAC length of 8 bytes.
+
+		if paceConfig.cipher != AES {
+			log.Panicf("CMAC Authentication Token is only supported for AES (ActCipherAlg:%d)", int(paceConfig.cipher))
+		}
+
 		var err error
 		var cipher cipher.Block
 
@@ -261,7 +281,7 @@ func (paceConfig *PaceConfig) computeAuthToken(key []byte, data []byte) []byte {
 			log.Panicf("Unable to generate Auth-Token (CMAC): %s", err.Error())
 		}
 
-		slog.Debug("computeAuthToken", "authToken", BytesToHex(authToken))
+		slog.Debug("computeAuthToken", "authToken(CMAC)", BytesToHex(authToken))
 		return authToken
 	}
 
