@@ -75,6 +75,8 @@ var (
 	oidSecurityObject                   = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 3, 2, 1}
 	oidPrimeField                       = asn1.ObjectIdentifier{1, 2, 840, 10045, 1, 1}
 	oidEcPublicKey                      = asn1.ObjectIdentifier{1, 2, 840, 10045, 2, 1}
+	oidEcdsaWithSHA1                    = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 1}
+	oidEcdsaWithSHA224                  = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 3, 1}
 	oidEcdsaWithSHA256                  = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 3, 2}
 	oidEcdsaWithSHA384                  = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 3, 3}
 	oidEcdsaWithSHA512                  = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 3, 4}
@@ -86,6 +88,7 @@ var (
 	oidSha512WithRSAEncryption          = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 13}
 	oidSha224WithRSAEncryption          = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 14}
 	oidSignedData                       = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 7, 2}
+	oidEmailAddress                     = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 1}
 	oidContentType                      = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 3}
 	oidMessageDigest                    = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 4}
 	oidSigningTime                      = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 5}
@@ -175,6 +178,8 @@ var oidLookup = map[string]string{
 	oidSecurityObject.String():                   "id-SecurityObject",
 	oidPrimeField.String():                       "prime-field",
 	oidEcPublicKey.String():                      "id-ecPublicKey",
+	oidEcdsaWithSHA1.String():                    "ecdsa-with-SHA1",
+	oidEcdsaWithSHA224.String():                  "ecdsa-with-SHA224",
 	oidEcdsaWithSHA256.String():                  "ecdsa-with-SHA256",
 	oidEcdsaWithSHA384.String():                  "ecdsa-with-SHA384",
 	oidEcdsaWithSHA512.String():                  "ecdsa-with-SHA512",
@@ -186,6 +191,7 @@ var oidLookup = map[string]string{
 	oidSha512WithRSAEncryption.String():          "sha512WithRSAEncryption",
 	oidSha224WithRSAEncryption.String():          "sha224WithRSAEncryption",
 	oidSignedData.String():                       "id-signedData",
+	oidEmailAddress.String():                     "emailAddress",
 	oidContentType.String():                      "contentType",
 	oidMessageDigest.String():                    "id-messageDigest",
 	oidSigningTime.String():                      "signing-time",
