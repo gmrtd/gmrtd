@@ -104,7 +104,7 @@ func (node TlvSimpleNode) stringWithIndent(indent int) string {
 	sb.WriteString(fmt.Sprintf("%02x: %x", node.Tag, node.Value))
 	if node.Tag == 0x06 {
 		oidStr := DecodeAsn1objectId(node.Value).String() // TODO - should silently ignore if error?
-		oidName := oid_lookup[oidStr]
+		oidName := oidLookup[oidStr]
 		sb.WriteString(fmt.Sprintf(" [%s: %s]", oidStr, oidName))
 	} else if PrintableBytes(node.Value) {
 		sb.WriteString(fmt.Sprintf(" [%s]", string(node.Value)))
