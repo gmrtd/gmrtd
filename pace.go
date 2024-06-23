@@ -292,6 +292,7 @@ func doGenericMappingEC(s []byte, H *EC_POINT, ec elliptic.Curve) *EC_POINT {
 	return &out
 }
 
+// TODO - also used by ChipAuth
 func encode_7C_XX(innerTag byte, data []byte) []byte {
 	node := NewTlvConstructedNode(0x7C)
 	node.AddChild(NewTlvSimpleNode(TlvTag(innerTag), data))
@@ -315,6 +316,7 @@ func build_7F49(paceOid []byte, tag86data []byte) []byte {
 }
 
 // TODO - move once it's generic enough.. ChipAuth has similar but different (e.g. P1/P2)
+// TODO - should we make this (and others) a Pace method?
 func doAPDU_MSESetAT(nfc *NfcSession, paceConfig *PaceConfig, passwordType PasswordType) (err error) {
 	slog.Debug("doAPDU_MSESetAT")
 
