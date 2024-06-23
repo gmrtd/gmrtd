@@ -152,12 +152,6 @@ func ReadDocument(transceiver Transceiver, password *Password, atr []byte, ats [
 
 	// TODO - EF.ATR/INFO? (0x2F01) may contain extended length info... get 6B00 error on SG passport
 
-	slog.Info("Read EF.DIR")
-	doc.Dir = NewEFDIR(nfc.ReadFile(MRTDFileIdEFDIR))
-	if doc.Dir != nil {
-		slog.Debug("EF.DIR", "bytes", BytesToHex(doc.Dir.RawData))
-	}
-
 	slog.Info("Read CardAccess")
 	// may not be present (OR may be present but not have PACE info)
 	if doc.CardAccess, err = NewCardAccess(nfc.ReadFile(MRTDFileIdCardAccess)); err != nil {
@@ -173,6 +167,13 @@ func ReadDocument(transceiver Transceiver, password *Password, atr []byte, ats [
 		if err != nil {
 			return doc, err
 		}
+	}
+
+	// NB moved after PACE as we've seen access related errors on NZ passports when done before PACE
+	slog.Info("Read EF.DIR")
+	doc.Dir = NewEFDIR(nfc.ReadFile(MRTDFileIdEFDIR))
+	if doc.Dir != nil {
+		slog.Debug("EF.DIR", "bytes", BytesToHex(doc.Dir.RawData))
 	}
 
 	slog.Info("Selecting MRTD AID")
