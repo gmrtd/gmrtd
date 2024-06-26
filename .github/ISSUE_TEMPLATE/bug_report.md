@@ -20,4 +20,4 @@ A clear and concise description of what actually happened.
 Steps to reproduce the behaviour (if applicable).
 
 **Additional Context**
-Add any other context about the problem here, such as the MRTD type (Passport/, Identity Card, ...), Issuing Country.
+Add any other context about the problem here, such as the MRTD type (Passport/Identity Card, ...), Issuing Country.
