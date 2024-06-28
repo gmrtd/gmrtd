@@ -614,7 +614,9 @@ func getKeyForPassword(paceConfig *PaceConfig, password *Password) []byte {
 		k = CryptoHash(crypto.SHA1, []byte(password.password))
 	case PASSWORD_TYPE_CAN:
 		// k = CAN
-		k = []byte(password.password) // TODO - ISO 8859-1 encoded
+		// NB spec claims that CAN is ISO 8859-1 encoded (9303p11 s9.7.3 PACE)
+		//    - we're ignoring this as we don't expect extended characters
+		k = []byte(password.password)
 	default:
 		log.Panicf("Unsupported password-type (type:%d)", password.passwordType)
 	}
