@@ -408,7 +408,7 @@ func getECCurveForSpecifiedDomain(specDomain *ECSpecifiedDomain) (elliptic.Curve
 	// Technically we should support 'total' cryptographic agility and allow the MRTD to
 	// dictate any DH/ECDH parameters of its choosing. However, it's more likely that MRTDs
 	// are referencing well-known parameters instead of using random (and potentially unsafe)
-	// settings, so we intentional support a limited subset and will evaluate this over time.
+	// settings, so we intentionally support a limited subset and will evaluate this over time.
 
 	slog.Debug("getECCurveForSpecifiedDomain", "Params", BytesToHex(specDomain.FieldId.Parameters.Bytes))
 
