@@ -23,8 +23,6 @@ package gmrtd
 //  	f) They exchange and verify the authentication token TIFD = MAC(KSMAC,PKDH,IC) and TIC = MAC(KSMAC,PKDH,IFD) as described in Section 4.4.3.4.
 // 4) Conditionally, the eMRTD chip computes Chip Authentication Data CAIC, encrypts them AIC = E(KSEnc, CAIC) and sends them to the terminal (cf. Section 4.4.3.5.1). The terminal decrypts AIC and verifies the authenticity of the chip using the recovered Chip Authentication Data CAIC (cf. Section 4.4.3.5.2).
 
-// TODO - need to check that local/remote public keys are not the same... check 9303 specs for PACE.. and other checks
-
 import (
 	"bytes"
 	"crypto"
@@ -290,7 +288,6 @@ func (paceConfig *PaceConfig) computeAuthToken(key []byte, data []byte) []byte {
 	return nil
 }
 
-// TODO - During Diffie-Hellman key agreement, the IC and the inspection system SHOULD check that the two public keys PKDH,IC and PKDH,IFD differ.
 func doECDH(localPrivate []byte, remotePublic *EC_POINT, ec elliptic.Curve) *EC_POINT {
 	var point EC_POINT
 	point.x, point.y = ec.ScalarMult(remotePublic.x, remotePublic.y, localPrivate)
@@ -335,7 +332,6 @@ func build_7F49(paceOid []byte, tag86data []byte) []byte {
 	return node.Encode()
 }
 
-// TODO - move once it's generic enough.. ChipAuth has similar but different (e.g. P1/P2)
 // TODO - should we make this (and others) a Pace method?
 func doAPDU_MSESetAT(nfc *NfcSession, paceConfig *PaceConfig, passwordType PasswordType) (err error) {
 	slog.Debug("doAPDU_MSESetAT")
@@ -439,6 +435,12 @@ func (pace *Pace) keyAgreement_GM_ECDH(nfc *NfcSession, domainParams *PACEDomain
 
 			chipPub = decodeX962EcPoint(domainParams.ec, decode_7C_XX(0x84, rApdu.Data))
 		}
+	}
+
+	// verify the terminal and chip public-keys are not the same
+	// 9303p11 4.4.1 d) During Diffie-Hellman key agreement, the IC and the inspection system SHOULD check that the two public keys PKDH,IC and PKDH,IFD differ.
+	if termPub.Equal(*chipPub) {
+		log.Panicf("terminal and chip public-keys must not be the same (Term:%s) (Chip:%s)", termPub.String(), chipPub.String())
 	}
 
 	{
