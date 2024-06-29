@@ -35,8 +35,6 @@ import (
 
 // TODO - docs say should move over to EF.SOD (LDS 1.8)... (p10 page 33)
 
-// TODO - should probably do CA/AA first and then read data files
-
 // TODO - should check certain parts of the document.. e.g. DG1/2 are both mandatory
 
 // TODO - verify DG14 matches unsecured files
