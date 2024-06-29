@@ -384,8 +384,6 @@ func parseECSpecifiedDomain(algIdentifier *AlgorithmIdentifier) (out *ECSpecifie
 		"CoFactor", BytesToHex(out.Cofactor.Bytes()),
 	)
 
-	//log.Printf("parseSubjectPublicKey:\n%+v", subPubKeyInfo)
-
 	return
 }
 
@@ -418,7 +416,7 @@ func getECCurveForSpecifiedDomain(specDomain *ECSpecifiedDomain) (elliptic.Curve
 		var ec elliptic.Curve = caEcArr[i]
 
 		// TODO - should be looking at more than Params.P, but should be good for now
-		if slices.Equal(ec.Params().P.Bytes(), specDomain.FieldId.Parameters.Bytes[1:]) {
+		if slices.Equal(ec.Params().P.Bytes(), specDomain.FieldId.Parameters.Bytes[1:]) { // TODO - highlight significance of [1:]
 			return ec, nil
 		}
 	}

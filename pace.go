@@ -677,7 +677,6 @@ func selectPaceConfig(cardAccess *CardAccess) (paceConfig *PaceConfig, domainPar
 
 	// TODO - what if this is not set? technically it's optional... should we try to infer.. can do nil check for presence
 	domainParams = getStandardisedDomainParams(int(selPaceInfo.ParameterId.Int64()))
-	// TODO - error check?
 
 	return paceConfig, domainParams
 }
