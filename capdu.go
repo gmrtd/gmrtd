@@ -118,12 +118,6 @@ func (apdu *CApdu) EncodeLe() []byte {
 			log.Panicf("LE must be between 1 and 65536 (act:%d)", apdu.le)
 		}
 
-		// TODO - looks like the following may be causing an issue with ext-mode.. need to investigate
-		if len(apdu.data) < 1 { // TODO - if no LC
-			// Lc = 3 bytes (with 1st byte set to x00)
-			leBytes = append(leBytes, 0)
-		}
-
 		// NB bytes will correctly be x0000 if 65536!
 		leBytes = append(leBytes, byte((apdu.le/256)&0xff))
 		leBytes = append(leBytes, byte(apdu.le%256))
