@@ -506,7 +506,6 @@ func (pace *Pace) mutualAuth_GM_ECDH(nfc *NfcSession, paceConfig *PaceConfig, do
 		}
 	}
 
-	// TODO - should this have been done before the last GeneralAuthenticate? (see above)
 	// setup secure messaging
 	{
 		var err error
