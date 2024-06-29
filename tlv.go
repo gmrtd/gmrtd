@@ -304,6 +304,19 @@ func TlvGetTag(buf *bytes.Buffer) TlvTag {
 	return TlvTag(tag)
 }
 
+func TlvGetTags(buf *bytes.Buffer) []TlvTag {
+	var out []TlvTag
+
+	for {
+		if buf.Len() <= 0 {
+			break
+		}
+		out = append(out, TlvGetTag(buf))
+	}
+
+	return out
+}
+
 func TlvGetLength(buf *bytes.Buffer) (length int) {
 	b1 := getByteFromBuffer(buf)
 

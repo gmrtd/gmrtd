@@ -48,17 +48,7 @@ func NewCOM(data []byte) (*COM, error) {
 	}
 
 	// Tag list
-	{
-		tagListBytes := rootNode.GetNode(0x5C).GetValue()
-		buf := bytes.NewBuffer(tagListBytes)
-
-		for {
-			if buf.Len() <= 0 {
-				break
-			}
-			out.TagList = append(out.TagList, TlvGetTag(buf))
-		}
-	}
+	out.TagList = TlvGetTags(bytes.NewBuffer(rootNode.GetNode(0x5C).GetValue()))
 
 	return out, nil
 }

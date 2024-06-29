@@ -67,26 +67,10 @@ func NewDG11(data []byte) (*DG11, error) {
 func parseData(node TlvNode) PersonDetails {
 	var out PersonDetails
 
-	tagList := getTagList(node.GetNode(0x5C).GetValue())
+	tagList := TlvGetTags(bytes.NewBuffer(node.GetNode(0x5C).GetValue()))
 
 	for _, tag := range tagList {
 		out.processTag(tag, node)
-	}
-
-	return out
-}
-
-// TODO - also used by EF.COM... have common TLV function for this?
-func getTagList(data []byte) []TlvTag {
-	var out []TlvTag
-
-	buf := bytes.NewBuffer(data)
-
-	for {
-		if buf.Len() <= 0 {
-			break
-		}
-		out = append(out, TlvGetTag(buf))
 	}
 
 	return out

@@ -2,6 +2,7 @@ package gmrtd
 
 import (
 	"bytes"
+	"reflect"
 	"testing"
 )
 
@@ -60,6 +61,30 @@ func TestTlvDecode(t *testing.T) {
 	if !bytes.Equal(exp, act) {
 		t.Errorf("TLV Decode error (Exp:%x, Act:%x)", exp, act)
 	}
+}
+
+func TestTlvGetTags(t *testing.T) {
+	testCases := []struct {
+		inp    []byte
+		expOut []TlvTag
+	}{
+		{
+			inp:    HexToBytes("5F0E5F115F425F125F13"),
+			expOut: []TlvTag{0x5F0E, 0x5F11, 0x5F42, 0x5F12, 0x5F13},
+		},
+		{
+			inp:    HexToBytes("A0305F1F80887F6002"),
+			expOut: []TlvTag{0xA0, 0x30, 0x5F1F, 0x80, 0x88, 0x7F60, 0x02},
+		},
+	}
+	for _, tc := range testCases {
+		actOut := TlvGetTags(bytes.NewBuffer(tc.inp))
+
+		if !reflect.DeepEqual(actOut, tc.expOut) {
+			t.Errorf("TLV Tags differs to expected (Exp:%x, Act:%x)", tc.expOut, actOut)
+		}
+	}
+
 }
 
 func TestTlvLength(t *testing.T) {
