@@ -728,7 +728,6 @@ func (pace *Pace) doPACE(nfc *NfcSession, password *Password, doc *Document) (er
 	var domainParams *PACEDomainParams
 
 	paceConfig, domainParams = selectPaceConfig(doc.CardAccess)
-	// TODO - error check?
 
 	slog.Debug("doPace", "selected paceConfig", paceConfig.String())
 
