@@ -6,6 +6,6 @@ func MrtdPassiveAuth(doc *Document) {
 	// - verify DG hashes
 	// - verify content hssh against public key in certificate
 	// - verify certificsate chain ties to trusted root
-
-	// TODO - also need to verify CardSecurity if it's present, as it's also a SignedData object
+	//
+	// - also need to verify CardSecurity if it's present, as it's also a SignedData object
 }
