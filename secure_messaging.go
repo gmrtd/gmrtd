@@ -146,7 +146,7 @@ func (sm *SecureMessaging) cryptoUnpad(data []byte) []byte {
 	return ISO9797Method2Unpad(data)
 }
 
-func (sm *SecureMessaging) Encode(cApdu *CApdu, maxLe uint64) (out *CApdu, err error) {
+func (sm *SecureMessaging) Encode(cApdu *CApdu) (out *CApdu, err error) {
 	// 9303p11 - page 63 (Message Structure of SM APDUs)
 
 	if cApdu == nil {
@@ -201,7 +201,14 @@ func (sm *SecureMessaging) Encode(cApdu *CApdu, maxLe uint64) (out *CApdu, err e
 		tlv.AddNode(NewTlvSimpleNode(TlvTag(0x8E), mac))
 	}
 
-	out = NewCApdu(CLA_MASK, cApdu.ins, cApdu.p1, cApdu.p2, tlv.Encode(), int(maxLe))
+	// LE should always be 256 or 65536 for secure-messaging
+	// NB 256->0x00, 65536->0x0000 when LE is encoded
+	var smLe int = 256
+	if cApdu.IsExtended() {
+		smLe = 65536
+	}
+
+	out = NewCApdu(CLA_MASK, cApdu.ins, cApdu.p1, cApdu.p2, tlv.Encode(), smLe)
 
 	return out, nil
 }

@@ -311,7 +311,7 @@ func (nfc *NfcSession) DoAPDU(cApdu *CApdu, desc string) (rApdu *RApdu, err erro
 		apduLog = NewApduLog(desc, cApdu.Encode())
 
 		var encCApdu *CApdu
-		if encCApdu, err = nfc.sm.Encode(cApdu, uint64(nfc.maxLe)); err != nil {
+		if encCApdu, err = nfc.sm.Encode(cApdu); err != nil {
 			return nil, err
 		}
 

@@ -27,7 +27,7 @@ func TestSecureMessageEncode(t *testing.T) {
 
 	exp := HexToBytes("0CA4020C158709016375432908C044F68E08BF8B92D635FF24F800")
 
-	outCApdu, err := sm.Encode(capdu, 256)
+	outCApdu, err := sm.Encode(capdu)
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}

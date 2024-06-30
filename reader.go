@@ -113,8 +113,22 @@ func readDGs(nfc *NfcSession, doc *Document) (err error) {
 	return nil
 }
 
+type Reader struct {
+	apduMaxLe int // overrides if >0 (1..65536)
+}
+
+func NewReader() *Reader {
+	var reader Reader
+	return &reader
+}
+
+func (reader *Reader) SetApduMaxLe(maxRead int) {
+	// TODO - basic range check? i.e. 1..65536 (6 not 5!)
+	reader.apduMaxLe = maxRead
+}
+
 // NB returns partial data (MrtdDocument) in the event of an error
-func ReadDocument(transceiver Transceiver, password *Password, atr []byte, ats []byte) (doc *Document, err error) {
+func (reader *Reader) ReadDocument(transceiver Transceiver, password *Password, atr []byte, ats []byte) (doc *Document, err error) {
 	defer func() {
 		if e := recover(); e != nil {
 			switch x := e.(type) {
@@ -130,6 +144,11 @@ func ReadDocument(transceiver Transceiver, password *Password, atr []byte, ats [
 	}()
 
 	var nfc *NfcSession = NewNfcSession(transceiver)
+
+	// override default (if required)
+	if reader.apduMaxLe > 0 {
+		nfc.maxLe = reader.apduMaxLe
+	}
 
 	doc = new(Document)
 
