@@ -558,7 +558,7 @@ func (pace *Pace) doCamEcdh(nfc *NfcSession, paceConfig *PaceConfig, domainParam
 
 	// ICAO9303 p11... 4.4.3.3.3 Chip Authentication Mapping
 
-	blockCipher, err := GetCipherForKey(paceConfig.cipher, nfc.sm.KSenc)
+	blockCipher, err := GetCipherForKey(paceConfig.cipher, nfc.sm.ksEnc)
 	if err != nil {
 		log.Panicf("Unexpected error: %s", err)
 	}

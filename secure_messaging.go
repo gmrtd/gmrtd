@@ -35,31 +35,31 @@ const CLA_MASK byte = 0x0C
 
 type SecureMessaging struct {
 	alg       BlockCipherAlg
-	KSenc     []byte
-	KSmac     []byte
-	SSC       []byte
+	ksEnc     []byte
+	ksMac     []byte
+	ssc       []byte
 	encCipher cipher.Block
 	macCipher cipher.Block
 }
 
-func NewSecureMessaging(alg BlockCipherAlg, KSenc []byte, KSmac []byte) (sm *SecureMessaging, err error) {
+func NewSecureMessaging(alg BlockCipherAlg, ksEnc []byte, ksMac []byte) (sm *SecureMessaging, err error) {
 	sm = new(SecureMessaging)
 
 	// TODO - should we sanity check these? esp enc/mac length?
 	sm.alg = alg
-	sm.KSenc = KSenc
-	sm.KSmac = KSmac
+	sm.ksEnc = ksEnc
+	sm.ksMac = ksMac
 
-	if sm.encCipher, err = GetCipherForKey(sm.alg, KSenc); err != nil {
+	if sm.encCipher, err = GetCipherForKey(sm.alg, ksEnc); err != nil {
 		return nil, err
 	}
 
-	if sm.macCipher, err = GetCipherForKey(sm.alg, KSmac); err != nil {
+	if sm.macCipher, err = GetCipherForKey(sm.alg, ksMac); err != nil {
 		return nil, err
 	}
 
 	// init SSC (based on block size)
-	sm.SSC = make([]byte, sm.macCipher.BlockSize()) // TODO - why mac and not enc?
+	sm.ssc = make([]byte, sm.macCipher.BlockSize()) // TODO - why mac and not enc?
 
 	slog.Debug("NewSecureMessaging", "SM", sm.String())
 
@@ -67,31 +67,31 @@ func NewSecureMessaging(alg BlockCipherAlg, KSenc []byte, KSmac []byte) (sm *Sec
 }
 
 func (sm *SecureMessaging) SetSSC(ssc []byte) {
-	if len(ssc) != len(sm.SSC) {
-		log.Panicf("SSC length mismatch (exp:%d, act:%d)", len(sm.SSC), len(ssc))
+	if len(ssc) != len(sm.ssc) {
+		log.Panicf("SSC length mismatch (exp:%d, act:%d)", len(sm.ssc), len(ssc))
 	}
-	copy(sm.SSC, ssc)
-	slog.Debug("SetSSC", "SSC", BytesToHex(sm.SSC))
+	copy(sm.ssc, ssc)
+	slog.Debug("SetSSC", "SSC", BytesToHex(sm.ssc))
 }
 
 func (sm SecureMessaging) String() string {
-	return fmt.Sprintf("(alg:%d, ksenc:%x, ksmac:%x, ssc:%x)", sm.alg, sm.KSenc, sm.KSmac, sm.SSC)
+	return fmt.Sprintf("(alg:%d, ksenc:%x, ksmac:%x, ssc:%x)", sm.alg, sm.ksEnc, sm.ksMac, sm.ssc)
 }
 
 // increments the SSC and returns the post-increment value
 func (sm *SecureMessaging) sscIncrement() {
 	switch sm.alg {
 	case TDES:
-		sm.SSC = UInt64ToBytes(binary.BigEndian.Uint64(sm.SSC) + 1)
+		sm.ssc = UInt64ToBytes(binary.BigEndian.Uint64(sm.ssc) + 1)
 	case AES:
-		var sscPre *big.Int = new(big.Int).SetBytes(sm.SSC)
+		var sscPre *big.Int = new(big.Int).SetBytes(sm.ssc)
 		var sscPost *big.Int = new(big.Int)
 
 		// TODO - if F's then add 1 then won't this expand by 1 byte and start causing issues?
 		//			- largely non-risk as SSC is 0's, but should still increment without expanding
 		//			- or will FillBytes fail with an error? as receiving buffer is too small?
 		sscPost.Add(sscPre, big.NewInt(1))
-		sscPost.FillBytes(sm.SSC)
+		sscPost.FillBytes(sm.ssc)
 	default:
 		log.Panicf("Unsupported Alg (%d)", sm.alg)
 	}
@@ -104,7 +104,7 @@ func (sm *SecureMessaging) cbcCrypt(data []byte, encrypt bool) []byte {
 	// special IV setup for AES
 	if sm.alg == AES {
 		// IV = K(KSenc,SSC)
-		sm.encCipher.Encrypt(iv, sm.SSC)
+		sm.encCipher.Encrypt(iv, sm.ssc)
 	}
 
 	out := CryptCBC(sm.encCipher, iv, data, encrypt)
@@ -116,7 +116,7 @@ func (sm *SecureMessaging) cbcCrypt(data []byte, encrypt bool) []byte {
 func (sm *SecureMessaging) generateMac(data []byte) (mac []byte, err error) {
 	switch sm.alg {
 	case TDES:
-		if mac, err = ISO9797RetailMacDes(sm.KSmac, data); err != nil {
+		if mac, err = ISO9797RetailMacDes(sm.ksMac, data); err != nil {
 			return nil, err
 		}
 	case AES:
@@ -189,7 +189,7 @@ func (sm *SecureMessaging) Encode(cApdu *CApdu) (out *CApdu, err error) {
 	// do8E
 	{
 		macData := make([]byte, 0)
-		macData = append(macData, sm.SSC...)
+		macData = append(macData, sm.ssc...)
 		macData = append(macData, cmdHeaderPadded...)
 		macData = append(macData, tlv.Encode()...)
 
@@ -244,7 +244,7 @@ func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
 		// verify the MAC
 		{
 			tmpData := make([]byte, 0)
-			tmpData = append(tmpData, sm.SSC...)
+			tmpData = append(tmpData, sm.ssc...)
 			tmpData = append(tmpData, tlv.GetNode(0x85).Encode()...)
 			tmpData = append(tmpData, tlv.GetNode(0x87).Encode()...)
 			tmpData = append(tmpData, tlv.GetNode(0x99).Encode()...)

@@ -62,7 +62,7 @@ func TestNfcSessionSecureMessagingTDES(t *testing.T) {
 		t.Errorf("Incorrect EF.COM data (Exp:%x, Act:%x)", expEfComData, actEfComData)
 	}
 
-	if !bytes.Equal(nfc.sm.SSC, HexToBytes("887022120C06C22C")) {
+	if !bytes.Equal(nfc.sm.ssc, HexToBytes("887022120C06C22C")) {
 		t.Errorf("Incorrect SSC")
 	}
 }
@@ -99,7 +99,7 @@ func TestNfcSessionSecureMessagingAES(t *testing.T) {
 		t.Errorf("Incorrect EF.COM data (Exp:%x, Act:%x)", expEfComData, actEfComData)
 	}
 
-	if !bytes.Equal(nfc.sm.SSC, HexToBytes("00000000000000000000000000000026")) {
+	if !bytes.Equal(nfc.sm.ssc, HexToBytes("00000000000000000000000000000026")) {
 		t.Errorf("Incorrect SSC")
 	}
 }

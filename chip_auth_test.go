@@ -86,9 +86,9 @@ func TestChipAuthAT(t *testing.T) {
 
 	// verify the post Secure-Messaging state (as this truly indicates whether it worked)
 	if (nfc.sm.alg != 2) ||
-		!bytes.Equal(nfc.sm.KSenc, HexToBytes("C8E27260EFD3F318D18C080CBF11C7E6")) ||
-		!bytes.Equal(nfc.sm.KSmac, HexToBytes("A942190365204A21409EB28B52BF9160")) ||
-		!bytes.Equal(nfc.sm.SSC, HexToBytes("00000000000000000000000000000002")) {
+		!bytes.Equal(nfc.sm.ksEnc, HexToBytes("C8E27260EFD3F318D18C080CBF11C7E6")) ||
+		!bytes.Equal(nfc.sm.ksMac, HexToBytes("A942190365204A21409EB28B52BF9160")) ||
+		!bytes.Equal(nfc.sm.ssc, HexToBytes("00000000000000000000000000000002")) {
 		t.Errorf("SM (Post) state differs to expected")
 	}
 }
@@ -170,9 +170,9 @@ func TestChipAuthDE(t *testing.T) {
 
 	// verify the post Secure-Messaging state (as this truly indicates whether it worked)
 	if (nfc.sm.alg != 2) ||
-		!bytes.Equal(nfc.sm.KSenc, HexToBytes("AF0EEDB52E87B945FC5503B1C6875C1C")) ||
-		!bytes.Equal(nfc.sm.KSmac, HexToBytes("CEB85BEDCECFF1DD1E25DFB672C4A5BF")) ||
-		!bytes.Equal(nfc.sm.SSC, HexToBytes("00000000000000000000000000000002")) {
+		!bytes.Equal(nfc.sm.ksEnc, HexToBytes("AF0EEDB52E87B945FC5503B1C6875C1C")) ||
+		!bytes.Equal(nfc.sm.ksMac, HexToBytes("CEB85BEDCECFF1DD1E25DFB672C4A5BF")) ||
+		!bytes.Equal(nfc.sm.ssc, HexToBytes("00000000000000000000000000000002")) {
 		t.Errorf("SM (Post) state differs to expected")
 	}
 }
