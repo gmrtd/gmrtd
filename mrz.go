@@ -98,7 +98,7 @@ func MrzDecode(mrz string) (*MRZ, error) {
 		//	default:
 	}
 
-	return nil, fmt.Errorf("Unsupported MRZ length (length:%d)", len(mrz))
+	return nil, fmt.Errorf("unsupported MRZ length (length:%d)", len(mrz))
 }
 
 func calcCheckdigit(data string) int {
@@ -154,7 +154,7 @@ func decodeTD1(mrz string) (*MRZ, error) {
 	slog.Debug("decodeTD1", "MRZ", mrz)
 
 	if len(mrz) != MRZLengthTD1 {
-		return nil, fmt.Errorf("Invalid MRZ TD1 length (Exp:%d) (Act:%d)", MRZLengthTD1, len(mrz))
+		return nil, fmt.Errorf("invalid MRZ TD1 length (Exp:%d) (Act:%d)", MRZLengthTD1, len(mrz))
 	}
 
 	// line 1
@@ -216,7 +216,7 @@ func decodeTD2(mrz string) (*MRZ, error) {
 	slog.Debug("decodeTD2", "MRZ", mrz)
 
 	if len(mrz) != MRZLengthTD2 {
-		return nil, fmt.Errorf("Invalid MRZ TD2 length (Exp:%d) (Act:%d)", MRZLengthTD2, len(mrz))
+		return nil, fmt.Errorf("invalid MRZ TD2 length (Exp:%d) (Act:%d)", MRZLengthTD2, len(mrz))
 	}
 
 	// line 1
@@ -273,7 +273,7 @@ func decodeTD3(mrz string) (*MRZ, error) {
 	slog.Debug("decodeTD3", "MRZ", mrz)
 
 	if len(mrz) != MRZLengthTD3 {
-		return nil, fmt.Errorf("Invalid MRZ TD3 length (Exp:%d) (Act:%d)", MRZLengthTD3, len(mrz))
+		return nil, fmt.Errorf("invalid MRZ TD3 length (Exp:%d) (Act:%d)", MRZLengthTD3, len(mrz))
 	}
 
 	// line 1

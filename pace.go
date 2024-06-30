@@ -344,7 +344,7 @@ func doAPDU_MSESetAT(nfc *NfcSession, paceConfig *PaceConfig, passwordType Passw
 	case PASSWORD_TYPE_CAN:
 		passwordTypeValue = 2
 	default:
-		return fmt.Errorf("Unsupported PACE Password-Type (%x)", passwordType)
+		return fmt.Errorf("unsupported PACE Password-Type (%x)", passwordType)
 	}
 
 	paceOidBytes := oidBytes(paceConfig.oid)
