@@ -205,6 +205,8 @@ func (chipAuth *ChipAuth) doCaEcdh(nfc *NfcSession, caInfo *ChipAuthenticationIn
 		}
 	}
 
+	// TODO - do we need to check that the term/chip public-keys are not the same
+
 	// General Authenticate
 	//
 	// INS: 0x86
