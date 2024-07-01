@@ -45,7 +45,6 @@ type SecureMessaging struct {
 func NewSecureMessaging(alg BlockCipherAlg, ksEnc []byte, ksMac []byte) (sm *SecureMessaging, err error) {
 	sm = new(SecureMessaging)
 
-	// TODO - should we sanity check these? esp enc/mac length?
 	sm.alg = alg
 	sm.ksEnc = ksEnc
 	sm.ksMac = ksMac
@@ -59,7 +58,8 @@ func NewSecureMessaging(alg BlockCipherAlg, ksEnc []byte, ksMac []byte) (sm *Sec
 	}
 
 	// init SSC (based on block size)
-	sm.ssc = make([]byte, sm.macCipher.BlockSize()) // TODO - why mac and not enc?
+	// NB we use the encryption block-size as crypt/mac are always the same algorithm
+	sm.ssc = make([]byte, sm.encCipher.BlockSize())
 
 	slog.Debug("NewSecureMessaging", "SM", sm.String())
 
@@ -131,10 +131,8 @@ func (sm *SecureMessaging) generateMac(data []byte) (mac []byte, err error) {
 }
 
 func (sm *SecureMessaging) cryptoPad(data []byte) []byte {
-	// TODO - using the enc cipher.. but function also used for mac... should be ok.. but could be diff
-	blockSize := sm.encCipher.BlockSize()
-
-	return ISO9797Method2Pad(data, blockSize)
+	// NB we use the encryption block-size as crypt/mac are always the same algorithm
+	return ISO9797Method2Pad(data, sm.encCipher.BlockSize())
 }
 
 // NB fails if empty data passed in (as doesn't qualify the padding rules)
@@ -217,8 +215,8 @@ func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
 	if smRApdu, err = ParseRApdu(rApduBytes); err != nil {
 		return nil, err
 	}
+
 	// TODO - check status code? error if not success.... otherwise we get errors like tag 8E missing
-	// TODO - this should match the status-code in the payload... should check later
 
 	{
 		// Response APDU: [DO‘85’ or DO‘87’] [DO‘99’] DO‘8E’.
@@ -274,7 +272,14 @@ func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
 			rapduData = sm.cryptoUnpad(sm.cbcCrypt(tmpBytes, false))
 		}
 
-		rApdu = NewRApdu(binary.BigEndian.Uint16(tag99.GetValue()), rapduData)
+		rApduStatus := binary.BigEndian.Uint16(tag99.GetValue())
+
+		// sanity check that insecure/secure status values match
+		if smRApdu.Status != rApduStatus {
+			return nil, fmt.Errorf("rapdu status value mimatch (Insecure:%04x, Secure:%04x)", smRApdu.Status, rApduStatus)
+		}
+
+		rApdu = NewRApdu(rApduStatus, rapduData)
 	}
 
 	return rApdu, err
