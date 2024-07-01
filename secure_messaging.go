@@ -78,22 +78,18 @@ func (sm SecureMessaging) String() string {
 	return fmt.Sprintf("(alg:%d, ksenc:%x, ksmac:%x, ssc:%x)", sm.alg, sm.ksEnc, sm.ksMac, sm.ssc)
 }
 
-// increments the SSC and returns the post-increment value
+// increments the SSC
 func (sm *SecureMessaging) sscIncrement() {
-	switch sm.alg {
-	case TDES:
-		sm.ssc = UInt64ToBytes(binary.BigEndian.Uint64(sm.ssc) + 1)
-	case AES:
-		var sscPre *big.Int = new(big.Int).SetBytes(sm.ssc)
-		var sscPost *big.Int = new(big.Int)
+	var sscPre *big.Int = new(big.Int).SetBytes(sm.ssc)
+	var sscPost *big.Int = new(big.Int)
 
-		// TODO - if F's then add 1 then won't this expand by 1 byte and start causing issues?
-		//			- largely non-risk as SSC is 0's, but should still increment without expanding
-		//			- or will FillBytes fail with an error? as receiving buffer is too small?
-		sscPost.Add(sscPre, big.NewInt(1))
+	sscPost.Add(sscPre, big.NewInt(1))
+
+	if len(sscPost.Bytes()) > len(sm.ssc) {
+		// handle overflow condition
+		sm.ssc = make([]byte, len(sm.ssc))
+	} else {
 		sscPost.FillBytes(sm.ssc)
-	default:
-		log.Panicf("Unsupported Alg (%d)", sm.alg)
 	}
 }
 
