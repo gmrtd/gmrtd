@@ -25,45 +25,6 @@ func TestDecryptNonce(t *testing.T) {
 	}
 }
 
-// TODO - move to cryto-utils?
-func TestDoECDH(t *testing.T) {
-	domainParams := getStandardisedDomainParams(13) // 0x0D
-
-	var termPri *big.Int
-	var termPub EC_POINT
-
-	termPri, _ = new(big.Int).SetString("7F4EF07B9EA82FD78AD689B38D0BC78CF21F249D953BC46F4C6E19259C010F99", 16)
-	termPub.x, _ = new(big.Int).SetString("7ACF3EFC982EC45565A4B155129EFBC74650DCBFA6362D896FC70262E0C2CC5E", 16)
-	termPub.y, _ = new(big.Int).SetString("544552DCB6725218799115B55C9BAA6D9F6BC3A9618E70C25AF71777A9C4922D", 16)
-
-	var chipPri *big.Int
-	var chipPub EC_POINT
-
-	chipPri, _ = new(big.Int).SetString("498FF49756F2DC1587840041839A85982BE7761D14715FB091EFA7BCE9058560", 16)
-	chipPub.x, _ = new(big.Int).SetString("824FBA91C9CBE26BEF53A0EBE7342A3BF178CEA9F45DE0B70AA601651FBA3F57", 16)
-	chipPub.y, _ = new(big.Int).SetString("30D8C879AAA9C9F73991E61B58F4D52EB87A0A0C709A49DC63719363CCD13C54", 16)
-
-	var expSharedSecret EC_POINT
-	expSharedSecret.x, _ = new(big.Int).SetString("60332EF2450B5D247EF6D3868397D398852ED6E8CAF6FFEEF6BF85CA57057FD5", 16)
-	expSharedSecret.y, _ = new(big.Int).SetString("0840CA7415BAF3E43BD414D35AA4608B93A2CAF3A4E3EA4E82C9C13D03EB7181", 16)
-
-	{
-		shared := doEcDh(termPri.Bytes(), &chipPub, domainParams.ec)
-
-		if !expSharedSecret.Equal(*shared) {
-			t.Errorf("ECDH error")
-		}
-	}
-
-	{
-		shared := doEcDh(chipPri.Bytes(), &termPub, domainParams.ec)
-
-		if !expSharedSecret.Equal(*shared) {
-			t.Errorf("ECDH error")
-		}
-	}
-}
-
 func TestDoGenericMappingEC(t *testing.T) {
 	domainParams := getStandardisedDomainParams(13) // 0x0D
 
