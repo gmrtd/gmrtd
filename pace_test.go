@@ -25,6 +25,7 @@ func TestDecryptNonce(t *testing.T) {
 	}
 }
 
+// TODO - move to cryto-utils?
 func TestDoECDH(t *testing.T) {
 	domainParams := getStandardisedDomainParams(13) // 0x0D
 
@@ -47,7 +48,7 @@ func TestDoECDH(t *testing.T) {
 	expSharedSecret.y, _ = new(big.Int).SetString("0840CA7415BAF3E43BD414D35AA4608B93A2CAF3A4E3EA4E82C9C13D03EB7181", 16)
 
 	{
-		shared := doECDH(termPri.Bytes(), &chipPub, domainParams.ec)
+		shared := doEcDh(termPri.Bytes(), &chipPub, domainParams.ec)
 
 		if !expSharedSecret.Equal(*shared) {
 			t.Errorf("ECDH error")
@@ -55,7 +56,7 @@ func TestDoECDH(t *testing.T) {
 	}
 
 	{
-		shared := doECDH(chipPri.Bytes(), &termPub, domainParams.ec)
+		shared := doEcDh(chipPri.Bytes(), &termPub, domainParams.ec)
 
 		if !expSharedSecret.Equal(*shared) {
 			t.Errorf("ECDH error")

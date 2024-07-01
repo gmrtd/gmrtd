@@ -233,8 +233,7 @@ func (chipAuth *ChipAuth) doCaEcdh(nfc *NfcSession, caInfo *ChipAuthenticationIn
 
 		// 3. Both the eMRTD chip and the terminal compute the following:
 		// a) The shared secret K = KA(SKIC, PKDH,IFD, DIC) = KA(SKDH,IFD, PKIC, DIC)
-		var k *EC_POINT = doECDH(termPri, chipPubKey, curve)
-		// TODO - add some debug around doECDH (inputs/outputs) - have specific UTs.. maybe better in crypto_utils
+		var k *EC_POINT = doEcDh(termPri, chipPubKey, curve)
 
 		// NB secret is just based on 'x'
 		sharedSecret := k.x.Bytes()

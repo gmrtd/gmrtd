@@ -288,12 +288,6 @@ func (paceConfig *PaceConfig) computeAuthToken(key []byte, data []byte) []byte {
 	return nil
 }
 
-func doECDH(localPrivate []byte, remotePublic *EC_POINT, ec elliptic.Curve) *EC_POINT {
-	var point EC_POINT
-	point.x, point.y = ec.ScalarMult(remotePublic.x, remotePublic.y, localPrivate)
-	return &point
-}
-
 // s: nonce (from chip)
 // Hxy: shared secret (derived earlier from ECDH)
 // ec: elliptic curve (domain parameters)
@@ -391,7 +385,7 @@ func (pace *Pace) mapNonce_GM_ECDH(nfc *NfcSession, domainParams *PACEDomainPara
 	//
 	// Shared Secret H
 	//
-	var termShared *EC_POINT = doECDH(termPri, pubMapIC, domainParams.ec)
+	var termShared *EC_POINT = doEcDh(termPri, pubMapIC, domainParams.ec)
 	slog.Debug("mapNonce_GM_ECDH", "termShared", termShared.String())
 
 	//
@@ -444,7 +438,7 @@ func (pace *Pace) keyAgreement_GM_ECDH(nfc *NfcSession, domainParams *PACEDomain
 	}
 
 	{
-		var term_shared *EC_POINT = doECDH(termPri, chipPub, domainParams.ec)
+		var term_shared *EC_POINT = doEcDh(termPri, chipPub, domainParams.ec)
 
 		// NB secret is just based on 'x'
 		sharedSecret = term_shared.x.Bytes()
@@ -591,7 +585,7 @@ func (pace *Pace) doCamEcdh(nfc *NfcSession, paceConfig *PaceConfig, domainParam
 		// get IC PubKey (EC) for paramId
 		var PK_IC *EC_POINT = getIcPubKeyECForCAM(domainParams, doc.CardSecurity)
 
-		var KA *EC_POINT = doECDH(CA_IC, PK_IC, domainParams.ec)
+		var KA *EC_POINT = doEcDh(CA_IC, PK_IC, domainParams.ec)
 		slog.Debug("doCamEcdh", "KA", KA.String())
 
 		//

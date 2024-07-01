@@ -334,6 +334,30 @@ func TestX962EcPointEncoding(t *testing.T) {
 	}
 }
 
+func TestDoEcDh(t *testing.T) {
+	testCases := []struct {
+		ec         elliptic.Curve
+		privateKey []byte
+		publicKey  *EC_POINT
+		expected   *EC_POINT
+	}{
+		{
+			ec:         brainpool.P256r1(),
+			privateKey: HexToBytes("80ebafc8a51becd4d90bb640ee38c9fd5c12748d28aaa37096b98c4533c4f5f5"),
+			publicKey:  &EC_POINT{x: new(big.Int).SetBytes(HexToBytes("1983917269ac877c0b61544c2c022000d2a5aba723e2d80141e648b40911dc34")), y: new(big.Int).SetBytes(HexToBytes("59761f27480e4b57181a53d8fe1190ea86c939ac14363178caffc621f0f905c3"))},
+			expected:   &EC_POINT{x: new(big.Int).SetBytes(HexToBytes("0346c3ca1a64f5cd62b61d7591020283089496a53db2bb5e900d386e92f4686d")), y: new(big.Int).SetBytes(HexToBytes("233c7356c897aa066ea4e6df7ec3224ab6f771c0ca8efc8f5332138700047516"))},
+		},
+	}
+	for _, tc := range testCases {
+
+		var actual *EC_POINT = doEcDh(tc.privateKey, tc.publicKey, tc.ec)
+
+		if !actual.Equal(*tc.expected) {
+			t.Errorf("ECDH error (Exp:%s) (Act:%s)", tc.expected, actual)
+		}
+	}
+}
+
 func TestGetCipherForKey(t *testing.T) {
 
 	cipher, err := GetCipherForKey(-1, HexToBytes("0123456789ABCDEF"))

@@ -327,3 +327,12 @@ func decodeX962EcPoint(ec elliptic.Curve, data []byte) *EC_POINT {
 	point.x, point.y = elliptic.Unmarshal(ec, data)
 	return &point
 }
+
+func doEcDh(localPrivate []byte, remotePublic *EC_POINT, ec elliptic.Curve) *EC_POINT {
+	var point EC_POINT
+	point.x, point.y = ec.ScalarMult(remotePublic.x, remotePublic.y, localPrivate)
+
+	slog.Debug("doECDH", "Pri", BytesToHex(localPrivate), "Pub", remotePublic, "EC.P", BytesToHex(ec.Params().P.Bytes()), "Res", point)
+
+	return &point
+}
