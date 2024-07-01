@@ -255,8 +255,7 @@ func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
 			}
 
 			if !bytes.Equal(expMAC, tag8E.GetValue()) {
-				// TODO - US passport (JMF) seems to have an issue with MAC on the last frame of the file (which file?)
-				//slog.Debug("sm.Decode: MAC mismatch", "Exp", BytesToHex(expMAC), "Act", BytesToHex(tag8E.GetValue()))
+				slog.Debug("sm.Decode: MAC mismatch", "Exp", BytesToHex(expMAC), "Act", BytesToHex(tag8E.GetValue()))
 				return nil, fmt.Errorf("MAC mismatch (Exp: %x) (Act: %x)", expMAC, tag8E.GetValue())
 			}
 		}
