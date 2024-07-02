@@ -204,8 +204,6 @@ func TestDoPace_GM_ECDH(t *testing.T) {
 }
 
 func TestDoPace_CAM_ECDH_DE(t *testing.T) {
-	// TODO - add overview of this test
-
 	var nfc *NfcSession
 
 	{
