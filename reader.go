@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"log"
 	"log/slog"
 	"runtime/debug"
 )
@@ -14,7 +15,7 @@ import (
 // TODO - refer to BSI doc.. s5.6 for different inspection flows
 // https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TR03135/BSI-TR-03135-1-v2-5.pdf?__blob=publicationFile&v=3
 //
-// e.g. special rules for inferring AA?....
+// e.g. special rules for inferring AA?.... and also CA
 //
 //After BAC or PACE has been performed and the EF.SOD has been read, check if EF.DG14 is available. If EF.DG14
 //is present and the parameters required for CA are included in this data group, CA is performed in version 1 in
@@ -122,8 +123,11 @@ func NewReader() *Reader {
 	return &reader
 }
 
+// sets the APDU Max LE (1..65536) (0 to disable override)
 func (reader *Reader) SetApduMaxLe(maxRead int) {
-	// TODO - basic range check? i.e. 1..65536 (6 not 5!)
+	if (maxRead < 0) || (maxRead > 65536) {
+		log.Panicf("Invalid APDU Max LE range (Exp:0..65536) (Act:%d)", maxRead)
+	}
 	reader.apduMaxLe = maxRead
 }
 
