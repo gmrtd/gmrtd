@@ -1,7 +1,5 @@
 package gmrtd
 
-// TODO - add negative test cases... i.e. try to traverse tags that aren't present in the data
-
 import (
 	"bytes"
 	"encoding/binary"
@@ -103,7 +101,7 @@ func (node TlvSimpleNode) stringWithIndent(indent int) string {
 	sb.WriteString(getIndentString(indent))
 	sb.WriteString(fmt.Sprintf("%02x: %x", node.Tag, node.Value))
 	if node.Tag == 0x06 {
-		oidStr := DecodeAsn1objectId(node.Value).String() // TODO - should silently ignore if error?
+		oidStr := DecodeAsn1objectId(node.Value).String()
 		oidName := oidLookup[oidStr]
 		sb.WriteString(fmt.Sprintf(" [%s: %s]", oidStr, oidName))
 	} else if PrintableBytes(node.Value) {
