@@ -23,7 +23,7 @@ type CApdu struct {
 }
 
 func (cApdu CApdu) String() string {
-	return fmt.Sprintf("[CApdu] CLA:%x, INS:%x, P1:%x, P2:%x, Data:%x, LE:%x", cApdu.cla, cApdu.ins, cApdu.p1, cApdu.p2, cApdu.data, cApdu.le)
+	return fmt.Sprintf("[CApdu] CLA:%02x, INS:%02x, P1:%02x, P2:%02x, Data:%x, LE(dec):%d", cApdu.cla, cApdu.ins, cApdu.p1, cApdu.p2, cApdu.data, cApdu.le)
 }
 
 func (apdu *CApdu) IsExtended() bool {
