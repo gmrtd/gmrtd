@@ -143,6 +143,8 @@ func (sm *SecureMessaging) cryptoUnpad(data []byte) []byte {
 func (sm *SecureMessaging) Encode(cApdu *CApdu) (out *CApdu, err error) {
 	// 9303p11 - page 63 (Message Structure of SM APDUs)
 
+	slog.Debug("Encode", "SM(pre)", sm)
+
 	if cApdu == nil {
 		return nil, fmt.Errorf("CAPDU missing")
 	}
@@ -204,10 +206,14 @@ func (sm *SecureMessaging) Encode(cApdu *CApdu) (out *CApdu, err error) {
 
 	out = NewCApdu(CLA_MASK, cApdu.ins, cApdu.p1, cApdu.p2, tlv.Encode(), smLe)
 
+	slog.Debug("Encode", "In", cApdu, "Out", out, "Out(bytes)", BytesToHex(out.Encode()))
+
 	return out, nil
 }
 
 func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
+	slog.Debug("Decode", "SM(pre)", sm)
+
 	// increment SSC
 	sm.sscIncrement()
 
@@ -281,6 +287,8 @@ func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
 
 		rApdu = NewRApdu(rApduStatus, rapduData)
 	}
+
+	slog.Debug("Decode", "In", BytesToHex(rApduBytes), "Out", rApdu)
 
 	return rApdu, err
 }
