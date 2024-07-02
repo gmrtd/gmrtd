@@ -15,11 +15,7 @@ const INS_GENERAL_AUTHENTICATE = byte(0x86)
 const INS_SELECT = byte(0xA4)
 const INS_READ_BINARY = byte(0xB0)
 
-// https://cardwerk.com/smart-card-standard-iso7816-4-section-6-basic-interindustry-commands/
-
-// https: //web.archive.org/web/20090630004017/http://cheef.ru/docs/HowTo/APDU.info
-
-// TODO - extended length support?
+// TODO - extended length support? odd INS read-binary can support larger offset.. and potentially avoid SELECT FILE
 //
 // 3.5.2 READ BINARY
 // The support of the READ BINARY command with an odd INS byte by an eMRTD is CONDITIONAL. The eMRTD
@@ -31,7 +27,7 @@ type NfcSession struct {
 	transceiver Transceiver
 	sm          *SecureMessaging
 	maxLe       int
-	apduLog     []ApduLog // TODO - may be better for this to be an optional interface
+	apduLog     []ApduLog
 }
 
 func NewNfcSession(transceiver Transceiver) *NfcSession {
@@ -86,7 +82,6 @@ func (nfc *NfcSession) ExternalAuthenticate(data []byte, le int) (out []byte, er
 func (nfc *NfcSession) GeneralAuthenticate(commandChaining bool, data []byte) *RApdu {
 	slog.Debug("GeneralAuthenticate", "cmdChaining", commandChaining, "data", BytesToHex(data))
 
-	// TODO - use const
 	cla := 0x00
 	if commandChaining {
 		cla = 0x10
@@ -123,10 +118,10 @@ func (nfc *NfcSession) MseSetAT(p1 uint8, p2 uint8, data []byte) (err error) {
 func (nfc *NfcSession) SelectMF() (err error) {
 	slog.Debug("SelectMF")
 
-	//If P1-P2=’0000′ and if the data field is empty or equal to ‘3F00’, then select the MF.
-	// https://cardwerk.com/smart-card-standard-iso7816-4-section-6-basic-interindustry-commands/
+	// NB as per 9303 specs, but explicitly specifying MF (x3f00)
+	//	  - If P1-P2=’0000′ and if the data field is empty or equal to ‘3F00’, then select the MF.
+	//      https://cardwerk.com/smart-card-standard-iso7816-4-section-6-basic-interindustry-commands/
 
-	// TODO - as per spec, but specify 3F00 (MF)?
 	var capdu *CApdu = NewCApdu(0x00, INS_SELECT, 0x00, 0x0C, []byte{0x3f, 0x00}, 0)
 
 	rapdu, err := nfc.DoAPDU(capdu, "Select MF")
