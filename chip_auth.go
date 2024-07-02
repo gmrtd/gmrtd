@@ -386,7 +386,6 @@ func parseECSpecifiedDomain(algIdentifier *AlgorithmIdentifier) (out *ECSpecifie
 	return
 }
 
-// TODO - could have an OID lookup.. for CA we'll just iterate over, but for PACE we could map std-domain-params to OID and lookup
 var caEcArr []elliptic.Curve = []elliptic.Curve{
 	elliptic.P224(),
 	elliptic.P256(),
@@ -419,10 +418,6 @@ func getECCurveForSpecifiedDomain(specDomain *ECSpecifiedDomain) (elliptic.Curve
 			return ec, nil
 		}
 	}
-
-	// TODO - can reference 'p' from... https://neuromancer.sk/std/brainpool/brainpoolP384r1#
-	//				- could map to OID and then load the curve using the OID
-	//				- maybe pace should do the same to load via std-domain-params
 
 	return nil, fmt.Errorf("unsupported CA EC (Params:%x)", specDomain.FieldId.Parameters.Bytes) // TODO - may want to record other params also
 }
