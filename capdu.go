@@ -6,13 +6,6 @@ import (
 	"log/slog"
 )
 
-// Smart card application protocol data unit
-// https://en.wikipedia.org/wiki/Smart_card_application_protocol_data_unit
-// Extended APDU Format
-// https://docs.oracle.com/javacard/3.0.5/prognotes/extended-apdu-format.htm#JCPCL169
-
-// TODO - https://askra.de/software/jcdocs/app-notes-2.2.2/extapdu.html#:%7E:text=The%20ISO%207816%2D4%3A2005,Case%201.&text=LC%20is%20less%20than%20256,data%2C%20and%20LE%20is%20zero.
-
 type CApdu struct {
 	cla  byte
 	ins  byte
