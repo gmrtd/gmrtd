@@ -58,9 +58,10 @@ func (chipAuth *ChipAuth) doChipAuth(nfc *NfcSession, doc *Document) (err error)
 		return err
 	}
 
-	var caPubKeyInfo *ChipAuthenticationPublicKeyInfo = selectCAPubKeyInfo(caInfo, caAlgInfo, doc)
-	if caPubKeyInfo == nil {
-		return fmt.Errorf("chipAuth: unable to select public-key info") // TODO - what data to log?
+	var caPubKeyInfo *ChipAuthenticationPublicKeyInfo
+	caPubKeyInfo, err = selectCAPubKeyInfo(caInfo, caAlgInfo, doc)
+	if err != nil {
+		return err
 	}
 
 	// process based on the type of key (DH/ECDH)
@@ -100,26 +101,26 @@ func selectCAInfo(doc *Document) *ChipAuthenticationInfo {
 }
 
 // selects the public key matching the target OID (i.e. oidPkDh / oidPkEcdh) as well as the 'KeyId' (if specified)
-func selectCAPubKeyInfo(caInfo *ChipAuthenticationInfo, caAlgInfo *CaAlgorithmInfo, doc *Document) *ChipAuthenticationPublicKeyInfo {
-
+func selectCAPubKeyInfo(caInfo *ChipAuthenticationInfo, caAlgInfo *CaAlgorithmInfo, doc *Document) (*ChipAuthenticationPublicKeyInfo, error) {
 	for i := range doc.Dg14.SecInfos.ChipAuthPubKeyInfos {
 		var curPubKey *ChipAuthenticationPublicKeyInfo = &(doc.Dg14.SecInfos.ChipAuthPubKeyInfos[i])
 
 		if curPubKey.Protocol.Equal(caAlgInfo.targetOid) {
 			if caInfo.KeyId == nil {
 				// no key-id specified, so good to use any matching public-key
-				return curPubKey
+				return curPubKey, nil
 			} else {
 				// key-id specified, so need to find matching public-key
-				if caInfo.KeyId.Cmp(curPubKey.KeyId) == 0 { // TODO - nil check on curPubKey.keyId? is it required?
-					return curPubKey
+				if curPubKey.KeyId != nil {
+					if caInfo.KeyId.Cmp(curPubKey.KeyId) == 0 {
+						return curPubKey, nil
+					}
 				}
 			}
 		}
 	}
 
-	// TODO - why not return error?
-	return nil
+	return nil, fmt.Errorf("chipAuth: unable to locate public key (oid:%s) (keyId:%s)", caAlgInfo.targetOid.String(), caInfo.KeyId)
 }
 
 // TODO - have a weighting (like pace) so we can pick the best (if multiple exist)
