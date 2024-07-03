@@ -58,7 +58,6 @@ const (
 
 type PACESeccureMessaging int
 
-// TODO - is this even used in the code anywhere?... MAC code seems to just infer from cipher-alg... should allow this to be passed in?
 const (
 	CBC_CBC PACESeccureMessaging = iota
 	CBC_CMAC
@@ -72,43 +71,43 @@ const (
 )
 
 type PaceConfig struct {
-	oid             asn1.ObjectIdentifier
-	mapping         PACEMapping
-	cipher          BlockCipherAlg
-	keyLengthBits   int
-	secureMessaging PACESeccureMessaging
-	authToken       PACEAuthToken
-	weighting       int
+	oid              asn1.ObjectIdentifier
+	mapping          PACEMapping
+	cipher           BlockCipherAlg
+	keyLengthBits    int
+	ZsecureMessaging PACESeccureMessaging // TODO - not even used in code..
+	authToken        PACEAuthToken
+	weighting        int
 }
 
 func (cfg *PaceConfig) String() string {
 	return fmt.Sprintf("(oid:%s, mapping:%d, cipher:%d, keyLenBits:%d, secureMessaging:%d, authToken:%d, weighting:%d)",
-		cfg.oid.String(), cfg.mapping, cfg.cipher, cfg.keyLengthBits, cfg.secureMessaging, cfg.authToken, cfg.weighting)
+		cfg.oid.String(), cfg.mapping, cfg.cipher, cfg.keyLengthBits, cfg.ZsecureMessaging, cfg.authToken, cfg.weighting)
 }
 
-//OID								Mapping				Cipher	Keylength	Secure Messaging	Auth. Token
-//
-//id-PACE-DH-GM-3DES-CBC-CBC 		Generic 			3DES 	112 		CBC / CBC 			CBC
-//id-PACE-DH-GM-AES-CBC-CMAC-128 	Generic 			AES 	128 		CBC / CMAC 			CMAC
-//id-PACE-DH-GM-AES-CBC-CMAC-192 	Generic 			AES 	192 		CBC / CMAC 			CMAC
-//id-PACE-DH-GM-AES-CBC-CMAC-256 	Generic 			AES 	256 		CBC / CMAC 			CMAC
-//id-PACE-ECDH-GM-3DES-CBC-CBC 		Generic 			3DES 	112 		CBC / CBC 			CBC
-//id-PACE-ECDH-GM-AES-CBC-CMAC-128 	Generic 			AES 	128 		CBC / CMAC 			CMAC
-//id-PACE-ECDH-GM-AES-CBC-CMAC-192 	Generic 			AES 	192 		CBC / CMAC 			CMAC
-//id-PACE-ECDH-GM-AES-CBC-CMAC-256 	Generic 			AES 	256 		CBC / CMAC 			CMAC
-//id-PACE-DH-IM-3DES-CBC-CBC 		Integrated 			3DES 	112			CBC / CBC 			CBC
-//id-PACE-DH-IM-AES-CBC-CMAC-128 	Integrated 			AES 	128 		CBC / CMAC 			CMAC
-//id-PACE-DH-IM-AES-CBC-CMAC-192 	Integrated 			AES 	192 		CBC / CMAC 			CMAC
-//id-PACE-DH-IM-AES-CBC-CMAC-256 	Integrated 			AES 	256 		CBC / CMAC 			CMAC
-//id-PACE-ECDH-IM-3DES-CBC-CBC 		Integrated 			3DES 	112 		CBC / CBC 			CBC
-//id-PACE-ECDH-IM-AES-CBC-CMAC-128 	Integrated 			AES 	128 		CBC / CMAC 			CMAC
-//id-PACE-ECDH-IM-AES-CBC-CMAC-192 	Integrated 			AES 	192 		CBC / CMAC 			CMAC
-//id-PACE-ECDH-IM-AES-CBC-CMAC-256 	Integrated 			AES 	256 		CBC / CMAC 			CMAC
-//id-PACE-ECDH-CAM-AES-CBC-CMAC-128 Chip Authentication AES 	128 		CBC / CMAC 			CMAC
-//id-PACE-ECDH-CAM-AES-CBC-CMAC-192 Chip Authentication AES 	192 		CBC / CMAC 			CMAC
-//id-PACE-ECDH-CAM-AES-CBC-CMAC-256 Chip Authentication AES 	256 		CBC / CMAC 			CMAC
+/*
+	OID									Mapping					Cipher	Keylength	Secure Messaging	Auth. Token
 
-// TODO - TDES and AES always have same secureMessaging/AuthToken
+	id-PACE-DH-GM-3DES-CBC-CBC 			Generic 				3DES 	112 		CBC / CBC 			CBC
+	id-PACE-DH-GM-AES-CBC-CMAC-128 		Generic 				AES 	128 		CBC / CMAC 			CMAC
+	id-PACE-DH-GM-AES-CBC-CMAC-192 		Generic 				AES 	192 		CBC / CMAC 			CMAC
+	id-PACE-DH-GM-AES-CBC-CMAC-256 		Generic 				AES 	256 		CBC / CMAC 			CMAC
+	id-PACE-ECDH-GM-3DES-CBC-CBC 		Generic 				3DES 	112 		CBC / CBC 			CBC
+	id-PACE-ECDH-GM-AES-CBC-CMAC-128 	Generic 				AES 	128 		CBC / CMAC 			CMAC
+	id-PACE-ECDH-GM-AES-CBC-CMAC-192 	Generic 				AES 	192 		CBC / CMAC 			CMAC
+	id-PACE-ECDH-GM-AES-CBC-CMAC-256 	Generic 				AES 	256 		CBC / CMAC 			CMAC
+	id-PACE-DH-IM-3DES-CBC-CBC 			Integrated 				3DES 	112			CBC / CBC 			CBC
+	id-PACE-DH-IM-AES-CBC-CMAC-128 		Integrated 				AES 	128 		CBC / CMAC 			CMAC
+	id-PACE-DH-IM-AES-CBC-CMAC-192 		Integrated 				AES 	192 		CBC / CMAC 			CMAC
+	id-PACE-DH-IM-AES-CBC-CMAC-256 		Integrated 				AES 	256 		CBC / CMAC 			CMAC
+	id-PACE-ECDH-IM-3DES-CBC-CBC 		Integrated 				3DES 	112 		CBC / CBC 			CBC
+	id-PACE-ECDH-IM-AES-CBC-CMAC-128 	Integrated 				AES 	128 		CBC / CMAC 			CMAC
+	id-PACE-ECDH-IM-AES-CBC-CMAC-192 	Integrated 				AES 	192 		CBC / CMAC 			CMAC
+	id-PACE-ECDH-IM-AES-CBC-CMAC-256 	Integrated 				AES 	256 		CBC / CMAC 			CMAC
+	id-PACE-ECDH-CAM-AES-CBC-CMAC-128 	Chip Authentication 	AES 	128 		CBC / CMAC 			CMAC
+	id-PACE-ECDH-CAM-AES-CBC-CMAC-192 	Chip Authentication 	AES 	192 		CBC / CMAC 			CMAC
+	id-PACE-ECDH-CAM-AES-CBC-CMAC-256 	Chip Authentication 	AES 	256 		CBC / CMAC 			CMAC
+*/
 
 var paceConfig = map[string]PaceConfig{
 
