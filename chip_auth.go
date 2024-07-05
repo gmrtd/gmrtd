@@ -185,7 +185,6 @@ func (chipAuth *ChipAuth) doCaEcdh(nfc *NfcSession, caInfo *ChipAuthenticationIn
 	var chipPubKey *EC_POINT
 	{
 		var chipPubKeyBytes []byte = caPubKeyInfo.ChipAuthenticationPublicKey.SubjectPublicKey.Bytes
-		slog.Debug("doCaEcdh", "chip pubKey", BytesToHex(chipPubKeyBytes))
 		chipPubKey = decodeX962EcPoint(curve, chipPubKeyBytes)
 	}
 	slog.Debug("doCaEcdh", "chipPubKey", chipPubKey.String())
