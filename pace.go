@@ -693,13 +693,19 @@ func (pace *Pace) doPACE_GM_CAM(nfc *NfcSession, paceConfig *PaceConfig, domainP
 		// Perform Chip Authentication (if applicable)
 		if paceConfig.mapping == CAM {
 			slog.Debug("doPace - CAM - reading CardSecurity")
-			// TODO - could skip if we already have CardSecurity? (although we shouldn't)
-			if doc.CardSecurity, err = NewCardSecurity(nfc.ReadFile(MRTDFileIdCardSecurity)); err != nil {
-				return err
+
+			// attempt to read CardSecurity
+			if doc.CardSecurity == nil {
+				doc.CardSecurity, err = NewCardSecurity(nfc.ReadFile(MRTDFileIdCardSecurity))
+				if err != nil {
+					return err
+				}
 			}
+
 			if doc.CardSecurity == nil {
 				return fmt.Errorf("cannot proceed with PACE-CAM without CardSecurity file")
 			}
+
 			pace.doCamEcdh(nfc, paceConfig, domainParams, pubMapIC, ecadIC, doc)
 		}
 	case false: // DH
