@@ -47,15 +47,14 @@ func (chipAuth *ChipAuth) doChipAuth(nfc *NfcSession, doc *Document) (err error)
 		return fmt.Errorf("cannot consider CA due to missing DG14")
 	}
 
-	var caInfo *ChipAuthenticationInfo = selectCAInfo(doc)
-	if caInfo == nil {
-		return nil
-	}
-
+	var caInfo *ChipAuthenticationInfo
 	var caAlgInfo *CaAlgorithmInfo
-	caAlgInfo, err = getAlgInfo(caInfo.Protocol)
+	caInfo, caAlgInfo, err = selectCAInfo(doc)
 	if err != nil {
 		return err
+	} else if caInfo == nil || caAlgInfo == nil {
+		// cannot proceed with CA
+		return nil
 	}
 
 	var caPubKeyInfo *ChipAuthenticationPublicKeyInfo
@@ -88,16 +87,32 @@ func (chipAuth *ChipAuth) doChipAuth(nfc *NfcSession, doc *Document) (err error)
 }
 
 // selects the 'preferred' CA entry (if any are present)
-// returns: nil if none found, otherwise preferred CA entry
-func selectCAInfo(doc *Document) *ChipAuthenticationInfo {
-	var out *ChipAuthenticationInfo
+// returns: nil (caAuthInfo/caAlgInfo) if none found, otherwise preferred CA entry
+func selectCAInfo(doc *Document) (caInfo *ChipAuthenticationInfo, caAlgInfo *CaAlgorithmInfo, err error) {
+	var bestCaInfo *ChipAuthenticationInfo
+	var bestCaAlgInfo *CaAlgorithmInfo
 
 	for i := range doc.Dg14.SecInfos.ChipAuthInfos {
-		// TODO - should pick preferred entry (if multiple).. currently just pick last
-		out = &(doc.Dg14.SecInfos.ChipAuthInfos[i])
+		var curCaInfo *ChipAuthenticationInfo
+		var curCaAlgInfo *CaAlgorithmInfo
+
+		curCaInfo = &(doc.Dg14.SecInfos.ChipAuthInfos[i])
+
+		curCaAlgInfo, err = getAlgInfo(curCaInfo.Protocol)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		// first valid entry, so record as best
+		// *OR* current has higher weight, so record as best
+		if (bestCaInfo == nil && bestCaAlgInfo == nil) ||
+			(bestCaAlgInfo != nil && curCaAlgInfo.weighting > bestCaAlgInfo.weighting) {
+			bestCaInfo = curCaInfo
+			bestCaAlgInfo = curCaAlgInfo
+		}
 	}
 
-	return out
+	return bestCaInfo, bestCaAlgInfo, nil
 }
 
 // selects the public key matching the target OID (i.e. oidPkDh / oidPkEcdh) as well as the 'KeyId' (if specified)
@@ -123,26 +138,26 @@ func selectCAPubKeyInfo(caInfo *ChipAuthenticationInfo, caAlgInfo *CaAlgorithmIn
 	return nil, fmt.Errorf("chipAuth: unable to locate public key (oid:%s) (keyId:%s)", caAlgInfo.targetOid.String(), caInfo.KeyId)
 }
 
-// TODO - have a weighting (like pace) so we can pick the best (if multiple exist)
 type CaAlgorithmInfo struct {
 	targetOid   asn1.ObjectIdentifier
 	cipherAlg   BlockCipherAlg
 	keySizeBits int
+	weighting   int
 }
 
+// NB weighting: we prioritise ECDH (2xxx) over DH (1xxx), then select based on key-bits
 var caAlgInfo = map[string]CaAlgorithmInfo{
-	oidCaDh3DesCbcCbc.String():    {oidPkDh, TDES, 112},
-	oidCaDhAesCbcCmac128.String(): {oidPkDh, AES, 128},
-	oidCaDhAesCbcCmac192.String(): {oidPkDh, AES, 192},
-	oidCaDhAesCbcCmac256.String(): {oidPkDh, AES, 256},
+	oidCaDh3DesCbcCbc.String():    {oidPkDh, TDES, 112, 1112},
+	oidCaDhAesCbcCmac128.String(): {oidPkDh, AES, 128, 1128},
+	oidCaDhAesCbcCmac192.String(): {oidPkDh, AES, 192, 1192},
+	oidCaDhAesCbcCmac256.String(): {oidPkDh, AES, 256, 1256},
 
-	oidCaEcdh3DesCbcCbc.String():    {oidPkEcdh, TDES, 112},
-	oidCaEcdhAesCbcCmac128.String(): {oidPkEcdh, AES, 128},
-	oidCaEcdhAesCbcCmac192.String(): {oidPkEcdh, AES, 192},
-	oidCaEcdhAesCbcCmac256.String(): {oidPkEcdh, AES, 256},
+	oidCaEcdh3DesCbcCbc.String():    {oidPkEcdh, TDES, 112, 2112},
+	oidCaEcdhAesCbcCmac128.String(): {oidPkEcdh, AES, 128, 2128},
+	oidCaEcdhAesCbcCmac192.String(): {oidPkEcdh, AES, 192, 2192},
+	oidCaEcdhAesCbcCmac256.String(): {oidPkEcdh, AES, 256, 2256},
 }
 
-// TODO - return error?
 func getAlgInfo(oid asn1.ObjectIdentifier) (*CaAlgorithmInfo, error) {
 	out, ok := caAlgInfo[oid.String()]
 
