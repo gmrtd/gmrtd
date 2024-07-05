@@ -7,8 +7,6 @@ import (
 	"testing"
 )
 
-// TODO - MY.. others? finland IC?
-
 func TestChipAuthAT(t *testing.T) {
 	// CA test extracted from actual session with AT passport
 	// 		DG14 CA entry         : 0.4.0.127.0.7.2.2.3.2.2 (id-CA-ECDH-AES-CBC-CMAC-128)
@@ -177,6 +175,86 @@ func TestChipAuthDE(t *testing.T) {
 	}
 }
 
-// TODO - MY passport has CA with TDES... good to add
+func TestChipAuthMY(t *testing.T) {
+	// CA test extracted from actual session with MY passport
+	// 		DG14 CA entry         : 0.4.0.127.0.7.2.2.3.2.1 (id-CA-ECDH-3DES-CBC-CBC)
+	//		DG14 Public Key params: Specified curve for 'brainpoolP256r1'
+	//
+	// NB no key-id is specified
 
-// TODO - should have UTs for doECDH.. better in crypto than PACE
+	dg14bytes := HexToBytes("6E82016A3182016630820142060904007F000702020102308201333081EC06072A8648CE3D02013081E0020101302C06072A8648CE3D0101022100A9FB57DBA1EEA9BC3E660A909D838D726E3BF623D52620282013481D1F6E5377304404207D5A0975FC2C3057EEF67530417AFFE7FB8055C126DC5C6CE94A4B44F330B5D9042026DC5C6CE94A4B44F330B5D9BBD77CBF958416295CF7E1CE6BCCDC18FF8C07B60441048BD2AEB9CB7E57CB2C4B482FFC81B7AFB9DE27E1E3BD23C23A4453BD9ACE3262547EF835C3DAC4FD97F8461A14611DC9C27745132DED8E545C1D54C72F046997022100A9FB57DBA1EEA9BC3E660A909D838D718C397AA3B561A6F7901E0E82974856A702010103420004A04F85AFDFC316FB5E9F33F94CA45837D20D9D91AD5002307C3F124B6EF5B92565D018A6B7F69DB73976BFBB4278757405C64E96104D161649E8A94078EAEFCE300F060A04007F00070202030201020101300D060804007F0007020202020101")
+
+	var err error
+	var doc Document
+
+	err = doc.NewDG(14, dg14bytes)
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+
+	var nfc *NfcSession
+	{
+		var transceiver *MockTransceiver = new(MockTransceiver)
+
+		// MSE:Set AT
+		transceiver.AddReqRsp("0C2241A41D8711019D1E70C6F5EE06A7CA1E98FBF5C945C98E087AC379DC78702E6300", "990290008E08643C2C3AC66585E49000")
+		// General Authenticate
+		transceiver.AddReqRsp("0C86000058874901A9C6BF370C62AA43CA1EC9B97071727654822361DEB8BA4E5719AA05D8E86AA36164DFA5E506DBF60DC7418858179FD25DAC5E9E49393DDE37E29652444941B562142AB5F19AEA919701008E085083316637060C4D00", "87090108166157B375BC1E990290008E08FF8A254C50179F519000")
+		// Select EF (DG14)
+		transceiver.AddReqRsp("0CA4020C1587090106904D37288D69488E08A13B74E87B87E44600", "990290008E08C2BF01FDDD1D599D9000")
+
+		nfc = NewNfcSession(transceiver)
+	}
+
+	// setup SM (and SSC)
+	nfc.sm, err = NewSecureMessaging(TDES, HexToBytes("896de34a942c7076fec207207acb79c2"), HexToBytes("d6c47ff4677ac8ae91cb49f4ce673432"))
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+	nfc.sm.SetSSC(HexToBytes("9646c154bfb7be79"))
+
+	// setup static EC keys for test
+	getTestKeyGenEc := func() func(ec elliptic.Curve) ([]byte, *EC_POINT) {
+		var idx int
+
+		return func(ec elliptic.Curve) (pri []byte, pub *EC_POINT) {
+			var tmpPri *big.Int
+			var tmpPub EC_POINT
+
+			switch idx {
+			case 0:
+				tmpPri, _ = new(big.Int).SetString("3a31f4e18418312fcb40f3efbe719182c046a9719e1ed8c376197aa9e8ed7465", 16)
+				tmpPub.x, _ = new(big.Int).SetString("3da6d3b923689b96aa65d744f1bd1537fcf1f8a5dd9bc6b01d7b30fc1812645b", 16)
+				tmpPub.y, _ = new(big.Int).SetString("510cb66bed899c67a802a7881313e4bca87055cde3cf615efdbadbb64bc32462", 16)
+			default:
+				t.Errorf("Invalid key-gen index (idx:%1d)", idx)
+			}
+
+			idx++
+
+			return tmpPri.Bytes(), &tmpPub
+		}
+	}
+
+	chipAuth := NewChipAuth()
+
+	chipAuth.keyGeneratorEc = getTestKeyGenEc()
+
+	err = chipAuth.doChipAuth(nfc, &doc)
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+
+	// verify CA status reflects that CA was performed
+	if doc.ChipAuthStatus != CHIP_AUTH_STATUS_CA {
+		t.Errorf("CA status not reflecting CA (Exp:%d, Act:%d)", CHIP_AUTH_STATUS_CA, doc.ChipAuthStatus)
+	}
+
+	// verify the post Secure-Messaging state (as this truly indicates whether it worked)
+	if (nfc.sm.alg != 1) ||
+		!bytes.Equal(nfc.sm.ksEnc, HexToBytes("75b95468910849cdf1a1a2ae5452ce9b")) ||
+		!bytes.Equal(nfc.sm.ksMac, HexToBytes("cd0bef85d5a82a7ae0fbc12368a41fef")) ||
+		!bytes.Equal(nfc.sm.ssc, HexToBytes("0000000000000002")) {
+		t.Errorf("SM (Post) state differs to expected")
+	}
+}
