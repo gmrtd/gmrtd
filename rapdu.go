@@ -7,6 +7,7 @@ import (
 )
 
 const RAPDU_STATUS_SUCCESS = 0x9000
+const RAPDU_STATUS_SELECTED_FILE_INVALIDATED = 0x6283 // warning
 const RAPDU_STATUS_FILENOTFOUND = 0x6A82
 
 type RApdu struct {

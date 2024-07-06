@@ -152,8 +152,8 @@ func (nfc *NfcSession) SelectEF(fileId uint16) (selected bool, err error) {
 	if !rApdu.IsSuccess() {
 		if rApdu.FileNotFound() {
 			return false, nil
-		} else if rApdu.Status == 0x6283 {
-			// TODO - MY passport issue with card.access file
+		} else if rApdu.Status == RAPDU_STATUS_SELECTED_FILE_INVALIDATED {
+			// NB we've seen this with a Malaysia passport when selecting card.access before BAC
 			return false, nil
 		} else {
 			return false, fmt.Errorf("[SelectEF] Status:%x", rApdu.Status)
