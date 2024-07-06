@@ -233,7 +233,6 @@ func (chipAuth *ChipAuth) doCaEcdh(nfc *NfcSession, caInfo *ChipAuthenticationIn
 
 	var ksEnc, ksMac []byte
 
-	// TODO - move to func
 	slog.Debug("doCaECdh - General Authenticate")
 	{
 		var rApdu *RApdu = nfc.GeneralAuthenticate(false, encode_7C_XX(0x80, encodeX962EcPoint(curve, termPub)))
@@ -244,7 +243,7 @@ func (chipAuth *ChipAuth) doCaEcdh(nfc *NfcSession, caInfo *ChipAuthenticationIn
 		slog.Debug("doCaEcdh", "rApdu-bytes", BytesToHex(rApdu.Data))
 
 		// TODO - should validate the response... as 7C is mandatory
-		//			AT passport simply return 7C00
+		//			AT/MY passport simply return 7C00
 
 		// 3. Both the eMRTD chip and the terminal compute the following:
 		// a) The shared secret K = KA(SKIC, PKDH,IFD, DIC) = KA(SKDH,IFD, PKIC, DIC)
@@ -256,13 +255,9 @@ func (chipAuth *ChipAuth) doCaEcdh(nfc *NfcSession, caInfo *ChipAuthenticationIn
 		slog.Debug("doCaEcdh", "sharedSecret", BytesToHex(sharedSecret))
 
 		// b) The session keys KSMAC = KDFMAC(K) and KSEnc = KDFEnc(K) derived from K for Secure Messaging.
-		{
-			ksEnc = KDF(sharedSecret, KDF_COUNTER_KSENC, caAlgInfo.cipherAlg, caAlgInfo.keySizeBits)
-			ksMac = KDF(sharedSecret, KDF_COUNTER_KSMAC, caAlgInfo.cipherAlg, caAlgInfo.keySizeBits)
-
-			slog.Debug("doCaEcdh", "ksEnc", BytesToHex(ksEnc), "ksMac", BytesToHex(ksMac))
-		}
-
+		ksEnc = KDF(sharedSecret, KDF_COUNTER_KSENC, caAlgInfo.cipherAlg, caAlgInfo.keySizeBits)
+		ksMac = KDF(sharedSecret, KDF_COUNTER_KSMAC, caAlgInfo.cipherAlg, caAlgInfo.keySizeBits)
+		slog.Debug("doCaEcdh", "ksEnc", BytesToHex(ksEnc), "ksMac", BytesToHex(ksMac))
 	}
 
 	// setup secure-messaging
