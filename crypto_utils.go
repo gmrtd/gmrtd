@@ -59,7 +59,6 @@ func (ec EC_POINT) Equal(ec2 EC_POINT) bool {
 	return true
 }
 
-// TODO - maybe this should panic.. as this should only be caused by a code issue
 // NB supports 8/16/24 byte key lengths for DES
 func GetCipherForKey(alg BlockCipherAlg, key []byte) (cipher.Block, error) {
 	var out cipher.Block
