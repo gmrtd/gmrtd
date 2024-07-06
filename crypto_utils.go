@@ -68,14 +68,16 @@ func GetCipherForKey(alg BlockCipherAlg, key []byte) (cipher.Block, error) {
 	case DES:
 		out, err = des.NewCipher(key)
 	case TDES:
-		out, err = des.NewTripleDESCipher(tdesKey(key))
+		var tmpTDesKey []byte
+		tmpTDesKey, err = tdesKey(key)
+		if err == nil {
+			out, err = des.NewTripleDESCipher(tmpTDesKey)
+		}
 	case AES:
 		out, err = aes.NewCipher(key)
 	default:
 		err = fmt.Errorf("unsupported cipher (%d)", alg)
 	}
-
-	// TODO - add tests.... valid... valid alg, but wrong key length... unknown alg
 
 	if err != nil {
 		return nil, fmt.Errorf("unable to get cipher (alg:%d) (%w)", alg, err)
@@ -124,8 +126,8 @@ func KDF(k []byte, c KDFCounterType, alg BlockCipherAlg, keySizeBits int) []byte
 }
 
 // generate a TDES key (24 bytes) from a 8/16/24 byte key
-// panics if input key length is invalid
-func tdesKey(key []byte) []byte {
+// returns error if input key length is invalid
+func tdesKey(key []byte) ([]byte, error) {
 	out := make([]byte, 24)
 
 	switch len(key) {
@@ -140,10 +142,10 @@ func tdesKey(key []byte) []byte {
 		// just copy
 		copy(out, key)
 	default:
-		log.Panicf("Invalid input key length (ActBytes:%d, ExpBytes:8/16/24)", len(key))
+		return nil, fmt.Errorf("invalid input key length (ActBytes:%d, ExpBytes:8/16/24)", len(key))
 	}
 
-	return out
+	return out, nil
 }
 
 func CryptCBC(blockCipher cipher.Block, iv []byte, data []byte, encrypt bool) []byte {

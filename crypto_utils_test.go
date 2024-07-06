@@ -11,6 +11,142 @@ import (
 	"github.com/ebfe/brainpool"
 )
 
+func TestTDesKey(t *testing.T) {
+	testCases := []struct {
+		keyIn  []byte
+		keyOut []byte
+	}{
+		{
+			keyIn:  []byte{0xAB, 0x94, 0xFD, 0xEC, 0xF2, 0x67, 0x4F, 0xDF},
+			keyOut: []byte{0xAB, 0x94, 0xFD, 0xEC, 0xF2, 0x67, 0x4F, 0xDF, 0xAB, 0x94, 0xFD, 0xEC, 0xF2, 0x67, 0x4F, 0xDF, 0xAB, 0x94, 0xFD, 0xEC, 0xF2, 0x67, 0x4F, 0xDF},
+		},
+		{
+			keyIn:  []byte{0xAB, 0x94, 0xFD, 0xEC, 0xF2, 0x67, 0x4F, 0xDF, 0xB9, 0xB3, 0x91, 0xF8, 0x5D, 0x7F, 0x76, 0xF2},
+			keyOut: []byte{0xAB, 0x94, 0xFD, 0xEC, 0xF2, 0x67, 0x4F, 0xDF, 0xB9, 0xB3, 0x91, 0xF8, 0x5D, 0x7F, 0x76, 0xF2, 0xAB, 0x94, 0xFD, 0xEC, 0xF2, 0x67, 0x4F, 0xDF},
+		},
+		{
+			keyIn:  []byte{0xAB, 0x94, 0xFD, 0xEC, 0xF2, 0x67, 0x4F, 0xDF, 0xDF, 0xDF, 0xFD, 0xEC, 0xF2, 0x67, 0x4F, 0xDF, 0xEC, 0x94, 0xFD, 0xEC, 0xF2, 0x67, 0x4F, 0xDF},
+			keyOut: []byte{0xAB, 0x94, 0xFD, 0xEC, 0xF2, 0x67, 0x4F, 0xDF, 0xDF, 0xDF, 0xFD, 0xEC, 0xF2, 0x67, 0x4F, 0xDF, 0xEC, 0x94, 0xFD, 0xEC, 0xF2, 0x67, 0x4F, 0xDF},
+		},
+	}
+	for _, tc := range testCases {
+		out, err := tdesKey(tc.keyIn)
+
+		if err != nil {
+			t.Errorf("Unexpect error: %s", err)
+		}
+
+		if !bytes.Equal(tc.keyOut, out) {
+			t.Errorf("TDes key expansion failed")
+		}
+	}
+}
+
+// cipher/key combinations:
+// - DES: 8 bytes
+// - TDES: 8/16/24 bytes
+// - AES: 16/24/32 bytes
+func TestGetCipherForKey(t *testing.T) {
+	testCases := []struct {
+		alg BlockCipherAlg
+		key []byte
+	}{
+		// NB for DES/TDES we make NO attempt to pass in keys with valid parity bits
+		//    - if the underlying crypto library becomes stricter then these tests may fail
+		{
+			// DES - 8 byte key
+			alg: DES,
+			key: HexToBytes("0123456789ABCDEF"),
+		},
+		{
+			// TDES - 8 byte key
+			alg: TDES,
+			key: HexToBytes("0123456789ABCDEF"),
+		},
+		{
+			// TDES - 16 byte key
+			alg: TDES,
+			key: HexToBytes("000102030405060708090A0B0C0D0E0F"),
+		},
+		{
+			// TDES - 24 byte key
+			alg: TDES,
+			key: HexToBytes("000102030405060708090A0B0C0D0E0F1011121314151617"),
+		},
+		{
+			// AES - 16 byte key
+			alg: AES,
+			key: HexToBytes("000102030405060708090A0B0C0D0E0F"),
+		},
+		{
+			// AES - 24 byte key
+			alg: AES,
+			key: HexToBytes("000102030405060708090A0B0C0D0E0F1011121314151617"),
+		},
+		{
+			// AES - 32 byte key
+			alg: AES,
+			key: HexToBytes("000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F"),
+		},
+	}
+	for _, tc := range testCases {
+		cipher, err := GetCipherForKey(tc.alg, tc.key)
+
+		if err != nil {
+			t.Errorf("Unexpected error: %s", err)
+		} else if cipher == nil {
+			t.Errorf("Cipher expected")
+		}
+	}
+}
+
+func TestGetCipherForKeyError(t *testing.T) {
+	testCases := []struct {
+		alg BlockCipherAlg
+		key []byte
+	}{
+		{
+			// unknown algorithm
+			alg: -1,
+			key: HexToBytes("0123456789ABCDEF"),
+		},
+		{
+			// DES - bad key length (7 bytes)
+			alg: DES,
+			key: HexToBytes("0123456789ABCD"),
+		},
+		{
+			// TDES - bad key length (7 bytes)
+			alg: TDES,
+			key: HexToBytes("0123456789ABCD"),
+		},
+		{
+			// TDES - bad key length (15 bytes)
+			alg: TDES,
+			key: HexToBytes("000102030405060708090A0B0C0D0E"),
+		},
+		{
+			// TDES - bad key length (25 bytes)
+			alg: TDES,
+			key: HexToBytes("000102030405060708090A0B0C0D0E0F101112131415161718"),
+		},
+		{
+			// AES - bad key length (25 bytes)
+			alg: AES,
+			key: HexToBytes("000102030405060708090A0B0C0D0E0F101112131415161718"),
+		},
+	}
+	for _, tc := range testCases {
+		cipher, err := GetCipherForKey(tc.alg, tc.key)
+
+		if err == nil {
+			t.Errorf("Error expected")
+		} else if cipher != nil {
+			t.Errorf("Cipher not expected for error case")
+		}
+	}
+}
+
 func TestKDF(t *testing.T) {
 	testCases := []struct {
 		key         []byte
@@ -62,33 +198,6 @@ func TestKDF(t *testing.T) {
 			t.Errorf("KDF failed (Exp:%x) (Act:%x)", tc.expKDF, actKDF)
 		}
 
-	}
-}
-
-func TestTDesKey(t *testing.T) {
-	testCases := []struct {
-		keyIn  []byte
-		keyOut []byte
-	}{
-		{
-			keyIn:  []byte{0xAB, 0x94, 0xFD, 0xEC, 0xF2, 0x67, 0x4F, 0xDF},
-			keyOut: []byte{0xAB, 0x94, 0xFD, 0xEC, 0xF2, 0x67, 0x4F, 0xDF, 0xAB, 0x94, 0xFD, 0xEC, 0xF2, 0x67, 0x4F, 0xDF, 0xAB, 0x94, 0xFD, 0xEC, 0xF2, 0x67, 0x4F, 0xDF},
-		},
-		{
-			keyIn:  []byte{0xAB, 0x94, 0xFD, 0xEC, 0xF2, 0x67, 0x4F, 0xDF, 0xB9, 0xB3, 0x91, 0xF8, 0x5D, 0x7F, 0x76, 0xF2},
-			keyOut: []byte{0xAB, 0x94, 0xFD, 0xEC, 0xF2, 0x67, 0x4F, 0xDF, 0xB9, 0xB3, 0x91, 0xF8, 0x5D, 0x7F, 0x76, 0xF2, 0xAB, 0x94, 0xFD, 0xEC, 0xF2, 0x67, 0x4F, 0xDF},
-		},
-		{
-			keyIn:  []byte{0xAB, 0x94, 0xFD, 0xEC, 0xF2, 0x67, 0x4F, 0xDF, 0xDF, 0xDF, 0xFD, 0xEC, 0xF2, 0x67, 0x4F, 0xDF, 0xEC, 0x94, 0xFD, 0xEC, 0xF2, 0x67, 0x4F, 0xDF},
-			keyOut: []byte{0xAB, 0x94, 0xFD, 0xEC, 0xF2, 0x67, 0x4F, 0xDF, 0xDF, 0xDF, 0xFD, 0xEC, 0xF2, 0x67, 0x4F, 0xDF, 0xEC, 0x94, 0xFD, 0xEC, 0xF2, 0x67, 0x4F, 0xDF},
-		},
-	}
-	for _, tc := range testCases {
-		out := tdesKey(tc.keyIn)
-
-		if !bytes.Equal(tc.keyOut, out) {
-			t.Errorf("TDes key expansion failed")
-		}
 	}
 }
 
@@ -361,19 +470,6 @@ func TestDoEcDh(t *testing.T) {
 		if !actual.Equal(*tc.expected) {
 			t.Errorf("ECDH error (Exp:%s) (Act:%s)", tc.expected, actual)
 		}
-	}
-}
-
-func TestGetCipherForKey(t *testing.T) {
-
-	cipher, err := GetCipherForKey(-1, HexToBytes("0123456789ABCDEF"))
-
-	if err == nil {
-		t.Errorf("Error expected")
-	}
-
-	if cipher != nil {
-		t.Errorf("Cipher not expected for error case")
 	}
 }
 
