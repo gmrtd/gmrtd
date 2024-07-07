@@ -171,8 +171,6 @@ func (reader *Reader) ReadDocument(transceiver Transceiver, password *Password, 
 		return doc, err
 	}
 
-	// TODO - EF.ATR/INFO? (0x2F01) may contain extended length info... get 6B00 error on SG passport
-
 	slog.Info("Read CardAccess")
 	// may not be present (OR may be present but not have PACE info)
 	if doc.CardAccess, err = NewCardAccess(nfc.ReadFile(MRTDFileIdCardAccess)); err != nil {
