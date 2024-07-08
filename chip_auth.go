@@ -122,16 +122,11 @@ func selectCAPubKeyInfo(caInfo *ChipAuthenticationInfo, caAlgInfo *CaAlgorithmIn
 		var curPubKey *ChipAuthenticationPublicKeyInfo = &(doc.Dg14.SecInfos.ChipAuthPubKeyInfos[i])
 
 		if curPubKey.Protocol.Equal(caAlgInfo.targetOid) {
-			if caInfo.KeyId == nil {
-				// no key-id specified, so good to use any matching public-key
+			// no key-id specified, so good to use any matching public-key
+			// *OR* key-id specified, so need to find matching public-key
+			if (caInfo.KeyId == nil) ||
+				((caInfo.KeyId != nil) && (caInfo.KeyId.Cmp(curPubKey.KeyId) == 0)) {
 				return curPubKey, nil
-			} else {
-				// key-id specified, so need to find matching public-key
-				if curPubKey.KeyId != nil {
-					if caInfo.KeyId.Cmp(curPubKey.KeyId) == 0 {
-						return curPubKey, nil
-					}
-				}
 			}
 		}
 	}
