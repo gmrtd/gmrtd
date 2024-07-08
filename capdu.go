@@ -48,6 +48,7 @@ func (apdu *CApdu) HaveLe() bool {
 
 func (apdu *CApdu) EncodeLc() []byte {
 	var lcBytes []byte
+	var lc int = len(apdu.data)
 
 	// Lc: 0,1,3 bytes
 	//
@@ -56,7 +57,7 @@ func (apdu *CApdu) EncodeLc() []byte {
 	// 1 byte with a value from 1 to 255 denotes Nc with the same length
 	// 3 bytes, the first of which must be 0, denotes Nc in the range 1 to 65 535 (all three bytes may not be zero)
 
-	var lc int = len(apdu.data)
+	slog.Debug("cApdu.EncodeLc", "lc", lc)
 
 	if lc <= 0 {
 		// Lc = 0 bytes
@@ -73,7 +74,6 @@ func (apdu *CApdu) EncodeLc() []byte {
 		lcBytes = append(lcBytes, 0)
 		lcBytes = append(lcBytes, byte((lc/256)%0xff))
 		lcBytes = append(lcBytes, byte(lc%256))
-		slog.Debug("EncodeLc", "data", BytesToHex(apdu.data), "lcBytes", BytesToHex(lcBytes))
 	} else {
 		// Lc = 1 byte
 
@@ -83,6 +83,8 @@ func (apdu *CApdu) EncodeLc() []byte {
 
 		lcBytes = append(lcBytes, byte(lc))
 	}
+
+	slog.Debug("cApdu.EncodeLc", "lcBytes", BytesToHex(lcBytes))
 
 	return lcBytes
 }
@@ -97,6 +99,8 @@ func (apdu *CApdu) EncodeLe() []byte {
 	// 1 byte in the range 1 to 255 denotes that value of Ne, or 0 denotes Ne=256
 	// 2 bytes (if extended Lc was present in the command) in the range 1 to 65 535 denotes Ne of that value, or two zero bytes denotes 65 536
 	// 3 bytes (if Lc was not present in the command), the first of which must be 0, denote Ne in the same way as two-byte Le
+
+	slog.Debug("cApdu.EncodeLe", "le", apdu.le)
 
 	if apdu.le <= 0 {
 		// Lc = 0 bytes
@@ -126,6 +130,8 @@ func (apdu *CApdu) EncodeLe() []byte {
 		leBytes = append(leBytes, byte(apdu.le%256))
 	}
 
+	slog.Debug("cApdu.EncodeLe", "leBytes", BytesToHex(leBytes))
+
 	return leBytes
 }
 
@@ -140,6 +146,8 @@ func (apdu *CApdu) Encode() []byte {
 		out = append(out, apdu.data...)
 	}
 	out = append(out, apdu.EncodeLe()...)
+
+	slog.Debug("cApdu.Encode", "cApdu", apdu.String(), "cApdu-bytes", BytesToHex(out))
 
 	return out
 }
