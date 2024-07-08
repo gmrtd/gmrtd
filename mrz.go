@@ -37,7 +37,7 @@ const MRZLengthTD2 = 72
 const MRZLengthTD3 = 88
 
 // parses the name into primary and secondary (if present) components
-// NB field separator is '  ' as we've already converted '<' to ' ' earlier
+// NB field separator is '  ' (double-space) as we've already converted '<' to ' ' earlier
 func parseName(name string) MrzName {
 	var out MrzName
 
