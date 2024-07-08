@@ -27,14 +27,14 @@ func xorBytes(arr1 []byte, arr2 []byte) []byte {
 
 func verifyByteLength(data []byte, length int) {
 	if len(data) != length {
-		log.Panic("Incorrect byte slice length")
+		log.Panicf("Incorrect byte slice length (Exp:%d, Act:%d)", length, len(data))
 	}
 }
 
 func HexToBytes(str string) []byte {
 	out, err := hex.DecodeString(str)
 	if err != nil {
-		log.Panicf("Unable to convert Ascii-Hex to Bytes")
+		log.Panicf("Unable to convert Ascii-Hex to Bytes (Data:%s)", str)
 	}
 	return out
 }
