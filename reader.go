@@ -36,7 +36,7 @@ import (
 
 // TODO - docs say should move over to EF.SOD (LDS 1.8)... (p10 page 33)
 
-// TODO - should check certain parts of the document.. e.g. DG1/2 are both mandatory
+// TODO - should check certain parts of the document.. e.g. COM,SOD,DG1/2 are mandatory.. others are optional / conditional (e.g. DG14 based on conditions)
 
 // TODO - verify DG14 matches unsecured files
 
