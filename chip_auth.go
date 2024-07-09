@@ -42,9 +42,8 @@ func (chipAuth *ChipAuth) doChipAuth(nfc *NfcSession, doc *Document) (err error)
 
 	// skip if DG14 is missing
 	if doc.Dg14 == nil {
-		// NB consider this an error as DG14 is mandatory and this should only occur if it's called in the wrong sequence
-		//	  i.e. before DGs are read
-		return fmt.Errorf("cannot consider CA due to missing DG14")
+		slog.Debug("doChipAuth - skipping CA as DG14 is not present")
+		return nil
 	}
 
 	var caInfo *ChipAuthenticationInfo
