@@ -342,6 +342,7 @@ type ECField struct {
 }
 
 type ECSpecifiedDomain struct {
+	Raw      asn1.RawContent
 	Version  int
 	FieldId  ECField
 	Curve    ECCurve
@@ -417,11 +418,11 @@ func getECCurveForSpecifiedDomain(specDomain *ECSpecifiedDomain) (elliptic.Curve
 	for i := 0; i < len(caEcArr); i++ {
 		var ec elliptic.Curve = caEcArr[i]
 
-		// TODO - should be looking at more than Params.P, but should be good for now
-		if slices.Equal(ec.Params().P.Bytes(), specDomain.FieldId.Parameters.Bytes[1:]) { // TODO - highlight significance of [1:]
+		// match using the 'prime field' (P)
+		if slices.Equal(ec.Params().P.Bytes(), specDomain.FieldId.Parameters.Bytes[1:]) { // NB skip 1st byte
 			return ec, nil
 		}
 	}
 
-	return nil, fmt.Errorf("unsupported CA EC (Params:%x)", specDomain.FieldId.Parameters.Bytes) // TODO - may want to record other params also
+	return nil, fmt.Errorf("unsupported CA EC (Params:%x) (Raw:%x)", specDomain.FieldId.Parameters.Bytes, specDomain.Raw)
 }
