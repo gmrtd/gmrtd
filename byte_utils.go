@@ -80,15 +80,19 @@ func WriteFile(filename string, data []byte) {
 	}
 }
 
+// determines whether the data constitutes an image
+// return: 'true' if image detected, otherwise 'false'
 func isImage(imageBytes []byte) bool {
 	// TODO - review following code as it seems to support more variants...
 	//			https://gist.github.com/kvanh/76378993ed5de2182f762e19eccf36a0
 
-	prefix_jpeg := HexToBytes("ffd8ffe000104a464946")
-	prefix_jp2_bitmap := HexToBytes("0000000c6a5020200d0a")
-	prefix_jp2_codestream_bitmap := HexToBytes("ff4fff51")
+	prefixJpeg := HexToBytes("ffd8ffe000104a464946")
+	prefixJp2Bitmap := HexToBytes("0000000c6a5020200d0a")
+	prefixJp2CodestreamBitmap := HexToBytes("ff4fff51")
 
-	if !bytes.HasPrefix(imageBytes, prefix_jpeg) && !bytes.HasPrefix(imageBytes, prefix_jp2_bitmap) && !bytes.HasPrefix(imageBytes, prefix_jp2_codestream_bitmap) {
+	if !bytes.HasPrefix(imageBytes, prefixJpeg) &&
+		!bytes.HasPrefix(imageBytes, prefixJp2Bitmap) &&
+		!bytes.HasPrefix(imageBytes, prefixJp2CodestreamBitmap) {
 		slog.Debug("Unknown image type", "prefix", imageBytes[0:10])
 		return false
 	}
