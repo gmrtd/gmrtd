@@ -61,8 +61,8 @@ func TestBuild7F49(t *testing.T) {
 
 	rawOID := []byte{0x04, 0x00, 0x7F, 0x00, 0x07, 0x02, 0x02, 0x04, 0x02, 0x02}
 
-	tifdData := build_7F49(rawOID, encodeX962EcPoint(domainParams.ec, &chipPub))
-	ticData := build_7F49(rawOID, encodeX962EcPoint(domainParams.ec, &termPub))
+	tifdData := encodePubicKeyTemplate7F49(rawOID, encodeX962EcPoint(domainParams.ec, &chipPub))
+	ticData := encodePubicKeyTemplate7F49(rawOID, encodeX962EcPoint(domainParams.ec, &termPub))
 
 	expTifdData := HexToBytes("7F494F060A04007F000702020402028641049E880F842905B8B3181F7AF7CAA9F0EFB743847F44A306D2D28C1D9EC65DF6DB7764B22277A2EDDC3C265A9F018F9CB852E111B768B326904B59A0193776F094")
 	if !bytes.Equal(expTifdData, tifdData) {

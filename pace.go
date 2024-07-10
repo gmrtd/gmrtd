@@ -313,7 +313,9 @@ func decode_7C_XX(innerTag byte, data []byte) []byte {
 	return TlvDecode(data).GetNode(0x7C).GetNode(TlvTag(innerTag)).GetValue()
 }
 
-func build_7F49(paceOid []byte, tag86data []byte) []byte {
+// encodes a public-key template (7F49) containing the OID and the public-key (86)
+// NB caller should ensure that tag86data is encoded correctly for the underlying key type (DH/ECDH)
+func encodePubicKeyTemplate7F49(paceOid []byte, tag86data []byte) []byte {
 	// 7F49
 	//		06 - OID
 	//		86 - Uncompressed EC point (x/y)
@@ -464,8 +466,8 @@ func (pace *Pace) mutualAuth_GM_ECDH(nfc *NfcSession, paceConfig *PaceConfig, do
 	{
 		oidBytes := oidBytes(paceConfig.oid)
 
-		tIfdData := build_7F49(oidBytes, encodeX962EcPoint(domainParams.ec, chipPub))
-		tIcData := build_7F49(oidBytes, encodeX962EcPoint(domainParams.ec, termPub))
+		tIfdData := encodePubicKeyTemplate7F49(oidBytes, encodeX962EcPoint(domainParams.ec, chipPub))
+		tIcData := encodePubicKeyTemplate7F49(oidBytes, encodeX962EcPoint(domainParams.ec, termPub))
 
 		// generate auth tokens
 		tIfd = paceConfig.computeAuthToken(ksMac, tIfdData)
