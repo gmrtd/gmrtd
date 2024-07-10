@@ -81,6 +81,7 @@ type ChipAuthenticationInfo struct {
 }
 
 type ChipAuthenticationPublicKeyInfo struct {
+	Raw                         asn1.RawContent
 	Protocol                    asn1.ObjectIdentifier
 	ChipAuthenticationPublicKey SubjectPublicKeyInfo
 	KeyId                       *big.Int `asn1:"optional"` // nil if not present

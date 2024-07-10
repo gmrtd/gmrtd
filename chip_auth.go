@@ -65,8 +65,7 @@ func (chipAuth *ChipAuth) doChipAuth(nfc *NfcSession, doc *Document) (err error)
 	// process based on the type of key (DH/ECDH)
 	if caPubKeyInfo.Protocol.Equal(oidPkDh) {
 		// DH
-		// TODO - what to log? ideally some info to see the type of key
-		return fmt.Errorf("chipAuth: DH not currently supported")
+		return fmt.Errorf("chipAuth: DH not currently supported (Raw:%x)", caPubKeyInfo.Raw)
 	} else if caPubKeyInfo.Protocol.Equal(oidPkEcdh) {
 		// ECDH
 		err = chipAuth.doCaEcdh(nfc, caInfo, *caAlgInfo, caPubKeyInfo)
