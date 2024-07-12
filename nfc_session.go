@@ -130,7 +130,12 @@ func (nfc *NfcSession) SelectMF() (err error) {
 	}
 
 	if !rapdu.IsSuccess() {
-		return fmt.Errorf("[SelectMF] Status:%x", rapdu.Status)
+		if rapdu.Status == RAPDU_SECURITY_CONDITION_NOT_SATIFIED {
+			// NB observed for NZ passport - silently tolerate
+			return nil
+		} else {
+			return fmt.Errorf("[SelectMF] Status:%x", rapdu.Status)
+		}
 	}
 
 	return nil
@@ -264,7 +269,9 @@ func (nfc *NfcSession) ReadFile(fileId uint16) (fileData []byte) {
 		}
 	}
 
-	return
+	slog.Debug("ReadFile", "fileId", fileId, "data", BytesToHex(fileData))
+
+	return fileData
 }
 
 type ApduLog struct {
