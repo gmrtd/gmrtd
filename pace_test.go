@@ -346,6 +346,10 @@ func TestGetStandardisedDomainParams(t *testing.T) {
 	for _, tc := range testCases {
 		var domainParams *PACEDomainParams = getStandardisedDomainParams(tc.paramId)
 
+		if !domainParams.isECDH {
+			t.Errorf("Should be ECDH")
+		}
+
 		if domainParams.ec.Params().BitSize != tc.bitSize {
 			t.Errorf("Incorrect BitSize (ParamId:%d, Exp:%d, Act%d:)", tc.paramId, tc.bitSize, domainParams.ec.Params().BitSize)
 		}
