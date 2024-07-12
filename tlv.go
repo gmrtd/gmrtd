@@ -243,8 +243,9 @@ func NewTlvNodes() *TlvNodes {
 	return &TlvNodes{}
 }
 
-func TlvDecode(data []byte) *TlvNodes {
-	out := NewTlvNodes()
+// internal decode function - clients should use TlvDecode
+func tlvDecode(data []byte) (nodes *TlvNodes, remainingData []byte) {
+	nodes = NewTlvNodes()
 
 	buf := bytes.NewBuffer(data)
 
@@ -256,22 +257,65 @@ func TlvDecode(data []byte) *TlvNodes {
 		tag := TlvGetTag(buf)
 		length := TlvGetLength(buf)
 
+		// special handling for indefinite-length mode end sentinel (i.e. 0x0000)
+		if tag == 0 && length == 0 {
+			remainingData = buf.Bytes()
+			break
+		}
+
 		if TlvIsConstructedTag(tag) {
-			childData := getBytesFromBuffer(buf, length)
-			children := TlvDecode(childData)
-			node := NewTlvConstructedNode(tag)
-			node.Children.Nodes = append(node.Children.Nodes, children.Nodes...)
+			var children *TlvNodes
 
-			out.Nodes = append(out.Nodes, node)
+			if length == -1 { // indefinite-length
+				childData := buf.Bytes()
+				buf = bytes.NewBuffer([]byte{})
 
+				children, remainingData = tlvDecode(childData)
+
+				node := NewTlvConstructedNode(tag)
+				node.Children.Nodes = append(node.Children.Nodes, children.Nodes...)
+
+				nodes.Nodes = append(nodes.Nodes, node)
+
+				// we may or may not have remaining-data
+				// if we do, then it needs to be processed as siblings for this node
+				if len(remainingData) > 0 {
+					buf = bytes.NewBuffer(remainingData)
+					remainingData = nil
+				}
+			} else {
+				childData := getBytesFromBuffer(buf, length)
+				children, remainingData = tlvDecode(childData)
+				if len(remainingData) > 0 {
+					log.Panicf("Remaining-data not expected (%x)", remainingData)
+				}
+				node := NewTlvConstructedNode(tag)
+				node.Children.Nodes = append(node.Children.Nodes, children.Nodes...)
+
+				nodes.Nodes = append(nodes.Nodes, node)
+			}
 		} else {
-			value := getBytesFromBuffer(buf, length)
-			node := NewTlvSimpleNode(tag, value)
-			out.AddNode(node)
+			if length == -1 { // indefinite-length
+				log.Panicf("Indefinite-length mode is only supported for constructed tags")
+			} else {
+				value := getBytesFromBuffer(buf, length)
+				node := NewTlvSimpleNode(tag, value)
+				nodes.AddNode(node)
+			}
 		}
 	}
 
-	return out
+	return nodes, remainingData
+}
+
+func TlvDecode(data []byte) *TlvNodes {
+	nodes, remainingData := tlvDecode(data)
+
+	if len(remainingData) > 0 {
+		log.Panicf("Unexpected remaining-data (%x)", remainingData)
+	}
+
+	return nodes
 }
 
 func TlvGetTag(buf *bytes.Buffer) TlvTag {
@@ -315,12 +359,19 @@ func TlvGetTags(buf *bytes.Buffer) []TlvTag {
 	return out
 }
 
+// decodes and returns the length
+// NB returns -1 when 'indefinite-length' is indicated
 func TlvGetLength(buf *bytes.Buffer) (length int) {
 	b1 := getByteFromBuffer(buf)
 
 	if b1 <= 0x7f {
 		// 1 byte: 0xxxxxxx (7 bit length)
 		length = int(b1)
+	} else if b1 == 0x80 {
+		// indefinite-length mode (0x80)
+		// NB special-case where length is not specified and sequence is terminated by 0x0000
+		//    - only valid for constructed tags
+		length = -1
 	} else if b1 >= 0x81 && b1 <= 0x84 {
 		// 2 bytes: 10000001 xxxxxxxx (8 bit length)
 		// 3 bytes: 10000010 xxxxxxxx xxxxxxxx (16 bit length)
@@ -335,17 +386,21 @@ func TlvGetLength(buf *bytes.Buffer) (length int) {
 		log.Panicf("Unsupported length (b1:%02x) (remBytes:%x)", b1, buf.Bytes())
 	}
 
-	return
+	return length
 }
 
 func TlvEncodeTag(tag TlvTag) []byte {
 	return bytes.TrimLeft(UInt64ToBytes(uint64(tag)), "\x00")
 }
 
+// encodes the specified length
+// NB special-handling for -1 as this indicates indefinite-length mode
 func TlvEncodeLength(length int) []byte {
 	out := make([]byte, 0)
 
-	if length <= 127 {
+	if length == -1 {
+		out = append(out, byte(0x80))
+	} else if length <= 127 {
 		out = append(out, byte(length&0xff))
 	} else if length <= 0xffffffff {
 		significantBytes := bytes.TrimLeft(UInt64ToBytes(uint64(length)), "\x00")

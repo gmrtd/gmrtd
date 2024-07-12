@@ -89,9 +89,14 @@ func TestTlvGetTags(t *testing.T) {
 
 func TestTlvLength(t *testing.T) {
 	testCases := []struct {
-		inp    uint32
+		inp    int
 		expOut []byte
 	}{
+		{
+			// special case for indefinite-length mode
+			inp:    -1,
+			expOut: HexToBytes("80"),
+		},
 		{
 			inp:    0x7F,
 			expOut: HexToBytes("7F"),
@@ -159,6 +164,59 @@ func TestTlvParseAndAccess(t *testing.T) {
 		!bytes.Equal(nodes.GetNode(0x70).GetNode(0xA0).GetNodeByOccur(0x01, 1).GetValue(), HexToBytes("7890")) ||
 		!bytes.Equal(nodes.GetNode(0x70).GetNode(0xA0).GetNodeByOccur(0x02, 1).GetValue(), HexToBytes("45")) ||
 		!bytes.Equal(nodes.GetNode(0x70).GetNode(0xA0).GetNodeByOccur(0x01, 2).GetValue(), HexToBytes("67")) {
+		t.Errorf("Error fetching value from TLV")
+	}
+
+	/*
+	* IsValidNode - positive cases
+	 */
+	if !nodes.IsValidNode() ||
+		!nodes.GetNode(0x70).IsValidNode() ||
+		!nodes.GetNode(0x70).GetNode(0x02).IsValidNode() ||
+		!nodes.GetNode(0x70).GetNode(0xA0).IsValidNode() {
+		t.Errorf("IsValidNode error for positive cases")
+	}
+
+	/*
+	* test that trying to access absent tags does not cause problems
+	 */
+
+	if nodes.GetNode(0x71).IsValidNode() ||
+		nodes.GetNode(0x70).GetNode(0x02).GetNode(0x01).IsValidNode() ||
+		nodes.GetNode(0x70).GetNode(0x02).GetNodeByOccur(0x01, 3).IsValidNode() ||
+		nodes.GetNode(0x70).GetNode(0x02).GetNode(0x01).GetNode(0x01).IsValidNode() ||
+		nodes.GetNode(0x70).GetNode(0x02).GetNode(0x01).GetNodeByOccur(0x01, 1).IsValidNode() ||
+		(nodes.GetNode(0x70).GetNode(0x02).GetNode(0x01).GetNode(0x01).GetTag() != -1) ||
+		nodes.GetNodeByOccur(0x70, 2).IsValidNode() ||
+		nodes.GetNode(0x70).GetNode(0xA0).GetNodeByOccur(0x02, 2).IsValidNode() {
+		t.Errorf("Absent tags not handled correctly")
+	}
+}
+
+func TestTlvParseAndAccessIndefiniteLength(t *testing.T) {
+	// NB modified test case for tags using indefinite-length mode
+
+	//	70
+	//		02: 0x123456
+	//		A0					** indefinite-length
+	//			01: 0x7890
+	//			02: 0x45
+	//			01: 0x67
+	//		A0
+	//			01: 0x1234
+
+	var tlvBytes []byte = HexToBytes("70190203123456A080010278900201450101670000A00401021234")
+
+	var nodes *TlvNodes = TlvDecode(tlvBytes)
+
+	/*
+	* basic tests for value access
+	 */
+	if !bytes.Equal(nodes.GetNode(0x70).GetNode(0x02).GetValue(), HexToBytes("123456")) ||
+		!bytes.Equal(nodes.GetNode(0x70).GetNode(0xA0).GetNodeByOccur(0x01, 1).GetValue(), HexToBytes("7890")) ||
+		!bytes.Equal(nodes.GetNode(0x70).GetNode(0xA0).GetNodeByOccur(0x02, 1).GetValue(), HexToBytes("45")) ||
+		!bytes.Equal(nodes.GetNode(0x70).GetNode(0xA0).GetNodeByOccur(0x01, 2).GetValue(), HexToBytes("67")) ||
+		!bytes.Equal(nodes.GetNode(0x70).GetNodeByOccur(0xA0, 2).GetNode(0x01).GetValue(), HexToBytes("1234")) {
 		t.Errorf("Error fetching value from TLV")
 	}
 
