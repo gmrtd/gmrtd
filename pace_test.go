@@ -191,6 +191,93 @@ func TestDoPace_GM_ECDH(t *testing.T) {
 			t.Errorf("Unexpected error: %s", err)
 		}
 
+		// NB SSC should be 0's
+
+		if !reflect.DeepEqual(smExp, nfc.sm) {
+			t.Errorf("SecureMessaging differs to expected")
+		}
+	}
+
+	// verify chip-auth-status is NA
+	if doc.ChipAuthStatus != CHIP_AUTH_STATUS_NONE {
+		t.Errorf("ChipAuthStatus != NONE")
+	}
+
+}
+
+// PACE test for GM (ECDH) using TDES/CBC (NZ)
+func TestDoPace_GM_ECDH_TDES_CBC_NZ(t *testing.T) {
+	var nfc *NfcSession
+
+	{
+		var transceiver *MockTransceiver = new(MockTransceiver)
+
+		// add in expected request/response tuples
+		transceiver.AddReqRsp("0022c1a40f800a04007f00070202040201830101", "9000")
+		transceiver.AddReqRsp("10860000027c0000", "7c128010b88382812290017af1cc906ff00e7f4d9000")
+		transceiver.AddReqRsp("10860000457c438141047706b2b6246ab4612229b8a11212ddba7fea0568c9c0975dee22c0e3dd3a3f0321e8afee836e373b570d24000d56fb195104d486e63321ff8c819dd5ee018dcb00", "7c43824104780b4edec9b926f9f964fad826d9990a667608d96ba7b397ae8609b6533e0d036d148365ddf4e5ff6611c2b62aa17fc9899f327bc929db543e7abd0ee724e4be9000")
+		transceiver.AddReqRsp("10860000457c43834104507a0156efae8fb8acc519036c0b2fe0393c878744c7f91878ee4e07a41412ba5c0753d68a44a91e9f57f3f992ab689e6c2065d3b2a27c3658a4fd632931ee3800", "7c438441042dbaf62e6fdfb31eb66f206493b9e7721586f0e5c93754d7bd5a884ca251ee4d720ab539a60561bc46812fa289b58ac69f0c6e32adbaf7241049a31211f80f5b9000")
+		transceiver.AddReqRsp("008600000c7c0a85088d7c617d43efe09e00", "7c0a8608cb57047c809079f69000")
+
+		nfc = NewNfcSession(transceiver)
+	}
+
+	// setup static EC keys for test
+	getTestKeyGenEc := func() func(ec elliptic.Curve) ([]byte, *EC_POINT) {
+		var idx int
+
+		return func(ec elliptic.Curve) (pri []byte, pub *EC_POINT) {
+			var tmpPri *big.Int
+			var tmpPub EC_POINT
+
+			switch idx {
+			case 0:
+				tmpPri, _ = new(big.Int).SetString("2808272c0ec20e01a3450030ef32855e9feb5cb17719e985389b1cf47609e69f", 16)
+				tmpPub.x, _ = new(big.Int).SetString("7706b2b6246ab4612229b8a11212ddba7fea0568c9c0975dee22c0e3dd3a3f03", 16)
+				tmpPub.y, _ = new(big.Int).SetString("21e8afee836e373b570d24000d56fb195104d486e63321ff8c819dd5ee018dcb", 16)
+			case 1:
+				tmpPri, _ = new(big.Int).SetString("8f89449052df6c7983750c7b042c3cea12b36819174424c7cd28153f7b70b402", 16)
+				// NB set public-key to dummy value as it should be manually calculated using the mapped generator (Gx/y)
+				//    - this way we can test that Gxy is getting propagated from earlier step and flow is working correcvtly
+				tmpPub.x = big.NewInt(0)
+				tmpPub.y = big.NewInt(0)
+			default:
+				t.Errorf("Invalid key-gen index (idx:%1d)", idx)
+			}
+
+			idx++
+
+			return tmpPri.Bytes(), &tmpPub
+		}
+	}
+
+	var err error
+	var doc Document
+
+	doc.CardAccess, err = NewCardAccess(HexToBytes("31143012060a04007f0007020204020102010202010d"))
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+
+	// password (MRZ)
+	var password *Password = NewPasswordMrzi("LM277954", "781214", "271115")
+
+	var pace *Pace = NewPace()
+
+	// override EC key-generator (to ensure predictable keys)
+	pace.keyGeneratorEc = getTestKeyGenEc()
+
+	pace.doPACE(nfc, password, &doc)
+
+	// verify Secure-Messaging was setup correctly
+	{
+		smExp, err := NewSecureMessaging(TDES, HexToBytes("430e4c8c38dfefaed92067b919a897f8"), HexToBytes("c1bc1f075797b970b5a45e64a764b0cb"))
+		if err != nil {
+			t.Errorf("Unexpected error: %s", err)
+		}
+
+		// NB SSC should be 0's
+
 		if !reflect.DeepEqual(smExp, nfc.sm) {
 			t.Errorf("SecureMessaging differs to expected")
 		}
