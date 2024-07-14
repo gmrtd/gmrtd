@@ -76,7 +76,7 @@ func TestDoBAC(t *testing.T) {
 		nfc = NewNfcSession(transceiver)
 	}
 
-	// setup static EC keys for test
+	// setup static randoms for test
 	getTestRandomBytesFn := func() func(length int) []byte {
 		var idx int
 
