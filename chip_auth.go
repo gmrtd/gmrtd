@@ -31,10 +31,6 @@ func NewChipAuth() *ChipAuth {
 }
 
 func (chipAuth *ChipAuth) doChipAuth(nfc *NfcSession, doc *Document) (err error) {
-	if nfc.sm != nil {
-		slog.Debug("doChipAuth", "SM(pre)", nfc.sm.String())
-	}
-
 	// skip if we have already performed chip authentication
 	if doc.ChipAuthStatus != CHIP_AUTH_STATUS_NONE {
 		return nil
@@ -44,6 +40,10 @@ func (chipAuth *ChipAuth) doChipAuth(nfc *NfcSession, doc *Document) (err error)
 	if doc.Dg14 == nil {
 		slog.Debug("doChipAuth - skipping CA as DG14 is not present")
 		return nil
+	}
+
+	if nfc.sm != nil {
+		slog.Debug("doChipAuth", "SM(pre)", nfc.sm.String())
 	}
 
 	var caInfo *ChipAuthenticationInfo
