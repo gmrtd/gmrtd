@@ -222,7 +222,11 @@ func processISO19794(data []byte) (*Facial, error) {
 	}
 
 	if fh.RecordLength != uint32(len(data)) {
-		log.Panicf("FacialHeader.RecordLength does not match with data (FH.RecordLength:%d) (Data-Len:%d)", fh.RecordLength, len(data))
+		// NB we've seen a slightly different record-length (NZ passport).. i.e. hdr.recordLength = dataLen - 8
+		//	  - tolerate, especially given that this is a value-added check
+		if fh.RecordLength != uint32(len(data))-8 {
+			log.Panicf("FacialHeader.RecordLength does not match with data (FH.RecordLength:%d) (Data-Len:%d)", fh.RecordLength, len(data))
+		}
 	}
 
 	var facial Facial
