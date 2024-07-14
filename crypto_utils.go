@@ -281,6 +281,11 @@ func CryptoHash(alg crypto.Hash, data []byte) []byte {
 	return hashFn.Sum(nil)
 }
 
+func CryptoHashDigestSize(alg crypto.Hash) int {
+	// TODO - this is a bit of a hack... ideally we'd take directly from the hash-alg
+	return len(CryptoHash(alg, []byte{}))
+}
+
 func DesKeyAdjustParity(key []byte) []byte {
 	out := slices.Clone(key)
 

@@ -12,6 +12,7 @@ const INS_MANAGE_SE = byte(0x22)
 const INS_EXTERNAL_AUTHENTICATE = byte(0x82)
 const INS_GET_CHALLENGE = byte(0x84)
 const INS_GENERAL_AUTHENTICATE = byte(0x86)
+const INS_INTERNAL_AUTHENTICATE = byte(0x88)
 const INS_SELECT = byte(0xA4)
 const INS_READ_BINARY = byte(0xB0)
 

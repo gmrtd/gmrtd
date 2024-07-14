@@ -244,7 +244,7 @@ func (reader *Reader) ReadDocument(transceiver Transceiver, password *Password, 
 	}
 
 	if doc.ChipAuthStatus == CHIP_AUTH_STATUS_NONE {
-		doActiveAuth(nfc, doc)
+		err = NewActiveAuth().doActiveAuth(nfc, doc)
 	}
 
 	// copy apdu-log over to document

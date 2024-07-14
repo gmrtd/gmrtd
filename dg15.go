@@ -8,7 +8,8 @@ import (
 const DG15Tag = 0x6F
 
 type DG15 struct {
-	RawData []byte
+	RawData                   []byte
+	SubjectPublicKeyInfoBytes []byte
 }
 
 func NewDG15(data []byte) (*DG15, error) {
@@ -25,10 +26,13 @@ func NewDG15(data []byte) (*DG15, error) {
 	rootNode := nodes.GetNode(DG15Tag)
 
 	if !rootNode.IsValidNode() {
-		return nil, fmt.Errorf("root node (%x) missing", DG15Tag)
+		return nil, fmt.Errorf("(NewDG15) root node (%x) missing", DG15Tag)
 	}
 
-	// TODO - parse the data
+	out.SubjectPublicKeyInfoBytes = rootNode.GetNode(0x30).Encode()
+	if len(out.SubjectPublicKeyInfoBytes) < 1 {
+		return nil, fmt.Errorf("(NewDG15) missing SubjectPublicKeyInfo")
+	}
 
 	return out, nil
 }
