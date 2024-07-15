@@ -197,7 +197,7 @@ func (nodes TlvNodes) Encode() []byte {
 		out.Write(child.Encode())
 	}
 
-	return out.Bytes() // TODO - should we be copying the bytes here? (others also).. e.g. slices.Clone()
+	return bytes.Clone(out.Bytes())
 }
 
 func (nodes TlvNodes) stringWithIndent(indent int) string {
@@ -259,7 +259,7 @@ func tlvDecode(data []byte) (nodes *TlvNodes, remainingData []byte) {
 
 		// special handling for indefinite-length mode end sentinel (i.e. 0x0000)
 		if tag == 0 && length == 0 {
-			remainingData = buf.Bytes()
+			remainingData = bytes.Clone(buf.Bytes())
 			break
 		}
 
@@ -267,7 +267,7 @@ func tlvDecode(data []byte) (nodes *TlvNodes, remainingData []byte) {
 			var children *TlvNodes
 
 			if length == -1 { // indefinite-length
-				childData := buf.Bytes()
+				childData := bytes.Clone(buf.Bytes())
 				buf = bytes.NewBuffer([]byte{})
 
 				children, remainingData = tlvDecode(childData)
