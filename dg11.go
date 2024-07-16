@@ -57,23 +57,19 @@ func NewDG11(data []byte) (*DG11, error) {
 		return nil, fmt.Errorf("root node (%x) missing", DG11Tag)
 	}
 
-	out.Details = parseData(rootNode)
+	out.Details.parseData(rootNode)
 
 	slog.Debug("DG11", "Details", out.Details)
 
 	return out, nil
 }
 
-func parseData(node TlvNode) PersonDetails {
-	var out PersonDetails
-
+func (details *PersonDetails) parseData(node TlvNode) {
 	tagList := TlvGetTags(bytes.NewBuffer(node.GetNode(0x5C).GetValue()))
 
 	for _, tag := range tagList {
-		out.processTag(tag, node)
+		details.processTag(tag, node)
 	}
-
-	return out
 }
 
 // processes the 'tag', getting the data from the TLV and populating PersonDetails
@@ -85,11 +81,13 @@ func (details *PersonDetails) processTag(tag TlvTag, node TlvNode) {
 		// special handling as 'Other Names' are nested within tag A0 and there can be multiple instances
 		numOtherNames := bytesToInt(node.GetNode(0xA0).GetNode(0x02).GetValue())
 		for occur := 1; occur <= numOtherNames; occur++ {
-			details.OtherNames = append(details.OtherNames, parseName(decodeValue(string(node.GetNode(0xA0).GetNodeByOccur(0x5f0f, occur).GetValue()))))
+			details.OtherNames = append(details.OtherNames, parseName(decodeValue(string(node.GetNode(0xA0).GetNodeByOccur(tag, occur).GetValue()))))
 		}
 	case 0x5F10:
 		details.PersonalNumber = string(node.GetNode(tag).GetValue())
 	case 0x5F2B:
+		// TODO - observed as BCD on MY passport.. 5f2b: 19920115 (i.e. 4 bytes instead of 8)
+		//			- similar issue could exist for other fields
 		details.FullDateOfBirth = string(node.GetNode(tag).GetValue())
 	case 0x5F11:
 		details.PlaceOfBirth = strings.Split(string(node.GetNode(tag).GetValue()), "<")
