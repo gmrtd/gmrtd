@@ -48,6 +48,7 @@ func (chipAuth *ChipAuth) doChipAuth(nfc *NfcSession, doc *Document) (err error)
 
 	var caInfo *ChipAuthenticationInfo
 	var caAlgInfo *CaAlgorithmInfo
+
 	caInfo, caAlgInfo, err = selectCAInfo(doc)
 	if err != nil {
 		return err
@@ -57,6 +58,7 @@ func (chipAuth *ChipAuth) doChipAuth(nfc *NfcSession, doc *Document) (err error)
 	}
 
 	var caPubKeyInfo *ChipAuthenticationPublicKeyInfo
+
 	caPubKeyInfo, err = selectCAPubKeyInfo(caInfo, caAlgInfo, doc)
 	if err != nil {
 		return err
@@ -68,7 +70,7 @@ func (chipAuth *ChipAuth) doChipAuth(nfc *NfcSession, doc *Document) (err error)
 		return fmt.Errorf("chipAuth: DH not currently supported (Raw:%x)", caPubKeyInfo.Raw)
 	} else if caPubKeyInfo.Protocol.Equal(oidPkEcdh) {
 		// ECDH
-		err = chipAuth.doCaEcdh(nfc, caInfo, *caAlgInfo, caPubKeyInfo)
+		err = chipAuth.doCaEcdh(nfc, caInfo, caAlgInfo, caPubKeyInfo)
 		if err != nil {
 			return err
 		}
@@ -162,32 +164,7 @@ func getAlgInfo(oid asn1.ObjectIdentifier) (*CaAlgorithmInfo, error) {
 	return &out, nil
 }
 
-// performs Chip Authentication in ECDH mode
-// NB does NOT update doc.ChipAuthStatus, caller is expected to do this!
-// NB we currently implement the AES (2) APDU approach, which should also work for TDES (i.e. we don't implement MSE:Set KAT just for TDES)
-func (chipAuth *ChipAuth) doCaEcdh(nfc *NfcSession, caInfo *ChipAuthenticationInfo, caAlgInfo CaAlgorithmInfo, caPubKeyInfo *ChipAuthenticationPublicKeyInfo) (err error) {
-	slog.Debug("doCaEcdh", "OID", caInfo.Protocol.String())
-
-	specDomain := parseECSpecifiedDomain(&(caPubKeyInfo.ChipAuthenticationPublicKey.Algorithm))
-
-	curve, err := getECCurveForSpecifiedDomain(specDomain)
-	if err != nil {
-		return err
-	}
-
-	// get the chip's public key
-	var chipPubKey *EC_POINT
-	{
-		var chipPubKeyBytes []byte = caPubKeyInfo.ChipAuthenticationPublicKey.SubjectPublicKey.Bytes
-		chipPubKey = decodeX962EcPoint(curve, chipPubKeyBytes)
-	}
-	slog.Debug("doCaEcdh", "chipPubKey", chipPubKey.String())
-
-	// generate ephemeral key
-	var termPri []byte
-	var termPub *EC_POINT
-	termPri, termPub = chipAuth.keyGeneratorEc(curve)
-
+func (chipAuth *ChipAuth) doMseSetAT(nfc *NfcSession, caInfo *ChipAuthenticationInfo) error {
 	// MSE:Set AT
 	//
 	// INS: 0x22
@@ -198,22 +175,22 @@ func (chipAuth *ChipAuth) doCaEcdh(nfc *NfcSession, caInfo *ChipAuthenticationIn
 	// Exp Rsp: 9000
 	//			Exp errors: 6A80 / 6A88 / ...
 
-	slog.Debug("doCaECdh - MSE:Set AT")
-	{
-		nodes := NewTlvNodes()
-		nodes.AddNode(NewTlvSimpleNode(0x80, oidBytes(caInfo.Protocol)))
-		// specify key-id (if required)
-		if caInfo.KeyId != nil {
-			nodes.AddNode(NewTlvSimpleNode(0x84, caInfo.KeyId.Bytes()))
-		}
+	slog.Debug("doCaECdh - doMseSetAT")
 
-		// MSE:Set AT (0x41A4: Chip Authentication)
-		err = nfc.MseSetAT(0x41, 0xA4, nodes.Encode())
-		if err != nil {
-			return err
-		}
+	nodes := NewTlvNodes()
+	nodes.AddNode(NewTlvSimpleNode(0x80, oidBytes(caInfo.Protocol)))
+	// specify key-id (if required)
+	if caInfo.KeyId != nil {
+		nodes.AddNode(NewTlvSimpleNode(0x84, caInfo.KeyId.Bytes()))
 	}
 
+	// MSE:Set AT (0x41A4: Chip Authentication)
+	err := nfc.MseSetAT(0x41, 0xA4, nodes.Encode())
+
+	return err
+}
+
+func (chipAuth *ChipAuth) doGeneralAuthenticate(nfc *NfcSession, curve *elliptic.Curve, termPri []byte, termPub *EC_POINT, chipPubKey *EC_POINT, caAlgInfo *CaAlgorithmInfo) (ksEnc []byte, ksMac []byte, err error) {
 	// General Authenticate
 	//
 	// INS: 0x86
@@ -225,33 +202,74 @@ func (chipAuth *ChipAuth) doCaEcdh(nfc *NfcSession, caInfo *ChipAuthenticationIn
 	//			+ 0x7C - Dynamic Authentication Data
 	//			Exp errors: 6300 / 6A80 / 6A88 / ...
 
+	slog.Debug("doCaECdh - doGeneralAuthenticate")
+
+	var rApdu *RApdu = nfc.GeneralAuthenticate(false, encode_7C_XX(0x80, encodeX962EcPoint(*curve, termPub)))
+	if !rApdu.IsSuccess() {
+		return nil, nil, fmt.Errorf("doCaEcdh: General Authenticate failed (Status:%d)", rApdu.Status)
+	}
+
+	slog.Debug("doCaEcdh", "rApdu-bytes", BytesToHex(rApdu.Data))
+
+	// TODO - should validate the response... as 7C is mandatory
+	//			AT/MY passport simply return 7C00
+
+	// 3. Both the eMRTD chip and the terminal compute the following:
+	// a) The shared secret K = KA(SKIC, PKDH,IFD, DIC) = KA(SKDH,IFD, PKIC, DIC)
+	var k *EC_POINT = doEcDh(termPri, chipPubKey, *curve)
+
+	// NB secret is just based on 'x'
+	sharedSecret := k.x.Bytes()
+
+	slog.Debug("doCaEcdh", "sharedSecret", BytesToHex(sharedSecret))
+
+	// b) The session keys KSMAC = KDFMAC(K) and KSEnc = KDFEnc(K) derived from K for Secure Messaging.
+	ksEnc = KDF(sharedSecret, KDF_COUNTER_KSENC, caAlgInfo.cipherAlg, caAlgInfo.keySizeBits)
+	ksMac = KDF(sharedSecret, KDF_COUNTER_KSMAC, caAlgInfo.cipherAlg, caAlgInfo.keySizeBits)
+	slog.Debug("doCaEcdh", "ksEnc", BytesToHex(ksEnc), "ksMac", BytesToHex(ksMac))
+
+	return ksEnc, ksMac, err
+}
+
+// performs Chip Authentication in ECDH mode
+// NB does NOT update doc.ChipAuthStatus, caller is expected to do this!
+// NB we currently implement the AES (2) APDU approach, which should also work for TDES (i.e. we don't implement MSE:Set KAT just for TDES)
+func (chipAuth *ChipAuth) doCaEcdh(nfc *NfcSession, caInfo *ChipAuthenticationInfo, caAlgInfo *CaAlgorithmInfo, caPubKeyInfo *ChipAuthenticationPublicKeyInfo) (err error) {
+	slog.Debug("doCaEcdh", "OID", caInfo.Protocol.String())
+
+	specDomain := parseECSpecifiedDomain(&(caPubKeyInfo.ChipAuthenticationPublicKey.Algorithm))
+
+	var curve *elliptic.Curve
+
+	curve, err = getECCurveForSpecifiedDomain(specDomain)
+	if err != nil {
+		return err
+	}
+
+	// get the chip's public key
+	var chipPubKey *EC_POINT
+	{
+		var chipPubKeyBytes []byte = caPubKeyInfo.ChipAuthenticationPublicKey.SubjectPublicKey.Bytes
+		chipPubKey = decodeX962EcPoint(*curve, chipPubKeyBytes)
+	}
+	slog.Debug("doCaEcdh", "chipPubKey", chipPubKey.String())
+
+	var termPri []byte
+	var termPub *EC_POINT
+
+	// generate ephemeral key
+	termPri, termPub = chipAuth.keyGeneratorEc(*curve)
+
+	err = chipAuth.doMseSetAT(nfc, caInfo)
+	if err != nil {
+		return err
+	}
+
 	var ksEnc, ksMac []byte
 
-	slog.Debug("doCaECdh - General Authenticate")
-	{
-		var rApdu *RApdu = nfc.GeneralAuthenticate(false, encode_7C_XX(0x80, encodeX962EcPoint(curve, termPub)))
-		if !rApdu.IsSuccess() {
-			return fmt.Errorf("doCaEcdh: General Authenticate failed (Status:%d)", rApdu.Status)
-		}
-
-		slog.Debug("doCaEcdh", "rApdu-bytes", BytesToHex(rApdu.Data))
-
-		// TODO - should validate the response... as 7C is mandatory
-		//			AT/MY passport simply return 7C00
-
-		// 3. Both the eMRTD chip and the terminal compute the following:
-		// a) The shared secret K = KA(SKIC, PKDH,IFD, DIC) = KA(SKDH,IFD, PKIC, DIC)
-		var k *EC_POINT = doEcDh(termPri, chipPubKey, curve)
-
-		// NB secret is just based on 'x'
-		sharedSecret := k.x.Bytes()
-
-		slog.Debug("doCaEcdh", "sharedSecret", BytesToHex(sharedSecret))
-
-		// b) The session keys KSMAC = KDFMAC(K) and KSEnc = KDFEnc(K) derived from K for Secure Messaging.
-		ksEnc = KDF(sharedSecret, KDF_COUNTER_KSENC, caAlgInfo.cipherAlg, caAlgInfo.keySizeBits)
-		ksMac = KDF(sharedSecret, KDF_COUNTER_KSMAC, caAlgInfo.cipherAlg, caAlgInfo.keySizeBits)
-		slog.Debug("doCaEcdh", "ksEnc", BytesToHex(ksEnc), "ksMac", BytesToHex(ksMac))
+	ksEnc, ksMac, err = chipAuth.doGeneralAuthenticate(nfc, curve, termPri, termPub, chipPubKey, caAlgInfo)
+	if err != nil {
+		return err
 	}
 
 	// setup secure-messaging
@@ -405,7 +423,7 @@ var caEcArr []elliptic.Curve = []elliptic.Curve{
 	brainpool.P512r1(),
 }
 
-func getECCurveForSpecifiedDomain(specDomain *ECSpecifiedDomain) (elliptic.Curve, error) {
+func getECCurveForSpecifiedDomain(specDomain *ECSpecifiedDomain) (*elliptic.Curve, error) {
 	// Technically we should support 'total' cryptographic agility and allow the MRTD to
 	// dictate any DH/ECDH parameters of its choosing. However, it's more likely that MRTDs
 	// are referencing well-known parameters instead of using random (and potentially unsafe)
@@ -420,7 +438,7 @@ func getECCurveForSpecifiedDomain(specDomain *ECSpecifiedDomain) (elliptic.Curve
 
 		// match using the 'prime field' (P)
 		if slices.Equal(ec.Params().P.Bytes(), specDomain.FieldId.Parameters.Bytes[1:]) { // NB skip 1st byte
-			return ec, nil
+			return &ec, nil
 		}
 	}
 
