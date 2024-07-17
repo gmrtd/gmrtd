@@ -96,6 +96,37 @@ func decodeF(f []byte) (m1 []byte, d []byte, hashAlg crypto.Hash, err error) {
 	return
 }
 
+func (activeAuth *ActiveAuth) doGetRandomIfd() []byte {
+	var rndIfd []byte = activeAuth.randomBytesFn(8) // RND.IFD
+	slog.Debug("doGetRandomIfd", "rndIfd", BytesToHex(rndIfd))
+	return rndIfd
+}
+
+func (activeAuth *ActiveAuth) doInternalAuthenticate(nfc *NfcSession, doc *Document, rndIfd []byte) (rspBytes []byte, err error) {
+	var errContext string
+
+	errContext = fmt.Sprintf("dg15:%x,rndIfd:%x", doc.Dg15, rndIfd)
+
+	var cApdu *CApdu = NewCApdu(0, INS_INTERNAL_AUTHENTICATE, 0x00, 0x00, rndIfd, nfc.maxLe)
+
+	var rApdu *RApdu
+
+	rApdu, err = nfc.DoAPDU(cApdu, "AA Internal Authenticate")
+	if err != nil {
+		return nil, fmt.Errorf("(doInternalAuthenticate) Internal Authenticate APDU error: %w (Context:%s)", err, errContext)
+	}
+	errContext = fmt.Sprintf("dg15:%x,rndIfd:%x,rApdu:%s", doc.Dg15, rndIfd, rApdu.String())
+	if !rApdu.IsSuccess() {
+		return nil, fmt.Errorf("(doInternalAuthenticate) Internal-Auth failed (rApduStatus:%04x)", rApdu.Status)
+	}
+
+	slog.Debug("doInternalAuthenticate", "rApdu", rApdu.String())
+
+	rspBytes = bytes.Clone(rApdu.Data)
+
+	return rspBytes, nil
+}
+
 func (activeAuth *ActiveAuth) doActiveAuth(nfc *NfcSession, doc *Document) (err error) {
 	var errContext string
 
@@ -114,77 +145,64 @@ func (activeAuth *ActiveAuth) doActiveAuth(nfc *NfcSession, doc *Document) (err 
 		slog.Debug("doActiveAuth", "SM(pre)", nfc.sm.String())
 	}
 
+	var rndIfd []byte = activeAuth.doGetRandomIfd()
+
+	var intAuthRspBytes []byte
+
+	intAuthRspBytes, err = activeAuth.doInternalAuthenticate(nfc, doc, rndIfd)
+	if err != nil {
+		return err
+	}
+
 	{
-		rndIfd := activeAuth.randomBytesFn(8) // RND.IFD
-
-		errContext = fmt.Sprintf("dg15:%x,rndIfd:%x", doc.Dg15, rndIfd)
-
-		slog.Debug("doActiveAuth", "rndIfd", BytesToHex(rndIfd))
-
-		var cApdu *CApdu = NewCApdu(0, INS_INTERNAL_AUTHENTICATE, 0x00, 0x00, rndIfd, nfc.maxLe)
-
-		rApdu, err := nfc.DoAPDU(cApdu, "AA Internal Authenticate")
+		publicKey, err := x509.ParsePKIXPublicKey(doc.Dg15.SubjectPublicKeyInfoBytes)
 		if err != nil {
-			return fmt.Errorf("(doActiveAuth) Internal Authenticate APDU error: %w (Context:%s)", err, errContext)
-		}
-		errContext = fmt.Sprintf("dg15:%x,rndIfd:%x,rApdu:%s", doc.Dg15, rndIfd, rApdu.String())
-		if !rApdu.IsSuccess() {
-			return fmt.Errorf("(doActiveAuth) Internal-Auth failed (rApduStatus:%04x)", rApdu.Status)
+			return fmt.Errorf("(doActiveAuth) Error parsing SubjectPublicKeyInfo: %w (Context:%s)", err, errContext)
 		}
 
-		slog.Debug("doActiveAuth", "rApdu", rApdu.String())
+		switch publicKey.(type) {
+		case *rsa.PublicKey:
+			{
+				var rsaPubKey *rsa.PublicKey = publicKey.(*rsa.PublicKey)
 
-		{
-			pubInterface, err := x509.ParsePKIXPublicKey(doc.Dg15.SubjectPublicKeyInfoBytes)
-			if err != nil {
-				return fmt.Errorf("(doActiveAuth) Error parsing SubjectPublicKeyInfo: %w (Context:%s)", err, errContext)
-			}
+				// S = rapdu-data
+				s := intAuthRspBytes
 
-			switch pubInterface.(type) {
-			case *rsa.PublicKey:
-				{
-					var rsaPubKey *rsa.PublicKey = pubInterface.(*rsa.PublicKey)
+				f := rsaDecryptWithPublicKey(s, rsaPubKey)
 
-					// S = rapdu-data
-					s := bytes.Clone(rApdu.Data)
-
-					f := rsaDecryptWithPublicKey(s, rsaPubKey)
-
-					m1, d, hashAlg, err := decodeF(f)
-					if err != nil {
-						return fmt.Errorf("(doActiveAuth) decodeF error: %w (Context:%s)", err, errContext)
-					}
-
-					// m is concat of m1 and m2 (rnd-ifd)
-					var expD []byte
-					{
-						m := bytes.Clone(m1)
-						m = append(m, rndIfd...)
-						expD = CryptoHash(hashAlg, m)
-					}
-
-					// verify the hash
-					if !bytes.Equal(d, expD) {
-						return fmt.Errorf("(doActiveAuth) hash mismatch (exp:%x,act:%x) (Context:%s)", expD, d, errContext)
-					}
-
-					// update status to reflect AA was performed
-					doc.ChipAuthStatus = CHIP_AUTH_STATUS_AA
+				m1, d, hashAlg, err := decodeF(f)
+				if err != nil {
+					return fmt.Errorf("(doActiveAuth) decodeF error: %w (Context:%s)", err, errContext)
 				}
-				// TODO - ECDSA is the only other one we expect (as per ICAO-9303p11), but not supported at present
-				/*
-					6.1.2.3 ECDSA
-					For ECDSA, the plain signature format according to [TR-03111] SHALL be used. Only prime curves with uncompressed
-					points SHALL be used. A hash algorithm, whose output length is of the same length or shorter than the length of the
-					ECDSA key in use, SHALL be used. Only SHA-224, SHA-256, SHA-384 or SHA-512 are supported as hash functions.
-					RIPEMD-160 and SHA-1 SHALL NOT be used.
-					The message M to be signed is the nonce RND.IFD provided by the Inspection System.
-				*/
-			default:
-				return fmt.Errorf("(doActiveAuth) unsupported SubjectPublicKeyInfo (Context:%s)", errContext)
-			}
-		}
 
+				// m is concat of m1 and m2 (rnd-ifd)
+				var expD []byte
+				{
+					m := bytes.Clone(m1)
+					m = append(m, rndIfd...)
+					expD = CryptoHash(hashAlg, m)
+				}
+
+				// verify the hash
+				if !bytes.Equal(d, expD) {
+					return fmt.Errorf("(doActiveAuth) hash mismatch (exp:%x,act:%x) (Context:%s)", expD, d, errContext)
+				}
+
+				// update status to reflect AA was performed
+				doc.ChipAuthStatus = CHIP_AUTH_STATUS_AA
+			}
+			// TODO - ECDSA is the only other one we expect (as per ICAO-9303p11), but not supported at present
+			/*
+				6.1.2.3 ECDSA
+				For ECDSA, the plain signature format according to [TR-03111] SHALL be used. Only prime curves with uncompressed
+				points SHALL be used. A hash algorithm, whose output length is of the same length or shorter than the length of the
+				ECDSA key in use, SHALL be used. Only SHA-224, SHA-256, SHA-384 or SHA-512 are supported as hash functions.
+				RIPEMD-160 and SHA-1 SHALL NOT be used.
+				The message M to be signed is the nonce RND.IFD provided by the Inspection System.
+			*/
+		default:
+			return fmt.Errorf("(doActiveAuth) unsupported SubjectPublicKeyInfo (Context:%s)", errContext)
+		}
 	}
 
 	if nfc.sm != nil {
