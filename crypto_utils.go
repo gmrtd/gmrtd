@@ -41,18 +41,23 @@ const (
 
 type RandomBytesFn func(length int) []byte
 
-type KeyGeneratorEcFn func(ec elliptic.Curve) (pri []byte, pub *EC_POINT)
+type KeyGeneratorEcFn func(ec elliptic.Curve) EcKeypair
 
-type EC_POINT struct {
+type EcKeypair struct {
+	pri []byte
+	pub *EcPoint
+}
+
+type EcPoint struct {
 	x *big.Int
 	y *big.Int
 }
 
-func (ec EC_POINT) String() string {
+func (ec EcPoint) String() string {
 	return fmt.Sprintf("(x:%x, y:%x)", ec.x.Bytes(), ec.y.Bytes())
 }
 
-func (ec EC_POINT) Equal(ec2 EC_POINT) bool {
+func (ec EcPoint) Equal(ec2 EcPoint) bool {
 	if !bytes.Equal(ec.x.Bytes(), ec2.x.Bytes()) || !bytes.Equal(ec.y.Bytes(), ec2.y.Bytes()) {
 		return false
 	}
@@ -313,29 +318,34 @@ func RandomBytes(length int) []byte {
 	return out
 }
 
-func KeyGeneratorEc(ec elliptic.Curve) (pri []byte, pub *EC_POINT) {
+func KeyGeneratorEc(ec elliptic.Curve) EcKeypair {
 	var err error
-	pub = new(EC_POINT)
-	pri, pub.x, pub.y, err = elliptic.GenerateKey(ec, rand.Reader)
+	var out EcKeypair
+
+	out.pub = new(EcPoint)
+
+	out.pri, out.pub.x, out.pub.y, err = elliptic.GenerateKey(ec, rand.Reader)
 	if err != nil {
 		log.Panic(err)
 	}
-	slog.Debug("KeyGeneratorEc", "Pri", BytesToHex(pri), "Pub", pub.String())
-	return
+
+	slog.Debug("KeyGeneratorEc", "Pri", BytesToHex(out.pri), "Pub", out.pub.String())
+
+	return out
 }
 
-func encodeX962EcPoint(ec elliptic.Curve, point *EC_POINT) []byte {
+func encodeX962EcPoint(ec elliptic.Curve, point *EcPoint) []byte {
 	return elliptic.Marshal(ec, point.x, point.y)
 }
 
-func decodeX962EcPoint(ec elliptic.Curve, data []byte) *EC_POINT {
-	var point EC_POINT
+func decodeX962EcPoint(ec elliptic.Curve, data []byte) *EcPoint {
+	var point EcPoint
 	point.x, point.y = elliptic.Unmarshal(ec, data)
 	return &point
 }
 
-func doEcDh(localPrivate []byte, remotePublic *EC_POINT, ec elliptic.Curve) *EC_POINT {
-	var point EC_POINT
+func doEcDh(localPrivate []byte, remotePublic *EcPoint, ec elliptic.Curve) *EcPoint {
+	var point EcPoint
 	point.x, point.y = ec.ScalarMult(remotePublic.x, remotePublic.y, localPrivate)
 
 	slog.Debug("doECDH", "Pri", BytesToHex(localPrivate), "Pub", remotePublic, "EC.P", BytesToHex(ec.Params().P.Bytes()), "Res", point)

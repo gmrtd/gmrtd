@@ -46,12 +46,12 @@ func TestChipAuthAT(t *testing.T) {
 	nfc.sm.SetSSC(HexToBytes("000000000000000000000000000000F0"))
 
 	// setup static EC keys for test
-	getTestKeyGenEc := func() func(ec elliptic.Curve) ([]byte, *EC_POINT) {
+	getTestKeyGenEc := func() func(ec elliptic.Curve) EcKeypair {
 		var idx int
 
-		return func(ec elliptic.Curve) (pri []byte, pub *EC_POINT) {
+		return func(ec elliptic.Curve) EcKeypair {
 			var tmpPri *big.Int
-			var tmpPub EC_POINT
+			var tmpPub *EcPoint = new(EcPoint)
 
 			switch idx {
 			case 0:
@@ -64,7 +64,7 @@ func TestChipAuthAT(t *testing.T) {
 
 			idx++
 
-			return tmpPri.Bytes(), &tmpPub
+			return EcKeypair{tmpPri.Bytes(), tmpPub}
 		}
 	}
 
@@ -130,12 +130,12 @@ func TestChipAuthDE(t *testing.T) {
 	nfc.sm.SetSSC(HexToBytes("000000000000000000000000000000BA"))
 
 	// setup static EC keys for test
-	getTestKeyGenEc := func() func(ec elliptic.Curve) ([]byte, *EC_POINT) {
+	getTestKeyGenEc := func() func(ec elliptic.Curve) EcKeypair {
 		var idx int
 
-		return func(ec elliptic.Curve) (pri []byte, pub *EC_POINT) {
+		return func(ec elliptic.Curve) EcKeypair {
 			var tmpPri *big.Int
-			var tmpPub EC_POINT
+			var tmpPub *EcPoint = new(EcPoint)
 
 			switch idx {
 			case 0:
@@ -148,7 +148,7 @@ func TestChipAuthDE(t *testing.T) {
 
 			idx++
 
-			return tmpPri.Bytes(), &tmpPub
+			return EcKeypair{tmpPri.Bytes(), tmpPub}
 		}
 	}
 
@@ -214,12 +214,12 @@ func TestChipAuthMY(t *testing.T) {
 	nfc.sm.SetSSC(HexToBytes("9646c154bfb7be79"))
 
 	// setup static EC keys for test
-	getTestKeyGenEc := func() func(ec elliptic.Curve) ([]byte, *EC_POINT) {
+	getTestKeyGenEc := func() func(ec elliptic.Curve) EcKeypair {
 		var idx int
 
-		return func(ec elliptic.Curve) (pri []byte, pub *EC_POINT) {
+		return func(ec elliptic.Curve) EcKeypair {
 			var tmpPri *big.Int
-			var tmpPub EC_POINT
+			var tmpPub *EcPoint = new(EcPoint)
 
 			switch idx {
 			case 0:
@@ -232,7 +232,7 @@ func TestChipAuthMY(t *testing.T) {
 
 			idx++
 
-			return tmpPri.Bytes(), &tmpPub
+			return EcKeypair{tmpPri.Bytes(), tmpPub}
 		}
 	}
 

@@ -290,12 +290,12 @@ func (paceConfig *PaceConfig) computeAuthToken(key []byte, data []byte) []byte {
 // s: nonce (from chip)
 // Hxy: shared secret (derived earlier from ECDH)
 // ec: elliptic curve (domain parameters)
-func doGenericMappingEC(s []byte, H *EC_POINT, ec elliptic.Curve) *EC_POINT {
+func doGenericMappingEC(s []byte, H *EcPoint, ec elliptic.Curve) *EcPoint {
 	var sGx, sGy *big.Int
 
 	sGx, sGy = ec.ScalarBaseMult(s)
 
-	var out EC_POINT
+	var out EcPoint
 
 	out.x, out.y = ec.Add(sGx, sGy, H.x, H.y)
 
@@ -362,17 +362,15 @@ func doAPDU_MSESetAT(nfc *NfcSession, paceConfig *PaceConfig, passwordType Passw
 //   - exchanges with chip
 //   - generates shared secret
 //   - do generic mapping (and return G)
-func (pace *Pace) mapNonce_GM_ECDH(nfc *NfcSession, domainParams *PACEDomainParams, s []byte) (mapped_g *EC_POINT, pubMapIC *EC_POINT) {
+func (pace *Pace) mapNonce_GM_ECDH(nfc *NfcSession, domainParams *PACEDomainParams, s []byte) (mapped_g *EcPoint, pubMapIC *EcPoint) {
 	slog.Debug("mapNonce_GM_ECDH")
 
 	// generate terminal key (private/public)
-	var termPri []byte
-	var termPub *EC_POINT
-	termPri, termPub = pace.keyGeneratorEc(domainParams.ec)
+	var termKeypair EcKeypair = pace.keyGeneratorEc(domainParams.ec)
 
 	// do public-key exchange to get chip pub-key
 	{
-		reqData := encode_7C_XX(0x81, encodeX962EcPoint(domainParams.ec, termPub))
+		reqData := encode_7C_XX(0x81, encodeX962EcPoint(domainParams.ec, termKeypair.pub))
 
 		rApdu := nfc.GeneralAuthenticate(true, reqData)
 		if !rApdu.IsSuccess() {
@@ -386,7 +384,7 @@ func (pace *Pace) mapNonce_GM_ECDH(nfc *NfcSession, domainParams *PACEDomainPara
 	//
 	// Shared Secret H
 	//
-	var termShared *EC_POINT = doEcDh(termPri, pubMapIC, domainParams.ec)
+	var termShared *EcPoint = doEcDh(termKeypair.pri, pubMapIC, domainParams.ec)
 	slog.Debug("mapNonce_GM_ECDH", "termShared", termShared.String())
 
 	//
@@ -397,8 +395,8 @@ func (pace *Pace) mapNonce_GM_ECDH(nfc *NfcSession, domainParams *PACEDomainPara
 	return mapped_g, pubMapIC
 }
 
-func (pace *Pace) keyAgreementGmEcDh(nfc *NfcSession, domainParams *PACEDomainParams, G *EC_POINT) (sharedSecret []byte, termPub *EC_POINT, chipPub *EC_POINT) {
-	var termPri []byte
+func (pace *Pace) keyAgreementGmEcDh(nfc *NfcSession, domainParams *PACEDomainParams, G *EcPoint) (sharedSecret []byte, termKeypair EcKeypair, chipPub *EcPoint) {
+	//var termPri []byte
 
 	// reader and chip generate/exchange another set of public-keys
 	//			- needs to be generated using mapped-g.x/y
@@ -409,17 +407,17 @@ func (pace *Pace) keyAgreementGmEcDh(nfc *NfcSession, domainParams *PACEDomainPa
 
 	// generate key based on domain-params
 	// NB ignore public-key as we'll generate later using the mapped generator (Gx/y)
-	termPri, _ = pace.keyGeneratorEc(domainParams.ec)
+	termKeypair = pace.keyGeneratorEc(domainParams.ec)
+	termKeypair.pub = new(EcPoint) // reset public-key
 
 	// generate the public-key, using the mapped generator (Gxy)
-	termPub = new(EC_POINT)
-	termPub.x, termPub.y = domainParams.ec.ScalarMult(G.x, G.y, termPri)
+	termKeypair.pub.x, termKeypair.pub.y = domainParams.ec.ScalarMult(G.x, G.y, termKeypair.pri)
 
-	slog.Debug("keyAgreementGmEcDh", "termPri", BytesToHex(termPri), "termPub", termPub.String())
+	slog.Debug("keyAgreementGmEcDh", "termPri", BytesToHex(termKeypair.pri), "termPub", termKeypair.pub.String())
 
 	// exchange terminal public-key with chip and get chip's public-key
 	{
-		reqData := encode_7C_XX(0x83, encodeX962EcPoint(domainParams.ec, termPub))
+		reqData := encode_7C_XX(0x83, encodeX962EcPoint(domainParams.ec, termKeypair.pub))
 
 		rApdu := nfc.GeneralAuthenticate(true, reqData)
 		if !rApdu.IsSuccess() {
@@ -431,25 +429,25 @@ func (pace *Pace) keyAgreementGmEcDh(nfc *NfcSession, domainParams *PACEDomainPa
 
 	// verify the terminal and chip public-keys are not the same
 	// 9303p11 4.4.1 d) During Diffie-Hellman key agreement, the IC and the inspection system SHOULD check that the two public keys PKDH,IC and PKDH,IFD differ.
-	if termPub.Equal(*chipPub) {
-		log.Panicf("terminal and chip public-keys must not be the same (Term:%s) (Chip:%s)", termPub.String(), chipPub.String())
+	if termKeypair.pub.Equal(*chipPub) {
+		log.Panicf("terminal and chip public-keys must not be the same (Term:%s) (Chip:%s)", termKeypair.pub.String(), chipPub.String())
 	}
 
 	{
-		var term_shared *EC_POINT = doEcDh(termPri, chipPub, domainParams.ec)
+		var termShared *EcPoint = doEcDh(termKeypair.pri, chipPub, domainParams.ec)
 
 		// NB secret is just based on 'x'
-		sharedSecret = term_shared.x.Bytes()
+		sharedSecret = termShared.x.Bytes()
 
 		slog.Debug("keyAgreement_GM_ECDH", "shared-secret", BytesToHex(sharedSecret))
 	}
 
-	return sharedSecret, termPub, chipPub
+	return sharedSecret, termKeypair, chipPub
 }
 
 // performs mutual authentication and sets up secure messaging
 // ecadIC: only populated for CAM
-func (pace *Pace) mutualAuth_GM_ECDH(nfc *NfcSession, paceConfig *PaceConfig, domainParams *PACEDomainParams, sharedSecret []byte, termPub *EC_POINT, chipPub *EC_POINT) (ecadIC []byte) {
+func (pace *Pace) mutualAuth_GM_ECDH(nfc *NfcSession, paceConfig *PaceConfig, domainParams *PACEDomainParams, sharedSecret []byte, termPub *EcPoint, chipPub *EcPoint) (ecadIC []byte) {
 	slog.Debug("mutualAuth_GM_ECDH")
 
 	// derive KSenc / KSmac
@@ -511,7 +509,7 @@ func (pace *Pace) mutualAuth_GM_ECDH(nfc *NfcSession, paceConfig *PaceConfig, do
 	return ecadIC
 }
 
-func getIcPubKeyECForCAM(domainParams *PACEDomainParams, cardSecurity *CardSecurity) *EC_POINT {
+func getIcPubKeyECForCAM(domainParams *PACEDomainParams, cardSecurity *CardSecurity) *EcPoint {
 	slog.Debug("getIcPubKeyECForCAM")
 
 	var caPubKeyInfos []ChipAuthenticationPublicKeyInfo = cardSecurity.SecurityInfos.ChipAuthPubKeyInfos
@@ -538,7 +536,7 @@ func getIcPubKeyECForCAM(domainParams *PACEDomainParams, cardSecurity *CardSecur
 
 // pubMapIC: IC Public Key from earlier mapping operation
 // ecadIC: encrypted chip authentication data (tag:8A) from 'mutual auth' response
-func (pace *Pace) doCamEcdh(nfc *NfcSession, paceConfig *PaceConfig, domainParams *PACEDomainParams, pubMapIC *EC_POINT, ecadIC []byte, doc *Document) {
+func (pace *Pace) doCamEcdh(nfc *NfcSession, paceConfig *PaceConfig, domainParams *PACEDomainParams, pubMapIC *EcPoint, ecadIC []byte, doc *Document) {
 	if paceConfig.mapping != CAM {
 		log.Panicf("Unexpected mapping during CAM processing (Mapping:%d)", paceConfig.mapping)
 	}
@@ -581,9 +579,9 @@ func (pace *Pace) doCamEcdh(nfc *NfcSession, paceConfig *PaceConfig, domainParam
 		//    to find a key that matches the param-id
 
 		// get IC PubKey (EC) for paramId
-		var PK_IC *EC_POINT = getIcPubKeyECForCAM(domainParams, doc.CardSecurity)
+		var PK_IC *EcPoint = getIcPubKeyECForCAM(domainParams, doc.CardSecurity)
 
-		var KA *EC_POINT = doEcDh(CA_IC, PK_IC, domainParams.ec)
+		var KA *EcPoint = doEcDh(CA_IC, PK_IC, domainParams.ec)
 		slog.Debug("doCamEcdh", "KA", KA.String())
 
 		//
@@ -681,16 +679,17 @@ func (pace *Pace) doPACE_GM_CAM(nfc *NfcSession, paceConfig *PaceConfig, domainP
 	switch domainParams.isECDH {
 	case true: // ECDH
 		// map the nonce
-		var mappedG, pubMapIC *EC_POINT
+		var mappedG, pubMapIC *EcPoint
 		mappedG, pubMapIC = pace.mapNonce_GM_ECDH(nfc, domainParams, s)
 
 		// Perform Key Agreement
 		var sharedSecret []byte
-		var kaTermPub, kaChipPub *EC_POINT
-		sharedSecret, kaTermPub, kaChipPub = pace.keyAgreementGmEcDh(nfc, domainParams, mappedG)
+		var kaTermKeypair EcKeypair
+		var kaChipPub *EcPoint
+		sharedSecret, kaTermKeypair, kaChipPub = pace.keyAgreementGmEcDh(nfc, domainParams, mappedG)
 
 		var ecadIC []byte
-		ecadIC = pace.mutualAuth_GM_ECDH(nfc, paceConfig, domainParams, sharedSecret, kaTermPub, kaChipPub)
+		ecadIC = pace.mutualAuth_GM_ECDH(nfc, paceConfig, domainParams, sharedSecret, kaTermKeypair.pub, kaChipPub)
 
 		// Perform Chip Authentication (if applicable)
 		if paceConfig.mapping == CAM {

@@ -30,14 +30,14 @@ func TestDoGenericMappingEC(t *testing.T) {
 
 	s := HexToBytes("3F00C4D39D153F2B2A214A078D899B22")
 
-	var termShared EC_POINT
+	var termShared EcPoint
 
 	termShared.x, _ = new(big.Int).SetString("60332EF2450B5D247EF6D3868397D398852ED6E8CAF6FFEEF6BF85CA57057FD5", 16)
 	termShared.y, _ = new(big.Int).SetString("0840CA7415BAF3E43BD414D35AA4608B93A2CAF3A4E3EA4E82C9C13D03EB7181", 16)
 
-	var mappedG *EC_POINT = doGenericMappingEC(s, &termShared, domainParams.ec)
+	var mappedG *EcPoint = doGenericMappingEC(s, &termShared, domainParams.ec)
 
-	var expMappedG EC_POINT
+	var expMappedG EcPoint
 	expMappedG.x, _ = new(big.Int).SetString("8CED63C91426D4F0EB1435E7CB1D74A46723A0AF21C89634F65A9AE87A9265E2", 16)
 	expMappedG.y, _ = new(big.Int).SetString("8C879506743F8611AC33645C5B985C80B5F09A0B83407C1B6A4D857AE76FE522", 16)
 
@@ -49,12 +49,12 @@ func TestDoGenericMappingEC(t *testing.T) {
 func TestBuild7F49(t *testing.T) {
 	domainParams := getStandardisedDomainParams(13) // 0x0D
 
-	var termPub EC_POINT
+	var termPub EcPoint
 
 	termPub.x, _ = new(big.Int).SetString("2DB7A64C0355044EC9DF190514C625CBA2CEA48754887122F3A5EF0D5EDD301C", 16)
 	termPub.y, _ = new(big.Int).SetString("3556F3B3B186DF10B857B58F6A7EB80F20BA5DC7BE1D43D9BF850149FBB36462", 16)
 
-	var chipPub EC_POINT
+	var chipPub EcPoint
 
 	chipPub.x, _ = new(big.Int).SetString("9E880F842905B8B3181F7AF7CAA9F0EFB743847F44A306D2D28C1D9EC65DF6DB", 16)
 	chipPub.y, _ = new(big.Int).SetString("7764B22277A2EDDC3C265A9F018F9CB852E111B768B326904B59A0193776F094", 16)
@@ -136,12 +136,12 @@ func TestDoPace_GM_ECDH(t *testing.T) {
 	}
 
 	// setup static EC keys for test
-	getTestKeyGenEc := func() func(ec elliptic.Curve) ([]byte, *EC_POINT) {
+	getTestKeyGenEc := func() func(ec elliptic.Curve) EcKeypair {
 		var idx int
 
-		return func(ec elliptic.Curve) (pri []byte, pub *EC_POINT) {
+		return func(ec elliptic.Curve) EcKeypair {
 			var tmpPri *big.Int
-			var tmpPub EC_POINT
+			var tmpPub *EcPoint = new(EcPoint)
 
 			switch idx {
 			case 0:
@@ -160,7 +160,7 @@ func TestDoPace_GM_ECDH(t *testing.T) {
 
 			idx++
 
-			return tmpPri.Bytes(), &tmpPub
+			return EcKeypair{tmpPri.Bytes(), tmpPub}
 		}
 	}
 
@@ -223,12 +223,12 @@ func TestDoPace_GM_ECDH_TDES_CBC_NZ(t *testing.T) {
 	}
 
 	// setup static EC keys for test
-	getTestKeyGenEc := func() func(ec elliptic.Curve) ([]byte, *EC_POINT) {
+	getTestKeyGenEc := func() func(ec elliptic.Curve) EcKeypair {
 		var idx int
 
-		return func(ec elliptic.Curve) (pri []byte, pub *EC_POINT) {
+		return func(ec elliptic.Curve) EcKeypair {
 			var tmpPri *big.Int
-			var tmpPub EC_POINT
+			var tmpPub *EcPoint = new(EcPoint)
 
 			switch idx {
 			case 0:
@@ -247,7 +247,7 @@ func TestDoPace_GM_ECDH_TDES_CBC_NZ(t *testing.T) {
 
 			idx++
 
-			return tmpPri.Bytes(), &tmpPub
+			return EcKeypair{tmpPri.Bytes(), tmpPub}
 		}
 	}
 
@@ -318,12 +318,12 @@ func TestDoPace_CAM_ECDH_DE(t *testing.T) {
 	}
 
 	// setup static EC keys for test
-	getTestKeyGenEc := func() func(ec elliptic.Curve) ([]byte, *EC_POINT) {
+	getTestKeyGenEc := func() func(ec elliptic.Curve) EcKeypair {
 		var idx int
 
-		return func(ec elliptic.Curve) (pri []byte, pub *EC_POINT) {
+		return func(ec elliptic.Curve) EcKeypair {
 			var tmpPri *big.Int
-			var tmpPub EC_POINT
+			var tmpPub *EcPoint = new(EcPoint)
 
 			switch idx {
 			case 0:
@@ -342,7 +342,7 @@ func TestDoPace_CAM_ECDH_DE(t *testing.T) {
 
 			idx++
 
-			return tmpPri.Bytes(), &tmpPub
+			return EcKeypair{tmpPri.Bytes(), tmpPub}
 		}
 	}
 

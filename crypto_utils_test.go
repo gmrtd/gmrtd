@@ -400,13 +400,13 @@ func TestRandomBytes(t *testing.T) {
 }
 
 func TestKeyGeneratorEc(t *testing.T) {
-	pri, pub := KeyGeneratorEc(brainpool.P512r1())
+	keypair := KeyGeneratorEc(brainpool.P512r1())
 
 	// TODO - not a very good test.. better to do sign/verify sequence.. instead of just testing key lengths
-	if (len(pri) > 512/8) ||
-		(len(pub.x.Bytes()) > 512/8) ||
-		(len(pub.y.Bytes()) > 512/8) {
-		t.Errorf("Bad key length (pri:%d, pub.x:%d, pub.y:%d)", len(pri), len(pub.x.Bytes()), len(pub.y.Bytes()))
+	if (len(keypair.pri) > 512/8) ||
+		(len(keypair.pub.x.Bytes()) > 512/8) ||
+		(len(keypair.pub.y.Bytes()) > 512/8) {
+		t.Errorf("Bad key length (pri:%d, pub.x:%d, pub.y:%d)", len(keypair.pri), len(keypair.pub.x.Bytes()), len(keypair.pub.y.Bytes()))
 	}
 }
 
@@ -425,7 +425,7 @@ func TestX962EcPointEncoding(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		var point EC_POINT
+		var point EcPoint
 		point.x = new(big.Int).SetBytes(tc.x)
 		point.y = new(big.Int).SetBytes(tc.y)
 
@@ -447,25 +447,25 @@ func TestDoEcDh(t *testing.T) {
 	testCases := []struct {
 		ec         elliptic.Curve
 		privateKey []byte
-		publicKey  *EC_POINT
-		expected   *EC_POINT
+		publicKey  *EcPoint
+		expected   *EcPoint
 	}{
 		{
 			ec:         brainpool.P256r1(),
 			privateKey: HexToBytes("80ebafc8a51becd4d90bb640ee38c9fd5c12748d28aaa37096b98c4533c4f5f5"),
-			publicKey:  &EC_POINT{x: new(big.Int).SetBytes(HexToBytes("1983917269ac877c0b61544c2c022000d2a5aba723e2d80141e648b40911dc34")), y: new(big.Int).SetBytes(HexToBytes("59761f27480e4b57181a53d8fe1190ea86c939ac14363178caffc621f0f905c3"))},
-			expected:   &EC_POINT{x: new(big.Int).SetBytes(HexToBytes("0346c3ca1a64f5cd62b61d7591020283089496a53db2bb5e900d386e92f4686d")), y: new(big.Int).SetBytes(HexToBytes("233c7356c897aa066ea4e6df7ec3224ab6f771c0ca8efc8f5332138700047516"))},
+			publicKey:  &EcPoint{x: new(big.Int).SetBytes(HexToBytes("1983917269ac877c0b61544c2c022000d2a5aba723e2d80141e648b40911dc34")), y: new(big.Int).SetBytes(HexToBytes("59761f27480e4b57181a53d8fe1190ea86c939ac14363178caffc621f0f905c3"))},
+			expected:   &EcPoint{x: new(big.Int).SetBytes(HexToBytes("0346c3ca1a64f5cd62b61d7591020283089496a53db2bb5e900d386e92f4686d")), y: new(big.Int).SetBytes(HexToBytes("233c7356c897aa066ea4e6df7ec3224ab6f771c0ca8efc8f5332138700047516"))},
 		},
 		{
 			ec:         brainpool.P256r1(),
 			privateKey: HexToBytes("7F4EF07B9EA82FD78AD689B38D0BC78CF21F249D953BC46F4C6E19259C010F99"),
-			publicKey:  &EC_POINT{x: new(big.Int).SetBytes(HexToBytes("824FBA91C9CBE26BEF53A0EBE7342A3BF178CEA9F45DE0B70AA601651FBA3F57")), y: new(big.Int).SetBytes(HexToBytes("30D8C879AAA9C9F73991E61B58F4D52EB87A0A0C709A49DC63719363CCD13C54"))},
-			expected:   &EC_POINT{x: new(big.Int).SetBytes(HexToBytes("60332EF2450B5D247EF6D3868397D398852ED6E8CAF6FFEEF6BF85CA57057FD5")), y: new(big.Int).SetBytes(HexToBytes("0840CA7415BAF3E43BD414D35AA4608B93A2CAF3A4E3EA4E82C9C13D03EB7181"))},
+			publicKey:  &EcPoint{x: new(big.Int).SetBytes(HexToBytes("824FBA91C9CBE26BEF53A0EBE7342A3BF178CEA9F45DE0B70AA601651FBA3F57")), y: new(big.Int).SetBytes(HexToBytes("30D8C879AAA9C9F73991E61B58F4D52EB87A0A0C709A49DC63719363CCD13C54"))},
+			expected:   &EcPoint{x: new(big.Int).SetBytes(HexToBytes("60332EF2450B5D247EF6D3868397D398852ED6E8CAF6FFEEF6BF85CA57057FD5")), y: new(big.Int).SetBytes(HexToBytes("0840CA7415BAF3E43BD414D35AA4608B93A2CAF3A4E3EA4E82C9C13D03EB7181"))},
 		},
 	}
 	for _, tc := range testCases {
 
-		var actual *EC_POINT = doEcDh(tc.privateKey, tc.publicKey, tc.ec)
+		var actual *EcPoint = doEcDh(tc.privateKey, tc.publicKey, tc.ec)
 
 		if !actual.Equal(*tc.expected) {
 			t.Errorf("ECDH error (Exp:%s) (Act:%s)", tc.expected, actual)

@@ -190,7 +190,7 @@ func (chipAuth *ChipAuth) doMseSetAT(nfc *NfcSession, caInfo *ChipAuthentication
 	return err
 }
 
-func (chipAuth *ChipAuth) doGeneralAuthenticate(nfc *NfcSession, curve *elliptic.Curve, termPri []byte, termPub *EC_POINT, chipPubKey *EC_POINT, caAlgInfo *CaAlgorithmInfo) (ksEnc []byte, ksMac []byte, err error) {
+func (chipAuth *ChipAuth) doGeneralAuthenticate(nfc *NfcSession, curve *elliptic.Curve, termKeypair EcKeypair, chipPubKey *EcPoint, caAlgInfo *CaAlgorithmInfo) (ksEnc []byte, ksMac []byte, err error) {
 	// General Authenticate
 	//
 	// INS: 0x86
@@ -204,7 +204,7 @@ func (chipAuth *ChipAuth) doGeneralAuthenticate(nfc *NfcSession, curve *elliptic
 
 	slog.Debug("doCaECdh - doGeneralAuthenticate")
 
-	var rApdu *RApdu = nfc.GeneralAuthenticate(false, encode_7C_XX(0x80, encodeX962EcPoint(*curve, termPub)))
+	var rApdu *RApdu = nfc.GeneralAuthenticate(false, encode_7C_XX(0x80, encodeX962EcPoint(*curve, termKeypair.pub)))
 	if !rApdu.IsSuccess() {
 		return nil, nil, fmt.Errorf("doCaEcdh: General Authenticate failed (Status:%d)", rApdu.Status)
 	}
@@ -216,7 +216,7 @@ func (chipAuth *ChipAuth) doGeneralAuthenticate(nfc *NfcSession, curve *elliptic
 
 	// 3. Both the eMRTD chip and the terminal compute the following:
 	// a) The shared secret K = KA(SKIC, PKDH,IFD, DIC) = KA(SKDH,IFD, PKIC, DIC)
-	var k *EC_POINT = doEcDh(termPri, chipPubKey, *curve)
+	var k *EcPoint = doEcDh(termKeypair.pri, chipPubKey, *curve)
 
 	// NB secret is just based on 'x'
 	sharedSecret := k.x.Bytes()
@@ -247,18 +247,15 @@ func (chipAuth *ChipAuth) doCaEcdh(nfc *NfcSession, caInfo *ChipAuthenticationIn
 	}
 
 	// get the chip's public key
-	var chipPubKey *EC_POINT
+	var chipPubKey *EcPoint
 	{
 		var chipPubKeyBytes []byte = caPubKeyInfo.ChipAuthenticationPublicKey.SubjectPublicKey.Bytes
 		chipPubKey = decodeX962EcPoint(*curve, chipPubKeyBytes)
 	}
 	slog.Debug("doCaEcdh", "chipPubKey", chipPubKey.String())
 
-	var termPri []byte
-	var termPub *EC_POINT
-
 	// generate ephemeral key
-	termPri, termPub = chipAuth.keyGeneratorEc(*curve)
+	var termKeypair EcKeypair = chipAuth.keyGeneratorEc(*curve)
 
 	err = chipAuth.doMseSetAT(nfc, caInfo)
 	if err != nil {
@@ -267,7 +264,7 @@ func (chipAuth *ChipAuth) doCaEcdh(nfc *NfcSession, caInfo *ChipAuthenticationIn
 
 	var ksEnc, ksMac []byte
 
-	ksEnc, ksMac, err = chipAuth.doGeneralAuthenticate(nfc, curve, termPri, termPub, chipPubKey, caAlgInfo)
+	ksEnc, ksMac, err = chipAuth.doGeneralAuthenticate(nfc, curve, termKeypair, chipPubKey, caAlgInfo)
 	if err != nil {
 		return err
 	}
