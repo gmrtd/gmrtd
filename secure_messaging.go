@@ -224,69 +224,67 @@ func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
 
 	// TODO - check status code? error if not success.... otherwise we get errors like tag 8E missing
 
-	{
-		// Response APDU: [DO‘85’ or DO‘87’] [DO‘99’] DO‘8E’.
+	// Response APDU: [DO‘85’ or DO‘87’] [DO‘99’] DO‘8E’.
 
-		tlv := TlvDecode(smRApdu.Data)
+	tlv := TlvDecode(smRApdu.Data)
 
-		tag85or87 := tlv.GetNode(0x85)
-		if !tag85or87.IsValidNode() {
-			tag85or87 = tlv.GetNode(0x87)
-		}
-
-		tag99 := tlv.GetNode(0x99)
-		tag8E := tlv.GetNode(0x8E)
-
-		if !tag8E.IsValidNode() {
-			return nil, fmt.Errorf("tag 0x8E must be present")
-		}
-
-		// verify the MAC
-		{
-			tmpData := make([]byte, 0)
-			tmpData = append(tmpData, sm.ssc...)
-			tmpData = append(tmpData, tlv.GetNode(0x85).Encode()...)
-			tmpData = append(tmpData, tlv.GetNode(0x87).Encode()...)
-			tmpData = append(tmpData, tlv.GetNode(0x99).Encode()...)
-
-			var expMAC []byte
-			if expMAC, err = sm.generateMac(sm.cryptoPad(tmpData)); err != nil {
-				return nil, err
-			}
-
-			if !bytes.Equal(expMAC, tag8E.GetValue()) {
-				slog.Debug("sm.Decode: MAC mismatch", "Exp", BytesToHex(expMAC), "Act", BytesToHex(tag8E.GetValue()))
-				return nil, fmt.Errorf("MAC mismatch (Exp: %x) (Act: %x)", expMAC, tag8E.GetValue())
-			}
-		}
-
-		// decrypt and unpad the data (if applicable)
-		var rapduData []byte
-		if tag85or87.IsValidNode() {
-			tmpBytes := tag85or87.GetValue()
-
-			// field has a leading 'version' byte that needs to be removed (if field is present)
-
-			// verify that 'verison' is 0x01 before removing
-			if tmpBytes[0] != 0x01 {
-				return nil, fmt.Errorf("version not set to 0x01")
-			}
-
-			// remove the leading 'version' byte
-			tmpBytes = tmpBytes[1:]
-
-			rapduData = sm.cryptoUnpad(sm.cbcCrypt(tmpBytes, false))
-		}
-
-		rApduStatus := binary.BigEndian.Uint16(tag99.GetValue())
-
-		// sanity check that insecure/secure status values match
-		if smRApdu.Status != rApduStatus {
-			return nil, fmt.Errorf("rapdu status value mimatch (Insecure:%04x, Secure:%04x)", smRApdu.Status, rApduStatus)
-		}
-
-		rApdu = NewRApdu(rApduStatus, rapduData)
+	tag85or87 := tlv.GetNode(0x85)
+	if !tag85or87.IsValidNode() {
+		tag85or87 = tlv.GetNode(0x87)
 	}
+
+	tag99 := tlv.GetNode(0x99)
+	tag8E := tlv.GetNode(0x8E)
+
+	if !tag8E.IsValidNode() {
+		return nil, fmt.Errorf("tag 0x8E must be present")
+	}
+
+	// verify the MAC
+	{
+		tmpData := make([]byte, 0)
+		tmpData = append(tmpData, sm.ssc...)
+		tmpData = append(tmpData, tlv.GetNode(0x85).Encode()...)
+		tmpData = append(tmpData, tlv.GetNode(0x87).Encode()...)
+		tmpData = append(tmpData, tlv.GetNode(0x99).Encode()...)
+
+		var expMAC []byte
+		if expMAC, err = sm.generateMac(sm.cryptoPad(tmpData)); err != nil {
+			return nil, err
+		}
+
+		if !bytes.Equal(expMAC, tag8E.GetValue()) {
+			slog.Debug("sm.Decode: MAC mismatch", "Exp", BytesToHex(expMAC), "Act", BytesToHex(tag8E.GetValue()))
+			return nil, fmt.Errorf("MAC mismatch (Exp: %x) (Act: %x)", expMAC, tag8E.GetValue())
+		}
+	}
+
+	// decrypt and unpad the data (if applicable)
+	var rapduData []byte
+	if tag85or87.IsValidNode() {
+		tmpBytes := tag85or87.GetValue()
+
+		// field has a leading 'version' byte that needs to be removed (if field is present)
+
+		// verify that 'verison' is 0x01 before removing
+		if tmpBytes[0] != 0x01 {
+			return nil, fmt.Errorf("version not set to 0x01")
+		}
+
+		// remove the leading 'version' byte
+		tmpBytes = tmpBytes[1:]
+
+		rapduData = sm.cryptoUnpad(sm.cbcCrypt(tmpBytes, false))
+	}
+
+	rApduStatus := binary.BigEndian.Uint16(tag99.GetValue())
+
+	// sanity check that insecure/secure status values match
+	if smRApdu.Status != rApduStatus {
+		return nil, fmt.Errorf("rapdu status value mimatch (Insecure:%04x, Secure:%04x)", smRApdu.Status, rApduStatus)
+	}
+
+	rApdu = NewRApdu(rApduStatus, rapduData)
 
 	slog.Debug("Decode", "In", BytesToHex(rApduBytes), "Out", rApdu.String())
 

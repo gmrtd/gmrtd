@@ -623,6 +623,9 @@ func getNonce(nfc *NfcSession, paceConfig *PaceConfig, kKdf []byte) []byte {
 		reqData := []byte{0x7C, 0x00}
 		rApdu := nfc.GeneralAuthenticate(true, reqData)
 		if !rApdu.IsSuccess() {
+			// TODO -this is firing for NZ.. maxRead=65536... RAPDU=6982
+			//			- maybe we can include this as a catch.. and try to decrease max-read
+			//			** needs to be handled somewhere common like doAPDU
 			log.Panicf("getNonce error (Status:%x)", rApdu.Status)
 		}
 
