@@ -447,17 +447,12 @@ func (pace *Pace) keyAgreementGmEcDh(nfc *NfcSession, domainParams *PACEDomainPa
 
 // performs mutual authentication and sets up secure messaging
 // ecadIC: only populated for CAM
-func (pace *Pace) mutualAuth_GM_ECDH(nfc *NfcSession, paceConfig *PaceConfig, domainParams *PACEDomainParams, sharedSecret []byte, termPub *EcPoint, chipPub *EcPoint) (ecadIC []byte) {
-	slog.Debug("mutualAuth_GM_ECDH")
-
+func (pace *Pace) mutualAuthGmEcDh(nfc *NfcSession, paceConfig *PaceConfig, domainParams *PACEDomainParams, sharedSecret []byte, termPub *EcPoint, chipPub *EcPoint) (ecadIC []byte) {
 	// derive KSenc / KSmac
 	var ksEnc, ksMac []byte
-	{
-		ksEnc = KDF(sharedSecret, KDF_COUNTER_KSENC, paceConfig.cipher, paceConfig.keyLengthBits)
-		ksMac = KDF(sharedSecret, KDF_COUNTER_KSMAC, paceConfig.cipher, paceConfig.keyLengthBits)
-
-		slog.Debug("mutualAuth_GM_ECDH", "ksEnc", BytesToHex(ksEnc), "ksMac", BytesToHex(ksMac))
-	}
+	ksEnc = KDF(sharedSecret, KDF_COUNTER_KSENC, paceConfig.cipher, paceConfig.keyLengthBits)
+	ksMac = KDF(sharedSecret, KDF_COUNTER_KSMAC, paceConfig.cipher, paceConfig.keyLengthBits)
+	slog.Debug("mutualAuthGmEcDh", "ksEnc", BytesToHex(ksEnc), "ksMac", BytesToHex(ksMac))
 
 	// generate auth tokens
 	var tIfd, tIc []byte
@@ -689,7 +684,7 @@ func (pace *Pace) doPACE_GM_CAM(nfc *NfcSession, paceConfig *PaceConfig, domainP
 		sharedSecret, kaTermKeypair, kaChipPub = pace.keyAgreementGmEcDh(nfc, domainParams, mappedG)
 
 		var ecadIC []byte
-		ecadIC = pace.mutualAuth_GM_ECDH(nfc, paceConfig, domainParams, sharedSecret, kaTermKeypair.pub, kaChipPub)
+		ecadIC = pace.mutualAuthGmEcDh(nfc, paceConfig, domainParams, sharedSecret, kaTermKeypair.pub, kaChipPub)
 
 		// Perform Chip Authentication (if applicable)
 		if paceConfig.mapping == CAM {
