@@ -53,6 +53,12 @@ type EcPoint struct {
 	y *big.Int
 }
 
+// RFC 3279 (RSA Keys)
+type RsaPublicKey struct {
+	N *big.Int
+	E int
+}
+
 func (ec EcPoint) String() string {
 	return fmt.Sprintf("(x:%x, y:%x)", ec.x.Bytes(), ec.y.Bytes())
 }
@@ -248,16 +254,23 @@ var oidHashAlgorithmToCryptoHash = map[string]crypto.Hash{
 	oidHashAlgorithmSHA224.String(): crypto.SHA224,
 }
 
-// hashes the data using the hash algorithm specified by oid
 // panics if hash algorithm is not supported
-func CryptoHashByOid(oid asn1.ObjectIdentifier, data []byte) []byte {
+func CryptoHashOidToAlg(oid asn1.ObjectIdentifier) crypto.Hash {
 	hash, ok := oidHashAlgorithmToCryptoHash[oid.String()]
 
 	if !ok {
 		log.Panicf("unable to resolve hash algorithm OID (oid: %s)", oid.String())
 	}
 
-	return CryptoHash(hash, data)
+	return hash
+}
+
+// hashes the data using the hash algorithm specified by oid
+// panics if hash algorithm is not supported
+func CryptoHashByOid(oid asn1.ObjectIdentifier, data []byte) []byte {
+	hashAlg := CryptoHashOidToAlg(oid)
+
+	return CryptoHash(hashAlg, data)
 }
 
 func CryptoHash(alg crypto.Hash, data []byte) []byte {

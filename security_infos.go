@@ -89,12 +89,12 @@ type ChipAuthenticationPublicKeyInfo struct {
 
 type SubjectPublicKeyInfo struct {
 	Algorithm        AlgorithmIdentifier
-	SubjectPublicKey asn1.BitString // TODO - pace breaks if we change this!
+	SubjectPublicKey asn1.BitString
 }
 
 type AlgorithmIdentifier struct {
 	Algorithm  asn1.ObjectIdentifier
-	Parameters asn1.RawValue //int `asn1:"optional"` // nil if not present
+	Parameters asn1.RawValue `asn1:"optional"`
 }
 
 type TerminalAuthenticationInfo struct {
@@ -231,8 +231,6 @@ func DecodeSecurityInfos(secInfoData []byte) (secInfos *SecurityInfos, err error
 			len(secInfos.TermAuthInfos) +
 			len(secInfos.EfDirInfos) +
 			len(secInfos.UnhandledInfos)
-
-	//log.Printf("SecInfos:\n%+v", secInfos)
 
 	return secInfos, nil
 }

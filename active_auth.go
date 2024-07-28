@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto"
 	"crypto/rsa"
-	"crypto/x509"
 	"fmt"
 	"log"
 	"log/slog"
@@ -155,15 +154,16 @@ func (activeAuth *ActiveAuth) doActiveAuth(nfc *NfcSession, doc *Document) (err 
 	}
 
 	{
-		publicKey, err := x509.ParsePKIXPublicKey(doc.Dg15.SubjectPublicKeyInfoBytes)
-		if err != nil {
-			return fmt.Errorf("(doActiveAuth) Error parsing SubjectPublicKeyInfo: %w (Context:%s)", err, errContext)
-		}
+		var subPubKeyInfo SubjectPublicKeyInfo = asn1decodeSubjectPublicKeyInfo(doc.Dg15.SubjectPublicKeyInfoBytes)
 
-		switch publicKey.(type) {
-		case *rsa.PublicKey:
+		switch subPubKeyInfo.Algorithm.Algorithm.String() {
+		case oidRsaEncryption.String():
 			{
-				var rsaPubKey *rsa.PublicKey = publicKey.(*rsa.PublicKey)
+				var rsaPubKey *rsa.PublicKey
+				{
+					var pubKey *RsaPublicKey = subPubKeyInfo.GetRsaPubKey()
+					rsaPubKey = &rsa.PublicKey{N: pubKey.N, E: pubKey.E}
+				}
 
 				// S = rapdu-data
 				s := intAuthRspBytes
@@ -191,7 +191,6 @@ func (activeAuth *ActiveAuth) doActiveAuth(nfc *NfcSession, doc *Document) (err 
 				// update status to reflect AA was performed
 				doc.ChipAuthStatus = CHIP_AUTH_STATUS_AA
 			}
-			// TODO - ECDSA is the only other one we expect (as per ICAO-9303p11), but not supported at present
 			/*
 				6.1.2.3 ECDSA
 				For ECDSA, the plain signature format according to [TR-03111] SHALL be used. Only prime curves with uncompressed
@@ -201,7 +200,7 @@ func (activeAuth *ActiveAuth) doActiveAuth(nfc *NfcSession, doc *Document) (err 
 				The message M to be signed is the nonce RND.IFD provided by the Inspection System.
 			*/
 		default:
-			return fmt.Errorf("(doActiveAuth) unsupported SubjectPublicKeyInfo (Context:%s)", errContext)
+			return fmt.Errorf("(doActiveAuth) unsupported SubjectPublicKeyInfo (OID:%s) (Context:%s)", subPubKeyInfo.Algorithm.Algorithm.String(), errContext)
 		}
 	}
 

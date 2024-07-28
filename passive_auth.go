@@ -1,11 +1,45 @@
 package gmrtd
 
-func MrtdPassiveAuth(doc *Document) {
-	// TODO - NOT IMPLEMENTED
-	//
-	// - verify DG hashes
-	// - verify content hssh against public key in certificate
-	// - verify certificsate chain ties to trusted root
-	//
-	// - also need to verify CardSecurity if it's present, as it's also a SignedData object
+import "fmt"
+
+// TODO - rename? DoPassiveAuth?
+func MrtdPassiveAuth(doc *Document) error {
+	var err error
+
+	// NB currently assumes that EF.SOD DG hashes have been verified earlier
+	//		- this is currently done in reader.readDGs()
+
+	/*
+	* verify EF.SOD (mandatory)
+	 */
+	if doc.Sod == nil {
+		return fmt.Errorf("mandatory file EF.SOD is missing")
+	} else {
+		var valid bool
+
+		valid, err = doc.Sod.SD.SD2.Verify()
+		if err != nil {
+			return fmt.Errorf("unable to verify SignedData (SOD): %w", err)
+		}
+		if !valid {
+			return fmt.Errorf("failed to verify SignedData (SOD): %w", err)
+		}
+	}
+
+	/*
+	* verify CardSecurity (if present)
+	 */
+	if doc.CardSecurity != nil {
+		var valid bool
+
+		valid, err = doc.CardSecurity.SD.SD2.Verify()
+		if err != nil {
+			return fmt.Errorf("unable to verify SignedData (CardSecurity): %w", err)
+		}
+		if !valid {
+			return fmt.Errorf("failed to verify SignedData (CardSecurity): %w", err)
+		}
+	}
+
+	return nil
 }

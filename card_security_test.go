@@ -1,6 +1,8 @@
 package gmrtd
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestNewCardSecurityNoData(t *testing.T) {
 	if cardSec, err := NewCardSecurity(nil); cardSec != nil || err != nil {
@@ -33,11 +35,19 @@ func TestNewCardSecurityDE(t *testing.T) {
 
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
-	}
-
-	if cardSecurity == nil {
+	} else if cardSecurity == nil {
 		t.Errorf("CardSecurity expected")
 	}
 
-	// TODO - other checks
+	if cardSecurity != nil {
+		var validSignedData bool
+		validSignedData, err = cardSecurity.SD.SD2.Verify()
+		if err != nil {
+			t.Errorf("Error verifying SignedData: %s", err)
+		} else if !validSignedData {
+			t.Errorf("SignedData could NOT be verified")
+		}
+	}
+
+	// TODO - check securityInfos?
 }

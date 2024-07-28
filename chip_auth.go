@@ -237,21 +237,10 @@ func (chipAuth *ChipAuth) doGeneralAuthenticate(nfc *NfcSession, curve *elliptic
 func (chipAuth *ChipAuth) doCaEcdh(nfc *NfcSession, caInfo *ChipAuthenticationInfo, caAlgInfo *CaAlgorithmInfo, caPubKeyInfo *ChipAuthenticationPublicKeyInfo) (err error) {
 	slog.Debug("doCaEcdh", "OID", caInfo.Protocol.String())
 
-	specDomain := parseECSpecifiedDomain(&(caPubKeyInfo.ChipAuthenticationPublicKey.Algorithm))
-
 	var curve *elliptic.Curve
-
-	curve, err = getECCurveForSpecifiedDomain(specDomain)
-	if err != nil {
-		return err
-	}
-
-	// get the chip's public key
 	var chipPubKey *EcPoint
-	{
-		var chipPubKeyBytes []byte = caPubKeyInfo.ChipAuthenticationPublicKey.SubjectPublicKey.Bytes
-		chipPubKey = decodeX962EcPoint(*curve, chipPubKeyBytes)
-	}
+	curve, chipPubKey = caPubKeyInfo.ChipAuthenticationPublicKey.GetEcCurveAndPubKey()
+
 	slog.Debug("doCaEcdh", "chipPubKey", chipPubKey.String())
 
 	// generate ephemeral key
@@ -345,6 +334,8 @@ func (chipAuth *ChipAuth) doCaEcdh(nfc *NfcSession, caInfo *ChipAuthenticationIn
 
 // TODO - consider aligning above to RFC-3279.. ECParameters ?
 
+// TODO - following xcode could be moved to a generic crypto module
+
 type ECCurve struct {
 	A    []byte
 	B    []byte
@@ -356,6 +347,8 @@ type ECField struct {
 	Parameters asn1.RawValue
 }
 
+// TODO - looks like this is the inner part of SubjectPublicKeyInfo (used by ActiveAuth/PassiveAuth)
+//   - maybe we can generalise this code and use the get function to get the key we require
 type ECSpecifiedDomain struct {
 	Raw      asn1.RawContent
 	Version  int
@@ -368,6 +361,7 @@ type ECSpecifiedDomain struct {
 }
 
 // parse ecPublicKey ASN1 object (aka EC Specified Domain)
+// TODO - this looks like SubjectPublicKeyInfo... also required in SOD... this is just specific to EC.. or at least the curve part of it
 func parseECSpecifiedDomain(algIdentifier *AlgorithmIdentifier) (out *ECSpecifiedDomain) {
 	slog.Debug("parseECSpecifiedDomain", "Algorithm Identifier", algIdentifier)
 
@@ -425,6 +419,18 @@ func getECCurveForSpecifiedDomain(specDomain *ECSpecifiedDomain) (*elliptic.Curv
 	// dictate any DH/ECDH parameters of its choosing. However, it's more likely that MRTDs
 	// are referencing well-known parameters instead of using random (and potentially unsafe)
 	// settings, so we intentionally support a limited subset and will evaluate this over time.
+	//
+	// e.g. if OID = id-ecPublicKey
+	//		then get the curve (as here)
+	//		and then get/set the public key
+	//
+	// SubjectPublicKeyInfo is specified in x509, but basically
+	//	algorithmIdentifier (OID=id-ecPublicKey, params=specifiedDomain)
+	//	params? public key
+	//
+	// SubjectPublicKeyInfo  ::=  SEQUENCE  {
+	//    algorithm            AlgorithmIdentifier,
+	//    subjectPublicKey     BIT STRING  }
 
 	slog.Debug("getECCurveForSpecifiedDomain", "Params", BytesToHex(specDomain.FieldId.Parameters.Bytes))
 
@@ -436,8 +442,49 @@ func getECCurveForSpecifiedDomain(specDomain *ECSpecifiedDomain) (*elliptic.Curv
 		// match using the 'prime field' (P)
 		if slices.Equal(ec.Params().P.Bytes(), specDomain.FieldId.Parameters.Bytes[1:]) { // NB skip 1st byte
 			return &ec, nil
+			// TODO - may want to log the selected curve
 		}
 	}
 
 	return nil, fmt.Errorf("unsupported CA EC (Params:%x) (Raw:%x)", specDomain.FieldId.Parameters.Bytes, specDomain.Raw)
+}
+
+func (subPubKeyInfo *SubjectPublicKeyInfo) GetEcCurveAndPubKey() (curve *elliptic.Curve, pubKey *EcPoint) {
+	/*
+	* Note: We avoid using 'ParsePKIXPublicKey' as it follows PKIX standard and only allows names curves,
+	*       but passports tends to use specified curves (i.e. curve parameters, even if corresponding to well-known curves)
+	 */
+
+	var err error
+
+	// TODO - check OID indicates EC-Key
+
+	specDomain := parseECSpecifiedDomain(&subPubKeyInfo.Algorithm)
+
+	curve, err = getECCurveForSpecifiedDomain(specDomain)
+	if err != nil {
+		log.Panicf("(SubjectPublicKeyInfo.GetEcCurveAndPubKey) Unexpected ASN1 parsing error: %s", err)
+	}
+
+	// get the chip's public key
+	{
+		var chipPubKeyBytes []byte = subPubKeyInfo.SubjectPublicKey.Bytes
+		pubKey = decodeX962EcPoint(*curve, chipPubKeyBytes)
+	}
+
+	return curve, pubKey
+}
+
+func (subPubKeyInfo *SubjectPublicKeyInfo) GetRsaPubKey() *RsaPublicKey {
+	var err error
+	var out RsaPublicKey
+
+	// TODO - check that OID=RsaEncryption
+
+	err = parseAsn1(subPubKeyInfo.SubjectPublicKey.Bytes, false, &out)
+	if err != nil {
+		log.Panicf("(SubjectPublicKeyInfo.GetRsaPubKey) Unexpected ASN1 parsing error: %s", err)
+	}
+
+	return &out
 }

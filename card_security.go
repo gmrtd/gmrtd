@@ -8,6 +8,7 @@ import (
 
 type CardSecurity struct {
 	RawData       []byte
+	SD            *SignedData
 	SecurityInfos *SecurityInfos
 }
 
@@ -32,6 +33,8 @@ func NewCardSecurity(data []byte) (out *CardSecurity, err error) {
 		if err != nil {
 			return nil, err
 		}
+
+		out.SD = sd
 
 		// verify the content-type is as expected
 		if !sd.SD2.Content.EContentType.Equal(oidSecurityObject) {
