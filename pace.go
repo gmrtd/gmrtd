@@ -357,13 +357,13 @@ func doAPDU_MSESetAT(nfc *NfcSession, paceConfig *PaceConfig, passwordType Passw
 	return nil
 }
 
-// mapNonce(EC)
+// mapNonce(GM-EC)
 //   - creates keypair
 //   - exchanges with chip
 //   - generates shared secret
 //   - do generic mapping (and return G)
-func (pace *Pace) mapNonce_GM_ECDH(nfc *NfcSession, domainParams *PACEDomainParams, s []byte) (mapped_g *EcPoint, pubMapIC *EcPoint) {
-	slog.Debug("mapNonce_GM_ECDH")
+func (pace *Pace) mapNonceGmEcDh(nfc *NfcSession, domainParams *PACEDomainParams, s []byte) (mapped_g *EcPoint, pubMapIC *EcPoint) {
+	slog.Debug("mapNonceGmEcDh", "s", BytesToHex(s))
 
 	// generate terminal key (private/public)
 	var termKeypair EcKeypair = pace.keyGeneratorEc(domainParams.ec)
@@ -378,14 +378,14 @@ func (pace *Pace) mapNonce_GM_ECDH(nfc *NfcSession, domainParams *PACEDomainPara
 		}
 
 		pubMapIC = decodeX962EcPoint(domainParams.ec, decode_7C_XX(0x82, rApdu.Data))
-		slog.Debug("mapNonce_GM_ECDH", "pubMapIC", pubMapIC.String())
+		slog.Debug("mapNonceGmEcDh", "pubMapIC", pubMapIC.String())
 	}
 
 	//
 	// Shared Secret H
 	//
 	var termShared *EcPoint = doEcDh(termKeypair.pri, pubMapIC, domainParams.ec)
-	slog.Debug("mapNonce_GM_ECDH", "termShared", termShared.String())
+	slog.Debug("mapNonceGmEcDh", "termShared", termShared.String())
 
 	//
 	// Mapped G
@@ -396,8 +396,6 @@ func (pace *Pace) mapNonce_GM_ECDH(nfc *NfcSession, domainParams *PACEDomainPara
 }
 
 func (pace *Pace) keyAgreementGmEcDh(nfc *NfcSession, domainParams *PACEDomainParams, G *EcPoint) (sharedSecret []byte, termKeypair EcKeypair, chipPub *EcPoint) {
-	//var termPri []byte
-
 	// reader and chip generate/exchange another set of public-keys
 	//			- needs to be generated using mapped-g.x/y
 	//			- new keys for terminal
@@ -439,7 +437,7 @@ func (pace *Pace) keyAgreementGmEcDh(nfc *NfcSession, domainParams *PACEDomainPa
 		// NB secret is just based on 'x'
 		sharedSecret = termShared.x.Bytes()
 
-		slog.Debug("keyAgreement_GM_ECDH", "shared-secret", BytesToHex(sharedSecret))
+		slog.Debug("keyAgreementGmEcDh", "shared-secret", BytesToHex(sharedSecret))
 	}
 
 	return sharedSecret, termKeypair, chipPub
@@ -556,11 +554,11 @@ func (pace *Pace) doCamEcdh(nfc *NfcSession, paceConfig *PaceConfig, domainParam
 	}
 
 	// decrypt the data we got earlier...
-	var CA_IC []byte
+	var caIC []byte
 	{
 		// TODO - variable names? (and ecad)
-		CA_IC = ISO9797Method2Unpad(CryptCBC(blockCipher, iv, ecadIC, false))
-		slog.Debug("doCamEcdh", "CA-IC", BytesToHex(CA_IC))
+		caIC = ISO9797Method2Unpad(CryptCBC(blockCipher, iv, ecadIC, false))
+		slog.Debug("doCamEcdh", "CA-IC", BytesToHex(caIC))
 	}
 
 	// 4.4.3.5.2 Verification by the terminal
@@ -574,9 +572,9 @@ func (pace *Pace) doCamEcdh(nfc *NfcSession, paceConfig *PaceConfig, domainParam
 		//    to find a key that matches the param-id
 
 		// get IC PubKey (EC) for paramId
-		var PK_IC *EcPoint = getIcPubKeyECForCAM(domainParams, doc.CardSecurity)
+		var pkIC *EcPoint = getIcPubKeyECForCAM(domainParams, doc.CardSecurity)
 
-		var KA *EcPoint = doEcDh(CA_IC, PK_IC, domainParams.ec)
+		var KA *EcPoint = doEcDh(caIC, pkIC, domainParams.ec)
 		slog.Debug("doCamEcdh", "KA", KA.String())
 
 		//
@@ -675,7 +673,7 @@ func (pace *Pace) doPACE_GM_CAM(nfc *NfcSession, paceConfig *PaceConfig, domainP
 	case true: // ECDH
 		// map the nonce
 		var mappedG, pubMapIC *EcPoint
-		mappedG, pubMapIC = pace.mapNonce_GM_ECDH(nfc, domainParams, s)
+		mappedG, pubMapIC = pace.mapNonceGmEcDh(nfc, domainParams, s)
 
 		// Perform Key Agreement
 		var sharedSecret []byte

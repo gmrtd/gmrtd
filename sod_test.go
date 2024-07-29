@@ -100,6 +100,7 @@ func TestNewSod(t *testing.T) {
 
 		if sod == nil {
 			t.Errorf("SOD expected")
+			break
 		}
 
 		if sod.ldsVersion() != tc.expLdsVersion {

@@ -114,9 +114,11 @@ func (activeAuth *ActiveAuth) doInternalAuthenticate(nfc *NfcSession, doc *Docum
 	if err != nil {
 		return nil, fmt.Errorf("(doInternalAuthenticate) Internal Authenticate APDU error: %w (Context:%s)", err, errContext)
 	}
+
 	errContext = fmt.Sprintf("dg15:%x,rndIfd:%x,rApdu:%s", doc.Dg15, rndIfd, rApdu.String())
+
 	if !rApdu.IsSuccess() {
-		return nil, fmt.Errorf("(doInternalAuthenticate) Internal-Auth failed (rApduStatus:%04x)", rApdu.Status)
+		return nil, fmt.Errorf("(doInternalAuthenticate) Internal-Auth failed (rApduStatus:%04x) (Context:%s)", rApdu.Status, errContext)
 	}
 
 	slog.Debug("doInternalAuthenticate", "rApdu", rApdu.String())
