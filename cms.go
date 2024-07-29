@@ -248,20 +248,22 @@ func (sd *SignedData2) Verify() (bool, error) {
 	for siIdx := 0; siIdx < len(sd.SignerInfos); siIdx++ {
 		var si *SignerInfo = &(sd.SignerInfos[siIdx])
 
-		// TODO - verify authenticated attributed
-		//			1. check we have 'contentType' set to match content seen earlier
-		//			2. get id-messageDigest.. compute content hash and verify match
-		//
-		//		TODO - attribute helper function to get attribute matching objectId
 		aaContentType := si.AuthenticatedAttributes.GetByOID(oidContentType)
 		aaMessageDigest := si.AuthenticatedAttributes.GetByOID(oidMessageDigest)
-		// TODO - error if aaContentType / aaMessageDigest are nil?
+		if aaContentType == nil || aaMessageDigest == nil {
+			return false, fmt.Errorf("(Verify) Mandatory Authicated-Attributes missing (Content-Type and/or Message-Digest)")
+		}
 
 		var aaContentTypeOID asn1.ObjectIdentifier = asn1decodeOid(aaContentType.Values.Bytes)
 		var aaMessageDigestHash []byte = asn1decodeBytes(aaMessageDigest.Values.Bytes)
 
 		slog.Debug("Verify", "AA Content-Type", aaContentTypeOID.String())
 		slog.Debug("Verify", "AA Message-Digest", BytesToHex(aaMessageDigestHash))
+
+		// verify Content OID matches Authenticated-Attribute (Content Type)
+		if !aaContentTypeOID.Equal(sd.Content.EContentType) {
+			return false, fmt.Errorf("(Verify) Content-Type-OID (%s) differs to Authenticated-Attribute (%s)", sd.Content.EContentType.String(), aaContentTypeOID.String())
+		}
 
 		var contentHash []byte = CryptoHashByOid(si.DigestAlgorithm.Algorithm, sd.Content.EContent)
 		slog.Debug("Verify", "ContentHash", BytesToHex(contentHash))
