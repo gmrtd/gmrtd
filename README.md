@@ -25,10 +25,10 @@ The following are sample documents that have been read:
 |🇦🇹 Austria<br/>(P,2023)|<sub>PACE-ECDH-GM-AES-CBC-CMAC-128<br/>brainpoolP256r1</sub>|<sub>CA-ECDH-AES-CBC-CMAC-128<br/>brainpoolP256r1</sub>|Yes|0107|
 |🇫🇮 Finland<br/>(I,2023)|<sub>PACE-ECDH-GM-AES-CBC-CMAC-256<br/>brainpoolP384r1</sub>|<sub>PACE-ECDH-CAM-AES-CBC-CMAC-256<br/>brainpoolP384r1</sub>|?|0108|
 |🇩🇪 Germany<br/>(P,2023)|<sub>PACE-ECDH-GM-AES-CBC-CMAC-128<br/>brainpoolP256r1</sub>|<sub>PACE-ECDH-CAM-AES-CBC-CMAC-128<br/>brainpoolP256r1<br/>CA-ECDH-AES-CBC-CMAC-128<br/>brainpoolP256r1</sub>|Yes|0108|
-|🇲🇾 Malaysia|n/a (BAC)|<sub>CA-ECDH-3DES-CBC-CBC<br/>brainpoolP256r1</sub>|Yes|0107|
+|🇲🇾 Malaysia<br/>(P,2023)|n/a (BAC)|<sub>CA-ECDH-3DES-CBC-CBC<br/>brainpoolP256r1</sub>|Yes|0107|
 |🇳🇿 New Zealand<br/>(P,2017)|<sub>PACE-ECDH-GM-3DES-CBC-CBC<br/>brainpoolP256r1</sub>|AA-rsaEncryption|No|0107|
 |🇷🇺 Russia<br/>(P,2020)|n/a (BAC)|<sub>CA-ECDH-3DES-CBC-CBC<br/>secp192</sub>|?|0107|
-|🇸🇬 Singapore<br/>(PA,2023)|<sub>PACE-ECDH-GM-AES-CBC-CMAC-256</sub><br/>brainpoolP256r1|n/a|Yes|0108|
+|🇸🇬 Singapore<br/>(PA,2023)|<sub>PACE-ECDH-GM-AES-CBC-CMAC-256<br/>brainpoolP256r1</sub>|n/a|Yes|0108|
 |🇬🇧 United Kingdom<br/>(P,2021)|<sub>PACE-ECDH-GM-AES-CBC-CMAC-256<br/>secp256r1</sub>|<sub>CA-ECDH-AES-CBC-CMAC-256<br/>secp256r1</sub>|?|0108|
 |🇺🇸 United States<br/>(P,2021)|n/a (BAC)|n/a|?|0107|
 
