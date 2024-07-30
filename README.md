@@ -15,3 +15,11 @@ Go library for reading Machine Readable Travel Documents (MRTDs), such as Passpo
 As specified by the [International Civil Aviation Organization](https://www.icao.int) (ICAO), in [Doc Series 9303](https://www.icao.int/publications/pages/publication.aspx?docnum=9303).
 
 Demo application for use with a PCSC NFC Reader is available [here](https://github.com/gmrtd/pcsc-reader).
+
+# Contributors
+
+<a href="https://github.com/gmrtd/gmrtd/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=gmrtd/gmrtd" />
+</a>
+
+Made with [contrib.rocks](https://contrib.rocks).
