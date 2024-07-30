@@ -1,6 +1,9 @@
 /*
 * Cryptographic Message Syntax (CMS) - RFC 5652
-* https://datatracker.ietf.org/doc/html/rfc5652
+* - https://datatracker.ietf.org/doc/html/rfc5652
+*
+* x509
+* - https://datatracker.ietf.org/doc/html/rfc5280
 *
 * NOTE: bare-bones implementation aimed at supporting MRTD use-cases
  */
@@ -111,8 +114,6 @@ func parseSignedData(data []byte) (*SignedData, error) {
 
 	return &signedData, nil
 }
-
-// TODO - x509 as per: https://datatracker.ietf.org/doc/html/rfc5280
 
 func parseCertificate(data []byte) (*Certificate, error) {
 	var err error
@@ -251,7 +252,7 @@ func (sd *SignedData2) Verify() (bool, error) {
 		aaContentType := si.AuthenticatedAttributes.GetByOID(oidContentType)
 		aaMessageDigest := si.AuthenticatedAttributes.GetByOID(oidMessageDigest)
 		if aaContentType == nil || aaMessageDigest == nil {
-			return false, fmt.Errorf("(Verify) Mandatory Authicated-Attributes missing (Content-Type and/or Message-Digest)")
+			return false, fmt.Errorf("(Verify) Expected Authicated-Attribute(s) missing (Content-Type, Message-Digest)")
 		}
 
 		var aaContentTypeOID asn1.ObjectIdentifier = asn1decodeOid(aaContentType.Values.Bytes)
