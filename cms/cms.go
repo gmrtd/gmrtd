@@ -1,12 +1,8 @@
-/*
-* Cryptographic Message Syntax (CMS) - RFC 5652
-* - https://datatracker.ietf.org/doc/html/rfc5652
-*
-* x509
-* - https://datatracker.ietf.org/doc/html/rfc5280
-*
-* NOTE: bare-bones implementation aimed at supporting MRTD use-cases
- */
+// Package cms supports the 'Cryptographic Message Syntax' (CMS) as described in RFC-5652.
+//
+// Support is also provided for X509 (RFC-5652)
+//
+// This package provides basic support for CMS/X509 to support MRTD use-cases.
 package cms
 
 import (

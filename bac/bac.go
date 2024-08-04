@@ -1,3 +1,4 @@
+// Package bac supports the 'Basic Access Control' (BAC) authentication protocol.
 package bac
 
 import (

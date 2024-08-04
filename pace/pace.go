@@ -1,3 +1,4 @@
+// Package pace supports the 'Password Authenticated Connection Establishment' (PACE) authentication protocol.
 package pace
 
 //	4.4.1 Protocol Specification

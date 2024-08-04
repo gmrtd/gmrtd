@@ -1,3 +1,4 @@
+// Package document provides data structures for representing the MRTD document contents.
 package document
 
 import (
