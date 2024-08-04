@@ -90,7 +90,7 @@ func TestChipAuthAT(t *testing.T) {
 	{
 		smExp, err = iso7816.NewSecureMessaging(cryptoutils.AES, utils.HexToBytes("C8E27260EFD3F318D18C080CBF11C7E6"), utils.HexToBytes("A942190365204A21409EB28B52BF9160"))
 		if err != nil {
-			t.Errorf("Unabled to setup smExp")
+			t.Errorf("Unable to setup smExp")
 		}
 		smExp.SetSSC(utils.HexToBytes("00000000000000000000000000000002"))
 	}
@@ -180,7 +180,7 @@ func TestChipAuthDE(t *testing.T) {
 	{
 		smExp, err = iso7816.NewSecureMessaging(cryptoutils.AES, utils.HexToBytes("AF0EEDB52E87B945FC5503B1C6875C1C"), utils.HexToBytes("CEB85BEDCECFF1DD1E25DFB672C4A5BF"))
 		if err != nil {
-			t.Errorf("Unabled to setup smExp")
+			t.Errorf("Unable to setup smExp")
 		}
 		smExp.SetSSC(utils.HexToBytes("00000000000000000000000000000002"))
 	}
@@ -270,7 +270,7 @@ func TestChipAuthMY(t *testing.T) {
 	{
 		smExp, err = iso7816.NewSecureMessaging(cryptoutils.TDES, utils.HexToBytes("75b95468910849cdf1a1a2ae5452ce9b"), utils.HexToBytes("cd0bef85d5a82a7ae0fbc12368a41fef"))
 		if err != nil {
-			t.Errorf("Unabled to setup smExp")
+			t.Errorf("Unable to setup smExp")
 		}
 		smExp.SetSSC(utils.HexToBytes("0000000000000002"))
 	}
