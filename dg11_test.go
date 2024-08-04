@@ -3,6 +3,8 @@ package gmrtd
 import (
 	"reflect"
 	"testing"
+
+	"github.com/gmrtd/gmrtd/utils"
 )
 
 func TestNewDG11NoData(t *testing.T) {
@@ -16,7 +18,7 @@ func TestNewDG11NoData(t *testing.T) {
 }
 
 func TestNewDG11UnhappyRootTag(t *testing.T) {
-	var dg11bytes []byte = HexToBytes("01021234") // valid TLV but invalid DG11, as tag 6B is missing
+	var dg11bytes []byte = utils.HexToBytes("01021234") // valid TLV but invalid DG11, as tag 6B is missing
 
 	dg11, err := NewDG11(dg11bytes)
 
@@ -51,7 +53,7 @@ func TestNewDG11Happy(t *testing.T) {
 	}{
 		{
 			// Note: 6B length changed from 63 to 60.. spec has bad TLV for sample DG11 data!
-			dg11bytes:  HexToBytes("6B605C0A5F0E5F115F425F125F135F0E0D534D4954483C3C4A4F484E3C4A5F110A414E59544F574E3C4D4E5F4217313233204D41504C452052443C414E59544F574E3C4D4E5F120B31363132353535313231325F130C54524156454C3C4147454E54"),
+			dg11bytes:  utils.HexToBytes("6B605C0A5F0E5F115F425F125F135F0E0D534D4954483C3C4A4F484E3C4A5F110A414E59544F574E3C4D4E5F4217313233204D41504C452052443C414E59544F574E3C4D4E5F120B31363132353535313231325F130C54524156454C3C4147454E54"),
 			expDetails: PersonDetails{NameOfHolder: MrzName{Primary: "SMITH", Secondary: "JOHN J"}, PlaceOfBirth: []string{"ANYTOWN", "MN"}, Address: []string{"123 MAPLE RD", "ANYTOWN", "MN"}, Telephone: "16125551212", Profession: "TRAVEL AGENT"},
 		},
 	}

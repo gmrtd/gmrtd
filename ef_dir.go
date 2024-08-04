@@ -1,6 +1,10 @@
 package gmrtd
 
-import "slices"
+import (
+	"slices"
+
+	"github.com/gmrtd/gmrtd/tlv"
+)
 
 type EfDirApplication struct {
 	aid []byte
@@ -23,7 +27,7 @@ func NewEFDIR(data []byte) *EFDIR {
 	out.RawData = slices.Clone(data)
 
 	{
-		var nodes *TlvNodes = TlvDecode(data)
+		var nodes *tlv.TlvNodes = tlv.TlvDecode(data)
 
 		occur := 1
 		for {

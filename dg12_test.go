@@ -3,6 +3,8 @@ package gmrtd
 import (
 	"reflect"
 	"testing"
+
+	"github.com/gmrtd/gmrtd/utils"
 )
 
 func TestNewDG12NoData(t *testing.T) {
@@ -16,7 +18,7 @@ func TestNewDG12NoData(t *testing.T) {
 }
 
 func TestNewDG12UnhappyRootTag(t *testing.T) {
-	var dg12bytes []byte = HexToBytes("01021234") // valid TLV but invalid DG12, as tag 6C is missing
+	var dg12bytes []byte = utils.HexToBytes("01021234") // valid TLV but invalid DG12, as tag 6C is missing
 
 	dg12, err := NewDG12(dg12bytes)
 
@@ -39,7 +41,7 @@ func TestNewDG12Happy(t *testing.T) {
 	// 		5f55: 3230313631313135303133363132 [20161115013612]
 	// 		5f56: 4e2d34393632 [N-4962]
 
-	var dg12bytes []byte = HexToBytes("6C205C045F555F565F550E32303136313131353031333631325F56064E2D34393632")
+	var dg12bytes []byte = utils.HexToBytes("6C205C045F555F565F550E32303136313131353031333631325F56064E2D34393632")
 
 	var expDetails DocumentDetails = DocumentDetails{PersoDateTime: "20161115013612", PersoSystemSerialNumber: "N-4962"}
 

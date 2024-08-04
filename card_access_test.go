@@ -4,6 +4,9 @@ import (
 	"math/big"
 	"reflect"
 	"testing"
+
+	"github.com/gmrtd/gmrtd/oid"
+	"github.com/gmrtd/gmrtd/utils"
 )
 
 func TestNewCardAccessHappyNoData(t *testing.T) {
@@ -17,7 +20,7 @@ func TestNewCardAccessHappyNoData(t *testing.T) {
 }
 
 func TestNewCardAccessUnhappyBadData(t *testing.T) {
-	var cardAccessFile []byte = HexToBytes("0608") // invalid data
+	var cardAccessFile []byte = utils.HexToBytes("0608") // invalid data
 
 	cardAccess, err := NewCardAccess(cardAccessFile)
 
@@ -32,10 +35,10 @@ func TestNewCardAccessUnhappyBadData(t *testing.T) {
 
 func TestNewCardAccessHappyAT(t *testing.T) {
 	// AT
-	var cardAccessFile []byte = HexToBytes("31143012060a04007f0007020204020202010202010d")
+	var cardAccessFile []byte = utils.HexToBytes("31143012060a04007f0007020204020202010202010d")
 
 	expPaceInfos := []PaceInfo{
-		{Protocol: oidPaceEcdhGmAesCbcCmac128, Version: 2, ParameterId: big.NewInt(13)},
+		{Protocol: oid.OidPaceEcdhGmAesCbcCmac128, Version: 2, ParameterId: big.NewInt(13)},
 	}
 
 	cardAccess, err := NewCardAccess(cardAccessFile)
@@ -56,11 +59,11 @@ func TestNewCardAccessHappyAT(t *testing.T) {
 
 func TestNewCardAccessHappyDE(t *testing.T) {
 	// DE
-	var cardAccessFile []byte = HexToBytes("31283012060a04007f0007020204020202010202010d3012060a04007f0007020204060202010202010d")
+	var cardAccessFile []byte = utils.HexToBytes("31283012060a04007f0007020204020202010202010d3012060a04007f0007020204060202010202010d")
 
 	expPaceInfos := []PaceInfo{
-		{Protocol: oidPaceEcdhGmAesCbcCmac128, Version: 2, ParameterId: big.NewInt(13)},
-		{Protocol: oidPaceEcdhCamAesCbcCmac128, Version: 2, ParameterId: big.NewInt(13)},
+		{Protocol: oid.OidPaceEcdhGmAesCbcCmac128, Version: 2, ParameterId: big.NewInt(13)},
+		{Protocol: oid.OidPaceEcdhCamAesCbcCmac128, Version: 2, ParameterId: big.NewInt(13)},
 	}
 
 	cardAccess, err := NewCardAccess(cardAccessFile)

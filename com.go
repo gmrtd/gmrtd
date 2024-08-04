@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"slices"
+
+	"github.com/gmrtd/gmrtd/tlv"
 )
 
 const COMTag = 0x60
@@ -15,7 +17,7 @@ type COM struct {
 	RawData        []byte
 	LdsVersion     string
 	UnicodeVersion string
-	TagList        []TlvTag
+	TagList        []tlv.TlvTag
 }
 
 func NewCOM(data []byte) (*COM, error) {
@@ -27,7 +29,7 @@ func NewCOM(data []byte) (*COM, error) {
 
 	out.RawData = slices.Clone(data)
 
-	nodes := TlvDecode(out.RawData)
+	nodes := tlv.TlvDecode(out.RawData)
 
 	rootNode := nodes.GetNode(COMTag)
 
@@ -48,7 +50,7 @@ func NewCOM(data []byte) (*COM, error) {
 	}
 
 	// Tag list
-	out.TagList = TlvGetTags(bytes.NewBuffer(rootNode.GetNode(0x5C).GetValue()))
+	out.TagList = tlv.TlvGetTags(bytes.NewBuffer(rootNode.GetNode(0x5C).GetValue()))
 
 	return out, nil
 }

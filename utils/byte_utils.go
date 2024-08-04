@@ -1,17 +1,33 @@
-package gmrtd
+package utils
 
 import (
 	"bytes"
+	"encoding/asn1"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"log"
 	"log/slog"
-	"os"
 	"unicode"
 )
 
-func xorBytes(arr1 []byte, arr2 []byte) []byte {
+// isPartiallyParsed - if false then panics if there is any data remaining after the parsing
+func ParseAsn1[T any](data []byte, isPartiallyParsed bool, out *T) (err error) {
+	rest, err := asn1.Unmarshal(data, out)
+	if err != nil {
+		return err
+		//		log.Panic(err)
+	}
+
+	// TODO - isPartiallyParsed - seems opposite to comment?
+	if isPartiallyParsed && (len(rest) > 0) {
+		return fmt.Errorf("unexpected data remaining after ASN1 parsing (Data:%x) (Remaining:%x)", data, rest)
+	}
+
+	return nil
+}
+
+func XorBytes(arr1 []byte, arr2 []byte) []byte {
 	if len(arr1) != len(arr2) {
 		log.Panic("Arrays must be the same length")
 	}
@@ -25,7 +41,7 @@ func xorBytes(arr1 []byte, arr2 []byte) []byte {
 	return out
 }
 
-func verifyByteLength(data []byte, length int) {
+func VerifyByteLength(data []byte, length int) {
 	if len(data) != length {
 		log.Panicf("Incorrect byte slice length (Exp:%d, Act:%d)", length, len(data))
 	}
@@ -55,13 +71,13 @@ func PrintableBytes(data []byte) bool {
 	return true
 }
 
-func getBytesFromBuffer(buf *bytes.Buffer, length int) []byte {
+func GetBytesFromBuffer(buf *bytes.Buffer, length int) []byte {
 	out := make([]byte, length)
 
 	tmp := buf.Next(length)
 
 	if len(tmp) != length {
-		log.Panicf("[getBytesFromBuffer] Req:%d, Act:%d", length, len(tmp))
+		log.Panicf("[GetBytesFromBuffer] Req:%d, Act:%d", length, len(tmp))
 	}
 
 	copy(out, tmp)
@@ -69,20 +85,14 @@ func getBytesFromBuffer(buf *bytes.Buffer, length int) []byte {
 	return out
 }
 
-func getByteFromBuffer(buf *bytes.Buffer) byte {
-	tmp := getBytesFromBuffer(buf, 1)
+func GetByteFromBuffer(buf *bytes.Buffer) byte {
+	tmp := GetBytesFromBuffer(buf, 1)
 	return tmp[0]
-}
-
-func WriteFile(filename string, data []byte) {
-	if err := os.WriteFile(filename, data, 0666); err != nil {
-		log.Panic(err)
-	}
 }
 
 // determines whether the data constitutes an image
 // return: 'true' if image detected, otherwise 'false'
-func isImage(imageBytes []byte) bool {
+func IsImage(imageBytes []byte) bool {
 	// TODO - review following code as it seems to support more variants...
 	//			https://gist.github.com/kvanh/76378993ed5de2182f762e19eccf36a0
 
@@ -100,7 +110,7 @@ func isImage(imageBytes []byte) bool {
 	return true
 }
 
-func bytesToInt(bytes []byte) int {
+func BytesToInt(bytes []byte) int {
 	var out int
 
 	for i := 0; i < len(bytes); i++ {

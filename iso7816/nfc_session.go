@@ -1,4 +1,4 @@
-package gmrtd
+package iso7816
 
 import (
 	"bytes"
@@ -6,6 +6,9 @@ import (
 	"log"
 	"log/slog"
 	"time"
+
+	"github.com/gmrtd/gmrtd/tlv"
+	"github.com/gmrtd/gmrtd/utils"
 )
 
 const INS_MANAGE_SE = byte(0x22)
@@ -26,15 +29,15 @@ const INS_READ_BINARY = byte(0xB0)
 
 type NfcSession struct {
 	transceiver Transceiver
-	sm          *SecureMessaging
-	maxLe       int
-	apduLog     []ApduLog
+	SM          *SecureMessaging
+	MaxLe       int
+	ApduLog     []ApduLog
 }
 
 func NewNfcSession(transceiver Transceiver) *NfcSession {
 	var nfc NfcSession
 	nfc.transceiver = transceiver
-	nfc.maxLe = 256
+	nfc.MaxLe = 256
 	return &nfc
 }
 
@@ -54,13 +57,13 @@ func (nfc *NfcSession) GetChallenge(length int) (out []byte, err error) {
 		return nil, fmt.Errorf("[GetChallenge] Incorrect length (exp:%d, act:%d)", length, len(rapdu.Data))
 	}
 
-	slog.Debug("GetChallenge", "challenge", BytesToHex(rapdu.Data))
+	slog.Debug("GetChallenge", "challenge", utils.BytesToHex(rapdu.Data))
 
 	return rapdu.Data, nil
 }
 
 func (nfc *NfcSession) ExternalAuthenticate(data []byte, le int) (out []byte, err error) {
-	slog.Debug("ExternalAuthenticate", "data", BytesToHex(data), "le", le)
+	slog.Debug("ExternalAuthenticate", "data", utils.BytesToHex(data), "le", le)
 
 	rapdu, err := nfc.DoAPDU(NewCApdu(0x00, INS_EXTERNAL_AUTHENTICATE, 0x00, 0x00, data, le), "External Authenticate")
 	if err != nil {
@@ -75,20 +78,20 @@ func (nfc *NfcSession) ExternalAuthenticate(data []byte, le int) (out []byte, er
 		return nil, fmt.Errorf("[ExternalAuthenticate] Incorrect length (exp:%d, act:%d)", le, len(rapdu.Data))
 	}
 
-	slog.Debug("ExternalAuthenticate", "out", BytesToHex(rapdu.Data))
+	slog.Debug("ExternalAuthenticate", "out", utils.BytesToHex(rapdu.Data))
 
 	return rapdu.Data, nil
 }
 
 func (nfc *NfcSession) GeneralAuthenticate(commandChaining bool, data []byte) *RApdu {
-	slog.Debug("GeneralAuthenticate", "cmdChaining", commandChaining, "data", BytesToHex(data))
+	slog.Debug("GeneralAuthenticate", "cmdChaining", commandChaining, "data", utils.BytesToHex(data))
 
 	cla := 0x00
 	if commandChaining {
 		cla = 0x10
 	}
 
-	cApdu := NewCApdu(byte(cla), INS_GENERAL_AUTHENTICATE, 0x00, 0x00, data, nfc.maxLe)
+	cApdu := NewCApdu(byte(cla), INS_GENERAL_AUTHENTICATE, 0x00, 0x00, data, nfc.MaxLe)
 
 	rApdu, err := nfc.DoAPDU(cApdu, "General Authenticate")
 	if err != nil {
@@ -146,7 +149,7 @@ func (nfc *NfcSession) SelectMF() (err error) {
 func (nfc *NfcSession) SelectEF(fileId uint16) (selected bool, err error) {
 	slog.Debug("SelectEF", "fileId", fileId)
 
-	var capdu *CApdu = NewCApdu(0x00, INS_SELECT, 0x02, 0x0C, UInt16ToBytes(fileId), 0)
+	var capdu *CApdu = NewCApdu(0x00, INS_SELECT, 0x02, 0x0C, utils.UInt16ToBytes(fileId), 0)
 
 	var rApdu *RApdu
 
@@ -170,7 +173,7 @@ func (nfc *NfcSession) SelectEF(fileId uint16) (selected bool, err error) {
 }
 
 func (nfc *NfcSession) SelectAid(aid []byte) (selected bool, err error) {
-	slog.Debug("SelectAid", "aid", BytesToHex(aid))
+	slog.Debug("SelectAid", "aid", utils.BytesToHex(aid))
 
 	rApdu, err := nfc.DoAPDU(NewCApdu(0x00, INS_SELECT, 0x04, 0x0C, aid, 0), fmt.Sprintf("Select AID (%x)", aid))
 	if err != nil {
@@ -235,14 +238,14 @@ func (nfc *NfcSession) ReadFile(fileId uint16) (fileData []byte) {
 	{
 		// extract length (of parent tag) to determine file size
 		tmpBuf := bytes.NewBuffer(fileHeader)
-		TlvGetTag(tmpBuf)
-		totalBytes = TlvGetLength(tmpBuf)
+		tlv.TlvGetTag(tmpBuf)
+		totalBytes = tlv.TlvGetLength(tmpBuf)
 		totalBytes += 4 - tmpBuf.Len()
 	}
 
 	// read remainder of file
 	if fileBuf.Len() < totalBytes {
-		maxReadAmount := nfc.maxLe
+		maxReadAmount := nfc.MaxLe
 
 		for {
 			bytesToRead := min(maxReadAmount, totalBytes-fileBuf.Len())
@@ -270,7 +273,7 @@ func (nfc *NfcSession) ReadFile(fileId uint16) (fileData []byte) {
 		}
 	}
 
-	slog.Debug("ReadFile", "fileId", fileId, "data", BytesToHex(fileData))
+	slog.Debug("ReadFile", "fileId", fileId, "data", utils.BytesToHex(fileData))
 
 	return fileData
 }
@@ -308,13 +311,13 @@ func (apduLog *ApduLog) Finalise(rx []byte) {
 func (nfc *NfcSession) DoAPDU(cApdu *CApdu, desc string) (rApdu *RApdu, err error) {
 	var apduLog *ApduLog
 
-	if nfc.sm == nil {
+	if nfc.SM == nil {
 		rApdu, apduLog, err = nfc.doTransceive(cApdu, desc)
 	} else {
 		apduLog = NewApduLog(desc, cApdu.Encode())
 
 		var encCApdu *CApdu
-		if encCApdu, err = nfc.sm.Encode(cApdu); err != nil {
+		if encCApdu, err = nfc.SM.Encode(cApdu); err != nil {
 			return nil, err
 		}
 
@@ -324,7 +327,7 @@ func (nfc *NfcSession) DoAPDU(cApdu *CApdu, desc string) (rApdu *RApdu, err erro
 			return nil, err
 		}
 
-		rApdu, err = nfc.sm.Decode(encRApdu.Encode())
+		rApdu, err = nfc.SM.Decode(encRApdu.Encode())
 		if err != nil {
 			return nil, err
 		}
@@ -353,5 +356,5 @@ func (nfc *NfcSession) doTransceive(cApdu *CApdu, desc string) (rApdu *RApdu, ap
 }
 
 func (nfc *NfcSession) recordApduLog(log ApduLog) {
-	nfc.apduLog = append(nfc.apduLog, log)
+	nfc.ApduLog = append(nfc.ApduLog, log)
 }

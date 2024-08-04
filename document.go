@@ -1,6 +1,10 @@
 package gmrtd
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/gmrtd/gmrtd/iso7816"
+)
 
 // TODO - 9303p11 indicates that PubKey for regular Chip Auth can be in DG14/CardSecurity
 //
@@ -30,7 +34,7 @@ type Document struct {
 	Dg16           *DG16         // DATA GROUP 16 — Person(s) to Notify (OPTIONAL)
 	ChipAuthStatus ChipAuthStatus
 
-	Apdus []ApduLog // TODO - should move this out of document
+	Apdus []iso7816.ApduLog // TODO - should move this out of document
 }
 
 type ChipAuthStatus int

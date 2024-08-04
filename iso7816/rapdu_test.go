@@ -1,4 +1,4 @@
-package gmrtd
+package iso7816
 
 import (
 	"testing"

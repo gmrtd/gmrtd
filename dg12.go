@@ -6,6 +6,9 @@ import (
 	"log"
 	"log/slog"
 	"slices"
+
+	"github.com/gmrtd/gmrtd/tlv"
+	"github.com/gmrtd/gmrtd/utils"
 )
 
 const DG12Tag = 0x6C
@@ -36,7 +39,7 @@ func NewDG12(data []byte) (*DG12, error) {
 
 	out.RawData = slices.Clone(data)
 
-	nodes := TlvDecode(out.RawData)
+	nodes := tlv.TlvDecode(out.RawData)
 
 	rootNode := nodes.GetNode(DG12Tag)
 
@@ -51,8 +54,8 @@ func NewDG12(data []byte) (*DG12, error) {
 	return out, nil
 }
 
-func (details *DocumentDetails) parseData(node TlvNode) {
-	tagList := TlvGetTags(bytes.NewBuffer(node.GetNode(0x5C).GetValue()))
+func (details *DocumentDetails) parseData(node tlv.TlvNode) {
+	tagList := tlv.TlvGetTags(bytes.NewBuffer(node.GetNode(0x5C).GetValue()))
 
 	for _, tag := range tagList {
 		details.processTag(tag, node)
@@ -60,7 +63,7 @@ func (details *DocumentDetails) parseData(node TlvNode) {
 }
 
 // processes the 'tag', getting the data from the TLV and populating PersonDetails
-func (details *DocumentDetails) processTag(tag TlvTag, node TlvNode) {
+func (details *DocumentDetails) processTag(tag tlv.TlvTag, node tlv.TlvNode) {
 	switch tag {
 	case 0x5F19:
 		details.IssuingAuthority = string(node.GetNode(tag).GetValue())
@@ -68,7 +71,7 @@ func (details *DocumentDetails) processTag(tag TlvTag, node TlvNode) {
 		details.DateOfIssue = string(node.GetNode(tag).GetValue())
 	case 0x5F1A:
 		// special handling as 'Other Persons' are nested within tag A0 and there can be multiple instances
-		numOtherPersons := bytesToInt(node.GetNode(0xA0).GetNode(0x02).GetValue())
+		numOtherPersons := utils.BytesToInt(node.GetNode(0xA0).GetNode(0x02).GetValue())
 		for occur := 1; occur <= numOtherPersons; occur++ {
 			details.OtherPersons = append(details.OtherPersons, parseName(decodeValue(string(node.GetNode(0xA0).GetNodeByOccur(tag, occur).GetValue()))))
 		}

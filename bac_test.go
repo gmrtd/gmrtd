@@ -2,8 +2,11 @@ package gmrtd
 
 import (
 	"bytes"
-	"reflect"
 	"testing"
+
+	"github.com/gmrtd/gmrtd/cryptoutils"
+	"github.com/gmrtd/gmrtd/iso7816"
+	"github.com/gmrtd/gmrtd/utils"
 )
 
 func TestGenerateKseed(t *testing.T) {
@@ -15,7 +18,7 @@ func TestGenerateKseed(t *testing.T) {
 
 	mrzi := "L898902C<369080619406236"
 
-	exp := HexToBytes("239AB9CB282DAF66231DC5A4DF6BFBAE")
+	exp := utils.HexToBytes("239AB9CB282DAF66231DC5A4DF6BFBAE")
 
 	out := NewBAC().generateKseed(mrzi)
 
@@ -43,14 +46,14 @@ func TestBuildRequest(t *testing.T) {
 	//6. Construct command data for EXTERNAL AUTHENTICATE and send command APDU to the eMRTD’s contactless IC:
 	//cmd_data = ‘72C29C2371CC9BDB65B779B8E8D37B29ECC154AA56A8799FAE2F498F76ED92F25F1448EEA8AD90A7’
 
-	kEnc := HexToBytes("AB94FDECF2674FDFB9B391F85D7F76F2")
-	kMac := HexToBytes("7962D9ECE03D1ACD4C76089DCE131543")
+	kEnc := utils.HexToBytes("AB94FDECF2674FDFB9B391F85D7F76F2")
+	kMac := utils.HexToBytes("7962D9ECE03D1ACD4C76089DCE131543")
 
-	rndIcc := HexToBytes("4608F91988702212")
-	rndIfd := HexToBytes("781723860C06C226")
-	kIfd := HexToBytes("0B795240CB7049B01C19B33E32804F0B")
+	rndIcc := utils.HexToBytes("4608F91988702212")
+	rndIfd := utils.HexToBytes("781723860C06C226")
+	kIfd := utils.HexToBytes("0B795240CB7049B01C19B33E32804F0B")
 
-	exp := HexToBytes("72C29C2371CC9BDB65B779B8E8D37B29ECC154AA56A8799FAE2F498F76ED92F25F1448EEA8AD90A7")
+	exp := utils.HexToBytes("72C29C2371CC9BDB65B779B8E8D37B29ECC154AA56A8799FAE2F498F76ED92F25F1448EEA8AD90A7")
 
 	out, err := NewBAC().buildRequest(rndIfd, rndIcc, kIfd, kEnc, kMac)
 	if err != nil {
@@ -64,16 +67,16 @@ func TestBuildRequest(t *testing.T) {
 
 // BAC worked example, taken from ICAO9303 p11 (D.3 AUTHENTICATION AND ESTABLISHMENT OF SESSION KEY)
 func TestDoBAC(t *testing.T) {
-	var nfc *NfcSession
+	var nfc *iso7816.NfcSession
 
 	{
-		var transceiver *MockTransceiver = new(MockTransceiver)
+		var transceiver *iso7816.MockTransceiver = new(iso7816.MockTransceiver)
 
 		// add in expected request/response tuples
 		transceiver.AddReqRsp("0084000008", "4608F919887022129000")
 		transceiver.AddReqRsp("008200002872C29C2371CC9BDB65B779B8E8D37B29ECC154AA56A8799FAE2F498F76ED92F25F1448EEA8AD90A728", "46B9342A41396CD7386BF5803104D7CEDC122B9132139BAF2EEDC94EE178534F2F2D235D074D74499000")
 
-		nfc = NewNfcSession(transceiver)
+		nfc = iso7816.NewNfcSession(transceiver)
 	}
 
 	// setup static randoms for test
@@ -85,9 +88,9 @@ func TestDoBAC(t *testing.T) {
 
 			switch idx {
 			case 0:
-				out = HexToBytes("781723860C06C226")
+				out = utils.HexToBytes("781723860C06C226")
 			case 1:
-				out = HexToBytes("0B795240CB7049B01C19B33E32804F0B")
+				out = utils.HexToBytes("0B795240CB7049B01C19B33E32804F0B")
 			default:
 				t.Errorf("Invalid index (idx:%1d)", idx)
 			}
@@ -117,14 +120,14 @@ func TestDoBAC(t *testing.T) {
 
 	// verify Secure-Messaging was setup correctly
 	{
-		smExp, err := NewSecureMessaging(TDES, HexToBytes("979EC13B1CBFE9DCD01AB0FED307EAE5"), HexToBytes("F1CB1F1FB5ADF208806B89DC579DC1F8"))
+		smExp, err := iso7816.NewSecureMessaging(cryptoutils.TDES, utils.HexToBytes("979EC13B1CBFE9DCD01AB0FED307EAE5"), utils.HexToBytes("F1CB1F1FB5ADF208806B89DC579DC1F8"))
 		if err != nil {
 			t.Errorf("Unexpected error: %s", err)
 		}
 
-		smExp.SetSSC(HexToBytes("887022120C06C226"))
+		smExp.SetSSC(utils.HexToBytes("887022120C06C226"))
 
-		if !reflect.DeepEqual(smExp, nfc.sm) {
+		if !nfc.SM.Equal(*smExp) {
 			t.Errorf("SecureMessaging differs to expected")
 		}
 	}
@@ -133,7 +136,7 @@ func TestDoBAC(t *testing.T) {
 func TestDoBACPasswordTypeCAN(t *testing.T) {
 	// BAC only supports MRZi passwords, so test with CAN
 
-	var nfc *NfcSession = NewNfcSession(new(MockTransceiver))
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(new(iso7816.MockTransceiver))
 
 	var password *Password = NewPasswordCan("123456")
 
@@ -145,7 +148,7 @@ func TestDoBACPasswordTypeCAN(t *testing.T) {
 	}
 
 	// verify SM was NOT setup, as BAC is not supported for password=CAN
-	if nfc.sm != nil {
+	if nfc.SM != nil {
 		t.Errorf("SM should not have been setup")
 	}
 }

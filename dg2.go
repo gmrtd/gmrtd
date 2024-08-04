@@ -19,6 +19,9 @@ import (
 	"io"
 	"log"
 	"slices"
+
+	"github.com/gmrtd/gmrtd/tlv"
+	"github.com/gmrtd/gmrtd/utils"
 )
 
 const DG2Tag = 0x75
@@ -121,7 +124,7 @@ func NewDG2(data []byte) (*DG2, error) {
 
 	out.RawData = slices.Clone(data)
 
-	nodes := TlvDecode(out.RawData)
+	nodes := tlv.TlvDecode(out.RawData)
 
 	rootNode := nodes.GetNode(DG2Tag)
 
@@ -135,7 +138,7 @@ func NewDG2(data []byte) (*DG2, error) {
 			return nil, fmt.Errorf("missing tag (7F61)")
 		}
 
-		numInstances := bytesToInt(tag7F61.GetNode(0x02).GetValue())
+		numInstances := utils.BytesToInt(tag7F61.GetNode(0x02).GetValue())
 		if (numInstances < 1) || (numInstances > 9) {
 			return nil, fmt.Errorf("numInstances (tag 7f61->02) must be 1-9 (act:%d)", numInstances)
 		}
@@ -154,7 +157,7 @@ func NewDG2(data []byte) (*DG2, error) {
 }
 
 // processes the Biometric Information Template (Tag:7F60)
-func (dg2 *DG2) processBIT(node TlvNode) BiometricInfoTemplate {
+func (dg2 *DG2) processBIT(node tlv.TlvNode) BiometricInfoTemplate {
 	if node.GetTag() != 0x7F60 {
 		log.Panicf("Incorrect BIT tag (Exp:7F60) (Act:%x)", node.GetTag())
 	}
@@ -187,7 +190,7 @@ func (dg2 *DG2) processBIT(node TlvNode) BiometricInfoTemplate {
 }
 
 // process the Biometric Header Template (BHT) (Tag:A1)
-func processBHT(node TlvNode) BiometricHeaderTemplate {
+func processBHT(node tlv.TlvNode) BiometricHeaderTemplate {
 	if node.GetTag() != 0xA1 {
 		log.Panicf("Incorrect BHT tag (Exp:A1) (Act:%x)", node.GetTag())
 	}
@@ -281,7 +284,7 @@ func parseISO19794_Image(r *bytes.Reader) (*Image, error) {
 		return nil, err
 	}
 
-	if !isImage(imageBytes) {
+	if !utils.IsImage(imageBytes) {
 		log.Panicf("Unknown image type [prefixBytes:%x]", imageBytes[0:10])
 	}
 

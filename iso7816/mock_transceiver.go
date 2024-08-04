@@ -1,8 +1,10 @@
-package gmrtd
+package iso7816
 
 import (
 	"bytes"
 	"log"
+
+	"github.com/gmrtd/gmrtd/utils"
 )
 
 type MockTransceiverReqRsp struct {
@@ -16,8 +18,8 @@ type MockTransceiver struct {
 
 func (transceiver *MockTransceiver) AddReqRsp(reqHexStr string, rspHexStr string) {
 	item := MockTransceiverReqRsp{}
-	item.req = HexToBytes(reqHexStr)
-	item.rsp = HexToBytes(rspHexStr)
+	item.req = utils.HexToBytes(reqHexStr)
+	item.rsp = utils.HexToBytes(rspHexStr)
 
 	transceiver.reqRspArr = append(transceiver.reqRspArr, item)
 }

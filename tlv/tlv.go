@@ -1,4 +1,4 @@
-package gmrtd
+package tlv
 
 import (
 	"bytes"
@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"log"
 	"strings"
+
+	"github.com/gmrtd/gmrtd/oid"
+	"github.com/gmrtd/gmrtd/utils"
 )
 
 type TlvTag int
@@ -101,10 +104,10 @@ func (node TlvSimpleNode) stringWithIndent(indent int) string {
 	sb.WriteString(getIndentString(indent))
 	sb.WriteString(fmt.Sprintf("%02x: %x", node.Tag, node.Value))
 	if node.Tag == 0x06 {
-		oidStr := DecodeAsn1objectId(node.Value).String()
-		oidName := oidLookup[oidStr]
+		oidStr := oid.DecodeAsn1objectId(node.Value).String()
+		oidName := oid.OidLookup[oidStr]
 		sb.WriteString(fmt.Sprintf(" [%s: %s]", oidStr, oidName))
-	} else if PrintableBytes(node.Value) {
+	} else if utils.PrintableBytes(node.Value) {
 		sb.WriteString(fmt.Sprintf(" [%s]", string(node.Value)))
 	}
 	sb.WriteString("\n")
@@ -284,7 +287,7 @@ func tlvDecode(data []byte) (nodes *TlvNodes, remainingData []byte) {
 					remainingData = nil
 				}
 			} else {
-				childData := getBytesFromBuffer(buf, length)
+				childData := utils.GetBytesFromBuffer(buf, length)
 				children, remainingData = tlvDecode(childData)
 				if len(remainingData) > 0 {
 					log.Panicf("Remaining-data not expected (%x)", remainingData)
@@ -298,7 +301,7 @@ func tlvDecode(data []byte) (nodes *TlvNodes, remainingData []byte) {
 			if length == -1 { // indefinite-length
 				log.Panicf("Indefinite-length mode is only supported for constructed tags")
 			} else {
-				value := getBytesFromBuffer(buf, length)
+				value := utils.GetBytesFromBuffer(buf, length)
 				node := NewTlvSimpleNode(tag, value)
 				nodes.AddNode(node)
 			}
@@ -319,14 +322,14 @@ func TlvDecode(data []byte) *TlvNodes {
 }
 
 func TlvGetTag(buf *bytes.Buffer) TlvTag {
-	b1 := getByteFromBuffer(buf)
+	b1 := utils.GetByteFromBuffer(buf)
 
 	var tag int = int(b1)
 
 	// special handling for multi-byte tags
 	if (tag & 0x1f) == 0x1f {
 		for {
-			tmp := getByteFromBuffer(buf)
+			tmp := utils.GetByteFromBuffer(buf)
 
 			tag <<= 8
 			tag += int(tmp)
@@ -362,7 +365,7 @@ func TlvGetTags(buf *bytes.Buffer) []TlvTag {
 // decodes and returns the length
 // NB returns -1 when 'indefinite-length' is indicated
 func TlvGetLength(buf *bytes.Buffer) (length int) {
-	b1 := getByteFromBuffer(buf)
+	b1 := utils.GetByteFromBuffer(buf)
 
 	if b1 <= 0x7f {
 		// 1 byte: 0xxxxxxx (7 bit length)
@@ -378,7 +381,7 @@ func TlvGetLength(buf *bytes.Buffer) (length int) {
 		// 4 bytes: 10000011 xxxxxxxx xxxxxxxx xxxxxxxx (24 bit length)
 		// 5 bytes: 10000100 xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx (32 bit length)
 		byteLen := b1 - 0x80
-		bytes := getBytesFromBuffer(buf, int(byteLen))
+		bytes := utils.GetBytesFromBuffer(buf, int(byteLen))
 		uint32bytes := make([]byte, 4)
 		copy(uint32bytes[4-byteLen:], bytes)
 		length = int(binary.BigEndian.Uint32(uint32bytes))
@@ -390,7 +393,7 @@ func TlvGetLength(buf *bytes.Buffer) (length int) {
 }
 
 func TlvEncodeTag(tag TlvTag) []byte {
-	return bytes.TrimLeft(UInt64ToBytes(uint64(tag)), "\x00")
+	return bytes.TrimLeft(utils.UInt64ToBytes(uint64(tag)), "\x00")
 }
 
 // encodes the specified length
@@ -403,7 +406,7 @@ func TlvEncodeLength(length int) []byte {
 	} else if length <= 127 {
 		out = append(out, byte(length&0xff))
 	} else if length <= 0xffffffff {
-		significantBytes := bytes.TrimLeft(UInt64ToBytes(uint64(length)), "\x00")
+		significantBytes := bytes.TrimLeft(utils.UInt64ToBytes(uint64(length)), "\x00")
 		out = append(out, byte(0x80+len(significantBytes)))
 		out = append(out, significantBytes...)
 	} else {

@@ -3,6 +3,9 @@ package gmrtd
 import (
 	"fmt"
 	"slices"
+
+	"github.com/gmrtd/gmrtd/tlv"
+	"github.com/gmrtd/gmrtd/utils"
 )
 
 const DG7Tag = 0x67
@@ -34,7 +37,7 @@ func NewDG7(data []byte) (*DG7, error) {
 
 	out.RawData = slices.Clone(data)
 
-	nodes := TlvDecode(out.RawData)
+	nodes := tlv.TlvDecode(out.RawData)
 
 	rootNode := nodes.GetNode(DG7Tag)
 
@@ -60,7 +63,7 @@ func NewDG7(data []byte) (*DG7, error) {
 		for occurrence := 1; occurrence <= numImages; occurrence++ {
 			imageBytes := rootNode.GetNodeByOccur(0x5F43, occurrence).GetValue()
 
-			if !isImage(imageBytes) {
+			if !utils.IsImage(imageBytes) {
 				return nil, fmt.Errorf("unknown image type [prefixBytes:%x]", imageBytes[0:10])
 			}
 

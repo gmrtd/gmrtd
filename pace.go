@@ -36,15 +36,20 @@ import (
 
 	"github.com/aead/cmac"
 	"github.com/ebfe/brainpool"
+	"github.com/gmrtd/gmrtd/cryptoutils"
+	"github.com/gmrtd/gmrtd/iso7816"
+	"github.com/gmrtd/gmrtd/oid"
+	"github.com/gmrtd/gmrtd/tlv"
+	"github.com/gmrtd/gmrtd/utils"
 )
 
 type Pace struct {
-	keyGeneratorEc KeyGeneratorEcFn
+	keyGeneratorEc cryptoutils.KeyGeneratorEcFn
 }
 
 func NewPace() *Pace {
 	var pace Pace
-	pace.keyGeneratorEc = KeyGeneratorEc
+	pace.keyGeneratorEc = cryptoutils.KeyGeneratorEc
 	return &pace
 }
 
@@ -73,7 +78,7 @@ const (
 type PaceConfig struct {
 	oid              asn1.ObjectIdentifier
 	mapping          PACEMapping
-	cipher           BlockCipherAlg
+	cipher           cryptoutils.BlockCipherAlg
 	keyLengthBits    int
 	ZsecureMessaging PACESeccureMessaging // TODO - not even used in code..
 	authToken        PACEAuthToken
@@ -111,29 +116,29 @@ func (cfg *PaceConfig) String() string {
 
 var paceConfig = map[string]PaceConfig{
 
-	oidPaceDhGm3DesCbcCbc.String():    {oidPaceDhGm3DesCbcCbc, GM, TDES, 112, CBC_CBC, CBC, 200},
-	oidPaceDhGmAesCbcCmac128.String(): {oidPaceDhGmAesCbcCmac128, GM, AES, 128, CBC_CMAC, CMAC, 201},
-	oidPaceDhGmAesCbcCmac192.String(): {oidPaceDhGmAesCbcCmac192, GM, AES, 192, CBC_CMAC, CMAC, 202},
-	oidPaceDhGmAesCbcCmac256.String(): {oidPaceDhGmAesCbcCmac256, GM, AES, 256, CBC_CMAC, CMAC, 203},
+	oid.OidPaceDhGm3DesCbcCbc.String():    {oid.OidPaceDhGm3DesCbcCbc, GM, cryptoutils.TDES, 112, CBC_CBC, CBC, 200},
+	oid.OidPaceDhGmAesCbcCmac128.String(): {oid.OidPaceDhGmAesCbcCmac128, GM, cryptoutils.AES, 128, CBC_CMAC, CMAC, 201},
+	oid.OidPaceDhGmAesCbcCmac192.String(): {oid.OidPaceDhGmAesCbcCmac192, GM, cryptoutils.AES, 192, CBC_CMAC, CMAC, 202},
+	oid.OidPaceDhGmAesCbcCmac256.String(): {oid.OidPaceDhGmAesCbcCmac256, GM, cryptoutils.AES, 256, CBC_CMAC, CMAC, 203},
 
-	oidPaceEcdhGm3DesCbcCbc.String():    {oidPaceEcdhGm3DesCbcCbc, GM, TDES, 112, CBC_CBC, CBC, 250},
-	oidPaceEcdhGmAesCbcCmac128.String(): {oidPaceEcdhGmAesCbcCmac128, GM, AES, 128, CBC_CMAC, CMAC, 251},
-	oidPaceEcdhGmAesCbcCmac192.String(): {oidPaceEcdhGmAesCbcCmac192, GM, AES, 192, CBC_CMAC, CMAC, 252},
-	oidPaceEcdhGmAesCbcCmac256.String(): {oidPaceEcdhGmAesCbcCmac256, GM, AES, 256, CBC_CMAC, CMAC, 253},
+	oid.OidPaceEcdhGm3DesCbcCbc.String():    {oid.OidPaceEcdhGm3DesCbcCbc, GM, cryptoutils.TDES, 112, CBC_CBC, CBC, 250},
+	oid.OidPaceEcdhGmAesCbcCmac128.String(): {oid.OidPaceEcdhGmAesCbcCmac128, GM, cryptoutils.AES, 128, CBC_CMAC, CMAC, 251},
+	oid.OidPaceEcdhGmAesCbcCmac192.String(): {oid.OidPaceEcdhGmAesCbcCmac192, GM, cryptoutils.AES, 192, CBC_CMAC, CMAC, 252},
+	oid.OidPaceEcdhGmAesCbcCmac256.String(): {oid.OidPaceEcdhGmAesCbcCmac256, GM, cryptoutils.AES, 256, CBC_CMAC, CMAC, 253},
 
-	oidPaceDhIm3DesCbcCbc.String():    {oidPaceDhIm3DesCbcCbc, IM, TDES, 112, CBC_CBC, CBC, 100},
-	oidPaceDhImAesCbcCmac128.String(): {oidPaceDhImAesCbcCmac128, IM, AES, 128, CBC_CMAC, CMAC, 101},
-	oidPaceDhImAesCbcCmac192.String(): {oidPaceDhImAesCbcCmac192, IM, AES, 192, CBC_CMAC, CMAC, 102},
-	oidPaceDhImAesCbcCmac256.String(): {oidPaceDhImAesCbcCmac256, IM, AES, 256, CBC_CMAC, CMAC, 103},
+	oid.OidPaceDhIm3DesCbcCbc.String():    {oid.OidPaceDhIm3DesCbcCbc, IM, cryptoutils.TDES, 112, CBC_CBC, CBC, 100},
+	oid.OidPaceDhImAesCbcCmac128.String(): {oid.OidPaceDhImAesCbcCmac128, IM, cryptoutils.AES, 128, CBC_CMAC, CMAC, 101},
+	oid.OidPaceDhImAesCbcCmac192.String(): {oid.OidPaceDhImAesCbcCmac192, IM, cryptoutils.AES, 192, CBC_CMAC, CMAC, 102},
+	oid.OidPaceDhImAesCbcCmac256.String(): {oid.OidPaceDhImAesCbcCmac256, IM, cryptoutils.AES, 256, CBC_CMAC, CMAC, 103},
 
-	oidPaceEcdhIm3DesCbcCbc.String():    {oidPaceEcdhIm3DesCbcCbc, IM, TDES, 112, CBC_CBC, CBC, 150},
-	oidPaceEcdhImAesCbcCmac128.String(): {oidPaceEcdhImAesCbcCmac128, IM, AES, 128, CBC_CMAC, CMAC, 151},
-	oidPaceEcdhImAesCbcCmac192.String(): {oidPaceEcdhImAesCbcCmac192, IM, AES, 192, CBC_CMAC, CMAC, 152},
-	oidPaceEcdhImAesCbcCmac256.String(): {oidPaceEcdhImAesCbcCmac256, IM, AES, 256, CBC_CMAC, CMAC, 153},
+	oid.OidPaceEcdhIm3DesCbcCbc.String():    {oid.OidPaceEcdhIm3DesCbcCbc, IM, cryptoutils.TDES, 112, CBC_CBC, CBC, 150},
+	oid.OidPaceEcdhImAesCbcCmac128.String(): {oid.OidPaceEcdhImAesCbcCmac128, IM, cryptoutils.AES, 128, CBC_CMAC, CMAC, 151},
+	oid.OidPaceEcdhImAesCbcCmac192.String(): {oid.OidPaceEcdhImAesCbcCmac192, IM, cryptoutils.AES, 192, CBC_CMAC, CMAC, 152},
+	oid.OidPaceEcdhImAesCbcCmac256.String(): {oid.OidPaceEcdhImAesCbcCmac256, IM, cryptoutils.AES, 256, CBC_CMAC, CMAC, 153},
 
-	oidPaceEcdhCamAesCbcCmac128.String(): {oidPaceEcdhCamAesCbcCmac128, CAM, AES, 128, CBC_CMAC, CMAC, 300},
-	oidPaceEcdhCamAesCbcCmac192.String(): {oidPaceEcdhCamAesCbcCmac192, CAM, AES, 192, CBC_CMAC, CMAC, 301},
-	oidPaceEcdhCamAesCbcCmac256.String(): {oidPaceEcdhCamAesCbcCmac256, CAM, AES, 256, CBC_CMAC, CMAC, 302},
+	oid.OidPaceEcdhCamAesCbcCmac128.String(): {oid.OidPaceEcdhCamAesCbcCmac128, CAM, cryptoutils.AES, 128, CBC_CMAC, CMAC, 300},
+	oid.OidPaceEcdhCamAesCbcCmac192.String(): {oid.OidPaceEcdhCamAesCbcCmac192, CAM, cryptoutils.AES, 192, CBC_CMAC, CMAC, 301},
+	oid.OidPaceEcdhCamAesCbcCmac256.String(): {oid.OidPaceEcdhCamAesCbcCmac256, CAM, cryptoutils.AES, 256, CBC_CMAC, CMAC, 302},
 }
 
 type PACEDomainParams struct {
@@ -211,13 +216,13 @@ func (paceConfig *PaceConfig) decryptNonce(key []byte, encryptedNonce []byte) []
 	var err error
 	var bcipher cipher.Block
 
-	if bcipher, err = GetCipherForKey(paceConfig.cipher, key); err != nil {
+	if bcipher, err = cryptoutils.GetCipherForKey(paceConfig.cipher, key); err != nil {
 		log.Panicf("Unexpected error: %s", err)
 	}
 
 	iv := make([]byte, bcipher.BlockSize()) // 0'd IV
 
-	return CryptCBC(bcipher, iv, encryptedNonce, false)
+	return cryptoutils.CryptCBC(bcipher, iv, encryptedNonce, false)
 }
 
 // 4.4.3.4 Authentication Token
@@ -236,39 +241,39 @@ func (paceConfig *PaceConfig) decryptNonce(key []byte, encryptedNonce []byte) []
 //
 // AES [FIPS 197] SHALL be used in CMAC-mode [SP 800-38B] with a MAC length of 8 bytes.
 func (paceConfig *PaceConfig) computeAuthToken(key []byte, data []byte) []byte {
-	slog.Debug("computeAuthToken", "key", BytesToHex(key), "data", BytesToHex(data))
+	slog.Debug("computeAuthToken", "key", utils.BytesToHex(key), "data", utils.BytesToHex(data))
 
 	switch paceConfig.authToken {
 	case CBC:
 		// CBC-mode with MAC length of 8 bytes
 		// 3DES [FIPS 46-3] SHALL be used in Retail-mode according to [ISO/IEC 9797-1] MAC algorithm 3 / padding method 2 with block cipher DES and IV=0.
 
-		if paceConfig.cipher != TDES {
+		if paceConfig.cipher != cryptoutils.TDES {
 			log.Panicf("CBC Authentication Token is only supported for 3DES (ActCipherAlg:%d)", int(paceConfig.cipher))
 		}
 
 		var err error
 		var authToken []byte
 
-		authToken, err = ISO9797RetailMacDes(key, ISO9797Method2Pad(data, DES_BLOCK_SIZE_BYTES))
+		authToken, err = cryptoutils.ISO9797RetailMacDes(key, cryptoutils.ISO9797Method2Pad(data, cryptoutils.DES_BLOCK_SIZE_BYTES))
 		if err != nil {
 			log.Panicf("Unable to generate Auth-Token (CBC): %s", err.Error())
 		}
 
-		slog.Debug("computeAuthToken", "authToken(CBC)", BytesToHex(authToken))
+		slog.Debug("computeAuthToken", "authToken(CBC)", utils.BytesToHex(authToken))
 		return authToken
 	case CMAC:
 		// CMAC-mode with MAC length of 8 bytes
 		// AES [FIPS 197] SHALL be used in CMAC-mode [SP 800-38B] with a MAC length of 8 bytes.
 
-		if paceConfig.cipher != AES {
+		if paceConfig.cipher != cryptoutils.AES {
 			log.Panicf("CMAC Authentication Token is only supported for AES (ActCipherAlg:%d)", int(paceConfig.cipher))
 		}
 
 		var err error
 		var cipher cipher.Block
 
-		cipher, err = GetCipherForKey(paceConfig.cipher, key)
+		cipher, err = cryptoutils.GetCipherForKey(paceConfig.cipher, key)
 		if err != nil {
 			log.Panicf("Unable to get cipher (%s)", err)
 		}
@@ -278,7 +283,7 @@ func (paceConfig *PaceConfig) computeAuthToken(key []byte, data []byte) []byte {
 			log.Panicf("Unable to generate Auth-Token (CMAC): %s", err.Error())
 		}
 
-		slog.Debug("computeAuthToken", "authToken(CMAC)", BytesToHex(authToken))
+		slog.Debug("computeAuthToken", "authToken(CMAC)", utils.BytesToHex(authToken))
 		return authToken
 	}
 
@@ -290,27 +295,27 @@ func (paceConfig *PaceConfig) computeAuthToken(key []byte, data []byte) []byte {
 // s: nonce (from chip)
 // Hxy: shared secret (derived earlier from ECDH)
 // ec: elliptic curve (domain parameters)
-func doGenericMappingEC(s []byte, H *EcPoint, ec elliptic.Curve) *EcPoint {
+func doGenericMappingEC(s []byte, H *cryptoutils.EcPoint, ec elliptic.Curve) *cryptoutils.EcPoint {
 	var sGx, sGy *big.Int
 
 	sGx, sGy = ec.ScalarBaseMult(s)
 
-	var out EcPoint
+	var out cryptoutils.EcPoint
 
-	out.x, out.y = ec.Add(sGx, sGy, H.x, H.y)
+	out.X, out.Y = ec.Add(sGx, sGy, H.X, H.Y)
 
 	return &out
 }
 
 // TODO - also used by ChipAuth
 func encode_7C_XX(innerTag byte, data []byte) []byte {
-	node := NewTlvConstructedNode(0x7C)
-	node.AddChild(NewTlvSimpleNode(TlvTag(innerTag), data))
+	node := tlv.NewTlvConstructedNode(0x7C)
+	node.AddChild(tlv.NewTlvSimpleNode(tlv.TlvTag(innerTag), data))
 	return node.Encode()
 }
 
 func decode_7C_XX(innerTag byte, data []byte) []byte {
-	return TlvDecode(data).GetNode(0x7C).GetNode(TlvTag(innerTag)).GetValue()
+	return tlv.TlvDecode(data).GetNode(0x7C).GetNode(tlv.TlvTag(innerTag)).GetValue()
 }
 
 // encodes a public-key template (7F49) containing the OID and the public-key (86)
@@ -320,15 +325,15 @@ func encodePubicKeyTemplate7F49(paceOid []byte, tag86data []byte) []byte {
 	//		06 - OID
 	//		86 - Uncompressed EC point (x/y)
 
-	node := NewTlvConstructedNode(0x7F49)
-	node.AddChild(NewTlvSimpleNode(0x06, paceOid))
-	node.AddChild(NewTlvSimpleNode(0x86, tag86data))
+	node := tlv.NewTlvConstructedNode(0x7F49)
+	node.AddChild(tlv.NewTlvSimpleNode(0x06, paceOid))
+	node.AddChild(tlv.NewTlvSimpleNode(0x86, tag86data))
 
 	return node.Encode()
 }
 
 // TODO - should we make this (and others) a Pace method?
-func doAPDU_MSESetAT(nfc *NfcSession, paceConfig *PaceConfig, passwordType PasswordType) (err error) {
+func doAPDU_MSESetAT(nfc *iso7816.NfcSession, paceConfig *PaceConfig, passwordType PasswordType) (err error) {
 	slog.Debug("doAPDU_MSESetAT")
 
 	// manually convert value to reduce reliance on iota values!
@@ -342,11 +347,11 @@ func doAPDU_MSESetAT(nfc *NfcSession, paceConfig *PaceConfig, passwordType Passw
 		return fmt.Errorf("unsupported PACE Password-Type (%x)", passwordType)
 	}
 
-	paceOidBytes := oidBytes(paceConfig.oid)
+	paceOidBytes := oid.OidBytes(paceConfig.oid)
 
-	nodes := NewTlvNodes()
-	nodes.AddNode(NewTlvSimpleNode(0x80, paceOidBytes))
-	nodes.AddNode(NewTlvSimpleNode(0x83, []byte{passwordTypeValue}))
+	nodes := tlv.NewTlvNodes()
+	nodes.AddNode(tlv.NewTlvSimpleNode(0x80, paceOidBytes))
+	nodes.AddNode(tlv.NewTlvSimpleNode(0x83, []byte{passwordTypeValue}))
 
 	// MSE:Set AT (0xC1A4: Set Authentication Template for mutual authentication)
 	err = nfc.MseSetAT(0xC1, 0xA4, nodes.Encode())
@@ -362,29 +367,29 @@ func doAPDU_MSESetAT(nfc *NfcSession, paceConfig *PaceConfig, passwordType Passw
 //   - exchanges with chip
 //   - generates shared secret
 //   - do generic mapping (and return G)
-func (pace *Pace) mapNonceGmEcDh(nfc *NfcSession, domainParams *PACEDomainParams, s []byte) (mapped_g *EcPoint, pubMapIC *EcPoint) {
-	slog.Debug("mapNonceGmEcDh", "s", BytesToHex(s))
+func (pace *Pace) mapNonceGmEcDh(nfc *iso7816.NfcSession, domainParams *PACEDomainParams, s []byte) (mapped_g *cryptoutils.EcPoint, pubMapIC *cryptoutils.EcPoint) {
+	slog.Debug("mapNonceGmEcDh", "s", utils.BytesToHex(s))
 
 	// generate terminal key (private/public)
-	var termKeypair EcKeypair = pace.keyGeneratorEc(domainParams.ec)
+	var termKeypair cryptoutils.EcKeypair = pace.keyGeneratorEc(domainParams.ec)
 
 	// do public-key exchange to get chip pub-key
 	{
-		reqData := encode_7C_XX(0x81, encodeX962EcPoint(domainParams.ec, termKeypair.pub))
+		reqData := encode_7C_XX(0x81, cryptoutils.EncodeX962EcPoint(domainParams.ec, termKeypair.Pub))
 
 		rApdu := nfc.GeneralAuthenticate(true, reqData)
 		if !rApdu.IsSuccess() {
 			log.Panicf("Error mapping the nonce - GM-EC (Status:%x)", rApdu.Status)
 		}
 
-		pubMapIC = decodeX962EcPoint(domainParams.ec, decode_7C_XX(0x82, rApdu.Data))
+		pubMapIC = cryptoutils.DecodeX962EcPoint(domainParams.ec, decode_7C_XX(0x82, rApdu.Data))
 		slog.Debug("mapNonceGmEcDh", "pubMapIC", pubMapIC.String())
 	}
 
 	//
 	// Shared Secret H
 	//
-	var termShared *EcPoint = doEcDh(termKeypair.pri, pubMapIC, domainParams.ec)
+	var termShared *cryptoutils.EcPoint = cryptoutils.DoEcDh(termKeypair.Pri, pubMapIC, domainParams.ec)
 	slog.Debug("mapNonceGmEcDh", "termShared", termShared.String())
 
 	//
@@ -395,49 +400,50 @@ func (pace *Pace) mapNonceGmEcDh(nfc *NfcSession, domainParams *PACEDomainParams
 	return mapped_g, pubMapIC
 }
 
-func (pace *Pace) keyAgreementGmEcDh(nfc *NfcSession, domainParams *PACEDomainParams, G *EcPoint) (sharedSecret []byte, termKeypair EcKeypair, chipPub *EcPoint) {
+func (pace *Pace) keyAgreementGmEcDh(nfc *iso7816.NfcSession, domainParams *PACEDomainParams, G *cryptoutils.EcPoint) (sharedSecret []byte, termKeypair cryptoutils.EcKeypair, chipPub *cryptoutils.EcPoint) {
 	// reader and chip generate/exchange another set of public-keys
 	//			- needs to be generated using mapped-g.x/y
 	//			- new keys for terminal
 	//			- exchange to get chip keys
 
-	slog.Debug("keyAgreementGmEcDh", "Gx", BytesToHex(domainParams.ec.Params().Gx.Bytes()), "Gy", BytesToHex(domainParams.ec.Params().Gy.Bytes()))
+	slog.Debug("keyAgreementGmEcDh", "Gx", utils.BytesToHex(domainParams.ec.Params().Gx.Bytes()), "Gy", utils.BytesToHex(domainParams.ec.Params().Gy.Bytes()))
 
 	// generate key based on domain-params
 	// NB ignore public-key as we'll generate later using the mapped generator (Gx/y)
 	termKeypair = pace.keyGeneratorEc(domainParams.ec)
-	termKeypair.pub = new(EcPoint) // reset public-key
+	termKeypair.Pub = new(cryptoutils.EcPoint) // reset public-key
 
 	// generate the public-key, using the mapped generator (Gxy)
-	termKeypair.pub.x, termKeypair.pub.y = domainParams.ec.ScalarMult(G.x, G.y, termKeypair.pri)
+	termKeypair.Pub.X, termKeypair.Pub.Y = domainParams.ec.ScalarMult(G.X, G.Y, termKeypair.Pri)
 
-	slog.Debug("keyAgreementGmEcDh", "termPri", BytesToHex(termKeypair.pri), "termPub", termKeypair.pub.String())
+	// TODO - common String function for KeyPair (check others also)
+	slog.Debug("keyAgreementGmEcDh", "termPri", utils.BytesToHex(termKeypair.Pri), "termPub", termKeypair.Pub.String())
 
 	// exchange terminal public-key with chip and get chip's public-key
 	{
-		reqData := encode_7C_XX(0x83, encodeX962EcPoint(domainParams.ec, termKeypair.pub))
+		reqData := encode_7C_XX(0x83, cryptoutils.EncodeX962EcPoint(domainParams.ec, termKeypair.Pub))
 
 		rApdu := nfc.GeneralAuthenticate(true, reqData)
 		if !rApdu.IsSuccess() {
 			log.Panicf("Error performing key agreement - GM-ECDH (Status:%x)", rApdu.Status)
 		}
 
-		chipPub = decodeX962EcPoint(domainParams.ec, decode_7C_XX(0x84, rApdu.Data))
+		chipPub = cryptoutils.DecodeX962EcPoint(domainParams.ec, decode_7C_XX(0x84, rApdu.Data))
 	}
 
 	// verify the terminal and chip public-keys are not the same
 	// 9303p11 4.4.1 d) During Diffie-Hellman key agreement, the IC and the inspection system SHOULD check that the two public keys PKDH,IC and PKDH,IFD differ.
-	if termKeypair.pub.Equal(*chipPub) {
-		log.Panicf("terminal and chip public-keys must not be the same (Term:%s) (Chip:%s)", termKeypair.pub.String(), chipPub.String())
+	if termKeypair.Pub.Equal(*chipPub) {
+		log.Panicf("terminal and chip public-keys must not be the same (Term:%s) (Chip:%s)", termKeypair.Pub.String(), chipPub.String())
 	}
 
 	{
-		var termShared *EcPoint = doEcDh(termKeypair.pri, chipPub, domainParams.ec)
+		var termShared *cryptoutils.EcPoint = cryptoutils.DoEcDh(termKeypair.Pri, chipPub, domainParams.ec)
 
 		// NB secret is just based on 'x'
-		sharedSecret = termShared.x.Bytes()
+		sharedSecret = termShared.X.Bytes()
 
-		slog.Debug("keyAgreementGmEcDh", "shared-secret", BytesToHex(sharedSecret))
+		slog.Debug("keyAgreementGmEcDh", "shared-secret", utils.BytesToHex(sharedSecret))
 	}
 
 	return sharedSecret, termKeypair, chipPub
@@ -445,20 +451,20 @@ func (pace *Pace) keyAgreementGmEcDh(nfc *NfcSession, domainParams *PACEDomainPa
 
 // performs mutual authentication and sets up secure messaging
 // ecadIC: only populated for CAM
-func (pace *Pace) mutualAuthGmEcDh(nfc *NfcSession, paceConfig *PaceConfig, domainParams *PACEDomainParams, sharedSecret []byte, termPub *EcPoint, chipPub *EcPoint) (ecadIC []byte) {
+func (pace *Pace) mutualAuthGmEcDh(nfc *iso7816.NfcSession, paceConfig *PaceConfig, domainParams *PACEDomainParams, sharedSecret []byte, termPub *cryptoutils.EcPoint, chipPub *cryptoutils.EcPoint) (ecadIC []byte) {
 	// derive KSenc / KSmac
 	var ksEnc, ksMac []byte
-	ksEnc = KDF(sharedSecret, KDF_COUNTER_KSENC, paceConfig.cipher, paceConfig.keyLengthBits)
-	ksMac = KDF(sharedSecret, KDF_COUNTER_KSMAC, paceConfig.cipher, paceConfig.keyLengthBits)
-	slog.Debug("mutualAuthGmEcDh", "ksEnc", BytesToHex(ksEnc), "ksMac", BytesToHex(ksMac))
+	ksEnc = cryptoutils.KDF(sharedSecret, cryptoutils.KDF_COUNTER_KSENC, paceConfig.cipher, paceConfig.keyLengthBits)
+	ksMac = cryptoutils.KDF(sharedSecret, cryptoutils.KDF_COUNTER_KSMAC, paceConfig.cipher, paceConfig.keyLengthBits)
+	slog.Debug("mutualAuthGmEcDh", "ksEnc", utils.BytesToHex(ksEnc), "ksMac", utils.BytesToHex(ksMac))
 
 	// generate auth tokens
 	var tIfd, tIc []byte
 	{
-		oidBytes := oidBytes(paceConfig.oid)
+		oidBytes := oid.OidBytes(paceConfig.oid)
 
-		tIfdData := encodePubicKeyTemplate7F49(oidBytes, encodeX962EcPoint(domainParams.ec, chipPub))
-		tIcData := encodePubicKeyTemplate7F49(oidBytes, encodeX962EcPoint(domainParams.ec, termPub))
+		tIfdData := encodePubicKeyTemplate7F49(oidBytes, cryptoutils.EncodeX962EcPoint(domainParams.ec, chipPub))
+		tIcData := encodePubicKeyTemplate7F49(oidBytes, cryptoutils.EncodeX962EcPoint(domainParams.ec, termPub))
 
 		// generate auth tokens
 		tIfd = paceConfig.computeAuthToken(ksMac, tIfdData)
@@ -494,7 +500,7 @@ func (pace *Pace) mutualAuthGmEcDh(nfc *NfcSession, paceConfig *PaceConfig, doma
 	// setup secure messaging
 	{
 		var err error
-		if nfc.sm, err = NewSecureMessaging(paceConfig.cipher, ksEnc, ksMac); err != nil {
+		if nfc.SM, err = iso7816.NewSecureMessaging(paceConfig.cipher, ksEnc, ksMac); err != nil {
 			log.Panicf("Error setting up Secure Messaging: %s", err)
 		}
 	}
@@ -502,7 +508,7 @@ func (pace *Pace) mutualAuthGmEcDh(nfc *NfcSession, paceConfig *PaceConfig, doma
 	return ecadIC
 }
 
-func getIcPubKeyECForCAM(domainParams *PACEDomainParams, cardSecurity *CardSecurity) *EcPoint {
+func getIcPubKeyECForCAM(domainParams *PACEDomainParams, cardSecurity *CardSecurity) *cryptoutils.EcPoint {
 	slog.Debug("getIcPubKeyECForCAM")
 
 	var caPubKeyInfos []ChipAuthenticationPublicKeyInfo = cardSecurity.SecurityInfos.ChipAuthPubKeyInfos
@@ -515,9 +521,9 @@ func getIcPubKeyECForCAM(domainParams *PACEDomainParams, cardSecurity *CardSecur
 		// TODO - shouldn't we also check that the Alg.Protocol is as expected (e.g. == standardizedDomainParameters)
 		//			- code is here and elsewhere also
 		//			- would be good to have a helper that gets the INTfor us
-		if bytesToInt(caPubKeyInfos[i].ChipAuthenticationPublicKey.Algorithm.Parameters.Bytes) == domainParams.id {
+		if utils.BytesToInt(caPubKeyInfos[i].ChipAuthenticationPublicKey.Algorithm.Parameters.Bytes) == domainParams.id {
 			var tmpKey []byte = caPubKeyInfos[i].ChipAuthenticationPublicKey.SubjectPublicKey.Bytes
-			return decodeX962EcPoint(domainParams.ec, tmpKey)
+			return cryptoutils.DecodeX962EcPoint(domainParams.ec, tmpKey)
 		}
 
 	}
@@ -529,7 +535,7 @@ func getIcPubKeyECForCAM(domainParams *PACEDomainParams, cardSecurity *CardSecur
 
 // pubMapIC: IC Public Key from earlier mapping operation
 // ecadIC: encrypted chip authentication data (tag:8A) from 'mutual auth' response
-func (pace *Pace) doCamEcdh(nfc *NfcSession, paceConfig *PaceConfig, domainParams *PACEDomainParams, pubMapIC *EcPoint, ecadIC []byte, doc *Document) {
+func (pace *Pace) doCamEcdh(nfc *iso7816.NfcSession, paceConfig *PaceConfig, domainParams *PACEDomainParams, pubMapIC *cryptoutils.EcPoint, ecadIC []byte, doc *Document) {
 	if paceConfig.mapping != CAM {
 		log.Panicf("Unexpected mapping during CAM processing (Mapping:%d)", paceConfig.mapping)
 	}
@@ -537,11 +543,11 @@ func (pace *Pace) doCamEcdh(nfc *NfcSession, paceConfig *PaceConfig, domainParam
 		log.Panicf("ECAD missing")
 	}
 
-	slog.Debug("doCamEcdh", "ECAD-IC", BytesToHex(ecadIC))
+	slog.Debug("doCamEcdh", "ECAD-IC", utils.BytesToHex(ecadIC))
 
 	// ICAO9303 p11... 4.4.3.3.3 Chip Authentication Mapping
 
-	blockCipher, err := GetCipherForKey(paceConfig.cipher, nfc.sm.ksEnc)
+	blockCipher, err := cryptoutils.GetCipherForKey(paceConfig.cipher, nfc.SM.GetKsEnc())
 	if err != nil {
 		log.Panicf("Unexpected error: %s", err)
 	}
@@ -557,8 +563,8 @@ func (pace *Pace) doCamEcdh(nfc *NfcSession, paceConfig *PaceConfig, domainParam
 	var caIC []byte
 	{
 		// TODO - variable names? (and ecad)
-		caIC = ISO9797Method2Unpad(CryptCBC(blockCipher, iv, ecadIC, false))
-		slog.Debug("doCamEcdh", "CA-IC", BytesToHex(caIC))
+		caIC = cryptoutils.ISO9797Method2Unpad(cryptoutils.CryptCBC(blockCipher, iv, ecadIC, false))
+		slog.Debug("doCamEcdh", "CA-IC", utils.BytesToHex(caIC))
 	}
 
 	// 4.4.3.5.2 Verification by the terminal
@@ -572,9 +578,9 @@ func (pace *Pace) doCamEcdh(nfc *NfcSession, paceConfig *PaceConfig, domainParam
 		//    to find a key that matches the param-id
 
 		// get IC PubKey (EC) for paramId
-		var pkIC *EcPoint = getIcPubKeyECForCAM(domainParams, doc.CardSecurity)
+		var pkIC *cryptoutils.EcPoint = getIcPubKeyECForCAM(domainParams, doc.CardSecurity)
 
-		var KA *EcPoint = doEcDh(caIC, pkIC, domainParams.ec)
+		var KA *cryptoutils.EcPoint = cryptoutils.DoEcDh(caIC, pkIC, domainParams.ec)
 		slog.Debug("doCamEcdh", "KA", KA.String())
 
 		//
@@ -595,7 +601,7 @@ func getKeyForPassword(paceConfig *PaceConfig, password *Password) []byte {
 	switch password.passwordType {
 	case PASSWORD_TYPE_MRZi:
 		// k = SHA1(mrzi)
-		k = CryptoHash(crypto.SHA1, []byte(password.password))
+		k = cryptoutils.CryptoHash(crypto.SHA1, []byte(password.password))
 	case PASSWORD_TYPE_CAN:
 		// k = CAN
 		// NB spec claims that CAN is ISO 8859-1 encoded (9303p11 s9.7.3 PACE)
@@ -605,10 +611,10 @@ func getKeyForPassword(paceConfig *PaceConfig, password *Password) []byte {
 		log.Panicf("Unsupported password-type (type:%d)", password.passwordType)
 	}
 
-	return KDF(k, KDF_COUNTER_PACE, paceConfig.cipher, paceConfig.keyLengthBits)
+	return cryptoutils.KDF(k, cryptoutils.KDF_COUNTER_PACE, paceConfig.cipher, paceConfig.keyLengthBits)
 }
 
-func getNonce(nfc *NfcSession, paceConfig *PaceConfig, kKdf []byte) []byte {
+func getNonce(nfc *iso7816.NfcSession, paceConfig *PaceConfig, kKdf []byte) []byte {
 	var nonceE []byte
 	{
 		reqData := []byte{0x7C, 0x00}
@@ -668,21 +674,21 @@ func selectPaceConfig(cardAccess *CardAccess) (paceConfig *PaceConfig, domainPar
 	return paceConfig, domainParams
 }
 
-func (pace *Pace) doPACE_GM_CAM(nfc *NfcSession, paceConfig *PaceConfig, domainParams *PACEDomainParams, s []byte, doc *Document) (err error) {
+func (pace *Pace) doPACE_GM_CAM(nfc *iso7816.NfcSession, paceConfig *PaceConfig, domainParams *PACEDomainParams, s []byte, doc *Document) (err error) {
 	switch domainParams.isECDH {
 	case true: // ECDH
 		// map the nonce
-		var mappedG, pubMapIC *EcPoint
+		var mappedG, pubMapIC *cryptoutils.EcPoint
 		mappedG, pubMapIC = pace.mapNonceGmEcDh(nfc, domainParams, s)
 
 		// Perform Key Agreement
 		var sharedSecret []byte
-		var kaTermKeypair EcKeypair
-		var kaChipPub *EcPoint
+		var kaTermKeypair cryptoutils.EcKeypair
+		var kaChipPub *cryptoutils.EcPoint
 		sharedSecret, kaTermKeypair, kaChipPub = pace.keyAgreementGmEcDh(nfc, domainParams, mappedG)
 
 		var ecadIC []byte
-		ecadIC = pace.mutualAuthGmEcDh(nfc, paceConfig, domainParams, sharedSecret, kaTermKeypair.pub, kaChipPub)
+		ecadIC = pace.mutualAuthGmEcDh(nfc, paceConfig, domainParams, sharedSecret, kaTermKeypair.Pub, kaChipPub)
 
 		// Perform Chip Authentication (if applicable)
 		if paceConfig.mapping == CAM {
@@ -709,7 +715,7 @@ func (pace *Pace) doPACE_GM_CAM(nfc *NfcSession, paceConfig *PaceConfig, domainP
 	return nil
 }
 
-func (pace *Pace) doPACE(nfc *NfcSession, password *Password, doc *Document) (err error) {
+func (pace *Pace) doPACE(nfc *iso7816.NfcSession, password *Password, doc *Document) (err error) {
 	slog.Debug("doPACE", "password-type", password.passwordType, "password", password.password)
 
 	// PACE requires card-access
@@ -747,7 +753,7 @@ func (pace *Pace) doPACE(nfc *NfcSession, password *Password, doc *Document) (er
 		return fmt.Errorf("PACE IM NOT IMPLEMENTED")
 	}
 
-	slog.Debug("doPACE - Completed", "SM", nfc.sm.String())
+	slog.Debug("doPACE - Completed", "SM", nfc.SM.String())
 
 	return nil
 }

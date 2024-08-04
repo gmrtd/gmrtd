@@ -1,9 +1,11 @@
-package gmrtd
+package iso7816
 
 import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+
+	"github.com/gmrtd/gmrtd/utils"
 )
 
 const RAPDU_STATUS_SUCCESS = 0x9000
@@ -50,6 +52,6 @@ func ParseRApdu(data []byte) (rapdu *RApdu, err error) {
 func (rApdu *RApdu) Encode() []byte {
 	var out []byte
 	out = bytes.Clone(rApdu.Data)
-	out = append(out, UInt16ToBytes(rApdu.Status)...)
+	out = append(out, utils.UInt16ToBytes(rApdu.Status)...)
 	return out
 }

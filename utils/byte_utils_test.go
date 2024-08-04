@@ -1,4 +1,4 @@
-package gmrtd
+package utils
 
 import (
 	"bytes"
@@ -11,7 +11,7 @@ func TestXorBytes(t *testing.T) {
 	in2 := []byte{0x00, 0xFF, 0x00, 0xFF}
 	exp := []byte{0x00, 0xFF, 0xFF, 0x00}
 
-	out := xorBytes(in1, in2)
+	out := XorBytes(in1, in2)
 
 	if !bytes.Equal(exp, out) {
 		t.Errorf("XOR mismatch")
@@ -56,7 +56,7 @@ func TestIsImage(t *testing.T) {
 	// invalid image data - i.e. doesn't have a recognised image header
 	var imageBytes []byte = HexToBytes("0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF")
 
-	if isImage(imageBytes) {
+	if IsImage(imageBytes) {
 		t.Errorf("Should NOT be an image")
 	}
 
@@ -90,10 +90,67 @@ func TestBytesToInt(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		act := bytesToInt(tc.bytes)
+		act := BytesToInt(tc.bytes)
 
 		if act != tc.exp {
 			t.Errorf("bytesToInt error (Bytes:%x, Exp:%d, Act:%d)", tc.bytes, tc.exp, act)
+		}
+	}
+}
+
+func TestUInt16ToBytes(t *testing.T) {
+	testCases := []struct {
+		value    int
+		expBytes []byte
+	}{
+		{
+			value:    0x1234,
+			expBytes: []byte{0x12, 0x34},
+		},
+	}
+	for _, tc := range testCases {
+		actBytes := UInt16ToBytes(uint16(tc.value))
+
+		if !bytes.Equal(actBytes, tc.expBytes) {
+			t.Errorf("Unexpected output (Exp:%x) (Act:%x)", tc.expBytes, actBytes)
+		}
+	}
+}
+
+func TestUInt32ToBytes(t *testing.T) {
+	testCases := []struct {
+		value    int
+		expBytes []byte
+	}{
+		{
+			value:    0x12345678,
+			expBytes: []byte{0x12, 0x34, 0x56, 0x78},
+		},
+	}
+	for _, tc := range testCases {
+		actBytes := UInt32ToBytes(uint32(tc.value))
+
+		if !bytes.Equal(actBytes, tc.expBytes) {
+			t.Errorf("Unexpected output (Exp:%x) (Act:%x)", tc.expBytes, actBytes)
+		}
+	}
+}
+
+func TestUInt64ToBytes(t *testing.T) {
+	testCases := []struct {
+		value    int
+		expBytes []byte
+	}{
+		{
+			value:    0x1234567890abcdef,
+			expBytes: []byte{0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef},
+		},
+	}
+	for _, tc := range testCases {
+		actBytes := UInt64ToBytes(uint64(tc.value))
+
+		if !bytes.Equal(actBytes, tc.expBytes) {
+			t.Errorf("Unexpected output (Exp:%x) (Act:%x)", tc.expBytes, actBytes)
 		}
 	}
 }

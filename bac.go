@@ -6,31 +6,35 @@ import (
 	"crypto/cipher"
 	"fmt"
 	"log/slog"
+
+	"github.com/gmrtd/gmrtd/cryptoutils"
+	"github.com/gmrtd/gmrtd/iso7816"
+	"github.com/gmrtd/gmrtd/utils"
 )
 
 type BAC struct {
-	randomBytesFn RandomBytesFn
+	randomBytesFn cryptoutils.RandomBytesFn
 }
 
 func NewBAC() *BAC {
-	return &BAC{randomBytesFn: RandomBytes}
+	return &BAC{randomBytesFn: cryptoutils.RandomBytes}
 }
 
 func (bac *BAC) generateKseed(MRZi string) []byte {
-	out := CryptoHash(crypto.SHA1, []byte(MRZi))
+	out := cryptoutils.CryptoHash(crypto.SHA1, []byte(MRZi))
 	out = out[0:16]
 	return out
 }
 
 // generates kEnc/kMac
 func (bac *BAC) generateKeys(seed []byte) (kEnc []byte, kMac []byte) {
-	kEnc = KDF(seed, KDF_COUNTER_KSENC, TDES, 112)
-	kMac = KDF(seed, KDF_COUNTER_KSMAC, TDES, 112)
+	kEnc = cryptoutils.KDF(seed, cryptoutils.KDF_COUNTER_KSENC, cryptoutils.TDES, 112)
+	kMac = cryptoutils.KDF(seed, cryptoutils.KDF_COUNTER_KSMAC, cryptoutils.TDES, 112)
 	return
 }
 
 func (bac *BAC) calculateMac(kMac []byte, data []byte) (mac []byte, err error) {
-	mac, err = ISO9797RetailMacDes(kMac, ISO9797Method2Pad(data, DES_BLOCK_SIZE_BYTES))
+	mac, err = cryptoutils.ISO9797RetailMacDes(kMac, cryptoutils.ISO9797Method2Pad(data, cryptoutils.DES_BLOCK_SIZE_BYTES))
 	return mac, err
 }
 
@@ -39,9 +43,9 @@ func (bac *BAC) calculateMac(kMac []byte, data []byte) (mac []byte, err error) {
 // rnd_icc: 8 bytes
 // kifd: 16 bytes
 func (bac *BAC) buildRequest(rndIfd []byte, rndIcc []byte, kIfd []byte, kEnc []byte, kMac []byte) (cmd []byte, err error) {
-	verifyByteLength(rndIfd, 8)
-	verifyByteLength(rndIcc, 8)
-	verifyByteLength(kIfd, 16)
+	utils.VerifyByteLength(rndIfd, 8)
+	utils.VerifyByteLength(rndIcc, 8)
+	utils.VerifyByteLength(kIfd, 16)
 
 	s := make([]byte, 32)
 	copy(s[0:8], rndIfd[0:8])
@@ -50,11 +54,11 @@ func (bac *BAC) buildRequest(rndIfd []byte, rndIcc []byte, kIfd []byte, kEnc []b
 
 	// eifd = encrypt with TDES key 'kenc'
 	var cipher cipher.Block
-	if cipher, err = GetCipherForKey(TDES, kEnc); err != nil {
+	if cipher, err = cryptoutils.GetCipherForKey(cryptoutils.TDES, kEnc); err != nil {
 		return nil, err
 	}
 
-	eIfd := CryptCBC(cipher, make([]byte, DES_BLOCK_SIZE_BYTES), s, true)
+	eIfd := cryptoutils.CryptCBC(cipher, make([]byte, cryptoutils.DES_BLOCK_SIZE_BYTES), s, true)
 
 	// mifd = mac over eifd with kmac
 	var mIfd []byte
@@ -94,12 +98,12 @@ func (bac *BAC) processResponse(data []byte, kEnc []byte, kMac []byte, rndIfd []
 
 	// decrypt the cryptogram EIC
 	var cipher cipher.Block
-	cipher, err = GetCipherForKey(TDES, kEnc)
+	cipher, err = cryptoutils.GetCipherForKey(cryptoutils.TDES, kEnc)
 	if err != nil {
 		return nil, err
 	}
 
-	rspPlaintext := CryptCBC(cipher, make([]byte, 8), rspCiphertext, false)
+	rspPlaintext := cryptoutils.CryptCBC(cipher, make([]byte, 8), rspCiphertext, false)
 
 	rspRndIcc := make([]byte, 8)
 	copy(rspRndIcc, rspPlaintext[0:8])
@@ -124,8 +128,8 @@ func (bac *BAC) processResponse(data []byte, kEnc []byte, kMac []byte, rndIfd []
 	return rspKIcc, nil
 }
 
-func (bac *BAC) setupSecureMessaging(nfc *NfcSession, kEnc []byte, kMac []byte, rndIc []byte, rndIfd []byte) (err error) {
-	nfc.sm, err = NewSecureMessaging(TDES, kEnc, kMac)
+func (bac *BAC) setupSecureMessaging(nfc *iso7816.NfcSession, kEnc []byte, kMac []byte, rndIc []byte, rndIfd []byte) (err error) {
+	nfc.SM, err = iso7816.NewSecureMessaging(cryptoutils.TDES, kEnc, kMac)
 	if err != nil {
 		return err
 	}
@@ -135,13 +139,13 @@ func (bac *BAC) setupSecureMessaging(nfc *NfcSession, kEnc []byte, kMac []byte, 
 	ssc := make([]byte, 8)
 	copy(ssc[0:4], rndIc[4:8])  // ls 4 bytes
 	copy(ssc[4:8], rndIfd[4:8]) // ls 4 bytes
-	nfc.sm.SetSSC(ssc)
+	nfc.SM.SetSSC(ssc)
 
 	return nil
 }
 
 // TODO - return an indicator as to whether or not BAC was performed... same for PACE also
-func (bac *BAC) doBAC(nfc *NfcSession, password *Password) (err error) {
+func (bac *BAC) doBAC(nfc *iso7816.NfcSession, password *Password) (err error) {
 	slog.Debug("doBAC", "password-type", password.passwordType, "password", password.password)
 
 	if password.passwordType != PASSWORD_TYPE_MRZi {
@@ -184,7 +188,7 @@ func (bac *BAC) doBAC(nfc *NfcSession, password *Password) (err error) {
 		return err
 	}
 
-	kXor := xorBytes(kIfd, kIc)
+	kXor := utils.XorBytes(kIfd, kIc)
 
 	// update kEnc/kMac with the derived key
 	kEnc, kMac = bac.generateKeys(kXor)

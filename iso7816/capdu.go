@@ -1,9 +1,11 @@
-package gmrtd
+package iso7816
 
 import (
 	"fmt"
 	"log"
 	"log/slog"
+
+	"github.com/gmrtd/gmrtd/utils"
 )
 
 type CApdu struct {
@@ -147,7 +149,7 @@ func (apdu *CApdu) Encode() []byte {
 	}
 	out = append(out, apdu.EncodeLe()...)
 
-	slog.Debug("cApdu.Encode", "cApdu", apdu.String(), "cApdu-bytes", BytesToHex(out))
+	slog.Debug("cApdu.Encode", "cApdu", apdu.String(), "cApdu-bytes", utils.BytesToHex(out))
 
 	return out
 }

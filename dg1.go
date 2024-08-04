@@ -3,6 +3,8 @@ package gmrtd
 import (
 	"fmt"
 	"slices"
+
+	"github.com/gmrtd/gmrtd/tlv"
 )
 
 const DG1Tag = 0x61
@@ -21,7 +23,7 @@ func NewDG1(data []byte) (dg1 *DG1, err error) {
 
 	dg1.RawData = slices.Clone(data)
 
-	nodes := TlvDecode(dg1.RawData)
+	nodes := tlv.TlvDecode(dg1.RawData)
 
 	rootNode := nodes.GetNode(DG1Tag)
 

@@ -5,37 +5,29 @@ import (
 	"crypto"
 	"crypto/rsa"
 	"fmt"
-	"log"
 	"log/slog"
-	"math/big"
+
+	cms "github.com/gmrtd/gmrtd/cms"
+	"github.com/gmrtd/gmrtd/cryptoutils"
+	"github.com/gmrtd/gmrtd/iso7816"
+	"github.com/gmrtd/gmrtd/oid"
+	"github.com/gmrtd/gmrtd/utils"
 )
 
 type ActiveAuth struct {
-	randomBytesFn RandomBytesFn
+	randomBytesFn cryptoutils.RandomBytesFn
 }
 
 func NewActiveAuth() *ActiveAuth {
 	var activeAuth ActiveAuth
-	activeAuth.randomBytesFn = RandomBytes
+	activeAuth.randomBytesFn = cryptoutils.RandomBytes
 	return &activeAuth
-}
-
-func rsaDecryptWithPublicKey(ciphertext []byte, publicKey *rsa.PublicKey) []byte {
-	if len(ciphertext) < 1 {
-		log.Panicf("ciphertext too short (len:%01d)", len(ciphertext))
-	}
-
-	m := new(big.Int).SetBytes(ciphertext)
-	e := big.NewInt(int64(publicKey.E))
-	c := new(big.Int).Exp(m, e, publicKey.N)
-
-	return c.Bytes()
 }
 
 func decodeF(f []byte) (m1 []byte, d []byte, hashAlg crypto.Hash, err error) {
 	var tmpF []byte = bytes.Clone(f)
 
-	slog.Debug("decodeF", "f", BytesToHex(f))
+	slog.Debug("decodeF", "f", utils.BytesToHex(f))
 
 	if len(tmpF) < 4 {
 		return nil, nil, 0, fmt.Errorf("(decodeF) must have at least 4 bytes")
@@ -79,7 +71,7 @@ func decodeF(f []byte) (m1 []byte, d []byte, hashAlg crypto.Hash, err error) {
 		tmpF = tmpF[:len(tmpF)-trailerLen]
 	}
 
-	var digestSize int = CryptoHashDigestSize(hashAlg)
+	var digestSize int = cryptoutils.CryptoHashDigestSize(hashAlg)
 
 	// verify we have enough bytes remaining for the digest
 	if len(tmpF) < digestSize {
@@ -90,25 +82,25 @@ func decodeF(f []byte) (m1 []byte, d []byte, hashAlg crypto.Hash, err error) {
 	d = bytes.Clone(tmpF[len(tmpF)-digestSize:])
 	m1 = bytes.Clone(tmpF[:len(tmpF)-digestSize])
 
-	slog.Debug("decodeF", "m1", BytesToHex(m1), "d", BytesToHex(d), "hashAlg", hashAlg)
+	slog.Debug("decodeF", "m1", utils.BytesToHex(m1), "d", utils.BytesToHex(d), "hashAlg", hashAlg)
 
 	return
 }
 
 func (activeAuth *ActiveAuth) doGetRandomIfd() []byte {
 	var rndIfd []byte = activeAuth.randomBytesFn(8) // RND.IFD
-	slog.Debug("doGetRandomIfd", "rndIfd", BytesToHex(rndIfd))
+	slog.Debug("doGetRandomIfd", "rndIfd", utils.BytesToHex(rndIfd))
 	return rndIfd
 }
 
-func (activeAuth *ActiveAuth) doInternalAuthenticate(nfc *NfcSession, doc *Document, rndIfd []byte) (rspBytes []byte, err error) {
+func (activeAuth *ActiveAuth) doInternalAuthenticate(nfc *iso7816.NfcSession, doc *Document, rndIfd []byte) (rspBytes []byte, err error) {
 	var errContext string
 
 	errContext = fmt.Sprintf("dg15:%x,rndIfd:%x", doc.Dg15, rndIfd)
 
-	var cApdu *CApdu = NewCApdu(0, INS_INTERNAL_AUTHENTICATE, 0x00, 0x00, rndIfd, nfc.maxLe)
+	var cApdu *iso7816.CApdu = iso7816.NewCApdu(0, iso7816.INS_INTERNAL_AUTHENTICATE, 0x00, 0x00, rndIfd, nfc.MaxLe)
 
-	var rApdu *RApdu
+	var rApdu *iso7816.RApdu
 
 	rApdu, err = nfc.DoAPDU(cApdu, "AA Internal Authenticate")
 	if err != nil {
@@ -128,7 +120,7 @@ func (activeAuth *ActiveAuth) doInternalAuthenticate(nfc *NfcSession, doc *Docum
 	return rspBytes, nil
 }
 
-func (activeAuth *ActiveAuth) doActiveAuth(nfc *NfcSession, doc *Document) (err error) {
+func (activeAuth *ActiveAuth) doActiveAuth(nfc *iso7816.NfcSession, doc *Document) (err error) {
 	var errContext string
 
 	// skip if we have already performed chip authentication
@@ -142,8 +134,8 @@ func (activeAuth *ActiveAuth) doActiveAuth(nfc *NfcSession, doc *Document) (err 
 		return nil
 	}
 
-	if nfc.sm != nil {
-		slog.Debug("doActiveAuth", "SM(pre)", nfc.sm.String())
+	if nfc.SM != nil {
+		slog.Debug("doActiveAuth", "SM(pre)", nfc.SM.String())
 	}
 
 	var rndIfd []byte = activeAuth.doGetRandomIfd()
@@ -156,21 +148,21 @@ func (activeAuth *ActiveAuth) doActiveAuth(nfc *NfcSession, doc *Document) (err 
 	}
 
 	{
-		var subPubKeyInfo SubjectPublicKeyInfo = asn1decodeSubjectPublicKeyInfo(doc.Dg15.SubjectPublicKeyInfoBytes)
+		var subPubKeyInfo cms.SubjectPublicKeyInfo = cms.Asn1decodeSubjectPublicKeyInfo(doc.Dg15.SubjectPublicKeyInfoBytes)
 
 		switch subPubKeyInfo.Algorithm.Algorithm.String() {
-		case oidRsaEncryption.String():
+		case oid.OidRsaEncryption.String():
 			{
 				var rsaPubKey *rsa.PublicKey
 				{
-					var pubKey *RsaPublicKey = subPubKeyInfo.GetRsaPubKey()
+					var pubKey *cryptoutils.RsaPublicKey = subPubKeyInfo.GetRsaPubKey()
 					rsaPubKey = &rsa.PublicKey{N: pubKey.N, E: pubKey.E}
 				}
 
 				// S = rapdu-data
 				s := intAuthRspBytes
 
-				f := rsaDecryptWithPublicKey(s, rsaPubKey)
+				f := cryptoutils.RsaDecryptWithPublicKey(s, rsaPubKey)
 
 				m1, d, hashAlg, err := decodeF(f)
 				if err != nil {
@@ -182,7 +174,7 @@ func (activeAuth *ActiveAuth) doActiveAuth(nfc *NfcSession, doc *Document) (err 
 				{
 					m := bytes.Clone(m1)
 					m = append(m, rndIfd...)
-					expD = CryptoHash(hashAlg, m)
+					expD = cryptoutils.CryptoHash(hashAlg, m)
 				}
 
 				// verify the hash
@@ -206,8 +198,8 @@ func (activeAuth *ActiveAuth) doActiveAuth(nfc *NfcSession, doc *Document) (err 
 		}
 	}
 
-	if nfc.sm != nil {
-		slog.Debug("doActiveAuth", "SM(post)", nfc.sm.String())
+	if nfc.SM != nil {
+		slog.Debug("doActiveAuth", "SM(post)", nfc.SM.String())
 	}
 
 	return

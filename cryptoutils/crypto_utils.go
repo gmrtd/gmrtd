@@ -1,4 +1,4 @@
-package gmrtd
+package cryptoutils
 
 import (
 	"bytes"
@@ -9,6 +9,7 @@ import (
 	"crypto/elliptic"
 	"crypto/md5"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/sha512"
@@ -19,6 +20,9 @@ import (
 	"log/slog"
 	"math/big"
 	"slices"
+
+	"github.com/gmrtd/gmrtd/oid"
+	"github.com/gmrtd/gmrtd/utils"
 )
 
 type BlockCipherAlg int
@@ -44,13 +48,71 @@ type RandomBytesFn func(length int) []byte
 type KeyGeneratorEcFn func(ec elliptic.Curve) EcKeypair
 
 type EcKeypair struct {
-	pri []byte
-	pub *EcPoint
+	Pri []byte
+	Pub *EcPoint
 }
 
 type EcPoint struct {
-	x *big.Int
-	y *big.Int
+	X *big.Int
+	Y *big.Int
+}
+
+// https://www.itu.int/ITU-T/formal-language/itu-t/x/x894/2018-cor1/ANSI-X9-62.html
+//
+// -- Type (parameterized) to indicate the hash function with
+// -- the OID ecdsa-with-Specified
+// HashAlgorithm::= AlgorithmIdentifier {{ ANSIX9HashFunctions }}
+//
+// -- Finite field element
+// FieldElement ::= OCTET STRING
+//
+// -- Finite fields have a type (prime or binary) and parameters (size and basis)
+// FieldID { FIELD-ID:IOSet } ::= SEQUENCE {-- Finite field
+// 	fieldType		FIELD-ID.&id({IOSet}),
+// 	parameters		FIELD-ID.&Type({IOSet}{@fieldType})
+// 	}
+// 	-- ============================================
+// 	-- Elliptic Curve Points (see  E.6)
+// 	-- ============================================
+// 	ECPoint ::= OCTET STRING
+// 	-- ============================================
+// 	-- Elliptic Curve Domain Parameters (see  E.7)
+// 	-- ============================================
+// 	-- Identifying an elliptic curve by its coefficients (and optional seed)
+// 	Curve ::= SEQUENCE {
+// 	a		FieldElement, -- Elliptic curve coefficient a
+// 	b		FieldElement, -- Elliptic curve coefficient b
+// 	seed	BIT STRING OPTIONAL
+// 	-- Shall be present if used in SpecifiedECDomain with version of
+// 	-- ecdpVer2 or ecdpVer3
+// 	}
+// 	-- Type used to control version of EC domain parameters
+// 	SpecifiedECDomainVersion ::= INTEGER { ecdpVer1(1) , ecdpVer2(2) , ecdpVer3(3) }
+// 	-- Identifying elliptic curve domain parameters explicitly with this type
+// 	SpecifiedECDomain ::= SEQUENCE {
+// 	version		SpecifiedECDomainVersion ( ecdpVer1 | ecdpVer2 | ecdpVer3 ),
+// 	fieldID		FieldID {{FieldTypes}},
+// 	curve		Curve,
+// 	base			ECPoint, -- Base point G
+// 	order		INTEGER, -- Order n of the base point
+// 	cofactor		INTEGER OPTIONAL, -- The integer h = #E(Fq)/n
+// 	hash			HashAlgorithm OPTIONAL,
+// 	... -- Additional parameters may be added
+// 	}
+
+// TODO - consider aligning above to RFC-3279.. ECParameters ?
+
+// TODO - following xcode could be moved to a generic crypto module
+
+type ECCurve struct {
+	A    []byte
+	B    []byte
+	Seed asn1.BitString `asn1:"optional"`
+}
+
+type ECField struct {
+	FieldType  asn1.ObjectIdentifier
+	Parameters asn1.RawValue
 }
 
 // RFC 3279 (RSA Keys)
@@ -60,11 +122,11 @@ type RsaPublicKey struct {
 }
 
 func (ec EcPoint) String() string {
-	return fmt.Sprintf("(x:%x, y:%x)", ec.x.Bytes(), ec.y.Bytes())
+	return fmt.Sprintf("(x:%x, y:%x)", ec.X.Bytes(), ec.Y.Bytes())
 }
 
 func (ec EcPoint) Equal(ec2 EcPoint) bool {
-	if !bytes.Equal(ec.x.Bytes(), ec2.x.Bytes()) || !bytes.Equal(ec.y.Bytes(), ec2.y.Bytes()) {
+	if !bytes.Equal(ec.X.Bytes(), ec2.X.Bytes()) || !bytes.Equal(ec.Y.Bytes(), ec2.Y.Bytes()) {
 		return false
 	}
 	return true
@@ -101,7 +163,7 @@ func GetCipherForKey(alg BlockCipherAlg, key []byte) (cipher.Block, error) {
 func KDF(k []byte, c KDFCounterType, alg BlockCipherAlg, keySizeBits int) []byte {
 	// combine 'k' and 'c'
 	kc := bytes.Clone(k)
-	kc = append(kc, UInt32ToBytes(uint32(c))...)
+	kc = append(kc, utils.UInt32ToBytes(uint32(c))...)
 
 	var out []byte
 
@@ -246,12 +308,12 @@ func ISO9797RetailMacDes(key []byte, data []byte) (mac []byte, err error) {
 
 // Maps hash algorithm OIDs to crypto.Hash values
 var oidHashAlgorithmToCryptoHash = map[string]crypto.Hash{
-	oidHashAlgorithmMD5.String():    crypto.MD5,
-	oidHashAlgorithmSHA1.String():   crypto.SHA1,
-	oidHashAlgorithmSHA256.String(): crypto.SHA256,
-	oidHashAlgorithmSHA384.String(): crypto.SHA384,
-	oidHashAlgorithmSHA512.String(): crypto.SHA512,
-	oidHashAlgorithmSHA224.String(): crypto.SHA224,
+	oid.OidHashAlgorithmMD5.String():    crypto.MD5,
+	oid.OidHashAlgorithmSHA1.String():   crypto.SHA1,
+	oid.OidHashAlgorithmSHA256.String(): crypto.SHA256,
+	oid.OidHashAlgorithmSHA384.String(): crypto.SHA384,
+	oid.OidHashAlgorithmSHA512.String(): crypto.SHA512,
+	oid.OidHashAlgorithmSHA224.String(): crypto.SHA224,
 }
 
 // panics if hash algorithm is not supported
@@ -335,33 +397,44 @@ func KeyGeneratorEc(ec elliptic.Curve) EcKeypair {
 	var err error
 	var out EcKeypair
 
-	out.pub = new(EcPoint)
+	out.Pub = new(EcPoint)
 
-	out.pri, out.pub.x, out.pub.y, err = elliptic.GenerateKey(ec, rand.Reader)
+	out.Pri, out.Pub.X, out.Pub.Y, err = elliptic.GenerateKey(ec, rand.Reader)
 	if err != nil {
 		log.Panic(err)
 	}
 
-	slog.Debug("KeyGeneratorEc", "Pri", BytesToHex(out.pri), "Pub", out.pub.String())
+	slog.Debug("KeyGeneratorEc", "Pri", utils.BytesToHex(out.Pri), "Pub", out.Pub.String())
 
 	return out
 }
 
-func encodeX962EcPoint(ec elliptic.Curve, point *EcPoint) []byte {
-	return elliptic.Marshal(ec, point.x, point.y)
+func EncodeX962EcPoint(ec elliptic.Curve, point *EcPoint) []byte {
+	return elliptic.Marshal(ec, point.X, point.Y)
 }
 
-func decodeX962EcPoint(ec elliptic.Curve, data []byte) *EcPoint {
+func DecodeX962EcPoint(ec elliptic.Curve, data []byte) *EcPoint {
 	var point EcPoint
-	point.x, point.y = elliptic.Unmarshal(ec, data)
+	point.X, point.Y = elliptic.Unmarshal(ec, data)
 	return &point
 }
 
-func doEcDh(localPrivate []byte, remotePublic *EcPoint, ec elliptic.Curve) *EcPoint {
+func DoEcDh(localPrivate []byte, remotePublic *EcPoint, ec elliptic.Curve) *EcPoint {
 	var point EcPoint
-	point.x, point.y = ec.ScalarMult(remotePublic.x, remotePublic.y, localPrivate)
-
-	slog.Debug("doECDH", "Pri", BytesToHex(localPrivate), "Pub", remotePublic, "EC.P", BytesToHex(ec.Params().P.Bytes()), "Res", point)
-
+	point.X, point.Y = ec.ScalarMult(remotePublic.X, remotePublic.Y, localPrivate)
+	slog.Debug("DoECDH", "Pri", utils.BytesToHex(localPrivate), "Pub", remotePublic, "EC.P", utils.BytesToHex(ec.Params().P.Bytes()), "Res", point)
 	return &point
+}
+
+// TODO - why not use internal RsaPublicKey type?
+func RsaDecryptWithPublicKey(ciphertext []byte, publicKey *rsa.PublicKey) []byte {
+	if len(ciphertext) < 1 {
+		log.Panicf("ciphertext too short (len:%01d)", len(ciphertext))
+	}
+
+	m := new(big.Int).SetBytes(ciphertext)
+	e := big.NewInt(int64(publicKey.E))
+	c := new(big.Int).Exp(m, e, publicKey.N)
+
+	return c.Bytes()
 }

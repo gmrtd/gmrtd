@@ -1,4 +1,4 @@
-package gmrtd
+package iso7816
 
 import (
 	"bytes"
@@ -10,6 +10,9 @@ import (
 	"math/big"
 
 	"github.com/aead/cmac"
+	"github.com/gmrtd/gmrtd/cryptoutils"
+	"github.com/gmrtd/gmrtd/tlv"
+	"github.com/gmrtd/gmrtd/utils"
 )
 
 // SM Data Objects (see [ISO/IEC 7816-4])
@@ -34,7 +37,7 @@ import (
 const CLA_MASK byte = 0x0C
 
 type SecureMessaging struct {
-	alg       BlockCipherAlg
+	alg       cryptoutils.BlockCipherAlg
 	ksEnc     []byte
 	ksMac     []byte
 	ssc       []byte
@@ -42,18 +45,33 @@ type SecureMessaging struct {
 	macCipher cipher.Block
 }
 
-func NewSecureMessaging(alg BlockCipherAlg, ksEnc []byte, ksMac []byte) (sm *SecureMessaging, err error) {
+func (sm1 SecureMessaging) Equal(sm2 SecureMessaging) bool {
+	if (sm1.alg == sm2.alg) &&
+		bytes.Equal(sm1.ksEnc, sm2.ksEnc) &&
+		bytes.Equal(sm1.ksMac, sm2.ksMac) &&
+		bytes.Equal(sm1.ssc, sm2.ssc) {
+		return true
+	}
+
+	return false
+}
+
+func (sm SecureMessaging) GetKsEnc() []byte {
+	return bytes.Clone(sm.ksEnc)
+}
+
+func NewSecureMessaging(alg cryptoutils.BlockCipherAlg, ksEnc []byte, ksMac []byte) (sm *SecureMessaging, err error) {
 	sm = new(SecureMessaging)
 
 	sm.alg = alg
 	sm.ksEnc = ksEnc
 	sm.ksMac = ksMac
 
-	if sm.encCipher, err = GetCipherForKey(sm.alg, ksEnc); err != nil {
+	if sm.encCipher, err = cryptoutils.GetCipherForKey(sm.alg, ksEnc); err != nil {
 		return nil, err
 	}
 
-	if sm.macCipher, err = GetCipherForKey(sm.alg, ksMac); err != nil {
+	if sm.macCipher, err = cryptoutils.GetCipherForKey(sm.alg, ksMac); err != nil {
 		return nil, err
 	}
 
@@ -71,7 +89,7 @@ func (sm *SecureMessaging) SetSSC(ssc []byte) {
 		log.Panicf("SSC length mismatch (exp:%d, act:%d)", len(sm.ssc), len(ssc))
 	}
 	copy(sm.ssc, ssc)
-	slog.Debug("SetSSC", "SSC", BytesToHex(sm.ssc))
+	slog.Debug("SetSSC", "SSC", utils.BytesToHex(sm.ssc))
 }
 
 func (sm SecureMessaging) String() string {
@@ -98,12 +116,12 @@ func (sm *SecureMessaging) cbcCrypt(data []byte, encrypt bool) []byte {
 	iv := make([]byte, sm.encCipher.BlockSize())
 
 	// special IV setup for AES
-	if sm.alg == AES {
+	if sm.alg == cryptoutils.AES {
 		// IV = K(KSenc,SSC)
 		sm.encCipher.Encrypt(iv, sm.ssc)
 	}
 
-	out := CryptCBC(sm.encCipher, iv, data, encrypt)
+	out := cryptoutils.CryptCBC(sm.encCipher, iv, data, encrypt)
 
 	return out
 }
@@ -111,11 +129,11 @@ func (sm *SecureMessaging) cbcCrypt(data []byte, encrypt bool) []byte {
 // NB data must be padded to block boundary before calling
 func (sm *SecureMessaging) generateMac(data []byte) (mac []byte, err error) {
 	switch sm.alg {
-	case TDES:
-		if mac, err = ISO9797RetailMacDes(sm.ksMac, data); err != nil {
+	case cryptoutils.TDES:
+		if mac, err = cryptoutils.ISO9797RetailMacDes(sm.ksMac, data); err != nil {
 			return nil, err
 		}
-	case AES:
+	case cryptoutils.AES:
 		var err error
 		// CMAC-mode with MAC length of 8 bytes
 		// AES [FIPS 197] SHALL be used in CMAC-mode [SP 800-38B] with a MAC length of 8 bytes.
@@ -132,12 +150,12 @@ func (sm *SecureMessaging) generateMac(data []byte) (mac []byte, err error) {
 
 func (sm *SecureMessaging) cryptoPad(data []byte) []byte {
 	// NB we use the encryption block-size as crypt/mac are always the same algorithm
-	return ISO9797Method2Pad(data, sm.encCipher.BlockSize())
+	return cryptoutils.ISO9797Method2Pad(data, sm.encCipher.BlockSize())
 }
 
 // NB fails if empty data passed in (as doesn't qualify the padding rules)
 func (sm *SecureMessaging) cryptoUnpad(data []byte) []byte {
-	return ISO9797Method2Unpad(data)
+	return cryptoutils.ISO9797Method2Unpad(data)
 }
 
 func (sm *SecureMessaging) Encode(cApdu *CApdu) (out *CApdu, err error) {
@@ -152,11 +170,11 @@ func (sm *SecureMessaging) Encode(cApdu *CApdu) (out *CApdu, err error) {
 	// increment SSC
 	sm.sscIncrement()
 
-	tlv := NewTlvNodes()
+	nodes := tlv.NewTlvNodes()
 
 	// do85/do87
 	if cApdu.HaveData() {
-		var tag TlvTag
+		var tag tlv.TlvTag
 		if cApdu.ins%2 == 0 {
 			tag = 0x87
 		} else {
@@ -166,12 +184,12 @@ func (sm *SecureMessaging) Encode(cApdu *CApdu) (out *CApdu, err error) {
 		value := []byte{0x01}
 		value = append(value, sm.cbcCrypt(sm.cryptoPad(cApdu.data), true)...)
 
-		tlv.AddNode(NewTlvSimpleNode(TlvTag(tag), value))
+		nodes.AddNode(tlv.NewTlvSimpleNode(tlv.TlvTag(tag), value))
 	}
 
 	// do97
 	if cApdu.HaveLe() {
-		tlv.AddNode(NewTlvSimpleNode(TlvTag(0x97), cApdu.EncodeLe()))
+		nodes.AddNode(tlv.NewTlvSimpleNode(tlv.TlvTag(0x97), cApdu.EncodeLe()))
 	}
 
 	// cmdHeader
@@ -187,14 +205,14 @@ func (sm *SecureMessaging) Encode(cApdu *CApdu) (out *CApdu, err error) {
 		macData := make([]byte, 0)
 		macData = append(macData, sm.ssc...)
 		macData = append(macData, cmdHeaderPadded...)
-		macData = append(macData, tlv.Encode()...)
+		macData = append(macData, nodes.Encode()...)
 
 		var mac []byte
 		if mac, err = sm.generateMac(sm.cryptoPad(macData)); err != nil {
 			return nil, err
 		}
 
-		tlv.AddNode(NewTlvSimpleNode(TlvTag(0x8E), mac))
+		nodes.AddNode(tlv.NewTlvSimpleNode(tlv.TlvTag(0x8E), mac))
 	}
 
 	// LE should always be 256 or 65536 for secure-messaging
@@ -204,9 +222,9 @@ func (sm *SecureMessaging) Encode(cApdu *CApdu) (out *CApdu, err error) {
 		smLe = 65536
 	}
 
-	out = NewCApdu(CLA_MASK, cApdu.ins, cApdu.p1, cApdu.p2, tlv.Encode(), smLe)
+	out = NewCApdu(CLA_MASK, cApdu.ins, cApdu.p1, cApdu.p2, nodes.Encode(), smLe)
 
-	slog.Debug("Encode", "In", cApdu.String(), "Out", out.String(), "Out(bytes)", BytesToHex(out.Encode()))
+	slog.Debug("Encode", "In", cApdu.String(), "Out", out.String(), "Out(bytes)", utils.BytesToHex(out.Encode()))
 
 	return out, nil
 }
@@ -226,7 +244,7 @@ func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
 
 	// Response APDU: [DO‘85’ or DO‘87’] [DO‘99’] DO‘8E’.
 
-	tlv := TlvDecode(smRApdu.Data)
+	tlv := tlv.TlvDecode(smRApdu.Data)
 
 	tag85or87 := tlv.GetNode(0x85)
 	if !tag85or87.IsValidNode() {
@@ -254,7 +272,7 @@ func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
 		}
 
 		if !bytes.Equal(expMAC, tag8E.GetValue()) {
-			slog.Debug("sm.Decode: MAC mismatch", "Exp", BytesToHex(expMAC), "Act", BytesToHex(tag8E.GetValue()))
+			slog.Debug("sm.Decode: MAC mismatch", "Exp", utils.BytesToHex(expMAC), "Act", utils.BytesToHex(tag8E.GetValue()))
 			return nil, fmt.Errorf("MAC mismatch (Exp: %x) (Act: %x)", expMAC, tag8E.GetValue())
 		}
 	}
@@ -286,7 +304,7 @@ func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
 
 	rApdu = NewRApdu(rApduStatus, rapduData)
 
-	slog.Debug("Decode", "In", BytesToHex(rApduBytes), "Out", rApdu.String())
+	slog.Debug("Decode", "In", utils.BytesToHex(rApduBytes), "Out", rApdu.String())
 
 	return rApdu, err
 }

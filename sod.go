@@ -3,6 +3,11 @@ package gmrtd
 import (
 	"fmt"
 	"slices"
+
+	cms "github.com/gmrtd/gmrtd/cms"
+	"github.com/gmrtd/gmrtd/oid"
+	"github.com/gmrtd/gmrtd/tlv"
+	"github.com/gmrtd/gmrtd/utils"
 )
 
 // TODO - 2 versions of SOD... v1 (preferred) and legacy format v0
@@ -12,7 +17,7 @@ const SODTag = 0x77
 
 type SOD struct {
 	RawData           []byte
-	SD                *SignedData
+	SD                *cms.SignedData
 	LdsSecurityObject *LDSSecurityObject
 }
 
@@ -25,7 +30,7 @@ func NewSOD(data []byte) (*SOD, error) {
 
 	out.RawData = slices.Clone(data)
 
-	nodes := TlvDecode(out.RawData)
+	nodes := tlv.TlvDecode(out.RawData)
 
 	rootNode := nodes.GetNode(SODTag)
 
@@ -34,10 +39,10 @@ func NewSOD(data []byte) (*SOD, error) {
 	}
 
 	{
-		var sd *SignedData
+		var sd *cms.SignedData
 		var err error
 
-		sd, err = parseSignedData(rootNode.GetNode(0x30).Encode())
+		sd, err = cms.ParseSignedData(rootNode.GetNode(0x30).Encode())
 		if err != nil {
 			return nil, err
 		}
@@ -45,7 +50,7 @@ func NewSOD(data []byte) (*SOD, error) {
 		out.SD = sd
 
 		// verify the content-type is as expected
-		if !sd.SD2.Content.EContentType.Equal(oidLdsSecurityObject) {
+		if !sd.SD2.Content.EContentType.Equal(oid.OidLdsSecurityObject) {
 			return nil, fmt.Errorf("incorrect ContentType (got:%s)", sd.SD2.Content.EContentType.String())
 		}
 		eContent := sd.SD2.Content.EContent
@@ -77,7 +82,7 @@ func (sod SOD) unicodeVersion() string {
 
 type LDSSecurityObject struct {
 	Version             int
-	HashAlgorithm       AlgorithmIdentifier
+	HashAlgorithm       cms.AlgorithmIdentifier
 	DataGroupHashValues []DataGroupHash
 	LdsVersionInfo      LDSVersionInfo `asn1:"optional"`
 }
@@ -97,7 +102,7 @@ func parseLdsSecurityObject(data []byte) (*LDSSecurityObject, error) {
 	var err error
 	var securityObject LDSSecurityObject
 
-	err = parseAsn1(data, false, &securityObject)
+	err = utils.ParseAsn1(data, false, &securityObject)
 	if err != nil {
 		return nil, fmt.Errorf("asn1 parsing error: %s", err)
 	}

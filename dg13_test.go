@@ -2,6 +2,8 @@ package gmrtd
 
 import (
 	"testing"
+
+	"github.com/gmrtd/gmrtd/utils"
 )
 
 func TestNewDG13NoData(t *testing.T) {
@@ -15,7 +17,7 @@ func TestNewDG13NoData(t *testing.T) {
 }
 
 func TestNewDG13UnhappyRootTag(t *testing.T) {
-	var dg13bytes []byte = HexToBytes("01021234") // valid TLV but invalid DG13, as tag 6D is missing
+	var dg13bytes []byte = utils.HexToBytes("01021234") // valid TLV but invalid DG13, as tag 6D is missing
 
 	dg13, err := NewDG13(dg13bytes)
 

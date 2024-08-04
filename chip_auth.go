@@ -4,12 +4,13 @@ import (
 	"crypto/elliptic"
 	"encoding/asn1"
 	"fmt"
-	"log"
 	"log/slog"
-	"math/big"
-	"slices"
 
-	"github.com/ebfe/brainpool"
+	"github.com/gmrtd/gmrtd/cryptoutils"
+	"github.com/gmrtd/gmrtd/iso7816"
+	"github.com/gmrtd/gmrtd/oid"
+	"github.com/gmrtd/gmrtd/tlv"
+	"github.com/gmrtd/gmrtd/utils"
 )
 
 // TODO
@@ -21,16 +22,16 @@ import (
 //	example is taking from CardSecurity... but also used std domain params instead of explicit.. so should support both?
 
 type ChipAuth struct {
-	keyGeneratorEc KeyGeneratorEcFn
+	keyGeneratorEc cryptoutils.KeyGeneratorEcFn
 }
 
 func NewChipAuth() *ChipAuth {
 	var chipAuth ChipAuth
-	chipAuth.keyGeneratorEc = KeyGeneratorEc
+	chipAuth.keyGeneratorEc = cryptoutils.KeyGeneratorEc
 	return &chipAuth
 }
 
-func (chipAuth *ChipAuth) doChipAuth(nfc *NfcSession, doc *Document) (err error) {
+func (chipAuth *ChipAuth) doChipAuth(nfc *iso7816.NfcSession, doc *Document) (err error) {
 	// skip if we have already performed chip authentication
 	if doc.ChipAuthStatus != CHIP_AUTH_STATUS_NONE {
 		return nil
@@ -42,8 +43,8 @@ func (chipAuth *ChipAuth) doChipAuth(nfc *NfcSession, doc *Document) (err error)
 		return nil
 	}
 
-	if nfc.sm != nil {
-		slog.Debug("doChipAuth", "SM(pre)", nfc.sm.String())
+	if nfc.SM != nil {
+		slog.Debug("doChipAuth", "SM(pre)", nfc.SM.String())
 	}
 
 	var caInfo *ChipAuthenticationInfo
@@ -65,10 +66,10 @@ func (chipAuth *ChipAuth) doChipAuth(nfc *NfcSession, doc *Document) (err error)
 	}
 
 	// process based on the type of key (DH/ECDH)
-	if caPubKeyInfo.Protocol.Equal(oidPkDh) {
+	if caPubKeyInfo.Protocol.Equal(oid.OidPkDh) {
 		// DH
 		return fmt.Errorf("chipAuth: DH not currently supported (Raw:%x)", caPubKeyInfo.Raw)
-	} else if caPubKeyInfo.Protocol.Equal(oidPkEcdh) {
+	} else if caPubKeyInfo.Protocol.Equal(oid.OidPkEcdh) {
 		// ECDH
 		err = chipAuth.doCaEcdh(nfc, caInfo, caAlgInfo, caPubKeyInfo)
 		if err != nil {
@@ -80,8 +81,8 @@ func (chipAuth *ChipAuth) doChipAuth(nfc *NfcSession, doc *Document) (err error)
 		return fmt.Errorf("chipAuth: unsupported public key type (OID:%s)", caPubKeyInfo.Protocol.String())
 	}
 
-	if nfc.sm != nil {
-		slog.Debug("doChipAuth", "SM(post)", nfc.sm.String())
+	if nfc.SM != nil {
+		slog.Debug("doChipAuth", "SM(post)", nfc.SM.String())
 	}
 
 	return nil
@@ -136,22 +137,22 @@ func selectCAPubKeyInfo(caInfo *ChipAuthenticationInfo, caAlgInfo *CaAlgorithmIn
 
 type CaAlgorithmInfo struct {
 	targetOid   asn1.ObjectIdentifier
-	cipherAlg   BlockCipherAlg
+	cipherAlg   cryptoutils.BlockCipherAlg
 	keySizeBits int
 	weighting   int
 }
 
 // NB weighting: we prioritise ECDH (2xxx) over DH (1xxx), then select based on key-bits
 var caAlgInfo = map[string]CaAlgorithmInfo{
-	oidCaDh3DesCbcCbc.String():    {oidPkDh, TDES, 112, 1112},
-	oidCaDhAesCbcCmac128.String(): {oidPkDh, AES, 128, 1128},
-	oidCaDhAesCbcCmac192.String(): {oidPkDh, AES, 192, 1192},
-	oidCaDhAesCbcCmac256.String(): {oidPkDh, AES, 256, 1256},
+	oid.OidCaDh3DesCbcCbc.String():    {oid.OidPkDh, cryptoutils.TDES, 112, 1112},
+	oid.OidCaDhAesCbcCmac128.String(): {oid.OidPkDh, cryptoutils.AES, 128, 1128},
+	oid.OidCaDhAesCbcCmac192.String(): {oid.OidPkDh, cryptoutils.AES, 192, 1192},
+	oid.OidCaDhAesCbcCmac256.String(): {oid.OidPkDh, cryptoutils.AES, 256, 1256},
 
-	oidCaEcdh3DesCbcCbc.String():    {oidPkEcdh, TDES, 112, 2112},
-	oidCaEcdhAesCbcCmac128.String(): {oidPkEcdh, AES, 128, 2128},
-	oidCaEcdhAesCbcCmac192.String(): {oidPkEcdh, AES, 192, 2192},
-	oidCaEcdhAesCbcCmac256.String(): {oidPkEcdh, AES, 256, 2256},
+	oid.OidCaEcdh3DesCbcCbc.String():    {oid.OidPkEcdh, cryptoutils.TDES, 112, 2112},
+	oid.OidCaEcdhAesCbcCmac128.String(): {oid.OidPkEcdh, cryptoutils.AES, 128, 2128},
+	oid.OidCaEcdhAesCbcCmac192.String(): {oid.OidPkEcdh, cryptoutils.AES, 192, 2192},
+	oid.OidCaEcdhAesCbcCmac256.String(): {oid.OidPkEcdh, cryptoutils.AES, 256, 2256},
 }
 
 func getAlgInfo(oid asn1.ObjectIdentifier) (*CaAlgorithmInfo, error) {
@@ -164,7 +165,7 @@ func getAlgInfo(oid asn1.ObjectIdentifier) (*CaAlgorithmInfo, error) {
 	return &out, nil
 }
 
-func (chipAuth *ChipAuth) doMseSetAT(nfc *NfcSession, caInfo *ChipAuthenticationInfo) error {
+func (chipAuth *ChipAuth) doMseSetAT(nfc *iso7816.NfcSession, caInfo *ChipAuthenticationInfo) error {
 	// MSE:Set AT
 	//
 	// INS: 0x22
@@ -177,11 +178,11 @@ func (chipAuth *ChipAuth) doMseSetAT(nfc *NfcSession, caInfo *ChipAuthentication
 
 	slog.Debug("doCaECdh - doMseSetAT")
 
-	nodes := NewTlvNodes()
-	nodes.AddNode(NewTlvSimpleNode(0x80, oidBytes(caInfo.Protocol)))
+	nodes := tlv.NewTlvNodes()
+	nodes.AddNode(tlv.NewTlvSimpleNode(0x80, oid.OidBytes(caInfo.Protocol)))
 	// specify key-id (if required)
 	if caInfo.KeyId != nil {
-		nodes.AddNode(NewTlvSimpleNode(0x84, caInfo.KeyId.Bytes()))
+		nodes.AddNode(tlv.NewTlvSimpleNode(0x84, caInfo.KeyId.Bytes()))
 	}
 
 	// MSE:Set AT (0x41A4: Chip Authentication)
@@ -190,7 +191,7 @@ func (chipAuth *ChipAuth) doMseSetAT(nfc *NfcSession, caInfo *ChipAuthentication
 	return err
 }
 
-func (chipAuth *ChipAuth) doGeneralAuthenticate(nfc *NfcSession, curve *elliptic.Curve, termKeypair EcKeypair, chipPubKey *EcPoint, caAlgInfo *CaAlgorithmInfo) (ksEnc []byte, ksMac []byte, err error) {
+func (chipAuth *ChipAuth) doGeneralAuthenticate(nfc *iso7816.NfcSession, curve *elliptic.Curve, termKeypair cryptoutils.EcKeypair, chipPubKey *cryptoutils.EcPoint, caAlgInfo *CaAlgorithmInfo) (ksEnc []byte, ksMac []byte, err error) {
 	// General Authenticate
 	//
 	// INS: 0x86
@@ -204,29 +205,29 @@ func (chipAuth *ChipAuth) doGeneralAuthenticate(nfc *NfcSession, curve *elliptic
 
 	slog.Debug("doCaECdh - doGeneralAuthenticate")
 
-	var rApdu *RApdu = nfc.GeneralAuthenticate(false, encode_7C_XX(0x80, encodeX962EcPoint(*curve, termKeypair.pub)))
+	var rApdu *iso7816.RApdu = nfc.GeneralAuthenticate(false, encode_7C_XX(0x80, cryptoutils.EncodeX962EcPoint(*curve, termKeypair.Pub)))
 	if !rApdu.IsSuccess() {
 		return nil, nil, fmt.Errorf("doCaEcdh: General Authenticate failed (Status:%d)", rApdu.Status)
 	}
 
-	slog.Debug("doCaEcdh", "rApdu-bytes", BytesToHex(rApdu.Data))
+	slog.Debug("doCaEcdh", "rApdu-bytes", utils.BytesToHex(rApdu.Data))
 
 	// TODO - should validate the response... as 7C is mandatory
 	//			AT/MY passport simply return 7C00
 
 	// 3. Both the eMRTD chip and the terminal compute the following:
 	// a) The shared secret K = KA(SKIC, PKDH,IFD, DIC) = KA(SKDH,IFD, PKIC, DIC)
-	var k *EcPoint = doEcDh(termKeypair.pri, chipPubKey, *curve)
+	var k *cryptoutils.EcPoint = cryptoutils.DoEcDh(termKeypair.Pri, chipPubKey, *curve)
 
 	// NB secret is just based on 'x'
-	sharedSecret := k.x.Bytes()
+	sharedSecret := k.X.Bytes()
 
-	slog.Debug("doCaEcdh", "sharedSecret", BytesToHex(sharedSecret))
+	slog.Debug("doCaEcdh", "sharedSecret", utils.BytesToHex(sharedSecret))
 
 	// b) The session keys KSMAC = KDFMAC(K) and KSEnc = KDFEnc(K) derived from K for Secure Messaging.
-	ksEnc = KDF(sharedSecret, KDF_COUNTER_KSENC, caAlgInfo.cipherAlg, caAlgInfo.keySizeBits)
-	ksMac = KDF(sharedSecret, KDF_COUNTER_KSMAC, caAlgInfo.cipherAlg, caAlgInfo.keySizeBits)
-	slog.Debug("doCaEcdh", "ksEnc", BytesToHex(ksEnc), "ksMac", BytesToHex(ksMac))
+	ksEnc = cryptoutils.KDF(sharedSecret, cryptoutils.KDF_COUNTER_KSENC, caAlgInfo.cipherAlg, caAlgInfo.keySizeBits)
+	ksMac = cryptoutils.KDF(sharedSecret, cryptoutils.KDF_COUNTER_KSMAC, caAlgInfo.cipherAlg, caAlgInfo.keySizeBits)
+	slog.Debug("doCaEcdh", "ksEnc", utils.BytesToHex(ksEnc), "ksMac", utils.BytesToHex(ksMac))
 
 	return ksEnc, ksMac, err
 }
@@ -234,17 +235,17 @@ func (chipAuth *ChipAuth) doGeneralAuthenticate(nfc *NfcSession, curve *elliptic
 // performs Chip Authentication in ECDH mode
 // NB does NOT update doc.ChipAuthStatus, caller is expected to do this!
 // NB we currently implement the AES (2) APDU approach, which should also work for TDES (i.e. we don't implement MSE:Set KAT just for TDES)
-func (chipAuth *ChipAuth) doCaEcdh(nfc *NfcSession, caInfo *ChipAuthenticationInfo, caAlgInfo *CaAlgorithmInfo, caPubKeyInfo *ChipAuthenticationPublicKeyInfo) (err error) {
+func (chipAuth *ChipAuth) doCaEcdh(nfc *iso7816.NfcSession, caInfo *ChipAuthenticationInfo, caAlgInfo *CaAlgorithmInfo, caPubKeyInfo *ChipAuthenticationPublicKeyInfo) (err error) {
 	slog.Debug("doCaEcdh", "OID", caInfo.Protocol.String())
 
 	var curve *elliptic.Curve
-	var chipPubKey *EcPoint
+	var chipPubKey *cryptoutils.EcPoint
 	curve, chipPubKey = caPubKeyInfo.ChipAuthenticationPublicKey.GetEcCurveAndPubKey()
 
 	slog.Debug("doCaEcdh", "chipPubKey", chipPubKey.String())
 
 	// generate ephemeral key
-	var termKeypair EcKeypair = chipAuth.keyGeneratorEc(*curve)
+	var termKeypair cryptoutils.EcKeypair = chipAuth.keyGeneratorEc(*curve)
 
 	err = chipAuth.doMseSetAT(nfc, caInfo)
 	if err != nil {
@@ -264,7 +265,7 @@ func (chipAuth *ChipAuth) doCaEcdh(nfc *NfcSession, caInfo *ChipAuthenticationIn
 	{
 		var err error
 
-		nfc.sm, err = NewSecureMessaging(caAlgInfo.cipherAlg, ksEnc, ksMac)
+		nfc.SM, err = iso7816.NewSecureMessaging(caAlgInfo.cipherAlg, ksEnc, ksMac)
 		if err != nil {
 			return err
 		}
@@ -287,204 +288,4 @@ func (chipAuth *ChipAuth) doCaEcdh(nfc *NfcSession, caInfo *ChipAuthenticationIn
 	}
 
 	return nil
-}
-
-// https://www.itu.int/ITU-T/formal-language/itu-t/x/x894/2018-cor1/ANSI-X9-62.html
-//
-// -- Type (parameterized) to indicate the hash function with
-// -- the OID ecdsa-with-Specified
-// HashAlgorithm::= AlgorithmIdentifier {{ ANSIX9HashFunctions }}
-//
-// -- Finite field element
-// FieldElement ::= OCTET STRING
-//
-// -- Finite fields have a type (prime or binary) and parameters (size and basis)
-// FieldID { FIELD-ID:IOSet } ::= SEQUENCE {-- Finite field
-// 	fieldType		FIELD-ID.&id({IOSet}),
-// 	parameters		FIELD-ID.&Type({IOSet}{@fieldType})
-// 	}
-// 	-- ============================================
-// 	-- Elliptic Curve Points (see  E.6)
-// 	-- ============================================
-// 	ECPoint ::= OCTET STRING
-// 	-- ============================================
-// 	-- Elliptic Curve Domain Parameters (see  E.7)
-// 	-- ============================================
-// 	-- Identifying an elliptic curve by its coefficients (and optional seed)
-// 	Curve ::= SEQUENCE {
-// 	a		FieldElement, -- Elliptic curve coefficient a
-// 	b		FieldElement, -- Elliptic curve coefficient b
-// 	seed	BIT STRING OPTIONAL
-// 	-- Shall be present if used in SpecifiedECDomain with version of
-// 	-- ecdpVer2 or ecdpVer3
-// 	}
-// 	-- Type used to control version of EC domain parameters
-// 	SpecifiedECDomainVersion ::= INTEGER { ecdpVer1(1) , ecdpVer2(2) , ecdpVer3(3) }
-// 	-- Identifying elliptic curve domain parameters explicitly with this type
-// 	SpecifiedECDomain ::= SEQUENCE {
-// 	version		SpecifiedECDomainVersion ( ecdpVer1 | ecdpVer2 | ecdpVer3 ),
-// 	fieldID		FieldID {{FieldTypes}},
-// 	curve		Curve,
-// 	base			ECPoint, -- Base point G
-// 	order		INTEGER, -- Order n of the base point
-// 	cofactor		INTEGER OPTIONAL, -- The integer h = #E(Fq)/n
-// 	hash			HashAlgorithm OPTIONAL,
-// 	... -- Additional parameters may be added
-// 	}
-
-// TODO - consider aligning above to RFC-3279.. ECParameters ?
-
-// TODO - following xcode could be moved to a generic crypto module
-
-type ECCurve struct {
-	A    []byte
-	B    []byte
-	Seed asn1.BitString `asn1:"optional"`
-}
-
-type ECField struct {
-	FieldType  asn1.ObjectIdentifier
-	Parameters asn1.RawValue
-}
-
-// TODO - looks like this is the inner part of SubjectPublicKeyInfo (used by ActiveAuth/PassiveAuth)
-//   - maybe we can generalise this code and use the get function to get the key we require
-type ECSpecifiedDomain struct {
-	Raw      asn1.RawContent
-	Version  int
-	FieldId  ECField
-	Curve    ECCurve
-	Base     []byte
-	Order    *big.Int
-	Cofactor *big.Int
-	Hash     asn1.ObjectIdentifier `asn1:"optional"`
-}
-
-// parse ecPublicKey ASN1 object (aka EC Specified Domain)
-// TODO - this looks like SubjectPublicKeyInfo... also required in SOD... this is just specific to EC.. or at least the curve part of it
-func parseECSpecifiedDomain(algIdentifier *AlgorithmIdentifier) (out *ECSpecifiedDomain) {
-	slog.Debug("parseECSpecifiedDomain", "Algorithm Identifier", algIdentifier)
-
-	if !algIdentifier.Algorithm.Equal(oidEcPublicKey) {
-		// TODO - should we panic?
-		log.Panicf("expected ecPublicKey OID")
-	}
-
-	out = new(ECSpecifiedDomain)
-
-	slog.Debug("parseECSpecifiedDomain", "Parameters(bytes)", BytesToHex(algIdentifier.Parameters.FullBytes))
-
-	// TODO - are we sure partial flag actually works.. asn1 decode seems to be quite happy skipping fields
-	err := parseAsn1(algIdentifier.Parameters.FullBytes, true, out) // TODO - NB may have extra field after
-	if err != nil {
-		log.Panicf("parseSubjectPublicKey err:%s", err)
-	}
-
-	// TODO - any other data checks?
-	if !out.FieldId.FieldType.Equal(oidPrimeField) {
-		log.Panicf("PrimeField OID expected")
-	}
-
-	slog.Debug("parseECSpecifiedDomain",
-		"Version", out.Version,
-		"FieldId.FieldType", out.FieldId.FieldType.String(),
-		"FieldId.Parameters", BytesToHex(out.FieldId.Parameters.Bytes),
-		"Curve.A", BytesToHex(out.Curve.A),
-		"Curve.B", BytesToHex(out.Curve.B),
-		"Curve.Seed", BytesToHex(out.Curve.Seed.Bytes),
-		"Base", BytesToHex(out.Base),
-		"Order", BytesToHex(out.Order.Bytes()),
-		"CoFactor", BytesToHex(out.Cofactor.Bytes()),
-	)
-
-	return
-}
-
-var caEcArr []elliptic.Curve = []elliptic.Curve{
-	elliptic.P224(),
-	elliptic.P256(),
-	elliptic.P384(),
-	elliptic.P521(),
-	brainpool.P160r1(),
-	brainpool.P192r1(),
-	brainpool.P224r1(),
-	brainpool.P256r1(),
-	brainpool.P320r1(),
-	brainpool.P384r1(),
-	brainpool.P512r1(),
-}
-
-func getECCurveForSpecifiedDomain(specDomain *ECSpecifiedDomain) (*elliptic.Curve, error) {
-	// Technically we should support 'total' cryptographic agility and allow the MRTD to
-	// dictate any DH/ECDH parameters of its choosing. However, it's more likely that MRTDs
-	// are referencing well-known parameters instead of using random (and potentially unsafe)
-	// settings, so we intentionally support a limited subset and will evaluate this over time.
-	//
-	// e.g. if OID = id-ecPublicKey
-	//		then get the curve (as here)
-	//		and then get/set the public key
-	//
-	// SubjectPublicKeyInfo is specified in x509, but basically
-	//	algorithmIdentifier (OID=id-ecPublicKey, params=specifiedDomain)
-	//	params? public key
-	//
-	// SubjectPublicKeyInfo  ::=  SEQUENCE  {
-	//    algorithm            AlgorithmIdentifier,
-	//    subjectPublicKey     BIT STRING  }
-
-	slog.Debug("getECCurveForSpecifiedDomain", "Params", BytesToHex(specDomain.FieldId.Parameters.Bytes))
-
-	// look for matching 'standard' curve
-	// NB we currently expect the use of standard curve, we may need to support custom curves in the future (but hopefully not)
-	for i := 0; i < len(caEcArr); i++ {
-		var ec elliptic.Curve = caEcArr[i]
-
-		// match using the 'prime field' (P)
-		if slices.Equal(ec.Params().P.Bytes(), specDomain.FieldId.Parameters.Bytes[1:]) { // NB skip 1st byte
-			return &ec, nil
-			// TODO - may want to log the selected curve
-		}
-	}
-
-	return nil, fmt.Errorf("unsupported CA EC (Params:%x) (Raw:%x)", specDomain.FieldId.Parameters.Bytes, specDomain.Raw)
-}
-
-func (subPubKeyInfo *SubjectPublicKeyInfo) GetEcCurveAndPubKey() (curve *elliptic.Curve, pubKey *EcPoint) {
-	/*
-	* Note: We avoid using 'ParsePKIXPublicKey' as it follows PKIX standard and only allows names curves,
-	*       but passports tends to use specified curves (i.e. curve parameters, even if corresponding to well-known curves)
-	 */
-
-	var err error
-
-	// TODO - check OID indicates EC-Key
-
-	specDomain := parseECSpecifiedDomain(&subPubKeyInfo.Algorithm)
-
-	curve, err = getECCurveForSpecifiedDomain(specDomain)
-	if err != nil {
-		log.Panicf("(SubjectPublicKeyInfo.GetEcCurveAndPubKey) Unexpected ASN1 parsing error: %s", err)
-	}
-
-	// get the chip's public key
-	{
-		var chipPubKeyBytes []byte = subPubKeyInfo.SubjectPublicKey.Bytes
-		pubKey = decodeX962EcPoint(*curve, chipPubKeyBytes)
-	}
-
-	return curve, pubKey
-}
-
-func (subPubKeyInfo *SubjectPublicKeyInfo) GetRsaPubKey() *RsaPublicKey {
-	var err error
-	var out RsaPublicKey
-
-	// TODO - check that OID=RsaEncryption
-
-	err = parseAsn1(subPubKeyInfo.SubjectPublicKey.Bytes, false, &out)
-	if err != nil {
-		log.Panicf("(SubjectPublicKeyInfo.GetRsaPubKey) Unexpected ASN1 parsing error: %s", err)
-	}
-
-	return &out
 }

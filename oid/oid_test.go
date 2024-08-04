@@ -1,9 +1,13 @@
-package gmrtd
+package oid
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/gmrtd/gmrtd/utils"
+)
 
 func TestDecodeAsn1objectId(t *testing.T) {
-	oidBytes := HexToBytes("04007F00070202040202")
+	oidBytes := utils.HexToBytes("04007F00070202040202")
 
 	expOidStr := "0.4.0.127.0.7.2.2.4.2.2"
 

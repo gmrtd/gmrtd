@@ -7,7 +7,7 @@
 *
 * NOTE: bare-bones implementation aimed at supporting MRTD use-cases
  */
-package gmrtd
+package cms
 
 import (
 	"bytes"
@@ -19,7 +19,24 @@ import (
 	"log"
 	"log/slog"
 	"math/big"
+	"slices"
+
+	"github.com/ebfe/brainpool"
+	"github.com/gmrtd/gmrtd/cryptoutils"
+	"github.com/gmrtd/gmrtd/oid"
+	"github.com/gmrtd/gmrtd/tlv"
+	"github.com/gmrtd/gmrtd/utils"
 )
+
+type SubjectPublicKeyInfo struct {
+	Algorithm        AlgorithmIdentifier
+	SubjectPublicKey asn1.BitString
+}
+
+type AlgorithmIdentifier struct {
+	Algorithm  asn1.ObjectIdentifier
+	Parameters asn1.RawValue `asn1:"optional"`
+}
 
 type SignedData struct {
 	Oid asn1.ObjectIdentifier ``
@@ -90,7 +107,7 @@ func (attributes AttributeList) GetSetOfAsnBytes() []byte {
 
 	// wrap with explicit 'SET OF' (0x31) tag
 	// TODO - can we use the native asn1 encoder to achieve this.. with tags to request explicit tag?
-	data = NewTlvSimpleNode(0x31, data).Encode()
+	data = tlv.NewTlvSimpleNode(0x31, data).Encode()
 
 	return data
 }
@@ -101,11 +118,11 @@ type EncapContentInfo struct {
 	EContent     []byte                `asn1:"explicit,tag:0"` // e.g. LDSSecurityObject / SecurityInfos
 }
 
-func parseSignedData(data []byte) (*SignedData, error) {
+func ParseSignedData(data []byte) (*SignedData, error) {
 	var err error
 	var signedData SignedData
 
-	err = parseAsn1(data, true, &signedData)
+	err = utils.ParseAsn1(data, true, &signedData)
 	if err != nil {
 		return nil, fmt.Errorf("asn1 parsing error: %s", err)
 	}
@@ -119,7 +136,7 @@ func parseCertificate(data []byte) (*Certificate, error) {
 	var err error
 	var certificate Certificate
 
-	err = parseAsn1(data, false, &certificate)
+	err = utils.ParseAsn1(data, false, &certificate)
 	if err != nil {
 		return nil, fmt.Errorf("asn1 parsing error: %s", err)
 	}
@@ -242,15 +259,15 @@ func (sd *SignedData2) Verify() (bool, error) {
 		return false, fmt.Errorf("(Verify) parseCertificate Error: %w", err)
 	}
 
-	slog.Debug("Verify", "SubjectPublicKey", BytesToHex(cert.TbsCertificate.SubjectPublicKeyInfo.FullBytes))
+	slog.Debug("Verify", "SubjectPublicKey", utils.BytesToHex(cert.TbsCertificate.SubjectPublicKeyInfo.FullBytes))
 
 	// for-each signer-info
 	// NB we only expect 1, but support >1
 	for siIdx := 0; siIdx < len(sd.SignerInfos); siIdx++ {
 		var si *SignerInfo = &(sd.SignerInfos[siIdx])
 
-		aaContentType := si.AuthenticatedAttributes.GetByOID(oidContentType)
-		aaMessageDigest := si.AuthenticatedAttributes.GetByOID(oidMessageDigest)
+		aaContentType := si.AuthenticatedAttributes.GetByOID(oid.OidContentType)
+		aaMessageDigest := si.AuthenticatedAttributes.GetByOID(oid.OidMessageDigest)
 		if aaContentType == nil || aaMessageDigest == nil {
 			return false, fmt.Errorf("(Verify) Expected Authicated-Attribute(s) missing (Content-Type, Message-Digest)")
 		}
@@ -259,15 +276,15 @@ func (sd *SignedData2) Verify() (bool, error) {
 		var aaMessageDigestHash []byte = asn1decodeBytes(aaMessageDigest.Values.Bytes)
 
 		slog.Debug("Verify", "AA Content-Type", aaContentTypeOID.String())
-		slog.Debug("Verify", "AA Message-Digest", BytesToHex(aaMessageDigestHash))
+		slog.Debug("Verify", "AA Message-Digest", utils.BytesToHex(aaMessageDigestHash))
 
 		// verify Content OID matches Authenticated-Attribute (Content Type)
 		if !aaContentTypeOID.Equal(sd.Content.EContentType) {
 			return false, fmt.Errorf("(Verify) Content-Type-OID (%s) differs to Authenticated-Attribute (%s)", sd.Content.EContentType.String(), aaContentTypeOID.String())
 		}
 
-		var contentHash []byte = CryptoHashByOid(si.DigestAlgorithm.Algorithm, sd.Content.EContent)
-		slog.Debug("Verify", "ContentHash", BytesToHex(contentHash))
+		var contentHash []byte = cryptoutils.CryptoHashByOid(si.DigestAlgorithm.Algorithm, sd.Content.EContent)
+		slog.Debug("Verify", "ContentHash", utils.BytesToHex(contentHash))
 
 		// TODO - different process if auth-attr are NOT present... so maybe this is optional?
 		//			- sig input would be slightly different
@@ -278,16 +295,16 @@ func (sd *SignedData2) Verify() (bool, error) {
 		//	5.4.  Message Digest Calculation Process (RFC5652)
 		if !bytes.Equal(contentHash, aaMessageDigestHash) {
 			// invalid content hash
-			slog.Debug("Verify - invalid content hash", "contentHash", BytesToHex(contentHash), "aaMessageDigestHash", BytesToHex(aaMessageDigestHash))
+			slog.Debug("Verify - invalid content hash", "contentHash", utils.BytesToHex(contentHash), "aaMessageDigestHash", utils.BytesToHex(aaMessageDigestHash))
 			return false, nil
 		}
 
 		var dataToHash []byte = si.AuthenticatedAttributes.GetSetOfAsnBytes()
-		slog.Debug("Verify", "dataToHash", BytesToHex(dataToHash))
+		slog.Debug("Verify", "dataToHash", utils.BytesToHex(dataToHash))
 
 		digestAlg := si.DigestAlgorithm.Algorithm
-		var digest []byte = CryptoHashByOid(digestAlg, dataToHash)
-		slog.Debug("Verify", "digest", BytesToHex(digest))
+		var digest []byte = cryptoutils.CryptoHashByOid(digestAlg, dataToHash)
+		slog.Debug("Verify", "digest", utils.BytesToHex(digest))
 
 		/*
 		* Verify the SignedInfo signature (against the PublicKey in the Certificate)
@@ -313,31 +330,31 @@ func (sd *SignedData2) Verify() (bool, error) {
 func verifySignature(pubKeyInfo []byte, digestAlg asn1.ObjectIdentifier, digest []byte, sigAlg asn1.ObjectIdentifier, sig []byte) (bool, error) {
 	var err error
 
-	slog.Debug("verifySignature", "pubKeyInfo", BytesToHex(pubKeyInfo), "digestAlg", digestAlg.String(), "digest", BytesToHex(digest), "sigAlg", sigAlg.String(), "sig", BytesToHex(sig))
+	slog.Debug("verifySignature", "pubKeyInfo", utils.BytesToHex(pubKeyInfo), "digestAlg", digestAlg.String(), "digest", utils.BytesToHex(digest), "sigAlg", sigAlg.String(), "sig", utils.BytesToHex(sig))
 
 	switch sigAlg.String() {
 	/*
 	* ECDSA
 	 */
 	case
-		oidEcdsaWithSHA1.String(),
-		oidEcdsaWithSHA224.String(),
-		oidEcdsaWithSHA256.String(),
-		oidEcdsaWithSHA384.String(),
-		oidEcdsaWithSHA512.String():
+		oid.OidEcdsaWithSHA1.String(),
+		oid.OidEcdsaWithSHA224.String(),
+		oid.OidEcdsaWithSHA256.String(),
+		oid.OidEcdsaWithSHA384.String(),
+		oid.OidEcdsaWithSHA512.String():
 		{
 			// TODO - could check that sig-hash(derived-from-oid) matches original hash (or 'digest' size)
 			//			- need to pass in digestAlg for PSS.. so could verify sig-alg is compatible
 
 			var pub *ecdsa.PublicKey
 			{
-				var subPubKeyInfo SubjectPublicKeyInfo = asn1decodeSubjectPublicKeyInfo(pubKeyInfo)
+				var subPubKeyInfo SubjectPublicKeyInfo = Asn1decodeSubjectPublicKeyInfo(pubKeyInfo)
 
 				var ecCurve *elliptic.Curve
-				var ecPoint *EcPoint
+				var ecPoint *cryptoutils.EcPoint
 				ecCurve, ecPoint = subPubKeyInfo.GetEcCurveAndPubKey()
 
-				pub = &ecdsa.PublicKey{Curve: *ecCurve, X: ecPoint.x, Y: ecPoint.y}
+				pub = &ecdsa.PublicKey{Curve: *ecCurve, X: ecPoint.X, Y: ecPoint.Y}
 			}
 
 			// VerifyASN1: works with non-nist curves (i.e. brainpool) via legacy code (hopefully this doesn't change)
@@ -350,18 +367,18 @@ func verifySignature(pubKeyInfo []byte, digestAlg asn1.ObjectIdentifier, digest 
 	/*
 	* RSA-Encryption
 	 */
-	case oidRsaEncryption.String():
+	case oid.OidRsaEncryption.String():
 		{
 			var rsaPubKey *rsa.PublicKey
 			{
-				var subPubKeyInfo SubjectPublicKeyInfo = asn1decodeSubjectPublicKeyInfo(pubKeyInfo)
-				var pubKey *RsaPublicKey = subPubKeyInfo.GetRsaPubKey()
+				var subPubKeyInfo SubjectPublicKeyInfo = Asn1decodeSubjectPublicKeyInfo(pubKeyInfo)
+				var pubKey *cryptoutils.RsaPublicKey = subPubKeyInfo.GetRsaPubKey()
 				rsaPubKey = &rsa.PublicKey{N: pubKey.N, E: pubKey.E}
 			}
 
-			sigPlaintext := rsaDecryptWithPublicKey(sig, rsaPubKey)
+			sigPlaintext := cryptoutils.RsaDecryptWithPublicKey(sig, rsaPubKey)
 
-			slog.Debug("verifySignature", "sig", BytesToHex(sig), "sigPlaintext", BytesToHex(sigPlaintext))
+			slog.Debug("verifySignature", "sig", utils.BytesToHex(sig), "sigPlaintext", utils.BytesToHex(sigPlaintext))
 
 			// verify the 'RSA Encryption' signature (i.e. the decrypted signature ends with the digest)
 			// https://cryptobook.nakov.com/digital-signatures/rsa-signatures
@@ -375,18 +392,18 @@ func verifySignature(pubKeyInfo []byte, digestAlg asn1.ObjectIdentifier, digest 
 	/*
 	* RSA-PSS
 	 */
-	case oidRsaSsaPss.String():
+	case oid.OidRsaSsaPss.String():
 		{
 			//log.Printf("rsaPss.. key... %x\n%s\n", pubKeyInfo, TlvDecode(pubKeyInfo).String())
 
 			var rsaPubKey *rsa.PublicKey
 			{
-				var subPubKeyInfo SubjectPublicKeyInfo = asn1decodeSubjectPublicKeyInfo(pubKeyInfo)
-				var pubKey *RsaPublicKey = subPubKeyInfo.GetRsaPubKey()
+				var subPubKeyInfo SubjectPublicKeyInfo = Asn1decodeSubjectPublicKeyInfo(pubKeyInfo)
+				var pubKey *cryptoutils.RsaPublicKey = subPubKeyInfo.GetRsaPubKey()
 				rsaPubKey = &rsa.PublicKey{N: pubKey.N, E: pubKey.E}
 			}
 
-			err = rsa.VerifyPSS(rsaPubKey, CryptoHashOidToAlg(digestAlg), digest, sig, nil)
+			err = rsa.VerifyPSS(rsaPubKey, cryptoutils.CryptoHashOidToAlg(digestAlg), digest, sig, nil)
 			if err != nil {
 				return false, fmt.Errorf("(verifySignature) rsa.verifyPSS error: %w", err)
 			}
@@ -405,7 +422,7 @@ func verifySignature(pubKeyInfo []byte, digestAlg asn1.ObjectIdentifier, digest 
 
 func asn1decodeOid(data []byte) asn1.ObjectIdentifier {
 	var out asn1.ObjectIdentifier
-	err := parseAsn1(data, false, &out)
+	err := utils.ParseAsn1(data, false, &out)
 	if err != nil {
 		log.Panicf("(asn1decodeOid) Unexpected ASN1 parsing error: %s", err)
 	}
@@ -414,18 +431,160 @@ func asn1decodeOid(data []byte) asn1.ObjectIdentifier {
 
 func asn1decodeBytes(data []byte) []byte {
 	var out []byte
-	err := parseAsn1(data, false, &out)
+	err := utils.ParseAsn1(data, false, &out)
 	if err != nil {
 		log.Panicf("(asn1decodeBytes) Unexpected ASN1 parsing error: %s", err)
 	}
 	return out
 }
 
-func asn1decodeSubjectPublicKeyInfo(data []byte) SubjectPublicKeyInfo {
+func Asn1decodeSubjectPublicKeyInfo(data []byte) SubjectPublicKeyInfo {
 	var out SubjectPublicKeyInfo
-	err := parseAsn1(data, false, &out)
+	err := utils.ParseAsn1(data, false, &out)
 	if err != nil {
 		log.Panicf("(asn1decodeSubjectPublicKeyInfo) Unexpected ASN1 parsing error: %s", err)
 	}
 	return out
+}
+
+func (subPubKeyInfo *SubjectPublicKeyInfo) GetEcCurveAndPubKey() (curve *elliptic.Curve, pubKey *cryptoutils.EcPoint) {
+	/*
+	* Note: We avoid using 'ParsePKIXPublicKey' as it follows PKIX standard and only allows names curves,
+	*       but passports tends to use specified curves (i.e. curve parameters, even if corresponding to well-known curves)
+	 */
+
+	var err error
+
+	// TODO - check OID indicates EC-Key
+
+	specDomain := ParseECSpecifiedDomain(&subPubKeyInfo.Algorithm)
+
+	curve, err = GetECCurveForSpecifiedDomain(specDomain)
+	if err != nil {
+		log.Panicf("(SubjectPublicKeyInfo.GetEcCurveAndPubKey) Unexpected ASN1 parsing error: %s", err)
+	}
+
+	// get the chip's public key
+	{
+		var chipPubKeyBytes []byte = subPubKeyInfo.SubjectPublicKey.Bytes
+		pubKey = cryptoutils.DecodeX962EcPoint(*curve, chipPubKeyBytes)
+	}
+
+	return curve, pubKey
+}
+
+func (subPubKeyInfo *SubjectPublicKeyInfo) GetRsaPubKey() *cryptoutils.RsaPublicKey {
+	var err error
+	var out cryptoutils.RsaPublicKey
+
+	// TODO - check that OID=RsaEncryption
+
+	err = utils.ParseAsn1(subPubKeyInfo.SubjectPublicKey.Bytes, false, &out)
+	if err != nil {
+		log.Panicf("(SubjectPublicKeyInfo.GetRsaPubKey) Unexpected ASN1 parsing error: %s", err)
+	}
+
+	return &out
+}
+
+// TODO - looks like this is the inner part of SubjectPublicKeyInfo (used by ActiveAuth/PassiveAuth)
+//   - maybe we can generalise this code and use the get function to get the key we require
+type ECSpecifiedDomain struct {
+	Raw      asn1.RawContent
+	Version  int
+	FieldId  cryptoutils.ECField
+	Curve    cryptoutils.ECCurve
+	Base     []byte
+	Order    *big.Int
+	Cofactor *big.Int
+	Hash     asn1.ObjectIdentifier `asn1:"optional"`
+}
+
+// parse ecPublicKey ASN1 object (aka EC Specified Domain)
+// TODO - this looks like SubjectPublicKeyInfo... also required in SOD... this is just specific to EC.. or at least the curve part of it
+func ParseECSpecifiedDomain(algIdentifier *AlgorithmIdentifier) (out *ECSpecifiedDomain) {
+	slog.Debug("parseECSpecifiedDomain", "Algorithm Identifier", algIdentifier)
+
+	if !algIdentifier.Algorithm.Equal(oid.OidEcPublicKey) {
+		// TODO - should we panic?
+		log.Panicf("expected ecPublicKey OID")
+	}
+
+	out = new(ECSpecifiedDomain)
+
+	slog.Debug("parseECSpecifiedDomain", "Parameters(bytes)", utils.BytesToHex(algIdentifier.Parameters.FullBytes))
+
+	// TODO - are we sure partial flag actually works.. asn1 decode seems to be quite happy skipping fields
+	err := utils.ParseAsn1(algIdentifier.Parameters.FullBytes, true, out) // TODO - NB may have extra field after
+	if err != nil {
+		log.Panicf("parseSubjectPublicKey err:%s", err)
+	}
+
+	// TODO - any other data checks?
+	if !out.FieldId.FieldType.Equal(oid.OidPrimeField) {
+		log.Panicf("PrimeField OID expected")
+	}
+
+	slog.Debug("parseECSpecifiedDomain",
+		"Version", out.Version,
+		"FieldId.FieldType", out.FieldId.FieldType.String(),
+		"FieldId.Parameters", utils.BytesToHex(out.FieldId.Parameters.Bytes),
+		"Curve.A", utils.BytesToHex(out.Curve.A),
+		"Curve.B", utils.BytesToHex(out.Curve.B),
+		"Curve.Seed", utils.BytesToHex(out.Curve.Seed.Bytes),
+		"Base", utils.BytesToHex(out.Base),
+		"Order", utils.BytesToHex(out.Order.Bytes()),
+		"CoFactor", utils.BytesToHex(out.Cofactor.Bytes()),
+	)
+
+	return
+}
+
+var caEcArr []elliptic.Curve = []elliptic.Curve{
+	elliptic.P224(),
+	elliptic.P256(),
+	elliptic.P384(),
+	elliptic.P521(),
+	brainpool.P160r1(),
+	brainpool.P192r1(),
+	brainpool.P224r1(),
+	brainpool.P256r1(),
+	brainpool.P320r1(),
+	brainpool.P384r1(),
+	brainpool.P512r1(),
+}
+
+func GetECCurveForSpecifiedDomain(specDomain *ECSpecifiedDomain) (*elliptic.Curve, error) {
+	// Technically we should support 'total' cryptographic agility and allow the MRTD to
+	// dictate any DH/ECDH parameters of its choosing. However, it's more likely that MRTDs
+	// are referencing well-known parameters instead of using random (and potentially unsafe)
+	// settings, so we intentionally support a limited subset and will evaluate this over time.
+	//
+	// e.g. if OID = id-ecPublicKey
+	//		then get the curve (as here)
+	//		and then get/set the public key
+	//
+	// SubjectPublicKeyInfo is specified in x509, but basically
+	//	algorithmIdentifier (OID=id-ecPublicKey, params=specifiedDomain)
+	//	params? public key
+	//
+	// SubjectPublicKeyInfo  ::=  SEQUENCE  {
+	//    algorithm            AlgorithmIdentifier,
+	//    subjectPublicKey     BIT STRING  }
+
+	slog.Debug("getECCurveForSpecifiedDomain", "Params", utils.BytesToHex(specDomain.FieldId.Parameters.Bytes))
+
+	// look for matching 'standard' curve
+	// NB we currently expect the use of standard curve, we may need to support custom curves in the future (but hopefully not)
+	for i := 0; i < len(caEcArr); i++ {
+		var ec elliptic.Curve = caEcArr[i]
+
+		// match using the 'prime field' (P)
+		if slices.Equal(ec.Params().P.Bytes(), specDomain.FieldId.Parameters.Bytes[1:]) { // NB skip 1st byte
+			return &ec, nil
+			// TODO - may want to log the selected curve
+		}
+	}
+
+	return nil, fmt.Errorf("unsupported CA EC (Params:%x) (Raw:%x)", specDomain.FieldId.Parameters.Bytes, specDomain.Raw)
 }

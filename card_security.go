@@ -4,11 +4,15 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+
+	cms "github.com/gmrtd/gmrtd/cms"
+	"github.com/gmrtd/gmrtd/oid"
+	"github.com/gmrtd/gmrtd/utils"
 )
 
 type CardSecurity struct {
 	RawData       []byte
-	SD            *SignedData
+	SD            *cms.SignedData
 	SecurityInfos *SecurityInfos
 }
 
@@ -21,15 +25,15 @@ func NewCardSecurity(data []byte) (out *CardSecurity, err error) {
 
 	out.RawData = slices.Clone(data)
 
-	slog.Debug("NewCardSecurity", "bytes", BytesToHex(out.RawData))
+	slog.Debug("NewCardSecurity", "bytes", utils.BytesToHex(out.RawData))
 
 	// NB no root node for CardSecurity, so directly parse ASN1 SignedData
 
 	{
-		var sd *SignedData
+		var sd *cms.SignedData
 		var err error
 
-		sd, err = parseSignedData(out.RawData) // TODO - maybe move singedData parsing? currently in SOD but also used here
+		sd, err = cms.ParseSignedData(out.RawData) // TODO - maybe move singedData parsing? currently in SOD but also used here
 		if err != nil {
 			return nil, err
 		}
@@ -37,7 +41,7 @@ func NewCardSecurity(data []byte) (out *CardSecurity, err error) {
 		out.SD = sd
 
 		// verify the content-type is as expected
-		if !sd.SD2.Content.EContentType.Equal(oidSecurityObject) {
+		if !sd.SD2.Content.EContentType.Equal(oid.OidSecurityObject) {
 			return nil, fmt.Errorf("incorrect ContentType (got:%s)", sd.SD2.Content.EContentType.String())
 		}
 		eContent := sd.SD2.Content.EContent

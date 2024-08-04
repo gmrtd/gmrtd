@@ -7,6 +7,10 @@ import (
 	"log"
 	"log/slog"
 	"runtime/debug"
+
+	"github.com/gmrtd/gmrtd/cryptoutils"
+	"github.com/gmrtd/gmrtd/iso7816"
+	"github.com/gmrtd/gmrtd/utils"
 )
 
 // TODO - if we read card-access.. then should check it matches with DG14.. as that is protected by SoD
@@ -75,7 +79,7 @@ var dgToFileId = map[int]uint16{
 
 // reads the data-groups (DGs) based on the DG hashes present in EF.SOD
 // error if <2 DG hashes are present in SOD (as DG1/2 are always mandatory)
-func readDGs(nfc *NfcSession, doc *Document) (err error) {
+func readDGs(nfc *iso7816.NfcSession, doc *Document) (err error) {
 	dgHashes := doc.Sod.LdsSecurityObject.DataGroupHashValues
 	if len(dgHashes) < 2 {
 		return fmt.Errorf("EF.SOD must have at least two datagroup hashes")
@@ -101,13 +105,13 @@ func readDGs(nfc *NfcSession, doc *Document) (err error) {
 		// validate the DG hash against the hash in the SOD
 		// TODO - need to decide whether to keep this here or move to passive-auth to have everything in one place
 		{
-			actHash := CryptoHashByOid(doc.Sod.LdsSecurityObject.HashAlgorithm.Algorithm, dgBytes)
+			actHash := cryptoutils.CryptoHashByOid(doc.Sod.LdsSecurityObject.HashAlgorithm.Algorithm, dgBytes)
 
 			if !bytes.Equal(actHash, dgHash.DataGroupHashValue) {
-				return fmt.Errorf("DG%d hash invalid (Exp:%x, Act:%x)", dgHash.DataGroupNumber, BytesToHex(dgHash.DataGroupHashValue), BytesToHex(actHash))
+				return fmt.Errorf("DG%d hash invalid (Exp:%x, Act:%x)", dgHash.DataGroupNumber, utils.BytesToHex(dgHash.DataGroupHashValue), utils.BytesToHex(actHash))
 			}
 
-			slog.Info("Valid DG hash", "DG", dgHash.DataGroupNumber, "Hash-Act", BytesToHex(actHash), "Hash-Exp", BytesToHex(dgHash.DataGroupHashValue))
+			slog.Info("Valid DG hash", "DG", dgHash.DataGroupNumber, "Hash-Act", utils.BytesToHex(actHash), "Hash-Exp", utils.BytesToHex(dgHash.DataGroupHashValue))
 		}
 	}
 
@@ -132,7 +136,7 @@ func (reader *Reader) SetApduMaxLe(maxRead int) {
 }
 
 // NB returns partial data (MrtdDocument) in the event of an error
-func (reader *Reader) ReadDocument(transceiver Transceiver, password *Password, atr []byte, ats []byte) (doc *Document, err error) {
+func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *Password, atr []byte, ats []byte) (doc *Document, err error) {
 	defer func() {
 		if e := recover(); e != nil {
 			switch x := e.(type) {
@@ -147,11 +151,11 @@ func (reader *Reader) ReadDocument(transceiver Transceiver, password *Password, 
 		}
 	}()
 
-	var nfc *NfcSession = NewNfcSession(transceiver)
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(transceiver)
 
 	// override default (if required)
 	if reader.apduMaxLe > 0 {
-		nfc.maxLe = reader.apduMaxLe
+		nfc.MaxLe = reader.apduMaxLe
 	}
 
 	doc = new(Document)
@@ -161,8 +165,8 @@ func (reader *Reader) ReadDocument(transceiver Transceiver, password *Password, 
 	doc.Atr = bytes.Clone(atr)
 	doc.Ats = bytes.Clone(ats)
 	slog.Debug("ATR/ATS",
-		"ATR", BytesToHex(doc.Atr),
-		"ATS", BytesToHex(doc.Ats),
+		"ATR", utils.BytesToHex(doc.Atr),
+		"ATS", utils.BytesToHex(doc.Ats),
 	)
 
 	// NB spec recommends not to use, but iOS may pre-select the MRTD AID
@@ -192,11 +196,11 @@ func (reader *Reader) ReadDocument(transceiver Transceiver, password *Password, 
 	slog.Info("Read EF.DIR")
 	doc.Dir = NewEFDIR(nfc.ReadFile(MRTDFileIdEFDIR))
 	if doc.Dir != nil {
-		slog.Debug("EF.DIR", "bytes", BytesToHex(doc.Dir.RawData))
+		slog.Debug("EF.DIR", "bytes", utils.BytesToHex(doc.Dir.RawData))
 	}
 
 	slog.Info("Selecting MRTD AID")
-	_, err = nfc.SelectAid(HexToBytes(MRTD_AID))
+	_, err = nfc.SelectAid(utils.HexToBytes(MRTD_AID))
 	if err != nil {
 		return doc, err
 	}
@@ -206,7 +210,7 @@ func (reader *Reader) ReadDocument(transceiver Transceiver, password *Password, 
 	 */
 
 	// NB we only attempt BAC if we don't already have SecureMessaging (i.e. via PACE)
-	if nfc.sm == nil {
+	if nfc.SM == nil {
 		err = NewBAC().doBAC(nfc, password)
 		if err != nil {
 			return doc, err
@@ -248,7 +252,7 @@ func (reader *Reader) ReadDocument(transceiver Transceiver, password *Password, 
 	}
 
 	// copy apdu-log over to document
-	doc.Apdus = nfc.apduLog
+	doc.Apdus = nfc.ApduLog
 
 	slog.Info("** FINISHED **", "ChipAuthStatus", doc.ChipAuthStatus)
 

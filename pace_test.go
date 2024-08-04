@@ -4,21 +4,24 @@ import (
 	"bytes"
 	"crypto/elliptic"
 	"math/big"
-	"reflect"
 	"testing"
 
 	"github.com/ebfe/brainpool"
+	"github.com/gmrtd/gmrtd/cryptoutils"
+	"github.com/gmrtd/gmrtd/iso7816"
+	"github.com/gmrtd/gmrtd/oid"
+	"github.com/gmrtd/gmrtd/utils"
 )
 
 func TestDecryptNonce(t *testing.T) {
 
-	pace := paceConfigGetByOID(oidPaceEcdhGmAesCbcCmac128)
-	encryptedNonce := HexToBytes("95A3A016522EE98D01E76CB6B98B42C3")
-	kKdf := HexToBytes("89DED1B26624EC1E634C1989302849DD")
+	pace := paceConfigGetByOID(oid.OidPaceEcdhGmAesCbcCmac128)
+	encryptedNonce := utils.HexToBytes("95A3A016522EE98D01E76CB6B98B42C3")
+	kKdf := utils.HexToBytes("89DED1B26624EC1E634C1989302849DD")
 
 	decryptedNonce := pace.decryptNonce(kKdf, encryptedNonce)
 
-	decryptedNonceExp := HexToBytes("3F00C4D39D153F2B2A214A078D899B22")
+	decryptedNonceExp := utils.HexToBytes("3F00C4D39D153F2B2A214A078D899B22")
 
 	if !bytes.Equal(decryptedNonce, decryptedNonceExp) {
 		t.Errorf("Nonce decryption failed")
@@ -28,18 +31,18 @@ func TestDecryptNonce(t *testing.T) {
 func TestDoGenericMappingEC(t *testing.T) {
 	domainParams := getStandardisedDomainParams(13) // 0x0D
 
-	s := HexToBytes("3F00C4D39D153F2B2A214A078D899B22")
+	s := utils.HexToBytes("3F00C4D39D153F2B2A214A078D899B22")
 
-	var termShared EcPoint
+	var termShared cryptoutils.EcPoint
 
-	termShared.x, _ = new(big.Int).SetString("60332EF2450B5D247EF6D3868397D398852ED6E8CAF6FFEEF6BF85CA57057FD5", 16)
-	termShared.y, _ = new(big.Int).SetString("0840CA7415BAF3E43BD414D35AA4608B93A2CAF3A4E3EA4E82C9C13D03EB7181", 16)
+	termShared.X, _ = new(big.Int).SetString("60332EF2450B5D247EF6D3868397D398852ED6E8CAF6FFEEF6BF85CA57057FD5", 16)
+	termShared.Y, _ = new(big.Int).SetString("0840CA7415BAF3E43BD414D35AA4608B93A2CAF3A4E3EA4E82C9C13D03EB7181", 16)
 
-	var mappedG *EcPoint = doGenericMappingEC(s, &termShared, domainParams.ec)
+	var mappedG *cryptoutils.EcPoint = doGenericMappingEC(s, &termShared, domainParams.ec)
 
-	var expMappedG EcPoint
-	expMappedG.x, _ = new(big.Int).SetString("8CED63C91426D4F0EB1435E7CB1D74A46723A0AF21C89634F65A9AE87A9265E2", 16)
-	expMappedG.y, _ = new(big.Int).SetString("8C879506743F8611AC33645C5B985C80B5F09A0B83407C1B6A4D857AE76FE522", 16)
+	var expMappedG cryptoutils.EcPoint
+	expMappedG.X, _ = new(big.Int).SetString("8CED63C91426D4F0EB1435E7CB1D74A46723A0AF21C89634F65A9AE87A9265E2", 16)
+	expMappedG.Y, _ = new(big.Int).SetString("8C879506743F8611AC33645C5B985C80B5F09A0B83407C1B6A4D857AE76FE522", 16)
 
 	if !expMappedG.Equal(*mappedG) {
 		t.Errorf("Generic Mapping (EC) error")
@@ -49,27 +52,27 @@ func TestDoGenericMappingEC(t *testing.T) {
 func TestBuild7F49(t *testing.T) {
 	domainParams := getStandardisedDomainParams(13) // 0x0D
 
-	var termPub EcPoint
+	var termPub cryptoutils.EcPoint
 
-	termPub.x, _ = new(big.Int).SetString("2DB7A64C0355044EC9DF190514C625CBA2CEA48754887122F3A5EF0D5EDD301C", 16)
-	termPub.y, _ = new(big.Int).SetString("3556F3B3B186DF10B857B58F6A7EB80F20BA5DC7BE1D43D9BF850149FBB36462", 16)
+	termPub.X, _ = new(big.Int).SetString("2DB7A64C0355044EC9DF190514C625CBA2CEA48754887122F3A5EF0D5EDD301C", 16)
+	termPub.Y, _ = new(big.Int).SetString("3556F3B3B186DF10B857B58F6A7EB80F20BA5DC7BE1D43D9BF850149FBB36462", 16)
 
-	var chipPub EcPoint
+	var chipPub cryptoutils.EcPoint
 
-	chipPub.x, _ = new(big.Int).SetString("9E880F842905B8B3181F7AF7CAA9F0EFB743847F44A306D2D28C1D9EC65DF6DB", 16)
-	chipPub.y, _ = new(big.Int).SetString("7764B22277A2EDDC3C265A9F018F9CB852E111B768B326904B59A0193776F094", 16)
+	chipPub.X, _ = new(big.Int).SetString("9E880F842905B8B3181F7AF7CAA9F0EFB743847F44A306D2D28C1D9EC65DF6DB", 16)
+	chipPub.Y, _ = new(big.Int).SetString("7764B22277A2EDDC3C265A9F018F9CB852E111B768B326904B59A0193776F094", 16)
 
 	rawOID := []byte{0x04, 0x00, 0x7F, 0x00, 0x07, 0x02, 0x02, 0x04, 0x02, 0x02}
 
-	tifdData := encodePubicKeyTemplate7F49(rawOID, encodeX962EcPoint(domainParams.ec, &chipPub))
-	ticData := encodePubicKeyTemplate7F49(rawOID, encodeX962EcPoint(domainParams.ec, &termPub))
+	tifdData := encodePubicKeyTemplate7F49(rawOID, cryptoutils.EncodeX962EcPoint(domainParams.ec, &chipPub))
+	ticData := encodePubicKeyTemplate7F49(rawOID, cryptoutils.EncodeX962EcPoint(domainParams.ec, &termPub))
 
-	expTifdData := HexToBytes("7F494F060A04007F000702020402028641049E880F842905B8B3181F7AF7CAA9F0EFB743847F44A306D2D28C1D9EC65DF6DB7764B22277A2EDDC3C265A9F018F9CB852E111B768B326904B59A0193776F094")
+	expTifdData := utils.HexToBytes("7F494F060A04007F000702020402028641049E880F842905B8B3181F7AF7CAA9F0EFB743847F44A306D2D28C1D9EC65DF6DB7764B22277A2EDDC3C265A9F018F9CB852E111B768B326904B59A0193776F094")
 	if !bytes.Equal(expTifdData, tifdData) {
 		t.Errorf("Incorrect tifd-data\n[Exp] %x\n[Act] %x", expTifdData, tifdData)
 	}
 
-	expTicData := HexToBytes("7F494F060A04007F000702020402028641042DB7A64C0355044EC9DF190514C625CBA2CEA48754887122F3A5EF0D5EDD301C3556F3B3B186DF10B857B58F6A7EB80F20BA5DC7BE1D43D9BF850149FBB36462")
+	expTicData := utils.HexToBytes("7F494F060A04007F000702020402028641042DB7A64C0355044EC9DF190514C625CBA2CEA48754887122F3A5EF0D5EDD301C3556F3B3B186DF10B857B58F6A7EB80F20BA5DC7BE1D43D9BF850149FBB36462")
 	if !bytes.Equal(expTicData, ticData) {
 		t.Errorf("Incorrect tic-data\n[Exp] %x\n[Act] %x", expTicData, ticData)
 	}
@@ -78,8 +81,8 @@ func TestBuild7F49(t *testing.T) {
 
 func TestSelectPaceForConfig(t *testing.T) {
 	// NB card-access file has 2 entries.. we test with both in different orders to verify priority based selection
-	var cardAccessBytes1 []byte = HexToBytes("31283012060a04007f000702020402040201020201103012060a04007f00070202040604020102020110")
-	var cardAccessBytes2 []byte = HexToBytes("31283012060a04007f000702020406040201020201103012060a04007f00070202040204020102020110")
+	var cardAccessBytes1 []byte = utils.HexToBytes("31283012060a04007f000702020402040201020201103012060a04007f00070202040604020102020110")
+	var cardAccessBytes2 []byte = utils.HexToBytes("31283012060a04007f000702020406040201020201103012060a04007f00070202040204020102020110")
 
 	var err error
 
@@ -120,10 +123,10 @@ func TestSelectPaceForConfig(t *testing.T) {
 
 // PACE test for GM (ECDH) based on worked example in ICAO9303 p11 specs (Appendix G1)
 func TestDoPace_GM_ECDH(t *testing.T) {
-	var nfc *NfcSession
+	var nfc *iso7816.NfcSession
 
 	{
-		var transceiver *MockTransceiver = new(MockTransceiver)
+		var transceiver *iso7816.MockTransceiver = new(iso7816.MockTransceiver)
 
 		// add in expected request/response tuples
 		transceiver.AddReqRsp("0022C1A40F800A04007F00070202040202830101", "9000")
@@ -132,35 +135,35 @@ func TestDoPace_GM_ECDH(t *testing.T) {
 		transceiver.AddReqRsp("10860000457C438341042DB7A64C0355044EC9DF190514C625CBA2CEA48754887122F3A5EF0D5EDD301C3556F3B3B186DF10B857B58F6A7EB80F20BA5DC7BE1D43D9BF850149FBB3646200", "7C438441049E880F842905B8B3181F7AF7CAA9F0EFB743847F44A306D2D28C1D9EC65DF6DB7764B22277A2EDDC3C265A9F018F9CB852E111B768B326904B59A0193776F0949000")
 		transceiver.AddReqRsp("008600000C7C0A8508C2B0BD78D94BA86600", "7C0A86083ABB9674BCE93C089000")
 
-		nfc = NewNfcSession(transceiver)
+		nfc = iso7816.NewNfcSession(transceiver)
 	}
 
 	// setup static EC keys for test
-	getTestKeyGenEc := func() func(ec elliptic.Curve) EcKeypair {
+	getTestKeyGenEc := func() func(ec elliptic.Curve) cryptoutils.EcKeypair {
 		var idx int
 
-		return func(ec elliptic.Curve) EcKeypair {
+		return func(ec elliptic.Curve) cryptoutils.EcKeypair {
 			var tmpPri *big.Int
-			var tmpPub *EcPoint = new(EcPoint)
+			var tmpPub *cryptoutils.EcPoint = new(cryptoutils.EcPoint)
 
 			switch idx {
 			case 0:
 				tmpPri, _ = new(big.Int).SetString("7F4EF07B9EA82FD78AD689B38D0BC78CF21F249D953BC46F4C6E19259C010F99", 16)
-				tmpPub.x, _ = new(big.Int).SetString("7ACF3EFC982EC45565A4B155129EFBC74650DCBFA6362D896FC70262E0C2CC5E", 16)
-				tmpPub.y, _ = new(big.Int).SetString("544552DCB6725218799115B55C9BAA6D9F6BC3A9618E70C25AF71777A9C4922D", 16)
+				tmpPub.X, _ = new(big.Int).SetString("7ACF3EFC982EC45565A4B155129EFBC74650DCBFA6362D896FC70262E0C2CC5E", 16)
+				tmpPub.Y, _ = new(big.Int).SetString("544552DCB6725218799115B55C9BAA6D9F6BC3A9618E70C25AF71777A9C4922D", 16)
 			case 1:
 				tmpPri, _ = new(big.Int).SetString("A73FB703AC1436A18E0CFA5ABB3F7BEC7A070E7A6788486BEE230C4A22762595", 16)
 				// NB set public-key to dummy value as it should be manually calculated using the mapped generator (Gx/y)
 				//    - this way we can test that Gxy is getting propagated from earlier step and flow is working correcvtly
-				tmpPub.x = big.NewInt(0)
-				tmpPub.y = big.NewInt(0)
+				tmpPub.X = big.NewInt(0)
+				tmpPub.Y = big.NewInt(0)
 			default:
 				t.Errorf("Invalid key-gen index (idx:%1d)", idx)
 			}
 
 			idx++
 
-			return EcKeypair{tmpPri.Bytes(), tmpPub}
+			return cryptoutils.EcKeypair{Pri: tmpPri.Bytes(), Pub: tmpPub}
 		}
 	}
 
@@ -169,7 +172,7 @@ func TestDoPace_GM_ECDH(t *testing.T) {
 
 	// PACEInfo: 3012060A 04007F00 07020204 02020201 0202010D
 	//				** NB added 3114 to start
-	doc.CardAccess, err = NewCardAccess(HexToBytes("31143012060A04007F0007020204020202010202010D"))
+	doc.CardAccess, err = NewCardAccess(utils.HexToBytes("31143012060A04007F0007020204020202010202010D"))
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
@@ -186,14 +189,14 @@ func TestDoPace_GM_ECDH(t *testing.T) {
 
 	// verify Secure-Messaging was setup correctly
 	{
-		smExp, err := NewSecureMessaging(AES, HexToBytes("F5F0E35C0D7161EE6724EE513A0D9A7F"), HexToBytes("FE251C7858B356B24514B3BD5F4297D1"))
+		smExp, err := iso7816.NewSecureMessaging(cryptoutils.AES, utils.HexToBytes("F5F0E35C0D7161EE6724EE513A0D9A7F"), utils.HexToBytes("FE251C7858B356B24514B3BD5F4297D1"))
 		if err != nil {
 			t.Errorf("Unexpected error: %s", err)
 		}
 
 		// NB SSC should be 0's
 
-		if !reflect.DeepEqual(smExp, nfc.sm) {
+		if !nfc.SM.Equal(*smExp) {
 			t.Errorf("SecureMessaging differs to expected")
 		}
 	}
@@ -207,10 +210,10 @@ func TestDoPace_GM_ECDH(t *testing.T) {
 
 // PACE test for GM (ECDH) using TDES/CBC (NZ)
 func TestDoPace_GM_ECDH_TDES_CBC_NZ(t *testing.T) {
-	var nfc *NfcSession
+	var nfc *iso7816.NfcSession
 
 	{
-		var transceiver *MockTransceiver = new(MockTransceiver)
+		var transceiver *iso7816.MockTransceiver = new(iso7816.MockTransceiver)
 
 		// add in expected request/response tuples
 		transceiver.AddReqRsp("0022c1a40f800a04007f00070202040201830101", "9000")
@@ -219,42 +222,42 @@ func TestDoPace_GM_ECDH_TDES_CBC_NZ(t *testing.T) {
 		transceiver.AddReqRsp("10860000457c43834104507a0156efae8fb8acc519036c0b2fe0393c878744c7f91878ee4e07a41412ba5c0753d68a44a91e9f57f3f992ab689e6c2065d3b2a27c3658a4fd632931ee3800", "7c438441042dbaf62e6fdfb31eb66f206493b9e7721586f0e5c93754d7bd5a884ca251ee4d720ab539a60561bc46812fa289b58ac69f0c6e32adbaf7241049a31211f80f5b9000")
 		transceiver.AddReqRsp("008600000c7c0a85088d7c617d43efe09e00", "7c0a8608cb57047c809079f69000")
 
-		nfc = NewNfcSession(transceiver)
+		nfc = iso7816.NewNfcSession(transceiver)
 	}
 
 	// setup static EC keys for test
-	getTestKeyGenEc := func() func(ec elliptic.Curve) EcKeypair {
+	getTestKeyGenEc := func() func(ec elliptic.Curve) cryptoutils.EcKeypair {
 		var idx int
 
-		return func(ec elliptic.Curve) EcKeypair {
+		return func(ec elliptic.Curve) cryptoutils.EcKeypair {
 			var tmpPri *big.Int
-			var tmpPub *EcPoint = new(EcPoint)
+			var tmpPub *cryptoutils.EcPoint = new(cryptoutils.EcPoint)
 
 			switch idx {
 			case 0:
 				tmpPri, _ = new(big.Int).SetString("2808272c0ec20e01a3450030ef32855e9feb5cb17719e985389b1cf47609e69f", 16)
-				tmpPub.x, _ = new(big.Int).SetString("7706b2b6246ab4612229b8a11212ddba7fea0568c9c0975dee22c0e3dd3a3f03", 16)
-				tmpPub.y, _ = new(big.Int).SetString("21e8afee836e373b570d24000d56fb195104d486e63321ff8c819dd5ee018dcb", 16)
+				tmpPub.X, _ = new(big.Int).SetString("7706b2b6246ab4612229b8a11212ddba7fea0568c9c0975dee22c0e3dd3a3f03", 16)
+				tmpPub.Y, _ = new(big.Int).SetString("21e8afee836e373b570d24000d56fb195104d486e63321ff8c819dd5ee018dcb", 16)
 			case 1:
 				tmpPri, _ = new(big.Int).SetString("8f89449052df6c7983750c7b042c3cea12b36819174424c7cd28153f7b70b402", 16)
 				// NB set public-key to dummy value as it should be manually calculated using the mapped generator (Gx/y)
 				//    - this way we can test that Gxy is getting propagated from earlier step and flow is working correcvtly
-				tmpPub.x = big.NewInt(0)
-				tmpPub.y = big.NewInt(0)
+				tmpPub.X = big.NewInt(0)
+				tmpPub.Y = big.NewInt(0)
 			default:
 				t.Errorf("Invalid key-gen index (idx:%1d)", idx)
 			}
 
 			idx++
 
-			return EcKeypair{tmpPri.Bytes(), tmpPub}
+			return cryptoutils.EcKeypair{Pri: tmpPri.Bytes(), Pub: tmpPub}
 		}
 	}
 
 	var err error
 	var doc Document
 
-	doc.CardAccess, err = NewCardAccess(HexToBytes("31143012060a04007f0007020204020102010202010d"))
+	doc.CardAccess, err = NewCardAccess(utils.HexToBytes("31143012060a04007f0007020204020102010202010d"))
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
@@ -271,14 +274,14 @@ func TestDoPace_GM_ECDH_TDES_CBC_NZ(t *testing.T) {
 
 	// verify Secure-Messaging was setup correctly
 	{
-		smExp, err := NewSecureMessaging(TDES, HexToBytes("430e4c8c38dfefaed92067b919a897f8"), HexToBytes("c1bc1f075797b970b5a45e64a764b0cb"))
+		smExp, err := iso7816.NewSecureMessaging(cryptoutils.TDES, utils.HexToBytes("430e4c8c38dfefaed92067b919a897f8"), utils.HexToBytes("c1bc1f075797b970b5a45e64a764b0cb"))
 		if err != nil {
 			t.Errorf("Unexpected error: %s", err)
 		}
 
 		// NB SSC should be 0's
 
-		if !reflect.DeepEqual(smExp, nfc.sm) {
+		if !nfc.SM.Equal(*smExp) {
 			t.Errorf("SecureMessaging differs to expected")
 		}
 	}
@@ -291,10 +294,10 @@ func TestDoPace_GM_ECDH_TDES_CBC_NZ(t *testing.T) {
 }
 
 func TestDoPace_CAM_ECDH_DE(t *testing.T) {
-	var nfc *NfcSession
+	var nfc *iso7816.NfcSession
 
 	{
-		var transceiver *MockTransceiver = new(MockTransceiver)
+		var transceiver *iso7816.MockTransceiver = new(iso7816.MockTransceiver)
 
 		// add in expected request/response tuples
 		transceiver.AddReqRsp("0022c1a40f800a04007f00070202040602830101", "9000")
@@ -314,42 +317,42 @@ func TestDoPace_CAM_ECDH_DE(t *testing.T) {
 		transceiver.AddReqRsp("0cb0061d0d9701008e08d13c4e86a5c390bc00", "8781e101cfe5947ea65924c874ec477a1d4be1c587093d874482286e9eac15f241c416bbc1f26f93ec71b3212de17c19e071037831a3c6efa7374c66843965a2ceee6f2ffbc5f1c648fe751b978bdb26c94a418afde1eeceb28ce5124ce58c3c0ec96a62a1a383a1494820dd3db166e0a5e6d632a080f29413e733e44996c99f4a03702abd445df84d4bbeb7e4225fd3bc19d3e8517c474c0ad9c3b53f61d6a2569fb4713f097da18b7395697f7fd996a0771d59a2233536e4e8220fbcabea7add966748cbb61efa21f93ff8b11374a699e2acf8a061bb3c815f0648dbcc36d5a3a138f4990290008e08a6fd912653b4be5e9000")
 		transceiver.AddReqRsp("0cb006fc0d97014a8e0834b735e4065d97c100", "8751017c668bedae4a7b51f4466d979d2026942ea1f4ae37bcb6e29f0c4b36f3572675ae58c8b9f52ebf35c65c3ae955dc060bebc79b407f7e86d587391d9535c593e5f790939babe21b1436035b2046560d09990290008e0820085b109fb48aad9000")
 
-		nfc = NewNfcSession(transceiver)
+		nfc = iso7816.NewNfcSession(transceiver)
 	}
 
 	// setup static EC keys for test
-	getTestKeyGenEc := func() func(ec elliptic.Curve) EcKeypair {
+	getTestKeyGenEc := func() func(ec elliptic.Curve) cryptoutils.EcKeypair {
 		var idx int
 
-		return func(ec elliptic.Curve) EcKeypair {
+		return func(ec elliptic.Curve) cryptoutils.EcKeypair {
 			var tmpPri *big.Int
-			var tmpPub *EcPoint = new(EcPoint)
+			var tmpPub *cryptoutils.EcPoint = new(cryptoutils.EcPoint)
 
 			switch idx {
 			case 0:
 				tmpPri, _ = new(big.Int).SetString("01fd26013f5bc41fad8bb09811e435f16fbe2eb3c2e1d999b0f63da8c3d58bb5", 16)
-				tmpPub.x, _ = new(big.Int).SetString("303f340815eea501772393e299a4a6f6694600189c249c63a8513ff3fefa66e3", 16)
-				tmpPub.y, _ = new(big.Int).SetString("46d11970b5f76fb564c3b0e54b215528f647ec5a9ab209cdbe262e763d6119a1", 16)
+				tmpPub.X, _ = new(big.Int).SetString("303f340815eea501772393e299a4a6f6694600189c249c63a8513ff3fefa66e3", 16)
+				tmpPub.Y, _ = new(big.Int).SetString("46d11970b5f76fb564c3b0e54b215528f647ec5a9ab209cdbe262e763d6119a1", 16)
 			case 1:
 				tmpPri, _ = new(big.Int).SetString("1fcd3d8ac4fae3960a14fea2925d75add335f13b248eba192358dded93a89552", 16)
 				// NB set public-key to dummy value as it should be manually calculated using the mapped generator (Gx/y)
 				//    - this way we can test that Gxy is getting propagated from earlier step and flow is working correcvtly
-				tmpPub.x = big.NewInt(0)
-				tmpPub.y = big.NewInt(0)
+				tmpPub.X = big.NewInt(0)
+				tmpPub.Y = big.NewInt(0)
 			default:
 				t.Errorf("Invalid key-gen index (idx:%1d)", idx)
 			}
 
 			idx++
 
-			return EcKeypair{tmpPri.Bytes(), tmpPub}
+			return cryptoutils.EcKeypair{Pri: tmpPri.Bytes(), Pub: tmpPub}
 		}
 	}
 
 	var err error
 	var doc Document
 
-	doc.CardAccess, err = NewCardAccess(HexToBytes("31283012060A04007F0007020204020202010202010D3012060A04007F0007020204060202010202010D"))
+	doc.CardAccess, err = NewCardAccess(utils.HexToBytes("31283012060A04007F0007020204020202010202010D3012060A04007F0007020204060202010202010D"))
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
@@ -366,14 +369,14 @@ func TestDoPace_CAM_ECDH_DE(t *testing.T) {
 
 	// verify Secure-Messaging state (inc final SSC) is correct
 	{
-		sm_exp, err := NewSecureMessaging(AES, HexToBytes("a8e85e938514ec67ae33cda3d43d3c48"), HexToBytes("27f1adeb705a049a305b0c619b14b9b3"))
+		smExp, err := iso7816.NewSecureMessaging(cryptoutils.AES, utils.HexToBytes("a8e85e938514ec67ae33cda3d43d3c48"), utils.HexToBytes("27f1adeb705a049a305b0c619b14b9b3"))
 		if err != nil {
 			t.Errorf("Unexpected error: %s", err)
 		}
 
-		sm_exp.SetSSC(HexToBytes("00000000000000000000000000000016"))
+		smExp.SetSSC(utils.HexToBytes("00000000000000000000000000000016"))
 
-		if !reflect.DeepEqual(sm_exp, nfc.sm) {
+		if !nfc.SM.Equal(*smExp) {
 			t.Errorf("SecureMessaging differs to expected")
 		}
 	}

@@ -1,8 +1,11 @@
-package gmrtd
+package iso7816
 
 import (
 	"bytes"
 	"testing"
+
+	"github.com/gmrtd/gmrtd/cryptoutils"
+	"github.com/gmrtd/gmrtd/utils"
 )
 
 func TestSelectAidMrtd(t *testing.T) {
@@ -17,7 +20,7 @@ func TestSelectAidMrtd(t *testing.T) {
 		nfc = NewNfcSession(transceiver)
 	}
 
-	selected, err := nfc.SelectAid([]byte(HexToBytes(MRTD_AID)))
+	selected, err := nfc.SelectAid([]byte(utils.HexToBytes("A0000002471001")))
 
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
@@ -31,7 +34,7 @@ func TestSelectAidMrtd(t *testing.T) {
 func TestNfcSessionSecureMessagingTDES(t *testing.T) {
 	// Worked example from 9303p11 D.4 SECURE MESSAGING
 
-	expEfComData := HexToBytes("60145F0104303130365F36063034303030305C026175")
+	expEfComData := utils.HexToBytes("60145F0104303130365F36063034303030305C026175")
 
 	var nfc *NfcSession
 
@@ -48,27 +51,27 @@ func TestNfcSessionSecureMessagingTDES(t *testing.T) {
 
 	var err error
 
-	nfc.sm, err = NewSecureMessaging(TDES, HexToBytes("979EC13B1CBFE9DCD01AB0FED307EAE5"), HexToBytes("F1CB1F1FB5ADF208806B89DC579DC1F8"))
+	nfc.SM, err = NewSecureMessaging(cryptoutils.TDES, utils.HexToBytes("979EC13B1CBFE9DCD01AB0FED307EAE5"), utils.HexToBytes("F1CB1F1FB5ADF208806B89DC579DC1F8"))
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
 
-	nfc.sm.SetSSC(HexToBytes("887022120C06C226"))
+	nfc.SM.SetSSC(utils.HexToBytes("887022120C06C226"))
 
 	// Read EF.COM
-	actEfComData := nfc.ReadFile(MRTDFileIdEFCOM)
+	actEfComData := nfc.ReadFile(0x011e)
 
 	if !bytes.Equal(actEfComData, expEfComData) {
 		t.Errorf("Incorrect EF.COM data (Exp:%x, Act:%x)", expEfComData, actEfComData)
 	}
 
-	if !bytes.Equal(nfc.sm.ssc, HexToBytes("887022120C06C22C")) {
+	if !bytes.Equal(nfc.SM.ssc, utils.HexToBytes("887022120C06C22C")) {
 		t.Errorf("Incorrect SSC")
 	}
 }
 
 func TestNfcSessionSecureMessagingAES(t *testing.T) {
-	expEfComData := HexToBytes("60185F0104303130385F36063034303030305C06617563766D6E")
+	expEfComData := utils.HexToBytes("60185F0104303130385F36063034303030305C06617563766D6E")
 
 	var nfc *NfcSession
 
@@ -85,27 +88,27 @@ func TestNfcSessionSecureMessagingAES(t *testing.T) {
 
 	var err error
 
-	nfc.sm, err = NewSecureMessaging(AES, HexToBytes("74B94F408BBB2CD92571FD5B6370A94CCE7A2FA42AE3EB4DA47B97CE6EAA24C6"), HexToBytes("9E28D5D9FF1D979BE752E8926BF0E1D35A440FC0AEFC4AA3BC5610055AC8B113"))
+	nfc.SM, err = NewSecureMessaging(cryptoutils.AES, utils.HexToBytes("74B94F408BBB2CD92571FD5B6370A94CCE7A2FA42AE3EB4DA47B97CE6EAA24C6"), utils.HexToBytes("9E28D5D9FF1D979BE752E8926BF0E1D35A440FC0AEFC4AA3BC5610055AC8B113"))
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
 
-	nfc.sm.SetSSC(HexToBytes("00000000000000000000000000000020"))
+	nfc.SM.SetSSC(utils.HexToBytes("00000000000000000000000000000020"))
 
 	// Read EF.COM
-	actEfComData := nfc.ReadFile(MRTDFileIdEFCOM)
+	actEfComData := nfc.ReadFile(0x011e)
 
 	if !bytes.Equal(actEfComData, expEfComData) {
 		t.Errorf("Incorrect EF.COM data (Exp:%x, Act:%x)", expEfComData, actEfComData)
 	}
 
-	if !bytes.Equal(nfc.sm.ssc, HexToBytes("00000000000000000000000000000026")) {
+	if !bytes.Equal(nfc.SM.ssc, utils.HexToBytes("00000000000000000000000000000026")) {
 		t.Errorf("Incorrect SSC")
 	}
 }
 
 func TestGetChallengeHappy(t *testing.T) {
-	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{HexToBytes("0123456789ABCDEF9000")})
+	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{utils.HexToBytes("0123456789ABCDEF9000")})
 
 	challenge, err := nfc.GetChallenge(8)
 
@@ -113,7 +116,7 @@ func TestGetChallengeHappy(t *testing.T) {
 		t.Errorf("Unexpected error: %s", err)
 	}
 
-	if !bytes.Equal(challenge, HexToBytes("0123456789ABCDEF")) {
+	if !bytes.Equal(challenge, utils.HexToBytes("0123456789ABCDEF")) {
 		t.Errorf("Challenge differs to expected")
 	}
 }
@@ -129,7 +132,7 @@ func TestGetChallengeUnhappyNoRsp(t *testing.T) {
 }
 
 func TestGetChallengeUnhappyErrorStatus(t *testing.T) {
-	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{HexToBytes("6FFF")}) // card dead
+	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{utils.HexToBytes("6FFF")}) // card dead
 
 	_, err := nfc.GetChallenge(8)
 
@@ -139,7 +142,7 @@ func TestGetChallengeUnhappyErrorStatus(t *testing.T) {
 }
 
 func TestGetChallengeUnhappyRspLength(t *testing.T) {
-	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{HexToBytes("0123456789ABCDEF119000")}) // 9 bytes instead of 8
+	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{utils.HexToBytes("0123456789ABCDEF119000")}) // 9 bytes instead of 8
 
 	_, err := nfc.GetChallenge(8)
 
@@ -149,15 +152,15 @@ func TestGetChallengeUnhappyRspLength(t *testing.T) {
 }
 
 func TestExternalAuthenticateHappy(t *testing.T) {
-	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{HexToBytes("0123456789ABCDEF01239000")})
+	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{utils.HexToBytes("0123456789ABCDEF01239000")})
 
-	rspBytes, err := nfc.ExternalAuthenticate(HexToBytes("01234567"), 10)
+	rspBytes, err := nfc.ExternalAuthenticate(utils.HexToBytes("01234567"), 10)
 
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
 
-	if !bytes.Equal(rspBytes, HexToBytes("0123456789ABCDEF0123")) {
+	if !bytes.Equal(rspBytes, utils.HexToBytes("0123456789ABCDEF0123")) {
 		t.Errorf("Response differs to expected")
 	}
 }
@@ -165,7 +168,7 @@ func TestExternalAuthenticateHappy(t *testing.T) {
 func TestExternalAuthenticateUnhappyNoRsp(t *testing.T) {
 	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{nil})
 
-	_, err := nfc.ExternalAuthenticate(HexToBytes("01234567"), 10)
+	_, err := nfc.ExternalAuthenticate(utils.HexToBytes("01234567"), 10)
 
 	if err == nil {
 		t.Errorf("Error expected")
@@ -173,9 +176,9 @@ func TestExternalAuthenticateUnhappyNoRsp(t *testing.T) {
 }
 
 func TestExternalAuthenticateUnhappyErrorStatus(t *testing.T) {
-	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{HexToBytes("6FFF")}) // card dead
+	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{utils.HexToBytes("6FFF")}) // card dead
 
-	_, err := nfc.ExternalAuthenticate(HexToBytes("01234567"), 10)
+	_, err := nfc.ExternalAuthenticate(utils.HexToBytes("01234567"), 10)
 
 	if err == nil {
 		t.Errorf("Error expected")
@@ -183,9 +186,9 @@ func TestExternalAuthenticateUnhappyErrorStatus(t *testing.T) {
 }
 
 func TestExternalAuthenticateUnhappyRspLength(t *testing.T) {
-	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{HexToBytes("0123456789ABCDEF019000")}) // 9 bytes instead of 10
+	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{utils.HexToBytes("0123456789ABCDEF019000")}) // 9 bytes instead of 10
 
-	_, err := nfc.ExternalAuthenticate(HexToBytes("01234567"), 10)
+	_, err := nfc.ExternalAuthenticate(utils.HexToBytes("01234567"), 10)
 
 	if err == nil {
 		t.Errorf("Error expected")
@@ -203,7 +206,7 @@ func TestSelectMF(t *testing.T) {
 	}{
 		{
 			// happy - success
-			transceiver: &StaticTransceiver{HexToBytes("9000")},
+			transceiver: &StaticTransceiver{utils.HexToBytes("9000")},
 			expError:    false,
 		},
 		{
@@ -213,7 +216,7 @@ func TestSelectMF(t *testing.T) {
 		},
 		{
 			// unhappy - card dead response
-			transceiver: &StaticTransceiver{HexToBytes("6FFF")},
+			transceiver: &StaticTransceiver{utils.HexToBytes("6FFF")},
 			expError:    true,
 		},
 	}
@@ -238,14 +241,14 @@ func TestSelectEF(t *testing.T) {
 		{
 			// happy - success
 			fileId:      0x0101,
-			transceiver: &StaticTransceiver{HexToBytes("9000")},
+			transceiver: &StaticTransceiver{utils.HexToBytes("9000")},
 			expError:    false,
 			expSelected: true,
 		},
 		{
 			// happy - file not found
 			fileId:      0x0101,
-			transceiver: &StaticTransceiver{HexToBytes("6A82")},
+			transceiver: &StaticTransceiver{utils.HexToBytes("6A82")},
 			expError:    false,
 			expSelected: false,
 		},
@@ -259,7 +262,7 @@ func TestSelectEF(t *testing.T) {
 		{
 			// unhappy - card dead response
 			fileId:      0x0101,
-			transceiver: &StaticTransceiver{HexToBytes("6FFF")},
+			transceiver: &StaticTransceiver{utils.HexToBytes("6FFF")},
 			expError:    true,
 			expSelected: false,
 		},
@@ -289,14 +292,14 @@ func TestSelectAid(t *testing.T) {
 		{
 			// happy - success
 			aid:         []byte("A0000002471001"),
-			transceiver: &StaticTransceiver{HexToBytes("9000")},
+			transceiver: &StaticTransceiver{utils.HexToBytes("9000")},
 			expError:    false,
 			expSelected: true,
 		},
 		{
 			// happy - file not found
 			aid:         []byte("A0000002471001"),
-			transceiver: &StaticTransceiver{HexToBytes("6A82")},
+			transceiver: &StaticTransceiver{utils.HexToBytes("6A82")},
 			expError:    false,
 			expSelected: false,
 		},
@@ -310,7 +313,7 @@ func TestSelectAid(t *testing.T) {
 		{
 			// unhappy - card dead response
 			aid:         []byte("A0000002471001"),
-			transceiver: &StaticTransceiver{HexToBytes("6FFF")},
+			transceiver: &StaticTransceiver{utils.HexToBytes("6FFF")},
 			expError:    true,
 			expSelected: false,
 		},

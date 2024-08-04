@@ -7,6 +7,9 @@ import (
 	"log/slog"
 	"slices"
 	"strings"
+
+	"github.com/gmrtd/gmrtd/tlv"
+	"github.com/gmrtd/gmrtd/utils"
 )
 
 const DG11Tag = 0x6B
@@ -47,7 +50,7 @@ func NewDG11(data []byte) (*DG11, error) {
 
 	out.RawData = slices.Clone(data)
 
-	nodes := TlvDecode(out.RawData)
+	nodes := tlv.TlvDecode(out.RawData)
 
 	slog.Debug("DG11", "TLV", nodes)
 
@@ -64,8 +67,8 @@ func NewDG11(data []byte) (*DG11, error) {
 	return out, nil
 }
 
-func (details *PersonDetails) parseData(node TlvNode) {
-	tagList := TlvGetTags(bytes.NewBuffer(node.GetNode(0x5C).GetValue()))
+func (details *PersonDetails) parseData(node tlv.TlvNode) {
+	tagList := tlv.TlvGetTags(bytes.NewBuffer(node.GetNode(0x5C).GetValue()))
 
 	for _, tag := range tagList {
 		details.processTag(tag, node)
@@ -73,13 +76,13 @@ func (details *PersonDetails) parseData(node TlvNode) {
 }
 
 // processes the 'tag', getting the data from the TLV and populating PersonDetails
-func (details *PersonDetails) processTag(tag TlvTag, node TlvNode) {
+func (details *PersonDetails) processTag(tag tlv.TlvTag, node tlv.TlvNode) {
 	switch tag {
 	case 0x5F0E:
 		details.NameOfHolder = parseName(decodeValue(string(node.GetNode(tag).GetValue())))
 	case 0x5F0f:
 		// special handling as 'Other Names' are nested within tag A0 and there can be multiple instances
-		numOtherNames := bytesToInt(node.GetNode(0xA0).GetNode(0x02).GetValue())
+		numOtherNames := utils.BytesToInt(node.GetNode(0xA0).GetNode(0x02).GetValue())
 		for occur := 1; occur <= numOtherNames; occur++ {
 			details.OtherNames = append(details.OtherNames, parseName(decodeValue(string(node.GetNode(0xA0).GetNodeByOccur(tag, occur).GetValue()))))
 		}
