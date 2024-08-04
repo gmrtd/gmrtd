@@ -4,7 +4,6 @@ package activeauth
 import (
 	"bytes"
 	"crypto"
-	"crypto/rsa"
 	"fmt"
 	"log/slog"
 
@@ -155,16 +154,12 @@ func (activeAuth *ActiveAuth) DoActiveAuth(nfc *iso7816.NfcSession, doc *documen
 		switch subPubKeyInfo.Algorithm.Algorithm.String() {
 		case oid.OidRsaEncryption.String():
 			{
-				var rsaPubKey *rsa.PublicKey
-				{
-					var pubKey *cryptoutils.RsaPublicKey = subPubKeyInfo.GetRsaPubKey()
-					rsaPubKey = &rsa.PublicKey{N: pubKey.N, E: pubKey.E}
-				}
+				var pubKey *cryptoutils.RsaPublicKey = subPubKeyInfo.GetRsaPubKey()
 
 				// S = rapdu-data
 				s := intAuthRspBytes
 
-				f := cryptoutils.RsaDecryptWithPublicKey(s, rsaPubKey)
+				f := cryptoutils.RsaDecryptWithPublicKey(s, *pubKey)
 
 				m1, d, hashAlg, err := decodeF(f)
 				if err != nil {

@@ -365,14 +365,13 @@ func verifySignature(pubKeyInfo []byte, digestAlg asn1.ObjectIdentifier, digest 
 	 */
 	case oid.OidRsaEncryption.String():
 		{
-			var rsaPubKey *rsa.PublicKey
+			var pubKey *cryptoutils.RsaPublicKey
 			{
 				var subPubKeyInfo SubjectPublicKeyInfo = Asn1decodeSubjectPublicKeyInfo(pubKeyInfo)
-				var pubKey *cryptoutils.RsaPublicKey = subPubKeyInfo.GetRsaPubKey()
-				rsaPubKey = &rsa.PublicKey{N: pubKey.N, E: pubKey.E}
+				pubKey = subPubKeyInfo.GetRsaPubKey()
 			}
 
-			sigPlaintext := cryptoutils.RsaDecryptWithPublicKey(sig, rsaPubKey)
+			sigPlaintext := cryptoutils.RsaDecryptWithPublicKey(sig, *pubKey)
 
 			slog.Debug("verifySignature", "sig", utils.BytesToHex(sig), "sigPlaintext", utils.BytesToHex(sigPlaintext))
 

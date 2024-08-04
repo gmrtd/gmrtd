@@ -10,7 +10,6 @@ import (
 	"crypto/elliptic"
 	"crypto/md5"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/sha512"
@@ -427,8 +426,7 @@ func DoEcDh(localPrivate []byte, remotePublic *EcPoint, ec elliptic.Curve) *EcPo
 	return &point
 }
 
-// TODO - why not use internal RsaPublicKey type?
-func RsaDecryptWithPublicKey(ciphertext []byte, publicKey *rsa.PublicKey) []byte {
+func RsaDecryptWithPublicKey(ciphertext []byte, publicKey RsaPublicKey) []byte {
 	if len(ciphertext) < 1 {
 		log.Panicf("ciphertext too short (len:%01d)", len(ciphertext))
 	}
