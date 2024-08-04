@@ -8,8 +8,14 @@ import (
 	"log/slog"
 	"runtime/debug"
 
+	"github.com/gmrtd/gmrtd/activeauth"
+	"github.com/gmrtd/gmrtd/bac"
+	"github.com/gmrtd/gmrtd/chipauth"
 	"github.com/gmrtd/gmrtd/cryptoutils"
+	"github.com/gmrtd/gmrtd/document"
 	"github.com/gmrtd/gmrtd/iso7816"
+	"github.com/gmrtd/gmrtd/pace"
+	"github.com/gmrtd/gmrtd/password"
 	"github.com/gmrtd/gmrtd/utils"
 )
 
@@ -79,7 +85,7 @@ var dgToFileId = map[int]uint16{
 
 // reads the data-groups (DGs) based on the DG hashes present in EF.SOD
 // error if <2 DG hashes are present in SOD (as DG1/2 are always mandatory)
-func readDGs(nfc *iso7816.NfcSession, doc *Document) (err error) {
+func readDGs(nfc *iso7816.NfcSession, doc *document.Document) (err error) {
 	dgHashes := doc.Sod.LdsSecurityObject.DataGroupHashValues
 	if len(dgHashes) < 2 {
 		return fmt.Errorf("EF.SOD must have at least two datagroup hashes")
@@ -136,7 +142,7 @@ func (reader *Reader) SetApduMaxLe(maxRead int) {
 }
 
 // NB returns partial data (MrtdDocument) in the event of an error
-func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *Password, atr []byte, ats []byte) (doc *Document, err error) {
+func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *password.Password, atr []byte, ats []byte) (doc *document.Document, err error) {
 	defer func() {
 		if e := recover(); e != nil {
 			switch x := e.(type) {
@@ -158,7 +164,7 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *Pa
 		nfc.MaxLe = reader.apduMaxLe
 	}
 
-	doc = new(Document)
+	doc = new(document.Document)
 
 	// record ATR/ATS
 	// NB we don't really do much with these today, just recording
@@ -177,7 +183,7 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *Pa
 
 	slog.Info("Read CardAccess")
 	// may not be present (OR may be present but not have PACE info)
-	if doc.CardAccess, err = NewCardAccess(nfc.ReadFile(MRTDFileIdCardAccess)); err != nil {
+	if doc.CardAccess, err = document.NewCardAccess(nfc.ReadFile(MRTDFileIdCardAccess)); err != nil {
 		return doc, err
 	}
 
@@ -186,7 +192,7 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *Pa
 	 */
 	// TODO - should we have an option to skip PACE
 	{
-		err = NewPace().doPACE(nfc, password, doc)
+		err = pace.NewPace().DoPACE(nfc, password, doc)
 		if err != nil {
 			return doc, err
 		}
@@ -194,7 +200,7 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *Pa
 
 	// NB moved after PACE as we've seen access related errors on NZ passports when done before PACE
 	slog.Info("Read EF.DIR")
-	doc.Dir = NewEFDIR(nfc.ReadFile(MRTDFileIdEFDIR))
+	doc.Dir = document.NewEFDIR(nfc.ReadFile(MRTDFileIdEFDIR))
 	if doc.Dir != nil {
 		slog.Debug("EF.DIR", "bytes", utils.BytesToHex(doc.Dir.RawData))
 	}
@@ -211,7 +217,7 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *Pa
 
 	// NB we only attempt BAC if we don't already have SecureMessaging (i.e. via PACE)
 	if nfc.SM == nil {
-		err = NewBAC().doBAC(nfc, password)
+		err = bac.NewBAC().DoBAC(nfc, password)
 		if err != nil {
 			return doc, err
 		}
@@ -224,13 +230,13 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *Pa
 	 */
 
 	slog.Info("Read EF.SOD")
-	doc.Sod, err = NewSOD(nfc.ReadFile(MRTDFileIdEFSOD))
+	doc.Sod, err = document.NewSOD(nfc.ReadFile(MRTDFileIdEFSOD))
 	if err != nil {
 		return doc, err
 	}
 
 	slog.Info("Read EF.COM")
-	doc.Com, err = NewCOM(nfc.ReadFile(MRTDFileIdEFCOM))
+	doc.Com, err = document.NewCOM(nfc.ReadFile(MRTDFileIdEFCOM))
 	if err != nil {
 		return doc, err
 	}
@@ -243,12 +249,12 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *Pa
 	 * NB requires DG data, so performed after DG read
 	 */
 
-	if doc.ChipAuthStatus == CHIP_AUTH_STATUS_NONE {
-		err = NewChipAuth().doChipAuth(nfc, doc)
+	if doc.ChipAuthStatus == document.CHIP_AUTH_STATUS_NONE {
+		err = chipauth.NewChipAuth().DoChipAuth(nfc, doc)
 	}
 
-	if doc.ChipAuthStatus == CHIP_AUTH_STATUS_NONE {
-		err = NewActiveAuth().doActiveAuth(nfc, doc)
+	if doc.ChipAuthStatus == document.CHIP_AUTH_STATUS_NONE {
+		err = activeauth.NewActiveAuth().DoActiveAuth(nfc, doc)
 	}
 
 	// copy apdu-log over to document

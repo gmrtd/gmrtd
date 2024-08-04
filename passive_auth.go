@@ -1,9 +1,12 @@
 package gmrtd
 
-import "fmt"
+import (
+	"fmt"
 
-// TODO - rename? DoPassiveAuth?
-func MrtdPassiveAuth(doc *Document) error {
+	"github.com/gmrtd/gmrtd/document"
+)
+
+func PassiveAuth(doc *document.Document) error {
 	var err error
 
 	// NB currently assumes that EF.SOD DG hashes have been verified earlier

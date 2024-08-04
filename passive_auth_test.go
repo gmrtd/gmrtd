@@ -3,6 +3,7 @@ package gmrtd
 import (
 	"testing"
 
+	"github.com/gmrtd/gmrtd/document"
 	"github.com/gmrtd/gmrtd/utils"
 )
 
@@ -10,7 +11,7 @@ import (
 * Note: these tests largely mirror those for SOD / CardSecurity
  */
 
-func TestMrtdPassiveAuth(t *testing.T) {
+func TestPassiveAuth(t *testing.T) {
 	testCases := []struct {
 		cardSecurityFileBytes []byte
 		sodFileBytes          []byte
@@ -65,23 +66,23 @@ func TestMrtdPassiveAuth(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		var err error
-		var doc Document
+		var doc document.Document
 
 		if tc.cardSecurityFileBytes != nil {
-			doc.CardSecurity, err = NewCardSecurity(tc.cardSecurityFileBytes)
+			doc.CardSecurity, err = document.NewCardSecurity(tc.cardSecurityFileBytes)
 			if err != nil {
 				t.Errorf("Unexpected error: %s", err)
 			}
 		}
 
 		{
-			doc.Sod, err = NewSOD(tc.sodFileBytes)
+			doc.Sod, err = document.NewSOD(tc.sodFileBytes)
 			if err != nil {
 				t.Errorf("Unexpected error: %s", err)
 			}
 		}
 
-		err = MrtdPassiveAuth(&doc)
+		err = PassiveAuth(&doc)
 		if err != nil {
 			t.Errorf("Unexpected error: %s", err)
 		}
