@@ -1,3 +1,4 @@
+// Package activeauth implements the 'Active Authentication' mechanism for verifying the authenticity of the Contactless IC.
 package activeauth
 
 import (

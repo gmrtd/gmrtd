@@ -1,3 +1,4 @@
+// Package mrz provides utilities for parsing the 'Machine Readable Zone' (MRZ).
 package mrz
 
 import (

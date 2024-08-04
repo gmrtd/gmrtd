@@ -1,4 +1,4 @@
-// Package cms supports the 'Cryptographic Message Syntax' (CMS) as described in RFC-5652.
+// Package cms implements the 'Cryptographic Message Syntax' (CMS) as described in RFC-5652.
 //
 // Support is also provided for X509 (RFC-5652)
 //

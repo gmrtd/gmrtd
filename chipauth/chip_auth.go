@@ -1,3 +1,4 @@
+// Package chipauth implements the 'Chip Authentication' mechanism for verifying the authenticity of the Contactless IC.
 package chipauth
 
 import (

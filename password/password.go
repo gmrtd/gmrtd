@@ -1,3 +1,4 @@
+// Package password provides utilities for generating MRTD passwords (MRZ,MRZi,CAN) used during BAC/PACE authentication.
 package password
 
 import "github.com/gmrtd/gmrtd/mrz"

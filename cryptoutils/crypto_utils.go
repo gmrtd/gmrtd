@@ -1,3 +1,4 @@
+// Package cryptoutils provides cryptographic utility functions.
 package cryptoutils
 
 import (

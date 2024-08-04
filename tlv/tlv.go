@@ -1,4 +1,4 @@
-// Package TLV (tag-length-value) supports encoding and decoding of TLV data.
+// Package TLV provides support for 'Tag-Length-Value' (TLV) formatted data.
 package tlv
 
 import (

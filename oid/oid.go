@@ -1,3 +1,4 @@
+// Package oid provides utilities relating to ASN.1 'Object Identifiers' (OIDs).
 package oid
 
 import (
