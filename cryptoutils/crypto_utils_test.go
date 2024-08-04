@@ -550,7 +550,6 @@ func TestISO9797RetailMacDes(t *testing.T) {
 }
 
 func TestRsaDecryptWithPublicKey(t *testing.T) {
-	// TODO (OSWALD)
 	testCases := []struct {
 		ciphertext   []byte
 		publicKey    rsa.PublicKey
