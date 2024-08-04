@@ -24,14 +24,14 @@ jobs:
     - name: Build
       run: go build -v ./...
     - name: Test Coverage
-      run: go test -coverprofile=coverage.out
+      run: go test ./... -coverprofile=coverage.out
     - name: Archive code coverage results
       uses: actions/upload-artifact@v4
       with:
         name: coverage.out
         path: coverage.out
     - name: Test Result
-      run: go test -json > report.json
+      run: go test ./... -json > report.json
     - name: Archive test report
       uses: actions/upload-artifact@v4
       with:
