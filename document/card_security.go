@@ -33,7 +33,7 @@ func NewCardSecurity(data []byte) (out *CardSecurity, err error) {
 		var sd *cms.SignedData
 		var err error
 
-		sd, err = cms.ParseSignedData(out.RawData) // TODO - maybe move singedData parsing? currently in SOD but also used here
+		sd, err = cms.ParseSignedData(out.RawData)
 		if err != nil {
 			return nil, err
 		}
