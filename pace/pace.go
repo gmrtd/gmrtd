@@ -177,7 +177,7 @@ func getStandardisedDomainParams(paramId int) *PACEDomainParams {
 		log.Panicf("PACE Standard Domain Parameter (paramId:%1d) NOT IMPLEMENTED", paramId)
 	case 8:
 		// NIST P-192 (secp192r1)
-		log.Panicf("PACE Standard Domain Parameter (paramId:%1d) NOT IMPLEMENTED", paramId)
+		ret = &PACEDomainParams{id: paramId, isECDH: true, ec: cryptoutils.EllipticP192()}
 	case 9:
 		// Brainpool P192r1
 		ret = &PACEDomainParams{id: paramId, isECDH: true, ec: brainpool.P192r1()}

@@ -456,7 +456,7 @@ func (subPubKeyInfo *SubjectPublicKeyInfo) GetEcCurveAndPubKey() (curve *ellipti
 
 	curve, err = GetECCurveForSpecifiedDomain(specDomain)
 	if err != nil {
-		log.Panicf("(SubjectPublicKeyInfo.GetEcCurveAndPubKey) Unexpected ASN1 parsing error: %s", err)
+		log.Panicf("(SubjectPublicKeyInfo.GetEcCurveAndPubKey) GetECCurveForSpecifiedDomain error: %s", err)
 	}
 
 	// get the chip's public key
@@ -536,6 +536,7 @@ func ParseECSpecifiedDomain(algIdentifier *AlgorithmIdentifier) (out *ECSpecifie
 }
 
 var caEcArr []elliptic.Curve = []elliptic.Curve{
+	cryptoutils.EllipticP192(),
 	elliptic.P224(),
 	elliptic.P256(),
 	elliptic.P384(),
