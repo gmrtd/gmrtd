@@ -37,6 +37,7 @@ import (
 
 	"github.com/aead/cmac"
 	"github.com/ebfe/brainpool"
+	"github.com/gmrtd/gmrtd/cms"
 	"github.com/gmrtd/gmrtd/cryptoutils"
 	"github.com/gmrtd/gmrtd/document"
 	"github.com/gmrtd/gmrtd/iso7816"
@@ -520,11 +521,14 @@ func getIcPubKeyECForCAM(domainParams *PACEDomainParams, cardSecurity *document.
 	}
 
 	for i := range caPubKeyInfos {
-		// TODO - shouldn't we also check that the Alg.Protocol is as expected (e.g. == standardizedDomainParameters)
-		//			- code is here and elsewhere also
-		//			- would be good to have a helper that gets the INTfor us
-		if utils.BytesToInt(caPubKeyInfos[i].ChipAuthenticationPublicKey.Algorithm.Parameters.Bytes) == domainParams.id {
-			var tmpKey []byte = caPubKeyInfos[i].ChipAuthenticationPublicKey.SubjectPublicKey.Bytes
+		var subjectPubKeyInfo *cms.SubjectPublicKeyInfo = &caPubKeyInfos[i].ChipAuthenticationPublicKey
+
+		if !subjectPubKeyInfo.Algorithm.Algorithm.Equal(oid.OidBsiDeEcKeyType) {
+			log.Panicf("(getIcPubKeyECForCAM) Wrong OID (act:%s)", subjectPubKeyInfo.Algorithm.Algorithm.String())
+		}
+
+		if utils.BytesToInt(subjectPubKeyInfo.Algorithm.Parameters.Bytes) == domainParams.id {
+			var tmpKey []byte = subjectPubKeyInfo.SubjectPublicKey.Bytes
 			return cryptoutils.DecodeX962EcPoint(domainParams.ec, tmpKey)
 		}
 
