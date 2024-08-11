@@ -450,7 +450,13 @@ func (subPubKeyInfo *SubjectPublicKeyInfo) GetEcCurveAndPubKey() (curve *ellipti
 
 	var err error
 
-	// TODO - check OID indicates EC-Key
+	// verify Algorithm OID
+	{
+		var expOid asn1.ObjectIdentifier = oid.OidEcPublicKey
+		if !subPubKeyInfo.Algorithm.Algorithm.Equal(expOid) {
+			log.Panicf("(SubjectPublicKeyInfo.GetEcCurveAndPubKey) Algorithm differs to expected (exp:%s) (act:%s)", expOid.String(), subPubKeyInfo.Algorithm.Algorithm.String())
+		}
+	}
 
 	specDomain := ParseECSpecifiedDomain(&subPubKeyInfo.Algorithm)
 
@@ -472,7 +478,13 @@ func (subPubKeyInfo *SubjectPublicKeyInfo) GetRsaPubKey() *cryptoutils.RsaPublic
 	var err error
 	var out cryptoutils.RsaPublicKey
 
-	// TODO - check that OID=RsaEncryption
+	// verify Algorithm OID
+	{
+		var expOid asn1.ObjectIdentifier = oid.OidRsaEncryption
+		if !subPubKeyInfo.Algorithm.Algorithm.Equal(expOid) {
+			log.Panicf("(SubjectPublicKeyInfo.GetRsaPubKey) Algorithm differs to expected (exp:%s) (act:%s)", expOid.String(), subPubKeyInfo.Algorithm.Algorithm.String())
+		}
+	}
 
 	err = utils.ParseAsn1(subPubKeyInfo.SubjectPublicKey.Bytes, false, &out)
 	if err != nil {
