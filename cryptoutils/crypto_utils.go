@@ -102,8 +102,6 @@ type EcPoint struct {
 
 // TODO - consider aligning above to RFC-3279.. ECParameters ?
 
-// TODO - following xcode could be moved to a generic crypto module
-
 type ECCurve struct {
 	A    []byte
 	B    []byte
@@ -442,7 +440,7 @@ func RsaDecryptWithPublicKey(ciphertext []byte, publicKey RsaPublicKey) []byte {
 func EllipticP192() elliptic.Curve {
 	var curveParams *elliptic.CurveParams
 
-	// TODO - still need to be tested (RU?)
+	// TODO - still needs to be tested (RU?)
 
 	curveParams = &elliptic.CurveParams{
 		Name:    "P-192",
