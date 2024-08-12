@@ -252,7 +252,9 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 	 * Read LDS1 files
 	 */
 	err = readLDS1files(nfc, doc)
-	// TODO - error check?
+	if err != nil {
+		return doc, err
+	}
 
 	/*
 	 * Chip / Active Authentication
@@ -271,7 +273,7 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 	// copy apdu-log over to document
 	doc.Apdus = nfc.ApduLog
 
-	slog.Info("** FINISHED **", "ChipAuthStatus", doc.ChipAuthStatus)
+	slog.Info("** ReadDocument FINISHED **", "ChipAuthStatus", doc.ChipAuthStatus)
 
 	return
 }
