@@ -69,14 +69,14 @@ func TestPassiveAuth(t *testing.T) {
 		var doc document.Document
 
 		if tc.cardSecurityFileBytes != nil {
-			doc.CardSecurity, err = document.NewCardSecurity(tc.cardSecurityFileBytes)
+			doc.Mf.CardSecurity, err = document.NewCardSecurity(tc.cardSecurityFileBytes)
 			if err != nil {
 				t.Errorf("Unexpected error: %s", err)
 			}
 		}
 
 		{
-			doc.Sod, err = document.NewSOD(tc.sodFileBytes)
+			doc.Mf.Lds1.Sod, err = document.NewSOD(tc.sodFileBytes)
 			if err != nil {
 				t.Errorf("Unexpected error: %s", err)
 			}

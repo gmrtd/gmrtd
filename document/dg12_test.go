@@ -54,11 +54,11 @@ func TestNewDG12Happy(t *testing.T) {
 		t.Errorf("Error not expected")
 	}
 
-	if doc.Dg12 == nil {
+	if doc.Mf.Lds1.Dg12 == nil {
 		t.Errorf("DG12 expected")
 	}
 
-	if !reflect.DeepEqual(doc.Dg12.Details, expDetails) {
-		t.Errorf("DG12 DocumentDetails differs to expected\n(Act:%+v)\n(Exp:%+v)", doc.Dg12.Details, expDetails)
+	if !reflect.DeepEqual(doc.Mf.Lds1.Dg12.Details, expDetails) {
+		t.Errorf("DG12 DocumentDetails differs to expected\n(Act:%+v)\n(Exp:%+v)", doc.Mf.Lds1.Dg12.Details, expDetails)
 	}
 }

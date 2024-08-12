@@ -97,7 +97,7 @@ func (activeAuth *ActiveAuth) doGetRandomIfd() []byte {
 func (activeAuth *ActiveAuth) doInternalAuthenticate(nfc *iso7816.NfcSession, doc *document.Document, rndIfd []byte) (rspBytes []byte, err error) {
 	var errContext string
 
-	errContext = fmt.Sprintf("dg15:%x,rndIfd:%x", doc.Dg15, rndIfd)
+	errContext = fmt.Sprintf("dg15:%x,rndIfd:%x", doc.Mf.Lds1.Dg15, rndIfd)
 
 	var cApdu *iso7816.CApdu = iso7816.NewCApdu(0, iso7816.INS_INTERNAL_AUTHENTICATE, 0x00, 0x00, rndIfd, nfc.MaxLe)
 
@@ -108,7 +108,7 @@ func (activeAuth *ActiveAuth) doInternalAuthenticate(nfc *iso7816.NfcSession, do
 		return nil, fmt.Errorf("(doInternalAuthenticate) Internal Authenticate APDU error: %w (Context:%s)", err, errContext)
 	}
 
-	errContext = fmt.Sprintf("dg15:%x,rndIfd:%x,rApdu:%s", doc.Dg15, rndIfd, rApdu.String())
+	errContext = fmt.Sprintf("dg15:%x,rndIfd:%x,rApdu:%s", doc.Mf.Lds1.Dg15, rndIfd, rApdu.String())
 
 	if !rApdu.IsSuccess() {
 		return nil, fmt.Errorf("(doInternalAuthenticate) Internal-Auth failed (rApduStatus:%04x) (Context:%s)", rApdu.Status, errContext)
@@ -130,7 +130,7 @@ func (activeAuth *ActiveAuth) DoActiveAuth(nfc *iso7816.NfcSession, doc *documen
 	}
 
 	// skip if DG15 is missing
-	if doc.Dg15 == nil {
+	if doc.Mf.Lds1.Dg15 == nil {
 		slog.Debug("DoActiveAuth - skipping AA as DG15 is not present")
 		return nil
 	}
@@ -149,7 +149,7 @@ func (activeAuth *ActiveAuth) DoActiveAuth(nfc *iso7816.NfcSession, doc *documen
 	}
 
 	{
-		var subPubKeyInfo cms.SubjectPublicKeyInfo = cms.Asn1decodeSubjectPublicKeyInfo(doc.Dg15.SubjectPublicKeyInfoBytes)
+		var subPubKeyInfo cms.SubjectPublicKeyInfo = cms.Asn1decodeSubjectPublicKeyInfo(doc.Mf.Lds1.Dg15.SubjectPublicKeyInfoBytes)
 
 		switch subPubKeyInfo.Algorithm.Algorithm.String() {
 		case oid.OidRsaEncryption.String():

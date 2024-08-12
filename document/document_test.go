@@ -74,7 +74,7 @@ func TestLdsUnicodeVersion(t *testing.T) {
 
 		if len(tc.comBytes) > 0 {
 			var err error
-			doc.Com, err = NewCOM(tc.comBytes)
+			doc.Mf.Lds1.Com, err = NewCOM(tc.comBytes)
 			if err != nil {
 				t.Errorf("Unexpected error: %s", err)
 			}
@@ -82,7 +82,7 @@ func TestLdsUnicodeVersion(t *testing.T) {
 
 		if len(tc.sodBytes) > 0 {
 			var err error
-			doc.Sod, err = NewSOD(tc.sodBytes)
+			doc.Mf.Lds1.Sod, err = NewSOD(tc.sodBytes)
 			if err != nil {
 				t.Errorf("Unexpected error: %s", err)
 			}

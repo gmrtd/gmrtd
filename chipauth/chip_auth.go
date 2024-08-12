@@ -40,7 +40,7 @@ func (chipAuth *ChipAuth) DoChipAuth(nfc *iso7816.NfcSession, doc *document.Docu
 	}
 
 	// skip if DG14 is missing
-	if doc.Dg14 == nil {
+	if doc.Mf.Lds1.Dg14 == nil {
 		slog.Debug("doChipAuth - skipping CA as DG14 is not present")
 		return nil
 	}
@@ -96,11 +96,11 @@ func selectCAInfo(doc *document.Document) (caInfo *document.ChipAuthenticationIn
 	var bestCaInfo *document.ChipAuthenticationInfo
 	var bestCaAlgInfo *CaAlgorithmInfo
 
-	for i := range doc.Dg14.SecInfos.ChipAuthInfos {
+	for i := range doc.Mf.Lds1.Dg14.SecInfos.ChipAuthInfos {
 		var curCaInfo *document.ChipAuthenticationInfo
 		var curCaAlgInfo *CaAlgorithmInfo
 
-		curCaInfo = &(doc.Dg14.SecInfos.ChipAuthInfos[i])
+		curCaInfo = &(doc.Mf.Lds1.Dg14.SecInfos.ChipAuthInfos[i])
 
 		curCaAlgInfo, err = getAlgInfo(curCaInfo.Protocol)
 		if err != nil {
@@ -121,8 +121,8 @@ func selectCAInfo(doc *document.Document) (caInfo *document.ChipAuthenticationIn
 
 // selects the public key matching the target OID (i.e. oidPkDh / oidPkEcdh) as well as the 'KeyId' (if specified)
 func selectCAPubKeyInfo(caInfo *document.ChipAuthenticationInfo, caAlgInfo *CaAlgorithmInfo, doc *document.Document) (*document.ChipAuthenticationPublicKeyInfo, error) {
-	for i := range doc.Dg14.SecInfos.ChipAuthPubKeyInfos {
-		var curPubKey *document.ChipAuthenticationPublicKeyInfo = &(doc.Dg14.SecInfos.ChipAuthPubKeyInfos[i])
+	for i := range doc.Mf.Lds1.Dg14.SecInfos.ChipAuthPubKeyInfos {
+		var curPubKey *document.ChipAuthenticationPublicKeyInfo = &(doc.Mf.Lds1.Dg14.SecInfos.ChipAuthPubKeyInfos[i])
 
 		if curPubKey.Protocol.Equal(caAlgInfo.targetOid) {
 			// no key-id specified, so good to use any matching public-key

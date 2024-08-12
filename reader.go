@@ -83,12 +83,35 @@ var dgToFileId = map[int]uint16{
 	16: MRTDFileIdDG16,
 }
 
-// reads the data-groups (DGs) based on the DG hashes present in EF.SOD
+// reads the LDS1 files (EF.SOD,EF.COM,EF.DGxx)
+func readLDS1files(nfc *iso7816.NfcSession, doc *document.Document) (err error) {
+	slog.Info("Read EF.SOD")
+	doc.Mf.Lds1.Sod, err = document.NewSOD(nfc.ReadFile(MRTDFileIdEFSOD))
+	if err != nil {
+		return fmt.Errorf("(readLDS1files) error reading EF.SOD: %w", err)
+	}
+
+	slog.Info("Read EF.COM")
+	doc.Mf.Lds1.Com, err = document.NewCOM(nfc.ReadFile(MRTDFileIdEFCOM))
+	if err != nil {
+		return fmt.Errorf("(readLDS1files) error reading EF.COM: %w", err)
+	}
+
+	err = readLDS1dgs(nfc, doc)
+	if err != nil {
+		return fmt.Errorf("(readLDS1files) error reading DGs: %w", err)
+	}
+
+	return nil
+}
+
+// reads the LDS1 data-groups (DGs) based on the DG hashes present in EF.SOD
 // error if <2 DG hashes are present in SOD (as DG1/2 are always mandatory)
-func readDGs(nfc *iso7816.NfcSession, doc *document.Document) (err error) {
-	dgHashes := doc.Sod.LdsSecurityObject.DataGroupHashValues
+func readLDS1dgs(nfc *iso7816.NfcSession, doc *document.Document) (err error) {
+	dgHashes := doc.Mf.Lds1.Sod.LdsSecurityObject.DataGroupHashValues
 	if len(dgHashes) < 2 {
-		return fmt.Errorf("EF.SOD must have at least two datagroup hashes")
+		// TODO - should we do this check here... or should we check for mandatory files later?
+		return fmt.Errorf("(readLDS1dgs) EF.SOD must have at least two datagroup hashes")
 	}
 
 	for _, dgHash := range dgHashes {
@@ -111,10 +134,10 @@ func readDGs(nfc *iso7816.NfcSession, doc *document.Document) (err error) {
 		// validate the DG hash against the hash in the SOD
 		// TODO - need to decide whether to keep this here or move to passive-auth to have everything in one place
 		{
-			actHash := cryptoutils.CryptoHashByOid(doc.Sod.LdsSecurityObject.HashAlgorithm.Algorithm, dgBytes)
+			actHash := cryptoutils.CryptoHashByOid(doc.Mf.Lds1.Sod.LdsSecurityObject.HashAlgorithm.Algorithm, dgBytes)
 
 			if !bytes.Equal(actHash, dgHash.DataGroupHashValue) {
-				return fmt.Errorf("DG%d hash invalid (Exp:%x, Act:%x)", dgHash.DataGroupNumber, utils.BytesToHex(dgHash.DataGroupHashValue), utils.BytesToHex(actHash))
+				return fmt.Errorf("(readLDS1dgs) DG%d hash invalid (Exp:%x, Act:%x)", dgHash.DataGroupNumber, utils.BytesToHex(dgHash.DataGroupHashValue), utils.BytesToHex(actHash))
 			}
 
 			slog.Info("Valid DG hash", "DG", dgHash.DataGroupNumber, "Hash-Act", utils.BytesToHex(actHash), "Hash-Exp", utils.BytesToHex(dgHash.DataGroupHashValue))
@@ -183,7 +206,7 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 
 	slog.Info("Read CardAccess")
 	// may not be present (OR may be present but not have PACE info)
-	if doc.CardAccess, err = document.NewCardAccess(nfc.ReadFile(MRTDFileIdCardAccess)); err != nil {
+	if doc.Mf.CardAccess, err = document.NewCardAccess(nfc.ReadFile(MRTDFileIdCardAccess)); err != nil {
 		return doc, err
 	}
 
@@ -200,9 +223,9 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 
 	// NB moved after PACE as we've seen access related errors on NZ passports when done before PACE
 	slog.Info("Read EF.DIR")
-	doc.Dir = document.NewEFDIR(nfc.ReadFile(MRTDFileIdEFDIR))
-	if doc.Dir != nil {
-		slog.Debug("EF.DIR", "bytes", utils.BytesToHex(doc.Dir.RawData))
+	doc.Mf.Dir = document.NewEFDIR(nfc.ReadFile(MRTDFileIdEFDIR))
+	if doc.Mf.Dir != nil {
+		slog.Debug("EF.DIR", "bytes", utils.BytesToHex(doc.Mf.Dir.RawData))
 	}
 
 	slog.Info("Selecting MRTD AID")
@@ -226,22 +249,10 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 	// NB legacy passport may not have BAC/PACE so we should be prepared for no SecureMessaging
 
 	/*
-	 * Read files
+	 * Read LDS1 files
 	 */
-
-	slog.Info("Read EF.SOD")
-	doc.Sod, err = document.NewSOD(nfc.ReadFile(MRTDFileIdEFSOD))
-	if err != nil {
-		return doc, err
-	}
-
-	slog.Info("Read EF.COM")
-	doc.Com, err = document.NewCOM(nfc.ReadFile(MRTDFileIdEFCOM))
-	if err != nil {
-		return doc, err
-	}
-
-	readDGs(nfc, doc)
+	err = readLDS1files(nfc, doc)
+	// TODO - error check?
 
 	/*
 	 * Chip / Active Authentication

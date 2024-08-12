@@ -174,7 +174,7 @@ func TestDoPace_GM_ECDH(t *testing.T) {
 
 	// PACEInfo: 3012060A 04007F00 07020204 02020201 0202010D
 	//				** NB added 3114 to start
-	doc.CardAccess, err = document.NewCardAccess(utils.HexToBytes("31143012060A04007F0007020204020202010202010D"))
+	doc.Mf.CardAccess, err = document.NewCardAccess(utils.HexToBytes("31143012060A04007F0007020204020202010202010D"))
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
@@ -259,7 +259,7 @@ func TestDoPace_GM_ECDH_TDES_CBC_NZ(t *testing.T) {
 	var err error
 	var doc document.Document
 
-	doc.CardAccess, err = document.NewCardAccess(utils.HexToBytes("31143012060a04007f0007020204020102010202010d"))
+	doc.Mf.CardAccess, err = document.NewCardAccess(utils.HexToBytes("31143012060a04007f0007020204020102010202010d"))
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
@@ -354,7 +354,7 @@ func TestDoPace_CAM_ECDH_DE(t *testing.T) {
 	var err error
 	var doc document.Document
 
-	doc.CardAccess, err = document.NewCardAccess(utils.HexToBytes("31283012060A04007F0007020204020202010202010D3012060A04007F0007020204060202010202010D"))
+	doc.Mf.CardAccess, err = document.NewCardAccess(utils.HexToBytes("31283012060A04007F0007020204020202010202010D3012060A04007F0007020204060202010202010D"))
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}

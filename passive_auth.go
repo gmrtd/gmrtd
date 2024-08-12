@@ -15,12 +15,12 @@ func PassiveAuth(doc *document.Document) error {
 	/*
 	* verify EF.SOD (mandatory)
 	 */
-	if doc.Sod == nil {
+	if doc.Mf.Lds1.Sod == nil {
 		return fmt.Errorf("mandatory file EF.SOD is missing")
 	} else {
 		var valid bool
 
-		valid, err = doc.Sod.SD.SD2.Verify()
+		valid, err = doc.Mf.Lds1.Sod.SD.SD2.Verify()
 		if err != nil {
 			return fmt.Errorf("unable to verify SignedData (SOD): %w", err)
 		}
@@ -32,10 +32,10 @@ func PassiveAuth(doc *document.Document) error {
 	/*
 	* verify CardSecurity (if present)
 	 */
-	if doc.CardSecurity != nil {
+	if doc.Mf.CardSecurity != nil {
 		var valid bool
 
-		valid, err = doc.CardSecurity.SD.SD2.Verify()
+		valid, err = doc.Mf.CardSecurity.SD.SD2.Verify()
 		if err != nil {
 			return fmt.Errorf("unable to verify SignedData (CardSecurity): %w", err)
 		}

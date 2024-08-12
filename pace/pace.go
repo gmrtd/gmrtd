@@ -584,7 +584,7 @@ func (pace *Pace) doCamEcdh(nfc *iso7816.NfcSession, paceConfig *PaceConfig, dom
 		//    to find a key that matches the param-id
 
 		// get IC PubKey (EC) for paramId
-		var pkIC *cryptoutils.EcPoint = getIcPubKeyECForCAM(domainParams, doc.CardSecurity)
+		var pkIC *cryptoutils.EcPoint = getIcPubKeyECForCAM(domainParams, doc.Mf.CardSecurity)
 
 		var KA *cryptoutils.EcPoint = cryptoutils.DoEcDh(caIC, pkIC, domainParams.ec)
 		slog.Debug("doCamEcdh", "KA", KA.String())
@@ -701,16 +701,16 @@ func (pace *Pace) doPACE_GM_CAM(nfc *iso7816.NfcSession, paceConfig *PaceConfig,
 			slog.Debug("doPace - CAM - reading CardSecurity")
 
 			// attempt to read CardSecurity (if we don't already have it)
-			if doc.CardSecurity == nil {
+			if doc.Mf.CardSecurity == nil {
 				const MRTDFileIdCardSecurity = uint16(0x011D) // TODO - copied from Reader
 
-				doc.CardSecurity, err = document.NewCardSecurity(nfc.ReadFile(MRTDFileIdCardSecurity))
+				doc.Mf.CardSecurity, err = document.NewCardSecurity(nfc.ReadFile(MRTDFileIdCardSecurity))
 				if err != nil {
 					return err
 				}
 			}
 
-			if doc.CardSecurity == nil {
+			if doc.Mf.CardSecurity == nil {
 				return fmt.Errorf("cannot proceed with PACE-CAM without CardSecurity file")
 			}
 
@@ -727,7 +727,7 @@ func (pace *Pace) DoPACE(nfc *iso7816.NfcSession, pass *password.Password, doc *
 	slog.Debug("DoPACE", "password-type", pass.PasswordType, "password", pass.Password)
 
 	// PACE requires card-access
-	if doc.CardAccess == nil {
+	if doc.Mf.CardAccess == nil {
 		slog.Debug("DoPACE - SKIPPING as no CardAccess file is present")
 		return nil
 	}
@@ -735,7 +735,7 @@ func (pace *Pace) DoPACE(nfc *iso7816.NfcSession, pass *password.Password, doc *
 	var paceConfig *PaceConfig
 	var domainParams *PACEDomainParams
 
-	paceConfig, domainParams = selectPaceConfig(doc.CardAccess)
+	paceConfig, domainParams = selectPaceConfig(doc.Mf.CardAccess)
 
 	slog.Debug("DoPace", "selected paceConfig", paceConfig.String())
 
