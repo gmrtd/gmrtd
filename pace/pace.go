@@ -336,8 +336,8 @@ func encodePubicKeyTemplate7F49(paceOid []byte, tag86data []byte) []byte {
 }
 
 // TODO - should we make this (and others) a Pace method?
-func doAPDU_MSESetAT(nfc *iso7816.NfcSession, paceConfig *PaceConfig, passwordType password.PasswordType) (err error) {
-	slog.Debug("doAPDU_MSESetAT")
+func doApduMsgSetAT(nfc *iso7816.NfcSession, paceConfig *PaceConfig, passwordType password.PasswordType) (err error) {
+	slog.Debug("doApduMsgSetAT")
 
 	// manually convert value to reduce reliance on iota values!
 	var passwordTypeValue byte
@@ -680,7 +680,7 @@ func selectPaceConfig(cardAccess *document.CardAccess) (paceConfig *PaceConfig, 
 	return paceConfig, domainParams
 }
 
-func (pace *Pace) doPACE_GM_CAM(nfc *iso7816.NfcSession, paceConfig *PaceConfig, domainParams *PACEDomainParams, s []byte, doc *document.Document) (err error) {
+func (pace *Pace) doGenericMappingCAM(nfc *iso7816.NfcSession, paceConfig *PaceConfig, domainParams *PACEDomainParams, s []byte, doc *document.Document) (err error) {
 	switch domainParams.isECDH {
 	case true: // ECDH
 		// map the nonce
@@ -698,7 +698,7 @@ func (pace *Pace) doPACE_GM_CAM(nfc *iso7816.NfcSession, paceConfig *PaceConfig,
 
 		// Perform Chip Authentication (if applicable)
 		if paceConfig.mapping == CAM {
-			slog.Debug("doPace - CAM - reading CardSecurity")
+			slog.Debug("doGenericMappingCAM - reading CardSecurity")
 
 			// attempt to read CardSecurity (if we don't already have it)
 			if doc.Mf.CardSecurity == nil {
@@ -743,7 +743,7 @@ func (pace *Pace) DoPACE(nfc *iso7816.NfcSession, pass *password.Password, doc *
 
 	// init PACE (via 'MSE:Set AT' command)
 	// TODO - aren't there some cases where we need to specified the domain params? (i.e. multiple entries)
-	if err = doAPDU_MSESetAT(nfc, paceConfig, pass.PasswordType); err != nil {
+	if err = doApduMsgSetAT(nfc, paceConfig, pass.PasswordType); err != nil {
 		return err
 	}
 
@@ -753,7 +753,7 @@ func (pace *Pace) DoPACE(nfc *iso7816.NfcSession, pass *password.Password, doc *
 	// process based on the mapping type (GM/IM/CAM) and the key type (ECDH/DH)
 	switch paceConfig.mapping {
 	case GM, CAM:
-		err = pace.doPACE_GM_CAM(nfc, paceConfig, domainParams, s, doc)
+		err = pace.doGenericMappingCAM(nfc, paceConfig, domainParams, s, doc)
 		if err != nil {
 			return err
 		}

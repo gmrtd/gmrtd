@@ -238,7 +238,7 @@ func processISO19794(data []byte) (*Facial, error) {
 
 	// read images
 	for i := 0; i < int(facial.Header.NumberOfFaces); i++ {
-		image, err := parseISO19794_Image(r)
+		image, err := parseImageIso19794(r)
 		if err != nil {
 			log.Panic(err)
 		}
@@ -256,7 +256,7 @@ func processISO19794(data []byte) (*Facial, error) {
 	return &facial, nil
 }
 
-func parseISO19794_Image(r *bytes.Reader) (*Image, error) {
+func parseImageIso19794(r *bytes.Reader) (*Image, error) {
 	fi := FacialInfo{}
 	if err := binary.Read(r, binary.BigEndian, &fi); err != nil {
 		return nil, err
