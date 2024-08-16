@@ -147,6 +147,24 @@ func readLDS1dgs(nfc *iso7816.NfcSession, doc *document.Document) (err error) {
 	return nil
 }
 
+func performChipAuthentication(nfc *iso7816.NfcSession, doc *document.Document) (err error) {
+	if doc.ChipAuthStatus == document.CHIP_AUTH_STATUS_NONE {
+		err = chipauth.NewChipAuth().DoChipAuth(nfc, doc)
+		if err != nil {
+			return err
+		}
+	}
+
+	if doc.ChipAuthStatus == document.CHIP_AUTH_STATUS_NONE {
+		err = activeauth.NewActiveAuth().DoActiveAuth(nfc, doc)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 type Reader struct {
 	apduMaxLe int // overrides if >0 (1..65536)
 }
@@ -261,13 +279,9 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 	 *
 	 * NB requires DG data, so performed after DG read
 	 */
-
-	if doc.ChipAuthStatus == document.CHIP_AUTH_STATUS_NONE {
-		err = chipauth.NewChipAuth().DoChipAuth(nfc, doc)
-	}
-
-	if doc.ChipAuthStatus == document.CHIP_AUTH_STATUS_NONE {
-		err = activeauth.NewActiveAuth().DoActiveAuth(nfc, doc)
+	err = performChipAuthentication(nfc, doc)
+	if err != nil {
+		return doc, err
 	}
 
 	// copy apdu-log over to document
