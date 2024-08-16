@@ -207,7 +207,7 @@ func (chipAuth *ChipAuth) doGeneralAuthenticate(nfc *iso7816.NfcSession, curve *
 
 	slog.Debug("doCaECdh - doGeneralAuthenticate")
 
-	var rApdu *iso7816.RApdu = nfc.GeneralAuthenticate(false, encode_7C_XX(0x80, cryptoutils.EncodeX962EcPoint(*curve, termKeypair.Pub)))
+	var rApdu *iso7816.RApdu = nfc.GeneralAuthenticate(false, encodeDynAuthData(0x80, cryptoutils.EncodeX962EcPoint(*curve, termKeypair.Pub)))
 	if !rApdu.IsSuccess() {
 		return nil, nil, fmt.Errorf("doCaEcdh: General Authenticate failed (Status:%d)", rApdu.Status)
 	}
@@ -294,9 +294,10 @@ func (chipAuth *ChipAuth) doCaEcdh(nfc *iso7816.NfcSession, caInfo *document.Chi
 	return nil
 }
 
+// dynamic authentication data - (TLV) 7C <tag> <data>
 // TODO - duplicated in pace.go
-func encode_7C_XX(innerTag byte, data []byte) []byte {
+func encodeDynAuthData(tag byte, data []byte) []byte {
 	node := tlv.NewTlvConstructedNode(0x7C)
-	node.AddChild(tlv.NewTlvSimpleNode(tlv.TlvTag(innerTag), data))
+	node.AddChild(tlv.NewTlvSimpleNode(tlv.TlvTag(tag), data))
 	return node.Encode()
 }

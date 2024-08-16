@@ -311,14 +311,16 @@ func doGenericMappingEC(s []byte, H *cryptoutils.EcPoint, ec elliptic.Curve) *cr
 	return &out
 }
 
-func encode_7C_XX(innerTag byte, data []byte) []byte {
+// dynamic authentication data - (TLV) 7C <tag> <data>
+func encodeDynAuthData(tag byte, data []byte) []byte {
 	node := tlv.NewTlvConstructedNode(0x7C)
-	node.AddChild(tlv.NewTlvSimpleNode(tlv.TlvTag(innerTag), data))
+	node.AddChild(tlv.NewTlvSimpleNode(tlv.TlvTag(tag), data))
 	return node.Encode()
 }
 
-func decode_7C_XX(innerTag byte, data []byte) []byte {
-	return tlv.TlvDecode(data).GetNode(0x7C).GetNode(tlv.TlvTag(innerTag)).GetValue()
+// dynamic authentication data - (TLV) 7C <tag> <data>
+func decodeDynAuthData(tag byte, data []byte) []byte {
+	return tlv.TlvDecode(data).GetNode(0x7C).GetNode(tlv.TlvTag(tag)).GetValue()
 }
 
 // encodes a public-key template (7F49) containing the OID and the public-key (86)
@@ -378,14 +380,14 @@ func (pace *Pace) mapNonceGmEcDh(nfc *iso7816.NfcSession, domainParams *PACEDoma
 
 	// do public-key exchange to get chip pub-key
 	{
-		reqData := encode_7C_XX(0x81, cryptoutils.EncodeX962EcPoint(domainParams.ec, termKeypair.Pub))
+		reqData := encodeDynAuthData(0x81, cryptoutils.EncodeX962EcPoint(domainParams.ec, termKeypair.Pub))
 
 		rApdu := nfc.GeneralAuthenticate(true, reqData)
 		if !rApdu.IsSuccess() {
 			log.Panicf("Error mapping the nonce - GM-EC (Status:%x)", rApdu.Status)
 		}
 
-		pubMapIC = cryptoutils.DecodeX962EcPoint(domainParams.ec, decode_7C_XX(0x82, rApdu.Data))
+		pubMapIC = cryptoutils.DecodeX962EcPoint(domainParams.ec, decodeDynAuthData(0x82, rApdu.Data))
 		slog.Debug("mapNonceGmEcDh", "pubMapIC", pubMapIC.String())
 	}
 
@@ -424,14 +426,14 @@ func (pace *Pace) keyAgreementGmEcDh(nfc *iso7816.NfcSession, domainParams *PACE
 
 	// exchange terminal public-key with chip and get chip's public-key
 	{
-		reqData := encode_7C_XX(0x83, cryptoutils.EncodeX962EcPoint(domainParams.ec, termKeypair.Pub))
+		reqData := encodeDynAuthData(0x83, cryptoutils.EncodeX962EcPoint(domainParams.ec, termKeypair.Pub))
 
 		rApdu := nfc.GeneralAuthenticate(true, reqData)
 		if !rApdu.IsSuccess() {
 			log.Panicf("Error performing key agreement - GM-ECDH (Status:%x)", rApdu.Status)
 		}
 
-		chipPub = cryptoutils.DecodeX962EcPoint(domainParams.ec, decode_7C_XX(0x84, rApdu.Data))
+		chipPub = cryptoutils.DecodeX962EcPoint(domainParams.ec, decodeDynAuthData(0x84, rApdu.Data))
 	}
 
 	// verify the terminal and chip public-keys are not the same
@@ -476,24 +478,24 @@ func (pace *Pace) mutualAuthGmEcDh(nfc *iso7816.NfcSession, paceConfig *PaceConf
 
 	// exchange/verify auth tokens (tifd/tic) with passport
 	{
-		reqData := encode_7C_XX(0x85, tIfd)
+		reqData := encodeDynAuthData(0x85, tIfd)
 
 		rApdu := nfc.GeneralAuthenticate(false, reqData)
 		if !rApdu.IsSuccess() {
 			log.Panicf("Error exchanging auth tokens (Status:%x)", rApdu.Status)
 		}
 
-		t_ic_rsp := decode_7C_XX(0x86, rApdu.Data)
+		tIc2 := decodeDynAuthData(0x86, rApdu.Data)
 
-		// verify that chip responded with the expected 't_ic' value
-		if !bytes.Equal(t_ic_rsp, tIc) {
-			log.Panicf("Incorrect TIC returned by chip\n[Exp] %x\n[Act] %x", tIc, t_ic_rsp)
+		// verify that chip responded with the expected 'tIC' value
+		if !bytes.Equal(tIc2, tIc) {
+			log.Panicf("Incorrect TIC returned by chip\n[Exp] %x\n[Act] %x", tIc, tIc2)
 		}
 
 		// get Encrypted Chip Authentication Data' (tag:8A) if CAM
 		// Encrypted Chip Authentication Data (cf. Section 4.4.3.5) MUST be present if Chip Authentication Mapping is used and MUST NOT be present otherwise.
 		if paceConfig.mapping == CAM {
-			ecadIC = decode_7C_XX(0x8A, rApdu.Data)
+			ecadIC = decodeDynAuthData(0x8A, rApdu.Data)
 			if len(ecadIC) < 1 {
 				log.Panicf("Encrypted Chip Authentication Data (Tag:8A) is mandatory for PACE CAM")
 			}
@@ -632,7 +634,7 @@ func getNonce(nfc *iso7816.NfcSession, paceConfig *PaceConfig, kKdf []byte) []by
 			log.Panicf("getNonce error (Status:%x)", rApdu.Status)
 		}
 
-		nonceE = decode_7C_XX(0x80, rApdu.Data)
+		nonceE = decodeDynAuthData(0x80, rApdu.Data)
 	}
 
 	// decrypt the nonce (s)
