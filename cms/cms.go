@@ -24,6 +24,8 @@ import (
 	"github.com/gmrtd/gmrtd/utils"
 )
 
+// TODO - no attempt made for revocation checking
+
 type SubjectPublicKeyInfo struct {
 	Algorithm        AlgorithmIdentifier
 	SubjectPublicKey asn1.BitString
@@ -51,11 +53,11 @@ type SignedData2 struct {
 type SignerInfo struct {
 	Raw                       asn1.RawContent
 	Version                   int                 `asn1:"default:1"`
-	IssuerAndSerialNumber     IssuerAndSerial     ``
-	DigestAlgorithm           AlgorithmIdentifier ``
+	IssuerAndSerialNumber     IssuerAndSerial     `asn1:"optional"` // TODO - for DE masterlist
+	DigestAlgorithm           AlgorithmIdentifier `asn1:"optional"` // TODO - for DE masterlist
 	AuthenticatedAttributes   AttributeList       `asn1:"optional,tag:0"`
-	DigestEncryptionAlgorithm AlgorithmIdentifier ``
-	EncryptedDigest           []byte              ``
+	DigestEncryptionAlgorithm AlgorithmIdentifier `asn1:"optional"` // TODO - for DE masterlist
+	EncryptedDigest           []byte              `asn1:"optional"` // TODO - for DE masterlist
 	UnauthenticatedAttributes AttributeList       `asn1:"optional,tag:1"`
 }
 
@@ -128,7 +130,7 @@ func ParseSignedData(data []byte) (*SignedData, error) {
 	return &signedData, nil
 }
 
-func parseCertificate(data []byte) (*Certificate, error) {
+func ParseCertificate(data []byte) (*Certificate, error) {
 	var err error
 	var certificate Certificate
 
@@ -149,10 +151,59 @@ type Certificate struct {
 	SignatureValue     asn1.BitString
 }
 
+type Extensions []Extension
+
+// TODO
+type AuthorityKeyIdentifier struct {
+	KeyIdentifier             []byte          `asn1:"optional,implicit,tag:0"`
+	AuthorityCertIssuer       asn1.RawContent `asn1:"optional,implicit,tag:1"`
+	AuthorityCertSerialNumber asn1.RawContent `asn1:"optional,implicit,tag:2"`
+}
+
+type SubjectKeyIdentifier []byte
+
+// TODO (move)
+func (extensions Extensions) GetAuthorityKeyIdentifier() *AuthorityKeyIdentifier {
+	for i := 0; i < len(extensions); i++ {
+		if extensions[i].ObjectId.Equal(oid.OidAuthorityKeyIdentifier) {
+			var out AuthorityKeyIdentifier
+
+			err := utils.ParseAsn1(extensions[i].ExtnValue.Bytes, false, &out)
+			if err != nil {
+				log.Panicf("error: %s", err)
+			}
+
+			return &out
+		}
+	}
+
+	return nil
+}
+
+// TODO (move)
+func (extensions Extensions) GetSubjectKeyIdentifier() *SubjectKeyIdentifier {
+	for i := 0; i < len(extensions); i++ {
+		if extensions[i].ObjectId.Equal(oid.OidSubjectKeyIdentifier) {
+			var out SubjectKeyIdentifier
+
+			err := utils.ParseAsn1(extensions[i].ExtnValue.Bytes, false, &out)
+			if err != nil {
+				log.Panicf("error: %s", err)
+			}
+
+			return &out
+		}
+	}
+
+	return nil
+}
+
+// TODO - handlers for other extensions... key-usage (sign,..)... CSCA: privateKeyUsagePeriod, id-ce-keyUsage (for CA detection?)
+
 type TBSCertificate struct {
 	Raw                  asn1.RawContent
-	Version              int `asn1:"explicit,default:1,tag:0"`
-	SerialNumber         int
+	Version              int      `asn1:"explicit,default:1,tag:0"`
+	SerialNumber         *big.Int //int // TODO - int too large error on master list
 	Signature            AlgorithmIdentifier
 	Issuer               asn1.RawValue
 	Validity             Validity
@@ -160,7 +211,7 @@ type TBSCertificate struct {
 	SubjectPublicKeyInfo asn1.RawValue
 	IssuerUniqueId       asn1.BitString `asn1:"implicit,optional,tag:1"`
 	SubjectUniqueId      asn1.BitString `asn1:"implicit,optional,tag:2"`
-	Extensions           []Extension    `asn1:"explicit,optional,tag:3"`
+	Extensions           Extensions     `asn1:"explicit,optional,tag:3"`
 }
 
 type Validity struct {
@@ -235,11 +286,9 @@ RFC 5280            PKIX Certificate and CRL Profile            May 2008
 			}
 */
 
-// TODO - why return 'bool' and not just 'error'... none of these should fail
-func (sd *SignedData2) Verify() (bool, error) {
+func (sd *SignedData2) Verify(certPool *CertPool) (certChain [][]byte, err error) {
 	slog.Debug("SignedData.Verify")
 
-	// TODO
 	/*
 		- for each signer-info
 			- determine the hash alg (siHashAlg)
@@ -250,9 +299,11 @@ func (sd *SignedData2) Verify() (bool, error) {
 			- cert(chain) validation of the signer-info signature
 	*/
 
-	cert, err := parseCertificate(sd.Certificates.Bytes)
+	var cert *Certificate
+
+	cert, err = ParseCertificate(sd.Certificates.Bytes)
 	if err != nil {
-		return false, fmt.Errorf("(Verify) parseCertificate Error: %w", err)
+		return certChain, fmt.Errorf("(Verify) parseCertificate Error: %w", err)
 	}
 
 	slog.Debug("Verify", "SubjectPublicKey", utils.BytesToHex(cert.TbsCertificate.SubjectPublicKeyInfo.FullBytes))
@@ -265,7 +316,7 @@ func (sd *SignedData2) Verify() (bool, error) {
 		aaContentType := si.AuthenticatedAttributes.GetByOID(oid.OidContentType)
 		aaMessageDigest := si.AuthenticatedAttributes.GetByOID(oid.OidMessageDigest)
 		if aaContentType == nil || aaMessageDigest == nil {
-			return false, fmt.Errorf("(Verify) Expected Authicated-Attribute(s) missing (Content-Type, Message-Digest)")
+			return certChain, fmt.Errorf("(Verify) Expected Authenticated-Attribute(s) missing (Content-Type, Message-Digest)")
 		}
 
 		var aaContentTypeOID asn1.ObjectIdentifier = asn1decodeOid(aaContentType.Values.Bytes)
@@ -276,7 +327,7 @@ func (sd *SignedData2) Verify() (bool, error) {
 
 		// verify Content OID matches Authenticated-Attribute (Content Type)
 		if !aaContentTypeOID.Equal(sd.Content.EContentType) {
-			return false, fmt.Errorf("(Verify) Content-Type-OID (%s) differs to Authenticated-Attribute (%s)", sd.Content.EContentType.String(), aaContentTypeOID.String())
+			return certChain, fmt.Errorf("(Verify) Content-Type-OID (%s) differs to Authenticated-Attribute (%s)", sd.Content.EContentType.String(), aaContentTypeOID.String())
 		}
 
 		var contentHash []byte = cryptoutils.CryptoHashByOid(si.DigestAlgorithm.Algorithm, sd.Content.EContent)
@@ -292,13 +343,14 @@ func (sd *SignedData2) Verify() (bool, error) {
 		if !bytes.Equal(contentHash, aaMessageDigestHash) {
 			// invalid content hash
 			slog.Debug("Verify - invalid content hash", "contentHash", utils.BytesToHex(contentHash), "aaMessageDigestHash", utils.BytesToHex(aaMessageDigestHash))
-			return false, nil
+			return certChain, fmt.Errorf("(Verify) Invalid content hash (contentHash:%x, aaMessageDigestHash:%x)", contentHash, aaMessageDigestHash)
 		}
 
 		var dataToHash []byte = si.AuthenticatedAttributes.GetSetOfAsnBytes()
 		slog.Debug("Verify", "dataToHash", utils.BytesToHex(dataToHash))
 
 		digestAlg := si.DigestAlgorithm.Algorithm
+
 		var digest []byte = cryptoutils.CryptoHashByOid(digestAlg, dataToHash)
 		slog.Debug("Verify", "digest", utils.BytesToHex(digest))
 
@@ -306,27 +358,91 @@ func (sd *SignedData2) Verify() (bool, error) {
 		* Verify the SignedInfo signature (against the PublicKey in the Certificate)
 		 */
 
-		validSig, err := verifySignature(cert.TbsCertificate.SubjectPublicKeyInfo.FullBytes, digestAlg, digest, si.DigestEncryptionAlgorithm.Algorithm, si.EncryptedDigest)
+		err = VerifySignature(cert.TbsCertificate.SubjectPublicKeyInfo.FullBytes, digestAlg, digest, si.DigestEncryptionAlgorithm.Algorithm, si.EncryptedDigest)
 		if err != nil {
-			return false, fmt.Errorf("(Verify) verifySignature error: %w", err)
-		}
-		if !validSig {
-			// invalid signature
-			slog.Debug("Verify - invalid signature")
-			return false, nil
+			return certChain, fmt.Errorf("(Verify) error: %w", err)
 		}
 
-		// TODO - verify the cert/chain... so far we've just verified the signedData and enveloped-data
-		//		- we haven't actually verified that the certificate is signed by someone we trust
+		/*
+		* verify the cert/chain
+		* so far we've just verified the signedData and enveloped-data we haven't actually verified that the certificate is signed by someone we trust
+		 */
+		certChain, err = cert.Verify(certPool)
+		if err != nil {
+			return certChain, fmt.Errorf("(Verify) error: %w", err)
+		}
+
+		// record cert
+		certChain = append(certChain, bytes.Clone(cert.Raw))
 	}
 
-	return true, nil
+	return certChain, nil
 }
 
-func verifySignature(pubKeyInfo []byte, digestAlg asn1.ObjectIdentifier, digest []byte, sigAlg asn1.ObjectIdentifier, sig []byte) (bool, error) {
+func (cert *Certificate) Verify(certPool *CertPool) (certChain [][]byte, err error) {
+	// TODO - currently just gets immediate parent.. doesn't move up a deeper cert chain
+	// TODO - currently just verifies the signature... doesn't check anything else... e.g. signing-time-validity... country/name
+
+	// get the parent certificate (authority) key identifier
+	var aki *AuthorityKeyIdentifier
+	{
+		aki = cert.TbsCertificate.Extensions.GetAuthorityKeyIdentifier()
+	}
+	if aki == nil {
+		return certChain, fmt.Errorf("(Certificate.Verify) AKI missing from cert (%x)", cert.Raw)
+	}
+
+	// get any matching parent certificates
+	// NB often >1 due to cross-signing in master-list
+	parentCerts := certPool.GetBySki(aki.KeyIdentifier)
+
+	slog.Debug("Certificate.Verify", "ParentCertCnt", len(parentCerts))
+
+	// stop if no parent cert(s) found
+	if len(parentCerts) < 1 {
+		return certChain, fmt.Errorf("(Certificate.Verify) unable to locate parent certificate (SKI:%x)", aki.KeyIdentifier)
+	}
+
+	//slog.Info("CERT.Verify", "Cert", utils.BytesToHex(cert.Raw))
+
+	// test each parent cert until we find one that validates the cert signature
+	for i := 0; i < len(parentCerts); i++ {
+		var err error
+
+		var digestAlg *asn1.ObjectIdentifier
+		digestAlg, err = cert.SignatureAlgorithm.DetermineDigestAlgFromSigAlg()
+		if err != nil {
+			// ignore error and try other parent certs
+			// TODO - should we really be ignoring this error? at least we may want some logging
+			continue
+		}
+
+		var digest []byte = cryptoutils.CryptoHashByOid(*digestAlg, cert.TbsCertificate.Raw)
+
+		err = VerifySignature(parentCerts[i].TbsCertificate.SubjectPublicKeyInfo.FullBytes, *digestAlg, digest, cert.SignatureAlgorithm.Algorithm, cert.SignatureValue.Bytes)
+		if err != nil {
+			// ignore error and try other parent certs
+			continue
+		}
+
+		// TODO - should really continue until we encounter a CA cert
+		//			- anything in the CSCA cert-pool is considered a CA.. but code could be more generic
+
+		// record cert
+		certChain = append(certChain, bytes.Clone(parentCerts[i].Raw))
+
+		return certChain, nil
+	}
+
+	// TODO - still need to match cert-country.. and should also check MRZ country (TBC?)
+
+	return certChain, fmt.Errorf("(Certificate.Verify) signature not verified against matched certificates (matchCnt:%d,aki:%x,cert:%x)", len(parentCerts), aki.KeyIdentifier, cert.Raw)
+}
+
+func VerifySignature(pubKeyInfo []byte, digestAlg asn1.ObjectIdentifier, digest []byte, sigAlg asn1.ObjectIdentifier, sig []byte) error {
 	var err error
 
-	slog.Debug("verifySignature", "pubKeyInfo", utils.BytesToHex(pubKeyInfo), "digestAlg", digestAlg.String(), "digest", utils.BytesToHex(digest), "sigAlg", sigAlg.String(), "sig", utils.BytesToHex(sig))
+	slog.Debug("VerifySignature", "pubKeyInfo", utils.BytesToHex(pubKeyInfo), "digestAlg", digestAlg.String(), "digest", utils.BytesToHex(digest), "sigAlg", sigAlg.String(), "sig", utils.BytesToHex(sig))
 
 	switch sigAlg.String() {
 	/*
@@ -355,15 +471,23 @@ func verifySignature(pubKeyInfo []byte, digestAlg asn1.ObjectIdentifier, digest 
 
 			// VerifyASN1: works with non-nist curves (i.e. brainpool) via legacy code (hopefully this doesn't change)
 			validSig := ecdsa.VerifyASN1(pub, digest, sig)
-			slog.Debug("verifySignature", "validSig", validSig)
-			if validSig {
-				return true, nil
+			slog.Debug("VerifySignature", "validSig", validSig)
+			if !validSig {
+				return fmt.Errorf("(VerifySignature) Invalid ECDSA signature")
 			}
+
+			return nil
 		}
 	/*
 	* RSA-Encryption
 	 */
-	case oid.OidRsaEncryption.String():
+	case
+		oid.OidRsaEncryption.String(),
+		oid.OidSha1WithRsaEncryption.String(),
+		oid.OidSha224WithRSAEncryption.String(),
+		oid.OidSha256WithRSAEncryption.String(),
+		oid.OidSha384WithRSAEncryption.String(),
+		oid.OidSha512WithRSAEncryption.String():
 		{
 			var pubKey *cryptoutils.RsaPublicKey
 			{
@@ -373,24 +497,22 @@ func verifySignature(pubKeyInfo []byte, digestAlg asn1.ObjectIdentifier, digest 
 
 			sigPlaintext := cryptoutils.RsaDecryptWithPublicKey(sig, *pubKey)
 
-			slog.Debug("verifySignature", "sig", utils.BytesToHex(sig), "sigPlaintext", utils.BytesToHex(sigPlaintext))
+			slog.Debug("VerifySignature", "sig", utils.BytesToHex(sig), "sigPlaintext", utils.BytesToHex(sigPlaintext))
 
 			// verify the 'RSA Encryption' signature (i.e. the decrypted signature ends with the digest)
 			// https://cryptobook.nakov.com/digital-signatures/rsa-signatures
 			if !bytes.HasSuffix(sigPlaintext, digest) {
-				slog.Debug("verifySignature - RSA Signature verification FAILED")
-				return false, nil
+				slog.Debug("VerifySignature - RSA Signature verification FAILED")
+				return fmt.Errorf("(VerifySignature) Invalid RSA signature")
 			}
 
-			return true, nil
+			return nil
 		}
 	/*
 	* RSA-PSS
 	 */
 	case oid.OidRsaSsaPss.String():
 		{
-			//log.Printf("rsaPss.. key... %x\n%s\n", pubKeyInfo, TlvDecode(pubKeyInfo).String())
-
 			var rsaPubKey *rsa.PublicKey
 			{
 				var subPubKeyInfo SubjectPublicKeyInfo = Asn1decodeSubjectPublicKeyInfo(pubKeyInfo)
@@ -400,19 +522,16 @@ func verifySignature(pubKeyInfo []byte, digestAlg asn1.ObjectIdentifier, digest 
 
 			err = rsa.VerifyPSS(rsaPubKey, cryptoutils.CryptoHashOidToAlg(digestAlg), digest, sig, nil)
 			if err != nil {
-				return false, fmt.Errorf("(verifySignature) rsa.verifyPSS error: %w", err)
+				return fmt.Errorf("(VerifySignature) Invalid PSS signature: %w", err)
 			}
-			// TODO - should we catch the error to return clear false,nil? for others qwe return 'false'.. here we're just getting error
-			//	e.g. sod_test.go:117: Error verifying SignedData: (Verify) verifySignature error: (verifySignature) rsa.verifyPSS error: crypto/rsa: verification error
-			//			- crypto/rsa: verification error (rsa.ErrVerification ?)
 
-			return true, nil
+			return nil
 		}
 	default:
-		return false, fmt.Errorf("(verifySignature) signature-algorithm not supported: %s", sigAlg.String())
+		return fmt.Errorf("(VerifySignature) signature-algorithm not supported: %s", sigAlg.String())
 	}
 
-	return false, fmt.Errorf("(verifySignature) unhandled error")
+	return fmt.Errorf("(VerifySignature) unhandled error")
 }
 
 func asn1decodeOid(data []byte) asn1.ObjectIdentifier {
@@ -458,11 +577,35 @@ func (subPubKeyInfo *SubjectPublicKeyInfo) GetEcCurveAndPubKey() (curve *ellipti
 		}
 	}
 
-	specDomain := ParseECSpecifiedDomain(&subPubKeyInfo.Algorithm)
+	var specDomain *ECSpecifiedDomain
+	specDomain, err = ParseECSpecifiedDomain(&subPubKeyInfo.Algorithm)
+	if err == nil {
+		curve, err = specDomain.GetEcCurve()
+		if err != nil {
+			log.Panicf("(SubjectPublicKeyInfo.GetEcCurveAndPubKey) GetECCurveForSpecifiedDomain error: %s", err)
+		}
+	} else {
+		/*
+		* may be 'named curve'...
+		 */
+		err = nil
 
-	curve, err = GetECCurveForSpecifiedDomain(specDomain)
-	if err != nil {
-		log.Panicf("(SubjectPublicKeyInfo.GetEcCurveAndPubKey) GetECCurveForSpecifiedDomain error: %s", err)
+		var tmpOid asn1.ObjectIdentifier
+
+		err = utils.ParseAsn1(subPubKeyInfo.Algorithm.Parameters.FullBytes, false, &tmpOid)
+		if err != nil {
+			log.Panicf("(SubjectPublicKeyInfo.GetEcCurveAndPubKey) Unable to parse EC Params (%x)", subPubKeyInfo.Algorithm.Parameters.FullBytes)
+		}
+
+		// TODO - use lookup.. and add support for the wider range of named curves...
+		//			- at present we've only observed P384 in the master-list(DE)
+		if tmpOid.Equal(oid.OidSecp384r1) {
+			var tmpCurve elliptic.Curve = elliptic.P384()
+			curve = &tmpCurve
+		} else {
+			// unsupported named curve
+			log.Panicf("Unsupported EC Named Curve (OID:%s)", tmpOid.String())
+		}
 	}
 
 	// get the chip's public key
@@ -509,8 +652,8 @@ type ECSpecifiedDomain struct {
 
 // parse ecPublicKey ASN1 object (aka EC Specified Domain)
 // TODO - this looks like SubjectPublicKeyInfo... also required in SOD... this is just specific to EC.. or at least the curve part of it
-func ParseECSpecifiedDomain(algIdentifier *AlgorithmIdentifier) (out *ECSpecifiedDomain) {
-	slog.Debug("parseECSpecifiedDomain", "Algorithm Identifier", algIdentifier)
+func ParseECSpecifiedDomain(algIdentifier *AlgorithmIdentifier) (out *ECSpecifiedDomain, err error) {
+	slog.Debug("ParseECSpecifiedDomain", "Algorithm Identifier", algIdentifier)
 
 	if !algIdentifier.Algorithm.Equal(oid.OidEcPublicKey) {
 		// TODO - should we panic?
@@ -519,20 +662,20 @@ func ParseECSpecifiedDomain(algIdentifier *AlgorithmIdentifier) (out *ECSpecifie
 
 	out = new(ECSpecifiedDomain)
 
-	slog.Debug("parseECSpecifiedDomain", "Parameters(bytes)", utils.BytesToHex(algIdentifier.Parameters.FullBytes))
+	slog.Debug("ParseECSpecifiedDomain", "Parameters(bytes)", utils.BytesToHex(algIdentifier.Parameters.FullBytes))
 
 	// TODO - are we sure partial flag actually works.. asn1 decode seems to be quite happy skipping fields
-	err := utils.ParseAsn1(algIdentifier.Parameters.FullBytes, true, out) // TODO - NB may have extra field after
+	err = utils.ParseAsn1(algIdentifier.Parameters.FullBytes, true, out) // TODO - NB may have extra field after
 	if err != nil {
-		log.Panicf("parseSubjectPublicKey err:%s", err)
+		return nil, fmt.Errorf("(ParseECSpecifiedDomain) ASN1 parsing error: %w", err)
 	}
 
 	// TODO - any other data checks?
 	if !out.FieldId.FieldType.Equal(oid.OidPrimeField) {
-		log.Panicf("PrimeField OID expected")
+		return nil, fmt.Errorf("(ParseECSpecifiedDomain) PrimeField OID expected")
 	}
 
-	slog.Debug("parseECSpecifiedDomain",
+	slog.Debug("ParseECSpecifiedDomain",
 		"Version", out.Version,
 		"FieldId.FieldType", out.FieldId.FieldType.String(),
 		"FieldId.Parameters", utils.BytesToHex(out.FieldId.Parameters.Bytes),
@@ -541,13 +684,13 @@ func ParseECSpecifiedDomain(algIdentifier *AlgorithmIdentifier) (out *ECSpecifie
 		"Curve.Seed", utils.BytesToHex(out.Curve.Seed.Bytes),
 		"Base", utils.BytesToHex(out.Base),
 		"Order", utils.BytesToHex(out.Order.Bytes()),
-		"CoFactor", utils.BytesToHex(out.Cofactor.Bytes()),
+		"Cofactor", utils.BytesToHex(out.Cofactor.Bytes()),
 	)
 
-	return
+	return out, nil
 }
 
-var caEcArr []elliptic.Curve = []elliptic.Curve{
+var ecLookupArr []elliptic.Curve = []elliptic.Curve{
 	cryptoutils.EllipticP192(),
 	elliptic.P224(),
 	elliptic.P256(),
@@ -562,7 +705,8 @@ var caEcArr []elliptic.Curve = []elliptic.Curve{
 	brainpool.P512r1(),
 }
 
-func GetECCurveForSpecifiedDomain(specDomain *ECSpecifiedDomain) (*elliptic.Curve, error) {
+func (specDomain ECSpecifiedDomain) GetEcCurve() (*elliptic.Curve, error) {
+	//func GetECCurveForSpecifiedDomain(specDomain *ECSpecifiedDomain) (*elliptic.Curve, error) {
 	// Technically we should support 'total' cryptographic agility and allow the MRTD to
 	// dictate any DH/ECDH parameters of its choosing. However, it's more likely that MRTDs
 	// are referencing well-known parameters instead of using random (and potentially unsafe)
@@ -584,15 +728,85 @@ func GetECCurveForSpecifiedDomain(specDomain *ECSpecifiedDomain) (*elliptic.Curv
 
 	// look for matching 'standard' curve
 	// NB we currently expect the use of standard curve, we may need to support custom curves in the future (but hopefully not)
-	for i := 0; i < len(caEcArr); i++ {
-		var ec elliptic.Curve = caEcArr[i]
+	for i := 0; i < len(ecLookupArr); i++ {
+		var ec elliptic.Curve = ecLookupArr[i]
 
 		// match using the 'prime field' (P)
-		if slices.Equal(ec.Params().P.Bytes(), specDomain.FieldId.Parameters.Bytes[1:]) { // NB skip 1st byte
-			return &ec, nil
+		// NB normally we skip the 1st byte when matching, but sometimes we do an exact match (e.g. EC521 in DE-master-list cert #361)
+		if slices.Equal(ec.Params().P.Bytes(), specDomain.FieldId.Parameters.Bytes[1:]) || // skip 1st byte
+			slices.Equal(ec.Params().P.Bytes(), specDomain.FieldId.Parameters.Bytes[0:]) { // don't skip 1st byte
 			// TODO - may want to log the selected curve
+			return &ec, nil
 		}
 	}
 
-	return nil, fmt.Errorf("unsupported CA EC (Params:%x) (Raw:%x)", specDomain.FieldId.Parameters.Bytes, specDomain.Raw)
+	return nil, fmt.Errorf("(ECSpecifiedDomain.GetEcCurve) unsupported CA EC (Params:%x) (Raw:%x)", specDomain.FieldId.Parameters.Bytes, specDomain.Raw)
+}
+
+/*
+RFC 3447        PKCS #1: RSA Cryptography Specifications   February 2003
+
+RSASSA-PSS-params ::= SEQUENCE {
+          hashAlgorithm      [0] HashAlgorithm    DEFAULT sha1,
+          maskGenAlgorithm   [1] MaskGenAlgorithm DEFAULT mgf1SHA1,
+          saltLength         [2] INTEGER          DEFAULT 20,
+          trailerField       [3] TrailerField     DEFAULT trailerFieldBC
+      }
+*/
+
+type RsaSsaPssParams struct {
+	HashAlgorithm    AlgorithmIdentifier `asn1:"explicit,tag:0"`
+	MaskGenAlgorithm AlgorithmIdentifier `asn1:"explicit,tag:1"`
+	SaltLength       *big.Int            `asn1:"explicit,optional,tag:2"`
+	TrailerField     *big.Int            `asn1:"explicit,optional,tag:3"`
+}
+
+// Maps signature algorithm OIDs to digest algorithm OIDs
+// NB extra processing is required for RSA-PSS, so clients should use AlgorithmIdentifier.DetermineDigestAlgFromSigAlg()
+var oidSignatureAlgToDigestAlg = map[string]asn1.ObjectIdentifier{
+	oid.OidEcdsaWithSHA1.String():           oid.OidHashAlgorithmSHA1,
+	oid.OidEcdsaWithSHA224.String():         oid.OidHashAlgorithmSHA224,
+	oid.OidEcdsaWithSHA256.String():         oid.OidHashAlgorithmSHA256,
+	oid.OidEcdsaWithSHA384.String():         oid.OidHashAlgorithmSHA384,
+	oid.OidEcdsaWithSHA512.String():         oid.OidHashAlgorithmSHA512,
+	oid.OidSha1WithRsaEncryption.String():   oid.OidHashAlgorithmSHA1,
+	oid.OidSha224WithRSAEncryption.String(): oid.OidHashAlgorithmSHA224,
+	oid.OidSha256WithRSAEncryption.String(): oid.OidHashAlgorithmSHA256,
+	oid.OidSha384WithRSAEncryption.String(): oid.OidHashAlgorithmSHA384,
+	oid.OidSha512WithRSAEncryption.String(): oid.OidHashAlgorithmSHA512,
+	// NB RSA-PSS has to be managed separately, so not included here
+}
+
+// determines the digest algorithm from the provided signature algorithm
+// e.g. OidSha512WithRSAEncryption -> OidHashAlgorithmSHA512
+func (signature AlgorithmIdentifier) DetermineDigestAlgFromSigAlg() (*asn1.ObjectIdentifier, error) {
+	var digestAlg asn1.ObjectIdentifier
+
+	if signature.Algorithm.Equal(oid.OidRsaSsaPss) {
+		/*
+		* special handling for RSA-PSS
+		 */
+		var tmpParams RsaSsaPssParams
+
+		// TODO - lazy parsing into alg-id even though the structure have more possible options
+		err := utils.ParseAsn1(signature.Parameters.FullBytes, true, &tmpParams)
+		if err != nil {
+			return nil, fmt.Errorf("(AlgorithmIdentifier.DetermineDigestAlg) error: %s", err)
+		}
+
+		digestAlg = tmpParams.HashAlgorithm.Algorithm
+	} else {
+		/*
+		* regular OID lookup for others
+		 */
+		var ok bool
+
+		digestAlg, ok = oidSignatureAlgToDigestAlg[signature.Algorithm.String()]
+
+		if !ok {
+			return nil, fmt.Errorf("(AlgorithmIdentifier.DetermineDigestAlg) unable to resolve digest algorithm from signature algorithm (sig-oid: %s)", signature.Algorithm.String())
+		}
+	}
+
+	return &digestAlg, nil
 }

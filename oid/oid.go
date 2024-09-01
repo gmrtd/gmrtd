@@ -82,6 +82,7 @@ var (
 	OidEcdsaWithSHA384                  = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 3, 3}
 	OidEcdsaWithSHA512                  = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 3, 4}
 	OidRsaEncryption                    = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 1}
+	OidSha1WithRsaEncryption            = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 5}
 	OidMgf1                             = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 8}
 	OidRsaSsaPss                        = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 10}
 	OidSha256WithRSAEncryption          = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 11}
@@ -99,6 +100,8 @@ var (
 	OidIcaoMrtdSecurity                 = asn1.ObjectIdentifier{1, 3, 27, 1, 1}
 	OidIcaoMrtdSecurityAaProtocolObject = asn1.ObjectIdentifier{1, 3, 27, 1, 1, 5}
 	OidEfDir                            = asn1.ObjectIdentifier{1, 3, 27, 1, 1, 13}
+	OidSecp384r1                        = asn1.ObjectIdentifier{1, 3, 132, 0, 34} // TODO - others?
+	OidNameChange                       = asn1.ObjectIdentifier{2, 23, 136, 1, 1, 6, 1}
 	OidCommonName                       = asn1.ObjectIdentifier{2, 5, 4, 3}
 	OidSerialNumber                     = asn1.ObjectIdentifier{2, 5, 4, 5}
 	OidCountryName                      = asn1.ObjectIdentifier{2, 5, 4, 6}
@@ -111,6 +114,7 @@ var (
 	OidPrivateKeyUsagePeriod            = asn1.ObjectIdentifier{2, 5, 29, 16}
 	OidSubjectAltName                   = asn1.ObjectIdentifier{2, 5, 29, 17}
 	OidCeIssuerAltName                  = asn1.ObjectIdentifier{2, 5, 29, 18}
+	OidCeBasicConstraints               = asn1.ObjectIdentifier{2, 5, 29, 19}
 	OidCeCRLDistributionPoints          = asn1.ObjectIdentifier{2, 5, 29, 31}
 	OidCertificatePolicies              = asn1.ObjectIdentifier{2, 5, 29, 32}
 	OidAuthorityKeyIdentifier           = asn1.ObjectIdentifier{2, 5, 29, 35}
@@ -186,6 +190,7 @@ var OidLookup = map[string]string{
 	OidEcdsaWithSHA384.String():                  "ecdsa-with-SHA384",
 	OidEcdsaWithSHA512.String():                  "ecdsa-with-SHA512",
 	OidRsaEncryption.String():                    "rsaEncryption",
+	OidSha1WithRsaEncryption.String():            "sha1-with-rsa-signature",
 	OidMgf1.String():                             "id-mgf1",
 	OidRsaSsaPss.String():                        "id-RSASSA-PSS",
 	OidSha256WithRSAEncryption.String():          "sha256WithRSAEncryption",
@@ -203,6 +208,8 @@ var OidLookup = map[string]string{
 	OidIcaoMrtdSecurity.String():                 "id-icao-mrtd-security",
 	OidIcaoMrtdSecurityAaProtocolObject.String(): "id-icao-mrtd-security-aaProtocolObject",
 	OidEfDir.String():                            "id-EFDIR",
+	OidSecp384r1.String():                        "secp384r1",
+	OidNameChange.String():                       "nameChange",
 	OidCommonName.String():                       "commonName",
 	OidSerialNumber.String():                     "serialNumber",
 	OidCountryName.String():                      "countryName",
@@ -215,6 +222,7 @@ var OidLookup = map[string]string{
 	OidPrivateKeyUsagePeriod.String():            "privateKeyUsagePeriod",
 	OidSubjectAltName.String():                   "subjectAltName",
 	OidCeIssuerAltName.String():                  "id-ce-issuerAltName",
+	OidCeBasicConstraints.String():               "id-ce-basicConstraints",
 	OidCeCRLDistributionPoints.String():          "id-ce-cRLDistributionPoints",
 	OidCertificatePolicies.String():              "certificatePolicies",
 	OidAuthorityKeyIdentifier.String():           "authorityKeyIdentifier",

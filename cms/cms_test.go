@@ -49,13 +49,19 @@ func TestParseAndVerifySignedData(t *testing.T) {
 		if err != nil {
 			t.Errorf("Unexpected error: %s", err)
 		} else {
-			var verified bool
+			// get the CSCA certificate pool
+			var cscaCertPool *CertPool = CscaCertPool()
 
-			verified, err = sd.SD2.Verify()
+			var certChain [][]byte
+
+			certChain, err = sd.SD2.Verify(cscaCertPool)
 			if err != nil {
 				t.Errorf("Unexpected error: %s", err)
-			} else if !verified {
-				t.Errorf("Verify failed")
+			}
+
+			if len(certChain) != 2 {
+				// TODO - could do a deeper check of the returns certs (inc ordering)
+				t.Errorf("Cert chain should have 2 certs")
 			}
 		}
 	}

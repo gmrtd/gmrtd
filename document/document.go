@@ -37,6 +37,14 @@ type LDS1 struct {
 	Dg16 *DG16 // DATA GROUP 16 — Person(s) to Notify (OPTIONAL)
 }
 
+type PassiveAuth struct {
+	CertChain [][]byte
+}
+
+func NewPassiveAuth(certChain [][]byte) *PassiveAuth {
+	return &PassiveAuth{CertChain: certChain}
+}
+
 type Document struct {
 	Atr []byte
 	Ats []byte
@@ -44,6 +52,10 @@ type Document struct {
 	Mf MasterFile
 
 	ChipAuthStatus ChipAuthStatus
+
+	// passive auth
+	PassiveAuthSOD     *PassiveAuth
+	PassiveAuthCardSec *PassiveAuth
 
 	Apdus []iso7816.ApduLog // TODO - should move this out of document
 }

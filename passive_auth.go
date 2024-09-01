@@ -2,7 +2,9 @@ package gmrtd
 
 import (
 	"fmt"
+	"log/slog"
 
+	"github.com/gmrtd/gmrtd/cms"
 	"github.com/gmrtd/gmrtd/document"
 )
 
@@ -12,36 +14,39 @@ func PassiveAuth(doc *document.Document) error {
 	// NB currently assumes that EF.SOD DG hashes have been verified earlier
 	//		- this is currently done in reader.readDGs()
 
+	// get the CSCA certificate pool
+	var cscaCertPool *cms.CertPool = cms.CscaCertPool()
+
 	/*
 	* verify EF.SOD (mandatory)
 	 */
 	if doc.Mf.Lds1.Sod == nil {
-		return fmt.Errorf("mandatory file EF.SOD is missing")
+		return fmt.Errorf("(PassiveAuth) mandatory file EF.SOD is missing")
 	} else {
-		var valid bool
-
-		valid, err = doc.Mf.Lds1.Sod.SD.SD2.Verify()
+		var certChainSOD [][]byte
+		certChainSOD, err = doc.Mf.Lds1.Sod.SD.SD2.Verify(cscaCertPool)
 		if err != nil {
-			return fmt.Errorf("unable to verify SignedData (SOD): %w", err)
+			return fmt.Errorf("(PassiveAuth) unable to verify SignedData (SOD): %w", err)
 		}
-		if !valid {
-			return fmt.Errorf("failed to verify SignedData (SOD): %w", err)
-		}
+
+		doc.PassiveAuthSOD = document.NewPassiveAuth(certChainSOD)
+
+		slog.Debug("PassiveAuth", "certChain(SOD)-cnt", len(certChainSOD))
 	}
 
 	/*
 	* verify CardSecurity (if present)
 	 */
 	if doc.Mf.CardSecurity != nil {
-		var valid bool
-
-		valid, err = doc.Mf.CardSecurity.SD.SD2.Verify()
+		var certChainCardSecurity [][]byte
+		certChainCardSecurity, err = doc.Mf.CardSecurity.SD.SD2.Verify(cscaCertPool)
 		if err != nil {
-			return fmt.Errorf("unable to verify SignedData (CardSecurity): %w", err)
+			return fmt.Errorf("(PassiveAuth) unable to verify SignedData (CardSecurity): %w", err)
 		}
-		if !valid {
-			return fmt.Errorf("failed to verify SignedData (CardSecurity): %w", err)
-		}
+
+		doc.PassiveAuthCardSec = document.NewPassiveAuth(certChainCardSecurity)
+
+		slog.Debug("PassiveAuth", "certChain(CardSecurity)-cnt", len(certChainCardSecurity))
 	}
 
 	return nil

@@ -3,6 +3,7 @@ package document
 import (
 	"testing"
 
+	cms "github.com/gmrtd/gmrtd/cms"
 	"github.com/gmrtd/gmrtd/utils"
 )
 
@@ -42,12 +43,19 @@ func TestNewCardSecurityDE(t *testing.T) {
 	}
 
 	if cardSecurity != nil {
-		var validSignedData bool
-		validSignedData, err = cardSecurity.SD.SD2.Verify()
+		// get the CSCA certificate pool
+		var cscaCertPool *cms.CertPool = cms.CscaCertPool()
+
+		var certChain [][]byte
+
+		certChain, err = cardSecurity.SD.SD2.Verify(cscaCertPool)
 		if err != nil {
 			t.Errorf("Error verifying SignedData: %s", err)
-		} else if !validSignedData {
-			t.Errorf("SignedData could NOT be verified")
+		}
+
+		if len(certChain) != 2 {
+			// TODO - could do a deeper check of the returns certs (inc ordering)
+			t.Errorf("Cert chain should have 2 certs")
 		}
 	}
 

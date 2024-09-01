@@ -108,7 +108,7 @@ func (node TlvSimpleNode) stringWithIndent(indent int) string {
 		oidStr := oid.DecodeAsn1objectId(node.Value).String()
 		oidName := oid.OidLookup[oidStr]
 		sb.WriteString(fmt.Sprintf(" [%s: %s]", oidStr, oidName))
-	} else if utils.PrintableBytes(node.Value) {
+	} else if utils.PrintableBytes(node.Value) { // TODO - this doesn't work all the time.. quite often see garbage
 		sb.WriteString(fmt.Sprintf(" [%s]", string(node.Value)))
 	}
 	sb.WriteString("\n")
