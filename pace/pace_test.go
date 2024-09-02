@@ -6,13 +6,13 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ebfe/brainpool"
 	"github.com/gmrtd/gmrtd/cryptoutils"
 	"github.com/gmrtd/gmrtd/document"
 	"github.com/gmrtd/gmrtd/iso7816"
 	"github.com/gmrtd/gmrtd/oid"
 	"github.com/gmrtd/gmrtd/password"
 	"github.com/gmrtd/gmrtd/utils"
+	"github.com/osanderson/brainpool"
 )
 
 func TestDecryptNonce(t *testing.T) {

@@ -36,7 +36,6 @@ import (
 	"math/big"
 
 	"github.com/aead/cmac"
-	"github.com/ebfe/brainpool"
 	"github.com/gmrtd/gmrtd/cms"
 	"github.com/gmrtd/gmrtd/cryptoutils"
 	"github.com/gmrtd/gmrtd/document"
@@ -45,6 +44,7 @@ import (
 	"github.com/gmrtd/gmrtd/password"
 	"github.com/gmrtd/gmrtd/tlv"
 	"github.com/gmrtd/gmrtd/utils"
+	"github.com/osanderson/brainpool"
 )
 
 type Pace struct {

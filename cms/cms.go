@@ -17,11 +17,11 @@ import (
 	"math/big"
 	"slices"
 
-	"github.com/ebfe/brainpool"
 	"github.com/gmrtd/gmrtd/cryptoutils"
 	"github.com/gmrtd/gmrtd/oid"
 	"github.com/gmrtd/gmrtd/tlv"
 	"github.com/gmrtd/gmrtd/utils"
+	"github.com/osanderson/brainpool"
 )
 
 // TODO - no attempt made for revocation checking

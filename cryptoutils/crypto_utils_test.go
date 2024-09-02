@@ -8,9 +8,9 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ebfe/brainpool"
 	"github.com/gmrtd/gmrtd/oid"
 	"github.com/gmrtd/gmrtd/utils"
+	"github.com/osanderson/brainpool"
 )
 
 func TestTDesKey(t *testing.T) {
