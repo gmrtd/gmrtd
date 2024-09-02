@@ -53,11 +53,11 @@ type SignedData2 struct {
 type SignerInfo struct {
 	Raw                       asn1.RawContent
 	Version                   int                 `asn1:"default:1"`
-	IssuerAndSerialNumber     IssuerAndSerial     `asn1:"optional"` // TODO - for DE masterlist
-	DigestAlgorithm           AlgorithmIdentifier `asn1:"optional"` // TODO - for DE masterlist
+	IssuerAndSerialNumber     IssuerAndSerial     `asn1:"optional"` // optional for DE masterlist
+	DigestAlgorithm           AlgorithmIdentifier `asn1:"optional"` // optional for DE masterlist
 	AuthenticatedAttributes   AttributeList       `asn1:"optional,tag:0"`
-	DigestEncryptionAlgorithm AlgorithmIdentifier `asn1:"optional"` // TODO - for DE masterlist
-	EncryptedDigest           []byte              `asn1:"optional"` // TODO - for DE masterlist
+	DigestEncryptionAlgorithm AlgorithmIdentifier `asn1:"optional"` // optional for DE masterlist
+	EncryptedDigest           []byte              `asn1:"optional"` // optional for DE masterlist
 	UnauthenticatedAttributes AttributeList       `asn1:"optional,tag:1"`
 }
 
@@ -153,7 +153,6 @@ type Certificate struct {
 
 type Extensions []Extension
 
-// TODO
 type AuthorityKeyIdentifier struct {
 	KeyIdentifier             []byte          `asn1:"optional,implicit,tag:0"`
 	AuthorityCertIssuer       asn1.RawContent `asn1:"optional,implicit,tag:1"`
@@ -162,7 +161,6 @@ type AuthorityKeyIdentifier struct {
 
 type SubjectKeyIdentifier []byte
 
-// TODO (move)
 func (extensions Extensions) GetAuthorityKeyIdentifier() *AuthorityKeyIdentifier {
 	for i := 0; i < len(extensions); i++ {
 		if extensions[i].ObjectId.Equal(oid.OidAuthorityKeyIdentifier) {
@@ -180,7 +178,6 @@ func (extensions Extensions) GetAuthorityKeyIdentifier() *AuthorityKeyIdentifier
 	return nil
 }
 
-// TODO (move)
 func (extensions Extensions) GetSubjectKeyIdentifier() *SubjectKeyIdentifier {
 	for i := 0; i < len(extensions); i++ {
 		if extensions[i].ObjectId.Equal(oid.OidSubjectKeyIdentifier) {
@@ -202,8 +199,8 @@ func (extensions Extensions) GetSubjectKeyIdentifier() *SubjectKeyIdentifier {
 
 type TBSCertificate struct {
 	Raw                  asn1.RawContent
-	Version              int      `asn1:"explicit,default:1,tag:0"`
-	SerialNumber         *big.Int //int // TODO - int too large error on master list
+	Version              int `asn1:"explicit,default:1,tag:0"`
+	SerialNumber         *big.Int
 	Signature            AlgorithmIdentifier
 	Issuer               asn1.RawValue
 	Validity             Validity
