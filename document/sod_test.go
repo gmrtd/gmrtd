@@ -132,7 +132,8 @@ func TestNewSod(t *testing.T) {
 			}
 
 			if len(certChain) != 2 {
-				// TODO - could do a deeper check of the returns certs (inc ordering)
+				// TODO - could do a deeper check of the returned certs (inc ordering)
+				//			- review other code also.. e.g. card_Security_test / cms_test
 				t.Errorf("Cert chain should have 2 certs")
 			}
 		}

@@ -785,7 +785,6 @@ func (signature AlgorithmIdentifier) DetermineDigestAlgFromSigAlg() (*asn1.Objec
 		 */
 		var tmpParams RsaSsaPssParams
 
-		// TODO - lazy parsing into alg-id even though the structure have more possible options
 		err := utils.ParseAsn1(signature.Parameters.FullBytes, true, &tmpParams)
 		if err != nil {
 			return nil, fmt.Errorf("(AlgorithmIdentifier.DetermineDigestAlg) error: %s", err)

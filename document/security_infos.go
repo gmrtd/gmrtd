@@ -74,7 +74,7 @@ type SecurityInfoOidSET []SecurityInfoOid
 type PaceInfo struct {
 	Protocol    asn1.ObjectIdentifier
 	Version     int
-	ParameterId *big.Int `asn1:"optional"` // nil if not present // TODO - should have tests to verify (others also)
+	ParameterId *big.Int `asn1:"optional"` // nil if not present
 }
 
 type PaceDomainParameterInfo struct {

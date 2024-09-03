@@ -60,7 +60,6 @@ func TestParseAndVerifySignedData(t *testing.T) {
 			}
 
 			if len(certChain) != 2 {
-				// TODO - could do a deeper check of the returns certs (inc ordering)
 				t.Errorf("Cert chain should have 2 certs")
 			}
 		}
