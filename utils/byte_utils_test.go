@@ -31,20 +31,24 @@ func TestBytesToHex(t *testing.T) {
 
 func TestPrintableBytes(t *testing.T) {
 	testCases := []struct {
-		str string
-		exp bool
+		data []byte
+		exp  bool
 	}{
 		{
-			str: "This is a printable string!",
-			exp: true,
+			data: []byte("This is a printable string!"),
+			exp:  true,
 		},
 		{
-			str: "This is not \a printable string!",
-			exp: false,
+			data: []byte("This is not \a printable string!"),
+			exp:  false,
+		},
+		{
+			data: []byte("This is not \a printable string! \xff"),
+			exp:  false,
 		},
 	}
 	for _, tc := range testCases {
-		act := PrintableBytes([]byte(tc.str))
+		act := PrintableBytes(tc.data)
 
 		if act != tc.exp {
 			t.Errorf("PrintableBytes error (Exp:%t, Act:%t)", tc.exp, act)

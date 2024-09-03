@@ -60,12 +60,8 @@ func BytesToHex(bytes []byte) string {
 }
 
 func PrintableBytes(data []byte) bool {
-	s := string(data[:])
-
-	// TODO - need to UT this as it clearly has issues for TLV....  e.g. 0xff gets printed
-
-	for _, c := range s {
-		if !unicode.IsPrint(c) {
+	for _, byte := range data {
+		if !unicode.IsPrint(rune(byte)) {
 			return false
 		}
 	}

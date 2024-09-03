@@ -100,7 +100,7 @@ var (
 	OidIcaoMrtdSecurity                 = asn1.ObjectIdentifier{1, 3, 27, 1, 1}
 	OidIcaoMrtdSecurityAaProtocolObject = asn1.ObjectIdentifier{1, 3, 27, 1, 1, 5}
 	OidEfDir                            = asn1.ObjectIdentifier{1, 3, 27, 1, 1, 13}
-	OidSecp384r1                        = asn1.ObjectIdentifier{1, 3, 132, 0, 34} // TODO - others?
+	OidSecp384r1                        = asn1.ObjectIdentifier{1, 3, 132, 0, 34}
 	OidNameChange                       = asn1.ObjectIdentifier{2, 23, 136, 1, 1, 6, 1}
 	OidCommonName                       = asn1.ObjectIdentifier{2, 5, 4, 3}
 	OidSerialNumber                     = asn1.ObjectIdentifier{2, 5, 4, 5}

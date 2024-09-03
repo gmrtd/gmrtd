@@ -105,10 +105,12 @@ func (node TlvSimpleNode) stringWithIndent(indent int) string {
 	sb.WriteString(getIndentString(indent))
 	sb.WriteString(fmt.Sprintf("%02x: %x", node.Tag, node.Value))
 	if node.Tag == 0x06 {
+		// special handling for ASN1 OIDs
 		oidStr := oid.DecodeAsn1objectId(node.Value).String()
 		oidName := oid.OidLookup[oidStr]
 		sb.WriteString(fmt.Sprintf(" [%s: %s]", oidStr, oidName))
-	} else if utils.PrintableBytes(node.Value) { // TODO - this doesn't work all the time.. quite often see garbage
+	} else if utils.PrintableBytes(node.Value) {
+		// special handling for printable bytes
 		sb.WriteString(fmt.Sprintf(" [%s]", string(node.Value)))
 	}
 	sb.WriteString("\n")
