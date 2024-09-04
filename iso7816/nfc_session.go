@@ -346,7 +346,7 @@ func (nfc *NfcSession) doTransceive(cApdu *CApdu, desc string) (rApdu *RApdu, ap
 
 	apduLog = NewApduLog(desc, cApduBytes)
 
-	rApduBytes := nfc.transceiver.Transceive(cApduBytes)
+	rApduBytes := nfc.transceiver.Transceive(int(cApdu.cla), int(cApdu.ins), int(cApdu.p1), int(cApdu.p2), cApdu.data, cApdu.le, cApduBytes)
 
 	apduLog.Finalise(rApduBytes)
 
