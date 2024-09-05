@@ -15,14 +15,6 @@ import (
 	"github.com/gmrtd/gmrtd/utils"
 )
 
-// TODO
-//
-// ASN1 format found in 'SpecifiedECDomain'
-// https://www.itu.int/ITU-T/formal-language/itu-t/x/x894/2018-cor1/ANSI-X9-62.html
-//
-// also need to look at 9303p11.. Part 11 - Chip Authentication
-//	example is taking from CardSecurity... but also used std domain params instead of explicit.. so should support both?
-
 type ChipAuth struct {
 	keyGeneratorEc cryptoutils.KeyGeneratorEcFn
 }
@@ -273,21 +265,22 @@ func (chipAuth *ChipAuth) doCaEcdh(nfc *iso7816.NfcSession, caInfo *document.Chi
 		}
 	}
 
-	// Chip Authentication has completed and we've setup/updated Secure Messaging accordingly
-	// **BUT** we don't know whether it was really successful until we perform an APDU with the new
-	// Secure Messaging, so we perform a lightweight APDU (Select EF - DG14) to confirm success.
+	/*
+	* Chip Authentication has completed and we've setup/updated Secure Messaging accordingly
+	* **BUT** we don't know whether it was really successful until we perform an APDU with the new
+	* Secure Messaging, so we perform a lightweight APDU (Select EF - DG14) to confirm success.
+	 */
 
 	slog.Debug("doCaECdh - Select EF (DG14) - to verify ChipAuth")
 	{
-		const MRTDFileIdDG14 = uint16(0x010E) // TODO - copied from Reader
+		const MRTDFileIdDG14 = uint16(0x010E)
 
 		selected, err := nfc.SelectEF(MRTDFileIdDG14)
 		if err != nil {
-			// TODO - may want to wrap error, as this indicates CA failure, but underlying error is probably SM related
-			return err
+			return fmt.Errorf("(CA.doCaEcdh) Error selecting DG14 following ChipAuth: %w", err)
 		}
 		if !selected {
-			return fmt.Errorf("unable to select DG14 after performing CA")
+			return fmt.Errorf("(CA.doCaEcdh) unable to select DG14 after performing CA")
 		}
 	}
 
