@@ -570,7 +570,6 @@ func (pace *Pace) doCamEcdh(nfc *iso7816.NfcSession, paceConfig *PaceConfig, dom
 	// decrypt the data we got earlier...
 	var caIC []byte
 	{
-		// TODO - variable names? (and ecad)
 		caIC = cryptoutils.ISO9797Method2Unpad(cryptoutils.CryptCBC(blockCipher, iv, ecadIC, false))
 		slog.Debug("doCamEcdh", "CA-IC", utils.BytesToHex(caIC))
 	}
@@ -704,7 +703,7 @@ func (pace *Pace) doGenericMappingCAM(nfc *iso7816.NfcSession, paceConfig *PaceC
 
 			// attempt to read CardSecurity (if we don't already have it)
 			if doc.Mf.CardSecurity == nil {
-				const MRTDFileIdCardSecurity = uint16(0x011D) // TODO - copied from Reader
+				const MRTDFileIdCardSecurity = uint16(0x011D)
 
 				doc.Mf.CardSecurity, err = document.NewCardSecurity(nfc.ReadFile(MRTDFileIdCardSecurity))
 				if err != nil {
