@@ -57,51 +57,6 @@ type EcPoint struct {
 	Y *big.Int
 }
 
-// https://www.itu.int/ITU-T/formal-language/itu-t/x/x894/2018-cor1/ANSI-X9-62.html
-//
-// -- Type (parameterized) to indicate the hash function with
-// -- the OID ecdsa-with-Specified
-// HashAlgorithm::= AlgorithmIdentifier {{ ANSIX9HashFunctions }}
-//
-// -- Finite field element
-// FieldElement ::= OCTET STRING
-//
-// -- Finite fields have a type (prime or binary) and parameters (size and basis)
-// FieldID { FIELD-ID:IOSet } ::= SEQUENCE {-- Finite field
-// 	fieldType		FIELD-ID.&id({IOSet}),
-// 	parameters		FIELD-ID.&Type({IOSet}{@fieldType})
-// 	}
-// 	-- ============================================
-// 	-- Elliptic Curve Points (see  E.6)
-// 	-- ============================================
-// 	ECPoint ::= OCTET STRING
-// 	-- ============================================
-// 	-- Elliptic Curve Domain Parameters (see  E.7)
-// 	-- ============================================
-// 	-- Identifying an elliptic curve by its coefficients (and optional seed)
-// 	Curve ::= SEQUENCE {
-// 	a		FieldElement, -- Elliptic curve coefficient a
-// 	b		FieldElement, -- Elliptic curve coefficient b
-// 	seed	BIT STRING OPTIONAL
-// 	-- Shall be present if used in SpecifiedECDomain with version of
-// 	-- ecdpVer2 or ecdpVer3
-// 	}
-// 	-- Type used to control version of EC domain parameters
-// 	SpecifiedECDomainVersion ::= INTEGER { ecdpVer1(1) , ecdpVer2(2) , ecdpVer3(3) }
-// 	-- Identifying elliptic curve domain parameters explicitly with this type
-// 	SpecifiedECDomain ::= SEQUENCE {
-// 	version		SpecifiedECDomainVersion ( ecdpVer1 | ecdpVer2 | ecdpVer3 ),
-// 	fieldID		FieldID {{FieldTypes}},
-// 	curve		Curve,
-// 	base			ECPoint, -- Base point G
-// 	order		INTEGER, -- Order n of the base point
-// 	cofactor		INTEGER OPTIONAL, -- The integer h = #E(Fq)/n
-// 	hash			HashAlgorithm OPTIONAL,
-// 	... -- Additional parameters may be added
-// 	}
-
-// TODO - consider aligning above to RFC-3279.. ECParameters ?
-
 type ECCurve struct {
 	A    []byte
 	B    []byte
@@ -360,7 +315,7 @@ func CryptoHash(alg crypto.Hash, data []byte) []byte {
 }
 
 func CryptoHashDigestSize(alg crypto.Hash) int {
-	// TODO - this is a bit of a hack... ideally we'd take directly from the hash-alg
+	// this is a bit of a hack, but we do a dummy hash to calculate the size
 	return len(CryptoHash(alg, []byte{}))
 }
 
