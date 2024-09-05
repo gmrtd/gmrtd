@@ -42,15 +42,11 @@ import (
 //TR-03110], they can be accessed only after TAv1 was performed successfully. For this purpose, the EF.CVCA
 //file SHALL be read first in order to obtain the information required for performing TAv1.
 
-// TODO - review chip access procedure (p11 - page 16)
-
 // TODO - docs say should move over to EF.SOD (LDS 1.8)... (p10 page 33)
 
 // TODO - should check certain parts of the document.. e.g. COM,SOD,DG1/2 are mandatory.. others are optional / conditional (e.g. DG14 based on conditions)
 
 // TODO - verify DG14 matches unsecured files
-
-// TODO - look at moving to short-file id if that is actually the mandatory one
 
 const MRTDFileIdCardAccess = uint16(0x011C)
 const MRTDFileIdCardSecurity = uint16(0x011D)
