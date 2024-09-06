@@ -379,6 +379,7 @@ func (sd *SignedData2) Verify(certPool *CertPool) (certChain [][]byte, err error
 func (cert *Certificate) Verify(certPool *CertPool) (certChain [][]byte, err error) {
 	// TODO - currently just gets immediate parent.. doesn't move up a deeper cert chain
 	// TODO - currently just verifies the signature... doesn't check anything else... e.g. signing-time-validity... country/name
+	//			see 9303p10 5.1 Passive Authentication for detailed overview
 
 	// get the parent certificate (authority) key identifier
 	var aki *AuthorityKeyIdentifier
