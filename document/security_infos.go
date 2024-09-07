@@ -102,16 +102,6 @@ type ChipAuthenticationPublicKeyInfo struct {
 	KeyId                       *big.Int `asn1:"optional"` // nil if not present
 }
 
-//type SubjectPublicKeyInfo struct {
-//	Algorithm        AlgorithmIdentifier
-//	SubjectPublicKey asn1.BitString
-//}
-
-//type AlgorithmIdentifier struct {
-//	Algorithm  asn1.ObjectIdentifier
-//	Parameters asn1.RawValue `asn1:"optional"`
-//}
-
 type TerminalAuthenticationInfo struct {
 	Protocol asn1.ObjectIdentifier
 	Version  int
