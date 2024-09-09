@@ -195,6 +195,79 @@ func TestExternalAuthenticateUnhappyRspLength(t *testing.T) {
 	}
 }
 
+func TestGeneralAuthenticate(t *testing.T) {
+	testCases := []struct {
+		cmdChaining bool
+		data        []byte
+		expCApdu    string
+		expRApdu    string
+		expData     []byte
+	}{
+		{
+			cmdChaining: true,
+			data:        utils.HexToBytes("7c43834104888e35d7ea83aa53e93beb418b4ca0d10870cec199d39ae10748dcf5f98015b08f97aa28a09edcef4a12a6a4cd76342184c2182940901ac3049054f8a46a7bc4"),
+			expCApdu:    "10860000457c43834104888e35d7ea83aa53e93beb418b4ca0d10870cec199d39ae10748dcf5f98015b08f97aa28a09edcef4a12a6a4cd76342184c2182940901ac3049054f8a46a7bc400",
+			expRApdu:    "7c43844104398a30a7eb4eb1cf05320f5cbb57ab973aaa17b53cee8042aa5a4bd7cc52be9c956f68718d73b3377323f74e38c79df3558c19b9bc2c918541b7685f87e028d09000",
+			expData:     utils.HexToBytes("7c43844104398a30a7eb4eb1cf05320f5cbb57ab973aaa17b53cee8042aa5a4bd7cc52be9c956f68718d73b3377323f74e38c79df3558c19b9bc2c918541b7685f87e028d0"),
+		},
+		{
+			cmdChaining: false,
+			data:        utils.HexToBytes("7c0a8508ac66310b6d0d028a"),
+			expCApdu:    "008600000c7c0a8508ac66310b6d0d028a00",
+			expRApdu:    "7c0a86081d24b081d5ded1829000",
+			expData:     utils.HexToBytes("7c0a86081d24b081d5ded182"),
+		},
+	}
+	for _, tc := range testCases {
+		var transceiver MockTransceiver
+
+		transceiver.AddReqRsp(tc.expCApdu, tc.expRApdu)
+
+		nfcSession := NewNfcSession(&transceiver)
+
+		rApdu := nfcSession.GeneralAuthenticate(tc.cmdChaining, tc.data)
+
+		if !rApdu.IsSuccess() {
+			t.Errorf("Expected rApdu status (Actual:%04x)", rApdu.Status)
+		}
+
+		if !bytes.Equal(rApdu.Data, tc.expData) {
+			t.Errorf("rApdu data differs to expected (exp:%x, act:%x)", tc.expData, rApdu.Data)
+		}
+	}
+}
+
+func TestMseSetAT(t *testing.T) {
+	testCases := []struct {
+		p1       uint8
+		p2       uint8
+		data     []byte
+		expCApdu string
+		expRApdu string
+	}{
+		{
+			p1:       0xc1,
+			p2:       0xa4,
+			data:     utils.HexToBytes("800a04007f00070202040201830101"),
+			expCApdu: "0022c1a40f800a04007f00070202040201830101",
+			expRApdu: "9000",
+		},
+	}
+	for _, tc := range testCases {
+		var transceiver MockTransceiver
+
+		transceiver.AddReqRsp(tc.expCApdu, tc.expRApdu)
+
+		nfcSession := NewNfcSession(&transceiver)
+
+		err := nfcSession.MseSetAT(tc.p1, tc.p2, tc.data)
+
+		if err != nil {
+			t.Errorf("Unexpected error: %s", err)
+		}
+	}
+}
+
 // TODO - the above (and others) should be table based tests
 //			GetChallenge
 //			ExternalAuthenticate
