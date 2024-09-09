@@ -63,14 +63,16 @@ func TestNewDG1(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
+		var doc Document
+
 		// parse DG1 data
-		dg1, err := NewDG1(tc.dg1)
+		err := doc.NewDG(1, tc.dg1)
 		if err != nil {
 			t.Errorf("Unexpected error: %s", err)
 		}
 
 		// generate MRZi (as a quick way of verifying)
-		actMrzi := dg1.Mrz.EncodeMrzi()
+		actMrzi := doc.Mf.Lds1.Dg1.Mrz.EncodeMrzi()
 
 		if actMrzi != tc.mrzi {
 			t.Errorf("DG1 MRZi mismatch (Exp:%s, Act:%s)", tc.mrzi, actMrzi)
