@@ -59,19 +59,21 @@ func TestNewDG11Happy(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		dg11, err := NewDG11(tc.dg11bytes)
+		var doc Document
+
+		err := doc.NewDG(11, tc.dg11bytes)
 
 		if err != nil {
 			t.Errorf("Error not expected")
 		}
 
-		if dg11 == nil {
+		if doc.Mf.Lds1.Dg11 == nil {
 			t.Errorf("DG11 expected")
 			break
 		}
 
-		if !reflect.DeepEqual(dg11.Details, tc.expDetails) {
-			t.Errorf("DG11 PersonDetails differs to expected\n(Act:%+v)\n(Exp:%+v)", dg11.Details, tc.expDetails)
+		if !reflect.DeepEqual(doc.Mf.Lds1.Dg11.Details, tc.expDetails) {
+			t.Errorf("DG11 PersonDetails differs to expected\n(Act:%+v)\n(Exp:%+v)", doc.Mf.Lds1.Dg11.Details, tc.expDetails)
 		}
 	}
 }
