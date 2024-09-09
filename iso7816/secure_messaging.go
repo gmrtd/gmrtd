@@ -68,11 +68,11 @@ func NewSecureMessaging(alg cryptoutils.BlockCipherAlg, ksEnc []byte, ksMac []by
 	sm.ksMac = ksMac
 
 	if sm.encCipher, err = cryptoutils.GetCipherForKey(sm.alg, ksEnc); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("(NewSecureMessaging) GetCipherForKey:ksEnc: %w", err)
 	}
 
 	if sm.macCipher, err = cryptoutils.GetCipherForKey(sm.alg, ksMac); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("(NewSecureMessaging) GetCipherForKey:ksMac: %w", err)
 	}
 
 	// init SSC (based on block size)

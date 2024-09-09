@@ -9,6 +9,38 @@ import (
 	"github.com/gmrtd/gmrtd/utils"
 )
 
+func TestNewSecureMessaginErrors(t *testing.T) {
+	testCases := []struct {
+		alg   cryptoutils.BlockCipherAlg
+		ksEnc []byte
+		ksMac []byte
+	}{
+		{
+			// ksEnc: invalid length for TDES key
+			alg:   cryptoutils.TDES,
+			ksEnc: utils.HexToBytes("12"),
+			ksMac: utils.HexToBytes("2BD6459F82C5B300952C49104881FF48"),
+		},
+		{
+			// ksMac: invalid length for TDES key
+			alg:   cryptoutils.TDES,
+			ksEnc: utils.HexToBytes("2BD6459F82C5B300952C49104881FF48"),
+			ksMac: utils.HexToBytes("12"),
+		},
+	}
+	for _, tc := range testCases {
+		sm, err := NewSecureMessaging(tc.alg, tc.ksEnc, tc.ksMac)
+
+		if err == nil {
+			t.Errorf("Error expected")
+		}
+
+		if sm != nil {
+			t.Errorf("SM not expected")
+		}
+	}
+}
+
 func TestSSCIncrement(t *testing.T) {
 	testCases := []struct {
 		alg    cryptoutils.BlockCipherAlg
