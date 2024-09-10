@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/cipher"
 	"fmt"
-	"log"
 )
 
 func ISO9797Method2Pad(data []byte, blockSize int) []byte {
@@ -24,7 +23,7 @@ func ISO9797Method2Unpad(data []byte) []byte {
 			return out[:len(out)-1]
 		}
 	}
-	log.Panicf("Data not padded according to Method-2 (%x -> %x)", data, out)
+	panic(fmt.Sprintf("[ISO9797Method2Unpad] Data not padded (%x -> %x)", data, out))
 	return nil
 }
 

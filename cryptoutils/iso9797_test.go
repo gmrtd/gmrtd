@@ -70,6 +70,19 @@ func TestISO9797Method2Unpad(t *testing.T) {
 	}
 }
 
+func TestISO9797Method2UnpadErr(t *testing.T) {
+	// No need to check whether `recover()` is nil. Just turn off the panic.
+	defer func() { _ = recover() }()
+
+	var data []byte = []byte{0x12, 0x34, 0x56, 0x78}
+
+	// NB error as the data is not padded correctly
+	_ = ISO9797Method2Unpad(data)
+
+	// Never reaches here if panic
+	t.Errorf("expected panic, but didn't get")
+}
+
 func TestISO9797RetailMacDesErrors(t *testing.T) {
 	// NB: ISO9797 Retail MAC requires 16-byte DES key
 	testCases := []struct {
