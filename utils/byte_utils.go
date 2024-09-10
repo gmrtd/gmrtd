@@ -6,7 +6,6 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"log"
 	"log/slog"
 	"unicode"
 )
@@ -74,7 +73,7 @@ func GetBytesFromBuffer(buf *bytes.Buffer, length int) []byte {
 	tmp := buf.Next(length)
 
 	if len(tmp) != length {
-		log.Panicf("[GetBytesFromBuffer] Req:%d, Act:%d", length, len(tmp))
+		panic(fmt.Sprintf("[GetBytesFromBuffer] Req:%d, Act:%d", length, len(tmp)))
 	}
 
 	copy(out, tmp)

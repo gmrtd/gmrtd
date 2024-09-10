@@ -119,6 +119,52 @@ func TestPrintableBytes(t *testing.T) {
 	}
 }
 
+func TestGetBytesFromBuffer(t *testing.T) {
+	var buf *bytes.Buffer = bytes.NewBuffer([]byte{0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef})
+
+	bytes1 := GetBytesFromBuffer(buf, 2)
+	bytes2 := GetBytesFromBuffer(buf, 3)
+	bytes3 := GetBytesFromBuffer(buf, 2)
+	bytes4 := GetBytesFromBuffer(buf, 1)
+
+	if !bytes.Equal(bytes1, []byte{0x12, 0x34}) ||
+		!bytes.Equal(bytes2, []byte{0x56, 0x78, 0x90}) ||
+		!bytes.Equal(bytes3, []byte{0xab, 0xcd}) ||
+		!bytes.Equal(bytes4, []byte{0xef}) {
+		t.Errorf("GetBytesFromBuffer data differs to expected")
+	}
+}
+
+func TestGetBytesFromBufferErr(t *testing.T) {
+	// No need to check whether `recover()` is nil. Just turn off the panic.
+	defer func() { _ = recover() }()
+
+	var buf *bytes.Buffer = bytes.NewBuffer([]byte{0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef})
+
+	// NB throws exception as we request more bytes than are available
+	_ = GetBytesFromBuffer(buf, 9)
+
+	// Never reaches here if panic
+	t.Errorf("expected panic, but didn't get")
+
+}
+
+func TestGetByteFromBuffer(t *testing.T) {
+	var buf *bytes.Buffer = bytes.NewBuffer([]byte{0x12, 0x34, 0x56, 0x78})
+
+	byte1 := GetByteFromBuffer(buf)
+	byte2 := GetByteFromBuffer(buf)
+	byte3 := GetByteFromBuffer(buf)
+	byte4 := GetByteFromBuffer(buf)
+
+	if (byte1 != 0x12) ||
+		(byte2 != 0x34) ||
+		(byte3 != 0x56) ||
+		(byte4 != 0x78) {
+		t.Errorf("GetByteFromBuffer data differs to expected")
+	}
+}
+
 func TestIsImage(t *testing.T) {
 	// invalid image data - i.e. doesn't have a recognised image header
 	var imageBytes []byte = HexToBytes("0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF")
