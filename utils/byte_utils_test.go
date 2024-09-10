@@ -2,9 +2,43 @@ package utils
 
 import (
 	"bytes"
+	"encoding/asn1"
 	"strings"
 	"testing"
 )
+
+func TestParseAsn1(t *testing.T) {
+	testCases := []struct {
+		data      []byte
+		partial   bool
+		out       interface{}
+		expectErr bool
+	}{
+		{
+			// SUCCESS
+			data:      []byte{0x2B, 0x06, 0x01, 0x04, 0x01, 0x82, 0x37, 0x15, 0x14},
+			partial:   false,
+			out:       &asn1.ObjectIdentifier{},
+			expectErr: false,
+		},
+		{
+			// ERROR: no data to parse
+			data:      []byte{},
+			partial:   false,
+			out:       &asn1.ObjectIdentifier{},
+			expectErr: true,
+		},
+	}
+	for _, tc := range testCases {
+		err := ParseAsn1(tc.data, tc.partial, &tc.out)
+
+		if tc.expectErr && err == nil {
+			t.Errorf("Error expected")
+		} else if !tc.expectErr && err != nil {
+			t.Errorf("Error NOT expected")
+		}
+	}
+}
 
 func TestXorBytes(t *testing.T) {
 	in1 := []byte{0x00, 0x00, 0xFF, 0xFF}
