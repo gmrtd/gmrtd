@@ -304,6 +304,17 @@ func TestCryptoHash(t *testing.T) {
 	}
 }
 
+func TestCryptoHashErr(t *testing.T) {
+	// No need to check whether `recover()` is nil. Just turn off the panic.
+	defer func() { _ = recover() }()
+
+	// NB error as we're using an algorithm (99) that isn't valid
+	_ = CryptoHash(99, []byte{0x12, 0x34})
+
+	// Never reaches here if panic
+	t.Errorf("expected panic, but didn't get")
+}
+
 func TestCryptoHashDigestSize(t *testing.T) {
 	testCases := []struct {
 		alg     crypto.Hash

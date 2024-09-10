@@ -198,7 +198,7 @@ func CryptoHash(alg crypto.Hash, data []byte) []byte {
 	case crypto.SHA512:
 		hashFn = sha512.New()
 	default:
-		log.Panicf("Unsupported hash algorithm (alg:%d)", alg)
+		panic(fmt.Sprintf("[CryptoHash] Unsupported hash algorithm (alg:%d)", alg))
 	}
 
 	hashFn.Write(data)
