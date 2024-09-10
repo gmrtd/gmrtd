@@ -3,7 +3,7 @@ package cryptoutils
 import (
 	"bytes"
 	"crypto"
-	"log"
+	"fmt"
 
 	"github.com/gmrtd/gmrtd/utils"
 )
@@ -33,7 +33,7 @@ func KDF(k []byte, c KDFCounterType, alg BlockCipherAlg, keySizeBits int) []byte
 			out = out[0:16]
 			out = DesKeyAdjustParity(out)
 		default:
-			log.Panicf("Unsupported TDES key-size (key-size(bits):%d)", keySizeBits)
+			panic(fmt.Sprintf("Unsupported TDES key-size (key-size(bits):%d)", keySizeBits))
 		}
 	case AES:
 		switch keySizeBits {
@@ -46,10 +46,10 @@ func KDF(k []byte, c KDFCounterType, alg BlockCipherAlg, keySizeBits int) []byte
 		case 256:
 			out = CryptoHash(crypto.SHA256, kc)
 		default:
-			log.Panicf("Unsupported AES key-size (key-size(bits):%d)", keySizeBits)
+			panic(fmt.Sprintf("Unsupported AES key-size (key-size(bits):%d)", keySizeBits))
 		}
 	default:
-		log.Panicf("Unsupported KDF Alg (alg:%d)", alg)
+		panic(fmt.Sprintf("Unsupported KDF Alg (alg:%d)", alg))
 	}
 
 	return out
