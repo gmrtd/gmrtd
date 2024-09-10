@@ -166,7 +166,7 @@ func CryptoHashOidToAlg(oid asn1.ObjectIdentifier) crypto.Hash {
 	hash, ok := oidHashAlgorithmToCryptoHash[oid.String()]
 
 	if !ok {
-		log.Panicf("unable to resolve hash algorithm OID (oid: %s)", oid.String())
+		panic(fmt.Sprintf("[CryptoHashOidToAlg] unable to resolve hash algorithm OID (oid: %s)", oid.String()))
 	}
 
 	return hash
@@ -273,7 +273,7 @@ func DoEcDh(localPrivate []byte, remotePublic *EcPoint, ec elliptic.Curve) *EcPo
 
 func RsaDecryptWithPublicKey(ciphertext []byte, publicKey RsaPublicKey) []byte {
 	if len(ciphertext) < 1 {
-		log.Panicf("ciphertext too short (len:%01d)", len(ciphertext))
+		panic(fmt.Sprintf("[RsaDecryptWithPublicKey] ciphertext too short (len:%01d)", len(ciphertext)))
 	}
 
 	m := new(big.Int).SetBytes(ciphertext)

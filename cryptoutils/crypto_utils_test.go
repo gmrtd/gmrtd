@@ -2,6 +2,7 @@ package cryptoutils
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/cipher"
 	"crypto/elliptic"
 	"encoding/asn1"
@@ -217,50 +218,127 @@ func TestCryptCBC(t *testing.T) {
 
 }
 
-func TestCryptoHashByOid(t *testing.T) {
+func TestCryptoHashOidToAlgErr(t *testing.T) {
+	// No need to check whether `recover()` is nil. Just turn off the panic.
+	defer func() { _ = recover() }()
+
+	// NB error as we're using an OID which clearly doesn't map to a hash (i.e. EmailAddress)
+	_ = CryptoHashByOid(oid.OidEmailAddress, []byte{0x12, 0x34})
+
+	// Never reaches here if panic
+	t.Errorf("expected panic, but didn't get")
+}
+
+func TestCryptoHash(t *testing.T) {
+	/*
+	 * Performs combined testing for both 'CryptoHash' and 'CryptoHashByOid'
+	 */
+
 	// test vectors from:
 	//		https://www.febooti.com/products/filetweak/members/hash-and-crc/test-vectors/
 	testCases := []struct {
+		alg     crypto.Hash
 		algOid  asn1.ObjectIdentifier
 		data    []byte
 		expHash []byte
 	}{
 		{
+			alg:     crypto.MD5,
 			algOid:  oid.OidHashAlgorithmMD5,
 			data:    []byte("The quick brown fox jumps over the lazy dog"),
 			expHash: utils.HexToBytes("9e107d9d372bb6826bd81d3542a419d6"),
 		},
 		{
+			alg:     crypto.SHA1,
 			algOid:  oid.OidHashAlgorithmSHA1,
 			data:    []byte("The quick brown fox jumps over the lazy dog"),
 			expHash: utils.HexToBytes("2fd4e1c67a2d28fced849ee1bb76e7391b93eb12"),
 		},
 		{
+			alg:     crypto.SHA256,
 			algOid:  oid.OidHashAlgorithmSHA256,
 			data:    []byte("The quick brown fox jumps over the lazy dog"),
 			expHash: utils.HexToBytes("d7a8fbb307d7809469ca9abcb0082e4f8d5651e46d3cdb762d02d0bf37c9e592"),
 		},
 		{
+			alg:     crypto.SHA384,
 			algOid:  oid.OidHashAlgorithmSHA384,
 			data:    []byte("The quick brown fox jumps over the lazy dog"),
 			expHash: utils.HexToBytes("ca737f1014a48f4c0b6dd43cb177b0afd9e5169367544c494011e3317dbf9a509cb1e5dc1e85a941bbee3d7f2afbc9b1"),
 		},
 		{
+			alg:     crypto.SHA512,
 			algOid:  oid.OidHashAlgorithmSHA512,
 			data:    []byte("The quick brown fox jumps over the lazy dog"),
 			expHash: utils.HexToBytes("07e547d9586f6a73f73fbac0435ed76951218fb7d0c8d788a309d785436bbb642e93a252a954f23912547d1e8a3b5ed6e1bfd7097821233fa0538f3db854fee6"),
 		},
 		{
+			alg:     crypto.SHA224,
 			algOid:  oid.OidHashAlgorithmSHA224,
 			data:    []byte("The quick brown fox jumps over the lazy dog"),
 			expHash: utils.HexToBytes("730e109bd7a8a32b1cb9d9a09aa2325d2430587ddbc0c38bad911525"),
 		},
 	}
 	for _, tc := range testCases {
-		actHash := CryptoHashByOid(tc.algOid, tc.data)
+		/*
+		* Test CryptoHash
+		 */
+		{
+			actHash := CryptoHash(tc.alg, tc.data)
 
-		if !bytes.Equal(tc.expHash, actHash) {
-			t.Errorf("CryptoHashByOid failed for OID:%s (Exp:%x) (Act:%x)", tc.algOid.String(), tc.expHash, actHash)
+			if !bytes.Equal(tc.expHash, actHash) {
+				t.Errorf("CryptoHash failed for Alg:%01d (Exp:%x) (Act:%x)", tc.alg, tc.expHash, actHash)
+			}
+		}
+
+		/*
+		* Test CryptoHashByOid
+		 */
+		{
+			actHash := CryptoHashByOid(tc.algOid, tc.data)
+
+			if !bytes.Equal(tc.expHash, actHash) {
+				t.Errorf("CryptoHashByOid failed for OID:%s (Exp:%x) (Act:%x)", tc.algOid.String(), tc.expHash, actHash)
+			}
+		}
+	}
+}
+
+func TestCryptoHashDigestSize(t *testing.T) {
+	testCases := []struct {
+		alg     crypto.Hash
+		expSize int
+	}{
+		{
+			alg:     crypto.MD5,
+			expSize: 16,
+		},
+		{
+			alg:     crypto.SHA1,
+			expSize: 20,
+		},
+		{
+			alg:     crypto.SHA256,
+			expSize: 32,
+		},
+		{
+			alg:     crypto.SHA384,
+			expSize: 48,
+		},
+		{
+			alg:     crypto.SHA512,
+			expSize: 64,
+		},
+		{
+			alg:     crypto.SHA224,
+			expSize: 28,
+		},
+	}
+	for _, tc := range testCases {
+		actSize := CryptoHashDigestSize(tc.alg)
+
+		if tc.expSize != actSize {
+			t.Errorf("TestCryptoHashDigestSize unexpected size (exp:%01d, act:%01d)", tc.expSize, actSize)
 		}
 	}
 }
@@ -388,5 +466,36 @@ func TestRsaDecryptWithPublicKey(t *testing.T) {
 		if !bytes.Equal(plaintext, tc.expPlaintext) {
 			t.Errorf("Decryption error (Exp:%x) (Act:%x)", tc.expPlaintext, plaintext)
 		}
+	}
+}
+
+func TestRsaDecryptWithPublicKeyErr(t *testing.T) {
+	// No need to check whether `recover()` is nil. Just turn off the panic.
+	defer func() { _ = recover() }()
+
+	var data []byte = []byte{}
+	var rsaPubKey RsaPublicKey = RsaPublicKey{E: 65537, N: new(big.Int).SetBytes(utils.HexToBytes("a5a5964e7b8e9d8c623bda63760d1406374026d81f21e34f6b06c6f47774d9df7a0e9d7979ba2c72d4eacc45d1a58a4c5fc20bad8ae23fdc4024c8e53a8acdc2b083ec55b63d44d557e048ed1b843cd2b99c147b350c6fb9b67fd02076bec134c785f4de58a1aa137196d6fb7eefd47a03f25996841345a4daab7754b047dab57e5786d54de5cde5faf553f44de67069f84c2c38e57d0fd13255c814629bafb2c8932ec8e7029d9ec59d640982f89545e30f22036e0bc58e3e8d4ac8e43c3429bdd9bd545ce6ad1045b28d839169060d93af72f59bbfa0687c8a90d12bad51481cc991df9855dd7aa8fa31250b39ab52563b211362f539a47c167ca496fcbd51"))}
+
+	// NB will fail due to zero-length data
+	_ = RsaDecryptWithPublicKey(data, rsaPubKey)
+
+	// Never reaches here if panic
+	t.Errorf("expected panic, but didn't get")
+}
+
+func TestEllipticP192WithEcDh(t *testing.T) {
+	/*
+	* performs a basic test on P192 by verifying the ECDH works
+	 */
+	var p192 elliptic.Curve = EllipticP192()
+
+	var keyPair1 EcKeypair = KeyGeneratorEc(p192)
+	var keyPair2 EcKeypair = KeyGeneratorEc(p192)
+
+	var ecPoint1 *EcPoint = DoEcDh(keyPair1.Pri, keyPair2.Pub, p192)
+	var ecPoint2 *EcPoint = DoEcDh(keyPair2.Pri, keyPair1.Pub, p192)
+
+	if !ecPoint1.Equal(*ecPoint2) {
+		t.Errorf("P192-with-ECDH EcPoint mismatch following ECDH (ecPoint1:%s, ecPoint2:%s)", ecPoint1.String(), ecPoint2.String())
 	}
 }
