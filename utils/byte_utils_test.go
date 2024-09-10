@@ -18,6 +18,69 @@ func TestXorBytes(t *testing.T) {
 	}
 }
 
+func TestXorBytesErr(t *testing.T) {
+	// No need to check whether `recover()` is nil. Just turn off the panic.
+	defer func() { _ = recover() }()
+
+	// NB cannot XOR when slices have different lengths
+	in1 := []byte{0x00, 0x00, 0xFF, 0xFF}
+	in2 := []byte{0x00, 0xFF, 0x00}
+
+	_ = XorBytes(in1, in2)
+
+	// Never reaches here if panic
+	t.Errorf("expected panic, but didn't get")
+}
+
+func TestVerifyByteLengthErr(t *testing.T) {
+	// No need to check whether `recover()` is nil. Just turn off the panic.
+	defer func() { _ = recover() }()
+
+	var bytes []byte = []byte{0x12, 0x34, 0x56}
+
+	// NB trigger panic by specifying +1 length requirement
+	VerifyByteLength(bytes, len(bytes)+1)
+
+	// Never reaches here if panic
+	t.Errorf("expected panic, but didn't get")
+}
+
+func TestHexToBytes(t *testing.T) {
+	testCases := []struct {
+		inp string
+		exp []byte
+	}{
+		{
+			inp: "123456",
+			exp: []byte{0x12, 0x34, 0x56},
+		},
+		{
+			inp: "1234567890abcdef",
+			exp: []byte{0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef},
+		},
+	}
+	for _, tc := range testCases {
+		act := HexToBytes(tc.inp)
+
+		if !bytes.Equal(tc.exp, act) {
+			t.Errorf("HexToBytes differs to expected (exp:%x, act:%x)", tc.exp, act)
+		}
+	}
+}
+
+func TestHexToBytesErr(t *testing.T) {
+	// No need to check whether `recover()` is nil. Just turn off the panic.
+	defer func() { _ = recover() }()
+
+	// NB will fail due to 'ZZ'
+	inp := "1234567890ABCDEFZZ1234"
+
+	_ = HexToBytes(inp)
+
+	// Never reaches here if panic
+	t.Errorf("expected panic, but didn't get")
+}
+
 func TestBytesToHex(t *testing.T) {
 	inp := []byte{0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF}
 	exp := "0123456789ABCDEF"

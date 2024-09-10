@@ -15,8 +15,7 @@ import (
 func ParseAsn1[T any](data []byte, isPartiallyParsed bool, out *T) (err error) {
 	rest, err := asn1.Unmarshal(data, out)
 	if err != nil {
-		return err
-		//		log.Panic(err)
+		return fmt.Errorf("(ParseAsn1) error: %w", err)
 	}
 
 	// TODO - isPartiallyParsed - seems opposite to comment?
@@ -29,7 +28,7 @@ func ParseAsn1[T any](data []byte, isPartiallyParsed bool, out *T) (err error) {
 
 func XorBytes(arr1 []byte, arr2 []byte) []byte {
 	if len(arr1) != len(arr2) {
-		log.Panic("Arrays must be the same length")
+		panic(fmt.Sprintf("Arrays must be the same length"))
 	}
 
 	out := make([]byte, len(arr1))
@@ -43,14 +42,14 @@ func XorBytes(arr1 []byte, arr2 []byte) []byte {
 
 func VerifyByteLength(data []byte, length int) {
 	if len(data) != length {
-		log.Panicf("Incorrect byte slice length (Exp:%d, Act:%d)", length, len(data))
+		panic(fmt.Sprintf("Incorrect byte slice length (Exp:%d, Act:%d)", length, len(data)))
 	}
 }
 
 func HexToBytes(str string) []byte {
 	out, err := hex.DecodeString(str)
 	if err != nil {
-		log.Panicf("Unable to convert Ascii-Hex to Bytes (Data:%s)", str)
+		panic(fmt.Sprintf("Unable to convert Ascii-Hex to Bytes (Data:%s)", str))
 	}
 	return out
 }
