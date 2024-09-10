@@ -3,7 +3,7 @@ package oid
 
 import (
 	"encoding/asn1"
-	"log"
+	"fmt"
 )
 
 // OIDs taken from:
@@ -248,7 +248,8 @@ func OidHasPrefix(oid asn1.ObjectIdentifier, prefixOid asn1.ObjectIdentifier) bo
 func OidBytes(oid asn1.ObjectIdentifier) []byte {
 	asn1bytes, err := asn1.Marshal(oid)
 	if err != nil {
-		log.Panicf("Unable to encode OID []int (%s)", err.Error())
+		// TODO - may want to replace log.panic calls with panic... otherwise it'll get logged during negative UTs
+		panic(fmt.Sprintf("Unable to encode OID []int (%s)", err.Error()))
 	}
 
 	// TODO (HACK) can't use TLV due to circular dep... just skip first 2 bytes (tag/len)
@@ -268,7 +269,7 @@ func DecodeAsn1objectId(data []byte) (oid asn1.ObjectIdentifier) {
 
 	// attempt to parse OID
 	if rest, err := asn1.Unmarshal(dataWithTag, &oid); len(rest) > 0 || err != nil {
-		log.Panicf("Error parsing ASN1 OID")
+		panic(fmt.Sprintf("Error parsing ASN1 OID"))
 	}
 
 	return oid
