@@ -207,6 +207,23 @@ func TestSelectPaceForConfig(t *testing.T) {
 	}
 }
 
+func TestDoPaceNoCardAccessFile(t *testing.T) {
+	var err error
+	var doc document.Document
+	var transceiver *iso7816.MockTransceiver = new(iso7816.MockTransceiver)
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(transceiver)
+	var password *password.Password = password.NewPasswordMrzi("T22000129", "640812", "101031")
+	var pace *Pace = NewPace()
+
+	err = pace.DoPACE(nfc, password, &doc)
+
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+
+	// TODO - verify that pace not performed
+}
+
 // PACE test for GM (ECDH) based on worked example in ICAO9303 p11 specs (Appendix G1)
 func TestDoPace_GM_ECDH(t *testing.T) {
 	var nfc *iso7816.NfcSession
