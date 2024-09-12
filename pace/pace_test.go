@@ -15,6 +15,90 @@ import (
 	"github.com/osanderson/brainpool"
 )
 
+func TestPaceConfigGetByOID(t *testing.T) {
+	// No need to check whether `recover()` is nil. Just turn off the panic.
+	defer func() { _ = recover() }()
+
+	// NB error as we're using an invalid OID
+	_ = paceConfigGetByOID(oid.OidBsiDe)
+
+	// Never reaches here if panic
+	t.Errorf("expected panic, but didn't get")
+}
+
+func TestGetStandardisedDomainParams(t *testing.T) {
+	testCases := []struct {
+		paramId int
+		bitSize int
+	}{
+		{
+			paramId: 9,
+			bitSize: 192,
+		},
+		{
+			paramId: 10,
+			bitSize: 224,
+		},
+		{
+			paramId: 11,
+			bitSize: 224,
+		},
+		{
+			paramId: 12,
+			bitSize: 256,
+		},
+		{
+			paramId: 13,
+			bitSize: 256,
+		},
+		{
+			paramId: 14,
+			bitSize: 320,
+		},
+		{
+			paramId: 15,
+			bitSize: 384,
+		},
+		{
+			paramId: 16,
+			bitSize: 384,
+		},
+		{
+			paramId: 17,
+			bitSize: 512,
+		},
+		{
+			paramId: 18,
+			bitSize: 521,
+		},
+	}
+	for _, tc := range testCases {
+		var domainParams *PACEDomainParams = getStandardisedDomainParams(tc.paramId)
+
+		if !domainParams.isECDH {
+			t.Errorf("Should be ECDH")
+		}
+
+		if domainParams.ec.Params().BitSize != tc.bitSize {
+			t.Errorf("Incorrect BitSize (ParamId:%d, Exp:%d, Act%d:)", tc.paramId, tc.bitSize, domainParams.ec.Params().BitSize)
+		}
+
+		// TODO - deeper testing.. including EC key?
+	}
+
+}
+
+func TestGetStandardisedDomainParamsErr(t *testing.T) {
+	// No need to check whether `recover()` is nil. Just turn off the panic.
+	defer func() { _ = recover() }()
+
+	// NB error as we're using an invalid paramId
+	_ = getStandardisedDomainParams(-1)
+
+	// Never reaches here if panic
+	t.Errorf("expected panic, but didn't get")
+}
+
 func TestDecryptNonce(t *testing.T) {
 
 	pace := paceConfigGetByOID(oid.OidPaceEcdhGmAesCbcCmac128)
@@ -387,66 +471,4 @@ func TestDoPace_CAM_ECDH_DE(t *testing.T) {
 	if doc.ChipAuthStatus != document.CHIP_AUTH_STATUS_PACE_CAM {
 		t.Errorf("ChipAuthStatus is not reflecting PACE-CAM")
 	}
-}
-
-func TestGetStandardisedDomainParams(t *testing.T) {
-	testCases := []struct {
-		paramId int
-		bitSize int
-	}{
-		{
-			paramId: 9,
-			bitSize: 192,
-		},
-		{
-			paramId: 10,
-			bitSize: 224,
-		},
-		{
-			paramId: 11,
-			bitSize: 224,
-		},
-		{
-			paramId: 12,
-			bitSize: 256,
-		},
-		{
-			paramId: 13,
-			bitSize: 256,
-		},
-		{
-			paramId: 14,
-			bitSize: 320,
-		},
-		{
-			paramId: 15,
-			bitSize: 384,
-		},
-		{
-			paramId: 16,
-			bitSize: 384,
-		},
-		{
-			paramId: 17,
-			bitSize: 512,
-		},
-		{
-			paramId: 18,
-			bitSize: 521,
-		},
-	}
-	for _, tc := range testCases {
-		var domainParams *PACEDomainParams = getStandardisedDomainParams(tc.paramId)
-
-		if !domainParams.isECDH {
-			t.Errorf("Should be ECDH")
-		}
-
-		if domainParams.ec.Params().BitSize != tc.bitSize {
-			t.Errorf("Incorrect BitSize (ParamId:%d, Exp:%d, Act%d:)", tc.paramId, tc.bitSize, domainParams.ec.Params().BitSize)
-		}
-
-		// TODO - deeper testing.. including EC key?
-	}
-
 }
