@@ -14,6 +14,45 @@ import (
 	"github.com/osanderson/brainpool"
 )
 
+func TestEcPointEqual(t *testing.T) {
+	testCases := []struct {
+		ecPoint1 EcPoint
+		ecPoint2 EcPoint
+		equals   bool
+	}{
+		{
+			ecPoint1: EcPoint{X: big.NewInt(12345), Y: big.NewInt(67890)},
+			ecPoint2: EcPoint{X: big.NewInt(12345), Y: big.NewInt(67890)},
+			equals:   true,
+		},
+		{
+			// X differs
+			ecPoint1: EcPoint{X: big.NewInt(12345), Y: big.NewInt(67890)},
+			ecPoint2: EcPoint{X: big.NewInt(12346), Y: big.NewInt(67890)},
+			equals:   false,
+		},
+		{
+			// Y differs
+			ecPoint1: EcPoint{X: big.NewInt(12345), Y: big.NewInt(67890)},
+			ecPoint2: EcPoint{X: big.NewInt(12345), Y: big.NewInt(67891)},
+			equals:   false,
+		},
+		{
+			// X+Y differs
+			ecPoint1: EcPoint{X: big.NewInt(12345), Y: big.NewInt(67890)},
+			ecPoint2: EcPoint{X: big.NewInt(12346), Y: big.NewInt(67891)},
+			equals:   false,
+		},
+	}
+	for _, tc := range testCases {
+		actEquals := tc.ecPoint1.Equal(tc.ecPoint2)
+
+		if actEquals != tc.equals {
+			t.Errorf("Unexpected EcPoint.Equal result (exp:%t, act:%t)", tc.equals, actEquals)
+		}
+	}
+}
+
 func TestTDesKey(t *testing.T) {
 	testCases := []struct {
 		keyIn  []byte
@@ -216,6 +255,58 @@ func TestCryptCBC(t *testing.T) {
 		}
 	}
 
+}
+
+func TestCryptCBCIVLengthErr(t *testing.T) {
+	// IV length must match the block size, which for TDES is 8 bytes
+	// - we trigger panic by providing a 7 byte IV instead
+
+	// No need to check whether `recover()` is nil. Just turn off the panic.
+	defer func() { _ = recover() }()
+
+	var tdesKey []byte = utils.HexToBytes("AB94FDECF2674FDFB9B391F85D7F76F2")
+
+	var err error
+	var cipher cipher.Block
+
+	cipher, err = GetCipherForKey(TDES, tdesKey)
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+
+	var iv []byte = utils.HexToBytes("0123456789abcd")
+	var data []byte = utils.HexToBytes("0000000000000000")
+
+	_ = CryptCBC(cipher, iv, data, true)
+
+	// Never reaches here if panic
+	t.Errorf("expected panic, but didn't get")
+}
+
+func TestCryptCBCDataLengthErr(t *testing.T) {
+	// data length must be an exact multiple of the block size, which for TDES is 8 bytes
+	// - we trigger panic by providing a 17 bytes of data
+
+	// No need to check whether `recover()` is nil. Just turn off the panic.
+	defer func() { _ = recover() }()
+
+	var tdesKey []byte = utils.HexToBytes("AB94FDECF2674FDFB9B391F85D7F76F2")
+
+	var err error
+	var cipher cipher.Block
+
+	cipher, err = GetCipherForKey(TDES, tdesKey)
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+
+	var iv []byte = utils.HexToBytes("0123456789abcdef")
+	var data []byte = utils.HexToBytes("0000000000000000000000000000000000")
+
+	_ = CryptCBC(cipher, iv, data, true)
+
+	// Never reaches here if panic
+	t.Errorf("expected panic, but didn't get")
 }
 
 func TestCryptoHashOidToAlgErr(t *testing.T) {

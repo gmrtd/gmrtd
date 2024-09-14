@@ -130,11 +130,11 @@ func tdesKey(key []byte) ([]byte, error) {
 func CryptCBC(blockCipher cipher.Block, iv []byte, data []byte, encrypt bool) []byte {
 	// check that the IV length matches the block-size
 	if len(iv) != blockCipher.BlockSize() {
-		log.Panicf("IV length must match block-size (Act:%d, Exp:%d)", len(iv), blockCipher.BlockSize())
+		panic(fmt.Sprintf("[CryptCBC] IV length must match block-size (Act:%d, Exp:%d)", len(iv), blockCipher.BlockSize()))
 	}
 	// check that data length is a multiple of the block-size
 	if len(data)%blockCipher.BlockSize() != 0 {
-		log.Panicf("Data must be a multiple of block-size (Data-len: %d) (Block-size: %d)", len(data), blockCipher.BlockSize())
+		panic(fmt.Sprintf("[CryptCBC] Data must be a multiple of block-size (Data-len: %d) (Block-size: %d)", len(data), blockCipher.BlockSize()))
 	}
 
 	out := make([]byte, len(data))
