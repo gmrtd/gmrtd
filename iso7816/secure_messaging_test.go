@@ -9,6 +9,64 @@ import (
 	"github.com/gmrtd/gmrtd/utils"
 )
 
+func TestEqual(t *testing.T) {
+	testCases := []struct {
+		sm1Alg   cryptoutils.BlockCipherAlg
+		sm1KsEnc []byte
+		sm1KsMac []byte
+		sm2Alg   cryptoutils.BlockCipherAlg
+		sm2KsEnc []byte
+		sm2KsMac []byte
+		equal    bool
+	}{
+		{
+			// equal
+			sm1Alg:   cryptoutils.TDES,
+			sm1KsEnc: utils.HexToBytes("979ec13b1cbfe9dcd01ab0fed307eae5"),
+			sm1KsMac: utils.HexToBytes("f1cb1f1fb5adf208806b89dc579dc1f8"),
+			sm2Alg:   cryptoutils.TDES,
+			sm2KsEnc: utils.HexToBytes("979ec13b1cbfe9dcd01ab0fed307eae5"),
+			sm2KsMac: utils.HexToBytes("f1cb1f1fb5adf208806b89dc579dc1f8"),
+			equal:    true,
+		},
+		{
+			// ksEnc mismatch
+			sm1Alg:   cryptoutils.TDES,
+			sm1KsEnc: utils.HexToBytes("979ec13b1cbfe9dcd01ab0fed307eae5"),
+			sm1KsMac: utils.HexToBytes("f1cb1f1fb5adf208806b89dc579dc1f8"),
+			sm2Alg:   cryptoutils.TDES,
+			sm2KsEnc: utils.HexToBytes("979ec13b1cbfe9dcd01ab0fed307eaea"), // different
+			sm2KsMac: utils.HexToBytes("f1cb1f1fb5adf208806b89dc579dc1f8"),
+			equal:    false,
+		},
+		{
+			// ksMac mismatch
+			sm1Alg:   cryptoutils.TDES,
+			sm1KsEnc: utils.HexToBytes("979ec13b1cbfe9dcd01ab0fed307eae5"),
+			sm1KsMac: utils.HexToBytes("f1cb1f1fb5adf208806b89dc579dc1f8"),
+			sm2Alg:   cryptoutils.TDES,
+			sm2KsEnc: utils.HexToBytes("979ec13b1cbfe9dcd01ab0fed307eae5"),
+			sm2KsMac: utils.HexToBytes("f1cb1f1fb5adf208806b89dc579dc1c1"), // different
+			equal:    false,
+		},
+	}
+	for _, tc := range testCases {
+		sm1, err := NewSecureMessaging(tc.sm1Alg, tc.sm1KsEnc, tc.sm1KsMac)
+		if err != nil {
+			t.Errorf("Unexpected error: %s", err)
+		}
+
+		sm2, err := NewSecureMessaging(tc.sm2Alg, tc.sm2KsEnc, tc.sm2KsMac)
+		if err != nil {
+			t.Errorf("Unexpected error: %s", err)
+		}
+
+		if sm1.Equal(*sm2) != tc.equal {
+			t.Errorf("SM.Equal unexpected result")
+		}
+	}
+}
+
 func TestNewSecureMessaginErrors(t *testing.T) {
 	testCases := []struct {
 		alg   cryptoutils.BlockCipherAlg
