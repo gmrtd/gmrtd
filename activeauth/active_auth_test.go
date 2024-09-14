@@ -109,6 +109,45 @@ func TestDoActiveAuth(t *testing.T) {
 
 }
 
+func TestDoActiveAuthChipStatusErr(t *testing.T) {
+	var doc document.Document
+
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(new(iso7816.MockTransceiver))
+
+	var activeAuth *ActiveAuth = NewActiveAuth()
+
+	// NB indicate ChipAuth performed elsewhere (CA) to skip AA
+	doc.ChipAuthStatus = document.CHIP_AUTH_STATUS_CA
+
+	err := activeAuth.DoActiveAuth(nfc, &doc)
+
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+
+	if doc.ChipAuthStatus != document.CHIP_AUTH_STATUS_CA {
+		t.Errorf("Unexpected Chip Auth status")
+	}
+}
+
+func TestDoActiveAuthMissingDg15Err(t *testing.T) {
+	var doc document.Document
+
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(new(iso7816.MockTransceiver))
+
+	var activeAuth *ActiveAuth = NewActiveAuth()
+
+	err := activeAuth.DoActiveAuth(nfc, &doc)
+
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+
+	if doc.ChipAuthStatus != document.CHIP_AUTH_STATUS_NONE {
+		t.Errorf("Unexpected Chip Auth status")
+	}
+}
+
 func TestDecodeF(t *testing.T) {
 	testCases := []struct {
 		rndIfd     []byte
