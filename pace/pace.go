@@ -253,7 +253,7 @@ func (paceConfig *PaceConfig) computeAuthToken(key []byte, data []byte) []byte {
 		// 3DES [FIPS 46-3] SHALL be used in Retail-mode according to [ISO/IEC 9797-1] MAC algorithm 3 / padding method 2 with block cipher DES and IV=0.
 
 		if paceConfig.cipher != cryptoutils.TDES {
-			log.Panicf("CBC Authentication Token is only supported for 3DES (ActCipherAlg:%d)", int(paceConfig.cipher))
+			panic(fmt.Sprintf("[computeAuthToken] CBC Authentication Token is only supported for 3DES (ActCipherAlg:%d)", int(paceConfig.cipher)))
 		}
 
 		var err error
@@ -261,7 +261,7 @@ func (paceConfig *PaceConfig) computeAuthToken(key []byte, data []byte) []byte {
 
 		authToken, err = cryptoutils.ISO9797RetailMacDes(key, cryptoutils.ISO9797Method2Pad(data, cryptoutils.DES_BLOCK_SIZE_BYTES))
 		if err != nil {
-			log.Panicf("Unable to generate Auth-Token (CBC): %s", err.Error())
+			panic(fmt.Sprintf("[computeAuthToken] Unable to generate Auth-Token (CBC): %s", err.Error()))
 		}
 
 		slog.Debug("computeAuthToken", "authToken(CBC)", utils.BytesToHex(authToken))
@@ -271,7 +271,7 @@ func (paceConfig *PaceConfig) computeAuthToken(key []byte, data []byte) []byte {
 		// AES [FIPS 197] SHALL be used in CMAC-mode [SP 800-38B] with a MAC length of 8 bytes.
 
 		if paceConfig.cipher != cryptoutils.AES {
-			log.Panicf("CMAC Authentication Token is only supported for AES (ActCipherAlg:%d)", int(paceConfig.cipher))
+			panic(fmt.Sprintf("[computeAuthToken] CMAC Authentication Token is only supported for AES (ActCipherAlg:%d)", int(paceConfig.cipher)))
 		}
 
 		var err error
@@ -279,19 +279,19 @@ func (paceConfig *PaceConfig) computeAuthToken(key []byte, data []byte) []byte {
 
 		cipher, err = cryptoutils.GetCipherForKey(paceConfig.cipher, key)
 		if err != nil {
-			log.Panicf("Unable to get cipher (%s)", err)
+			panic(fmt.Sprintf("[computeAuthToken] Unable to get cipher (%s)", err))
 		}
 
 		authToken, err := cmac.Sum(data, cipher, 8)
 		if err != nil {
-			log.Panicf("Unable to generate Auth-Token (CMAC): %s", err.Error())
+			panic(fmt.Sprintf("Unable to generate Auth-Token (CMAC): %s", err.Error()))
 		}
 
 		slog.Debug("computeAuthToken", "authToken(CMAC)", utils.BytesToHex(authToken))
 		return authToken
 	}
 
-	log.Panicf("Unsupported auth-token alg (%x)", paceConfig.authToken)
+	panic(fmt.Sprintf("Unsupported auth-token alg (%x)", paceConfig.authToken))
 
 	return nil
 }
