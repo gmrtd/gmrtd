@@ -114,6 +114,20 @@ func TestDecryptNonce(t *testing.T) {
 	}
 }
 
+func TestDecryptNonceKeyLengthErr(t *testing.T) {
+	// No need to check whether `recover()` is nil. Just turn off the panic.
+	defer func() { _ = recover() }()
+
+	pace := paceConfigGetByOID(oid.OidPaceEcdhGmAesCbcCmac128)
+	encryptedNonce := utils.HexToBytes("95A3A016522EE98D01E76CB6B98B42C3")
+	kKdf := utils.HexToBytes("89DED1B26624EC1E634C1989302849DD00") // 1 byte too long
+
+	_ = pace.decryptNonce(kKdf, encryptedNonce)
+
+	// Never reaches here if panic
+	t.Errorf("expected panic, but didn't get")
+}
+
 func TestDoGenericMappingEC(t *testing.T) {
 	domainParams := getStandardisedDomainParams(13) // 0x0D
 

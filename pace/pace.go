@@ -155,7 +155,7 @@ func paceConfigGetByOID(oid asn1.ObjectIdentifier) *PaceConfig {
 	out, ok := paceConfig[oid.String()]
 
 	if !ok {
-		log.Panicf("paceConfigGetByOID error - OID not found (oid: %s)", oid)
+		panic(fmt.Sprintf("[paceConfigGetByOID] unknown OID (%s)", oid))
 	}
 
 	return &out
@@ -210,7 +210,7 @@ func getStandardisedDomainParams(paramId int) *PACEDomainParams {
 		// NIST P-521 (secp521r1)
 		ret = &PACEDomainParams{id: paramId, isECDH: true, ec: elliptic.P521()}
 	default:
-		log.Panicf("PACE Standard Domain Parameter (paramId:%1d) NOT supported", paramId)
+		panic(fmt.Sprintf("[getStandardisedDomainParams] Unsupported paramId (%1d)", paramId))
 	}
 
 	return ret
@@ -221,7 +221,7 @@ func (paceConfig *PaceConfig) decryptNonce(key []byte, encryptedNonce []byte) []
 	var bcipher cipher.Block
 
 	if bcipher, err = cryptoutils.GetCipherForKey(paceConfig.cipher, key); err != nil {
-		log.Panicf("Unexpected error: %s", err)
+		panic(fmt.Sprintf("[decryptNonce] Unexpected error: %s", err))
 	}
 
 	iv := make([]byte, bcipher.BlockSize()) // 0'd IV
