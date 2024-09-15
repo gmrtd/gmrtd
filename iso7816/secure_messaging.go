@@ -5,7 +5,6 @@ import (
 	"crypto/cipher"
 	"encoding/binary"
 	"fmt"
-	"log"
 	"log/slog"
 	"math/big"
 
@@ -86,7 +85,7 @@ func NewSecureMessaging(alg cryptoutils.BlockCipherAlg, ksEnc []byte, ksMac []by
 
 func (sm *SecureMessaging) SetSSC(ssc []byte) {
 	if len(ssc) != len(sm.ssc) {
-		log.Panicf("SSC length mismatch (exp:%d, act:%d)", len(sm.ssc), len(ssc))
+		panic(fmt.Sprintf("[SetSSC] length mismatch (exp:%d, act:%d)", len(sm.ssc), len(ssc)))
 	}
 	copy(sm.ssc, ssc)
 	slog.Debug("SetSSC", "SSC", utils.BytesToHex(sm.ssc))

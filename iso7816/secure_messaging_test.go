@@ -67,7 +67,7 @@ func TestEqual(t *testing.T) {
 	}
 }
 
-func TestNewSecureMessaginErrors(t *testing.T) {
+func TestNewSecureMessagingErrors(t *testing.T) {
 	testCases := []struct {
 		alg   cryptoutils.BlockCipherAlg
 		ksEnc []byte
@@ -97,6 +97,30 @@ func TestNewSecureMessaginErrors(t *testing.T) {
 			t.Errorf("SM not expected")
 		}
 	}
+}
+
+func TestSetSSCLengthError(t *testing.T) {
+	// No need to check whether `recover()` is nil. Just turn off the panic.
+	defer func() { _ = recover() }()
+
+	// setup SM to a good starting point
+	var alg cryptoutils.BlockCipherAlg = cryptoutils.TDES
+	var ksEnc []byte = utils.HexToBytes("979ec13b1cbfe9dcd01ab0fed307eae5")
+	var ksMac []byte = utils.HexToBytes("f1cb1f1fb5adf208806b89dc579dc1f8")
+
+	sm, err := NewSecureMessaging(alg, ksEnc, ksMac)
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+
+	// NB we trigger error by trying to set an invalid SSC (i.e. 9 bytes instead of 8)
+	var badSSC []byte = utils.HexToBytes("000000000000000000") // 9 bytes!
+
+	// trigger the panic
+	sm.SetSSC(badSSC)
+
+	// Never reaches here if panic
+	t.Errorf("expected panic, but didn't get")
 }
 
 func TestSSCIncrement(t *testing.T) {
