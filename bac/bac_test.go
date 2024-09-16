@@ -66,7 +66,7 @@ func TestBuildRequest(t *testing.T) {
 	}
 }
 
-func TestBuildRequestKEncKeyErr(t *testing.T) {
+func TestBuildRequestKEncKeyLenErr(t *testing.T) {
 	// as per 'TestBuildRequest', BUT kEnc is changed to have wrong length (+1 byte)
 
 	kEnc := utils.HexToBytes("AB94FDECF2674FDFB9B391F85D7F76F200")
@@ -82,7 +82,7 @@ func TestBuildRequestKEncKeyErr(t *testing.T) {
 	}
 }
 
-func TestBuildRequestKMacKeyErr(t *testing.T) {
+func TestBuildRequestKMacKeyLenErr(t *testing.T) {
 	// as per 'TestBuildRequest', BUT kMac is changed to have wrong length (+1 byte)
 
 	kEnc := utils.HexToBytes("AB94FDECF2674FDFB9B391F85D7F76F2")
@@ -95,6 +95,129 @@ func TestBuildRequestKMacKeyErr(t *testing.T) {
 	_, err := NewBAC().buildRequest(rndIfd, rndIcc, kIfd, kEnc, kMac)
 	if err == nil {
 		t.Errorf("Expected error")
+	}
+}
+
+func TestProcessResponse(t *testing.T) {
+	kEnc := utils.HexToBytes("AB94FDECF2674FDFB9B391F85D7F76F2")
+	kMac := utils.HexToBytes("7962D9ECE03D1ACD4C76089DCE131543")
+
+	rndIcc := utils.HexToBytes("4608F91988702212")
+	rndIfd := utils.HexToBytes("781723860C06C226")
+
+	var rApduData []byte = utils.HexToBytes("46B9342A41396CD7386BF5803104D7CEDC122B9132139BAF2EEDC94EE178534F2F2D235D074D7449")
+
+	var expKIcc []byte = utils.HexToBytes("0b4f80323eb3191cb04970cb4052790b")
+
+	var bac *BAC = NewBAC()
+
+	actKIcc, err := bac.processResponse(rApduData, kEnc, kMac, rndIfd, rndIcc)
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+
+	if !bytes.Equal(actKIcc, expKIcc) {
+		t.Errorf("kIcc differs to expected (Exp:%x, Act:%x)", expKIcc, actKIcc)
+	}
+}
+
+func TestProcessResponseKMacKeyLenErr(t *testing.T) {
+	// as per 'TestProcessResponse', but with an invalid kMac key length (+1 byte)
+
+	kEnc := utils.HexToBytes("AB94FDECF2674FDFB9B391F85D7F76F2")
+	kMac := utils.HexToBytes("7962D9ECE03D1ACD4C76089DCE13154300")
+
+	rndIcc := utils.HexToBytes("4608F91988702212")
+	rndIfd := utils.HexToBytes("781723860C06C226")
+
+	var rApduData []byte = utils.HexToBytes("46B9342A41396CD7386BF5803104D7CEDC122B9132139BAF2EEDC94EE178534F2F2D235D074D7449")
+
+	var bac *BAC = NewBAC()
+
+	_, err := bac.processResponse(rApduData, kEnc, kMac, rndIfd, rndIcc)
+
+	if err == nil {
+		t.Errorf("Error expected")
+	}
+}
+
+func TestProcessResponseKMacKeyMismatchErr(t *testing.T) {
+	// as per 'TestProcessResponse', but with an slightly different kMac key to trigger Mac validation failure
+
+	kEnc := utils.HexToBytes("AB94FDECF2674FDFB9B391F85D7F76F2")
+	kMac := utils.HexToBytes("7962D9ECE03D1ACD4C76089DCE131515")
+
+	rndIcc := utils.HexToBytes("4608F91988702212")
+	rndIfd := utils.HexToBytes("781723860C06C226")
+
+	var rApduData []byte = utils.HexToBytes("46B9342A41396CD7386BF5803104D7CEDC122B9132139BAF2EEDC94EE178534F2F2D235D074D7449")
+
+	var bac *BAC = NewBAC()
+
+	_, err := bac.processResponse(rApduData, kEnc, kMac, rndIfd, rndIcc)
+
+	if err == nil {
+		t.Errorf("Error expected")
+	}
+}
+
+func TestProcessResponseKEncKeyLenErr(t *testing.T) {
+	// as per 'TestProcessResponse', but with an invalid kEnc key length (+1 byte)
+
+	kEnc := utils.HexToBytes("AB94FDECF2674FDFB9B391F85D7F76F200") // extra byte (00)
+	kMac := utils.HexToBytes("7962D9ECE03D1ACD4C76089DCE131543")
+
+	rndIcc := utils.HexToBytes("4608F91988702212")
+	rndIfd := utils.HexToBytes("781723860C06C226")
+
+	var rApduData []byte = utils.HexToBytes("46B9342A41396CD7386BF5803104D7CEDC122B9132139BAF2EEDC94EE178534F2F2D235D074D7449")
+
+	var bac *BAC = NewBAC()
+
+	_, err := bac.processResponse(rApduData, kEnc, kMac, rndIfd, rndIcc)
+
+	if err == nil {
+		t.Errorf("Error expected")
+	}
+}
+
+func TestProcessResponseRndIfcMismatchErr(t *testing.T) {
+	// as per 'TestProcessResponse', but with an different RndIfc
+
+	kEnc := utils.HexToBytes("AB94FDECF2674FDFB9B391F85D7F76F2")
+	kMac := utils.HexToBytes("7962D9ECE03D1ACD4C76089DCE131543")
+
+	rndIcc := utils.HexToBytes("4608F91988702212")
+	rndIfd := utils.HexToBytes("781723860C06C2FF") // last byte 26->FF
+
+	var rApduData []byte = utils.HexToBytes("46B9342A41396CD7386BF5803104D7CEDC122B9132139BAF2EEDC94EE178534F2F2D235D074D7449")
+
+	var bac *BAC = NewBAC()
+
+	_, err := bac.processResponse(rApduData, kEnc, kMac, rndIfd, rndIcc)
+
+	if err == nil {
+		t.Errorf("Error expected")
+	}
+}
+
+func TestProcessResponseRndIccMismatchErr(t *testing.T) {
+	// as per 'TestProcessResponse', but with an different RndIcc
+
+	kEnc := utils.HexToBytes("AB94FDECF2674FDFB9B391F85D7F76F2")
+	kMac := utils.HexToBytes("7962D9ECE03D1ACD4C76089DCE131543")
+
+	rndIcc := utils.HexToBytes("4608F91988702200") // last byte 12->00
+	rndIfd := utils.HexToBytes("781723860C06C226")
+
+	var rApduData []byte = utils.HexToBytes("46B9342A41396CD7386BF5803104D7CEDC122B9132139BAF2EEDC94EE178534F2F2D235D074D7449")
+
+	var bac *BAC = NewBAC()
+
+	_, err := bac.processResponse(rApduData, kEnc, kMac, rndIfd, rndIcc)
+
+	if err == nil {
+		t.Errorf("Error expected")
 	}
 }
 
