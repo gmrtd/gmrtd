@@ -61,7 +61,7 @@ func ParseName(name string) MrzName {
 func encodeValue(value string, minLength int, maxLength int) string {
 	// sanity check that maxLength >= minLength (where specified)
 	if minLength != -1 && maxLength != -1 && maxLength < minLength {
-		log.Panicf("Incorrect min/max values")
+		panic(fmt.Sprintf("[encodeValue] Incorrect min/max values (min:%d, max:%d)", minLength, maxLength))
 	}
 
 	out := strings.ReplaceAll(value, " ", "<")
@@ -96,7 +96,6 @@ func MrzDecode(mrz string) (*MRZ, error) {
 		return decodeTD2(mrz)
 	case MRZLengthTD3:
 		return decodeTD3(mrz)
-		//	default:
 	}
 
 	return nil, fmt.Errorf("unsupported MRZ length (length:%d)", len(mrz))

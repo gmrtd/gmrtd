@@ -5,6 +5,57 @@ import (
 	"testing"
 )
 
+func TestEncodeValueBadParamsErr(t *testing.T) {
+	// No need to check whether `recover()` is nil. Just turn off the panic.
+	defer func() { _ = recover() }()
+
+	// NB bad parameters where min-len > max-len (i.e. 5 > 3)
+	encodeValue("Test", 5, 3)
+
+	// Never reaches here if panic
+	t.Errorf("expected panic, but didn't get")
+}
+
+func TestEncodeValueTruncateOk(t *testing.T) {
+	var minLen int = 0
+	var maxLen int = 41
+	var value string = "This string is too long and will be truncated"
+	var expValue string = "This<string<is<too<long<and<will<be<trunc"
+
+	// NB bad parameters where min-len > max-len (i.e. 5 > 3)
+	actValue := encodeValue(value, minLen, maxLen)
+
+	if actValue != expValue {
+		t.Errorf("encodeValue differs to expected (Exp:%s) (Act:%s)", expValue, actValue)
+	}
+}
+
+func TestEncodeValueRightPadOk(t *testing.T) {
+	var minLen int = 50
+	var maxLen int = -1
+	var value string = "This string is too long and will be right padded"
+	var expValue string = "This<string<is<too<long<and<will<be<right<padded<<"
+
+	// NB bad parameters where min-len > max-len (i.e. 5 > 3)
+	actValue := encodeValue(value, minLen, maxLen)
+
+	if actValue != expValue {
+		t.Errorf("encodeValue differs to expected (Exp:%s) (Act:%s)", expValue, actValue)
+	}
+}
+
+func TestMrzDecodeBadLengthErr(t *testing.T) {
+	// NB valid MRZ has length of: 72/88/90
+	//    so this is clearly invalid
+	var badMrz = "BadMrz"
+
+	_, err := MrzDecode(badMrz)
+
+	if err == nil {
+		t.Errorf("Error expected")
+	}
+}
+
 func TestCalcCheckdigit(t *testing.T) {
 	testCases := []struct {
 		data          string
