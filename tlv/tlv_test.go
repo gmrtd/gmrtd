@@ -282,3 +282,26 @@ func TestTlvNilNode(t *testing.T) {
 		t.Errorf("Expected empty String()")
 	}
 }
+
+func TestGetNodeByOccurBadOccurErr(t *testing.T) {
+	defer func() { _ = recover() }()
+
+	nodes := NewTlvNodes()
+
+	// force an error by using an invalid occur (i.e. 0)
+	_ = nodes.GetNodeByOccur(0x12, 0)
+
+	// Never reaches here if panic
+	t.Errorf("expected panic, but didn't get")
+}
+
+func TestTlvGetLengthBadLengthErr(t *testing.T) {
+	defer func() { _ = recover() }()
+
+	var buf *bytes.Buffer = bytes.NewBuffer(utils.HexToBytes("85000000000199"))
+
+	_ = TlvGetLength(buf)
+
+	// Never reaches here if panic
+	t.Errorf("expected panic, but didn't get")
+}

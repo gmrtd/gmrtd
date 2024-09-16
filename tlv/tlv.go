@@ -179,7 +179,7 @@ func (nodes TlvNodes) GetNode(tag TlvTag) TlvNode {
 // occurrence: 1-n
 func (nodes TlvNodes) GetNodeByOccur(tag TlvTag, occurrence int) TlvNode {
 	if occurrence < 1 {
-		log.Panicf("occurrence must be 1..n")
+		panic(fmt.Sprintf("[GetNodeByOccur] occurrence must be 1..n"))
 	}
 
 	curOccurrence := 0
@@ -389,7 +389,7 @@ func TlvGetLength(buf *bytes.Buffer) (length int) {
 		copy(uint32bytes[4-byteLen:], bytes)
 		length = int(binary.BigEndian.Uint32(uint32bytes))
 	} else {
-		log.Panicf("Unsupported length (b1:%02x) (remBytes:%x)", b1, buf.Bytes())
+		panic(fmt.Sprintf("[TlvGetLength] Unsupported length (b1:%02x) (remBytes:%x)", b1, buf.Bytes()))
 	}
 
 	return length
