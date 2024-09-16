@@ -118,7 +118,7 @@ func calcCheckdigit(data string) int {
 		} else if (c == '<') || (c == ' ') {
 			tmpValue = 0
 		} else {
-			log.Panicf("Invalid character (%c) for check-digit calculation", c)
+			panic(fmt.Sprintf("[calcCheckdigit] Invalid character (%c) for check-digit calculation", c))
 		}
 
 		tmpValue *= int(weights[i%len(weights)])

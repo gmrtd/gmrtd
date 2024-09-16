@@ -85,6 +85,18 @@ func TestCalcCheckdigit(t *testing.T) {
 	}
 }
 
+func TestCalcCheckdigitBadCharErr(t *testing.T) {
+	// No need to check whether `recover()` is nil. Just turn off the panic.
+	defer func() { _ = recover() }()
+
+	var badData string = "HA672242<658022549601086?<<<<<<"
+
+	_ = calcCheckdigit(badData)
+
+	// Never reaches here if panic
+	t.Errorf("expected panic, but didn't get")
+}
+
 func TestMrzDecode(t *testing.T) {
 	testCases := []struct {
 		data string
