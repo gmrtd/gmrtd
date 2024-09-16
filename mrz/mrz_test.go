@@ -5,6 +5,43 @@ import (
 	"testing"
 )
 
+func TestParseName(t *testing.T) {
+	testCases := []struct {
+		input   string
+		expName MrzName
+	}{
+		{
+			input:   "Primary  Secondary",
+			expName: MrzName{Primary: "Primary", Secondary: "Secondary"},
+		},
+		{
+			input:   "Primary name only",
+			expName: MrzName{Primary: "Primary name only", Secondary: ""},
+		},
+	}
+	for _, tc := range testCases {
+		actName := ParseName(tc.input)
+
+		if actName.Primary != tc.expName.Primary {
+			t.Errorf("Primary name differs to expected (exp:%s) (act:%s)", tc.expName.Primary, actName.Primary)
+		}
+
+		if actName.Secondary != tc.expName.Secondary {
+			t.Errorf("Secondary name differs to expected (exp:%s) (act:%s)", tc.expName.Secondary, actName.Secondary)
+		}
+	}
+}
+
+func TestParseNameTooManyComponentsErr(t *testing.T) {
+	// No need to check whether `recover()` is nil. Just turn off the panic.
+	defer func() { _ = recover() }()
+
+	_ = ParseName("Invalid name  with  three components")
+
+	// Never reaches here if panic
+	t.Errorf("expected panic, but didn't get")
+}
+
 func TestEncodeValueBadParamsErr(t *testing.T) {
 	// No need to check whether `recover()` is nil. Just turn off the panic.
 	defer func() { _ = recover() }()
@@ -92,6 +129,33 @@ func TestCalcCheckdigitBadCharErr(t *testing.T) {
 	var badData string = "HA672242<658022549601086?<<<<<<"
 
 	_ = calcCheckdigit(badData)
+
+	// Never reaches here if panic
+	t.Errorf("expected panic, but didn't get")
+}
+
+func TestVerifyCheckdigitEmptyWithoutCheckDigitOk(t *testing.T) {
+	// special handling for case where the string is empty and the check-digit is not set
+	verifyCheckdigit("<<<<<<<<", "<")
+}
+
+func TestVerifyCheckdigitAtoiErr(t *testing.T) {
+	// No need to check whether `recover()` is nil. Just turn off the panic.
+	defer func() { _ = recover() }()
+
+	// NB trigger Atoi error by passing non-integer value for the check-digit
+	verifyCheckdigit("123456789", "A")
+
+	// Never reaches here if panic
+	t.Errorf("expected panic, but didn't get")
+}
+
+func TestVerifyCheckdigitErr(t *testing.T) {
+	// No need to check whether `recover()` is nil. Just turn off the panic.
+	defer func() { _ = recover() }()
+
+	// NB valid check-digit would be '7', so give '1' to trigger validation error
+	verifyCheckdigit("123456789", "1")
 
 	// Never reaches here if panic
 	t.Errorf("expected panic, but didn't get")

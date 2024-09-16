@@ -51,7 +51,7 @@ func ParseName(name string) MrzName {
 		out.Primary = strArr[0]
 		out.Secondary = strArr[1]
 	default:
-		log.Panicf("Incorrect number of name components: %d", len(strArr))
+		panic(fmt.Sprintf("[ParseName] Incorrect number of name components: %d", len(strArr)))
 	}
 
 	return out
@@ -140,11 +140,11 @@ func verifyCheckdigit(data string, checkDigit string) {
 	expCD := calcCheckdigit(data)
 	actCD, err := strconv.Atoi(checkDigit)
 	if err != nil {
-		log.Panicf("Atoi error (checkdigit:%s)", checkDigit)
+		panic(fmt.Sprintf("[verifyCheckdigit] Atoi error (checkdigit:%s)", checkDigit))
 	}
 
 	if expCD != actCD {
-		log.Panicf("MRZ Checkdigit mismatch (Exp:%d, Act:%d, Data:%s)", expCD, actCD, data)
+		panic(fmt.Sprintf("[verifyCheckdigit] Checkdigit mismatch (Exp:%d, Act:%d, Data:%s)", expCD, actCD, data))
 	}
 }
 
