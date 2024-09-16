@@ -67,7 +67,7 @@ func (node TlvNilNode) stringWithIndent(indent int) string {
 }
 
 func (node TlvNilNode) String() string {
-	return ""
+	return node.stringWithIndent(0)
 }
 
 func (node TlvSimpleNode) IsValidNode() bool {
