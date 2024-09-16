@@ -337,25 +337,14 @@ func encodePubicKeyTemplate7F49(paceOid []byte, tag86data []byte) []byte {
 }
 
 // TODO - should we make this (and others) a Pace method?
-func doApduMsgSetAT(nfc *iso7816.NfcSession, paceConfig *PaceConfig, passwordType password.PasswordType) (err error) {
+func doApduMsgSetAT(nfc *iso7816.NfcSession, paceConfig *PaceConfig, password *password.Password) (err error) {
 	slog.Debug("doApduMsgSetAT")
-
-	// manually convert value to reduce reliance on iota values!
-	var passwordTypeValue byte
-	switch passwordType {
-	case password.PASSWORD_TYPE_MRZi:
-		passwordTypeValue = 1
-	case password.PASSWORD_TYPE_CAN:
-		passwordTypeValue = 2
-	default:
-		return fmt.Errorf("unsupported PACE Password-Type (%x)", passwordType)
-	}
 
 	paceOidBytes := oid.OidBytes(paceConfig.oid)
 
 	nodes := tlv.NewTlvNodes()
 	nodes.AddNode(tlv.NewTlvSimpleNode(0x80, paceOidBytes))
-	nodes.AddNode(tlv.NewTlvSimpleNode(0x83, []byte{passwordTypeValue}))
+	nodes.AddNode(tlv.NewTlvSimpleNode(0x83, []byte{password.GetType()}))
 
 	// MSE:Set AT (0xC1A4: Set Authentication Template for mutual authentication)
 	err = nfc.MseSetAT(0xC1, 0xA4, nodes.Encode())
@@ -728,7 +717,7 @@ func (pace *Pace) DoPACE(nfc *iso7816.NfcSession, pass *password.Password, doc *
 
 	// init PACE (via 'MSE:Set AT' command)
 	// TODO - aren't there some cases where we need to specified the domain params? (i.e. multiple entries)
-	if err = doApduMsgSetAT(nfc, paceConfig, pass.PasswordType); err != nil {
+	if err = doApduMsgSetAT(nfc, paceConfig, pass); err != nil {
 		return err
 	}
 

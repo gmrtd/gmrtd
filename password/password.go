@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"crypto"
 	"fmt"
+	"log"
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
 	"github.com/gmrtd/gmrtd/mrz"
@@ -58,6 +59,22 @@ func NewPasswordCan(can string) *Password {
 	out.PasswordType = PASSWORD_TYPE_CAN
 	out.Password = can
 	return &out
+}
+
+func (password *Password) GetType() byte {
+	// manually convert value to reduce reliance on iota values!
+	var passwordTypeValue byte
+
+	switch password.PasswordType {
+	case PASSWORD_TYPE_MRZi:
+		passwordTypeValue = 1
+	case PASSWORD_TYPE_CAN:
+		passwordTypeValue = 2
+	default:
+		log.Panicf("unsupported PACE Password-Type (%x)", password.PasswordType)
+	}
+
+	return passwordTypeValue
 }
 
 func (password *Password) GetKey() []byte {

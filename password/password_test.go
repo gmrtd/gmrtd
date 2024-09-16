@@ -43,21 +43,30 @@ func TestNewPasswordCan(t *testing.T) {
 	}
 }
 
-func TestGetKey(t *testing.T) {
+func TestGetTypeAndKey(t *testing.T) {
 	testCases := []struct {
 		password *Password
+		expType  byte
 		expKey   []byte
 	}{
 		{
 			password: NewPasswordMrzi("123456789", "820101", "291225"),
+			expType:  1,
 			expKey:   utils.HexToBytes("0ec557e7048cc90d31ec67599524b297adc33082"),
 		},
 		{
 			password: NewPasswordCan("123456"),
+			expType:  2,
 			expKey:   []byte("123456"),
 		},
 	}
 	for _, tc := range testCases {
+		actType := tc.password.GetType()
+
+		if actType != tc.expType {
+			t.Errorf("Password Type differs to expected (exp:%d, act:%d)", tc.expType, actType)
+		}
+
 		actKey := tc.password.GetKey()
 
 		if !bytes.Equal(actKey, tc.expKey) {
