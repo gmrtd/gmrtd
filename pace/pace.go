@@ -26,7 +26,6 @@ package pace
 
 import (
 	"bytes"
-	"crypto"
 	"crypto/cipher"
 	"crypto/elliptic"
 	"encoding/asn1"
@@ -603,22 +602,7 @@ func (pace *Pace) doCamEcdh(nfc *iso7816.NfcSession, paceConfig *PaceConfig, dom
 }
 
 func getKeyForPassword(paceConfig *PaceConfig, pass *password.Password) []byte {
-	// generate K
-	var k []byte
-	switch pass.PasswordType {
-	case password.PASSWORD_TYPE_MRZi:
-		// k = SHA1(mrzi)
-		k = cryptoutils.CryptoHash(crypto.SHA1, []byte(pass.Password))
-	case password.PASSWORD_TYPE_CAN:
-		// k = CAN
-		// NB spec claims that CAN is ISO 8859-1 encoded (9303p11 s9.7.3 PACE)
-		//    - we're ignoring this as we don't expect extended characters
-		k = []byte(pass.Password)
-	default:
-		log.Panicf("Unsupported password-type (type:%d)", pass.PasswordType)
-	}
-
-	return cryptoutils.KDF(k, cryptoutils.KDF_COUNTER_PACE, paceConfig.cipher, paceConfig.keyLengthBits)
+	return cryptoutils.KDF(pass.GetKey(), cryptoutils.KDF_COUNTER_PACE, paceConfig.cipher, paceConfig.keyLengthBits)
 }
 
 func getNonce(nfc *iso7816.NfcSession, paceConfig *PaceConfig, kKdf []byte) []byte {

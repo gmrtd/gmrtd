@@ -3,7 +3,6 @@ package bac
 
 import (
 	"bytes"
-	"crypto"
 	"crypto/cipher"
 	"fmt"
 	"log/slog"
@@ -22,10 +21,13 @@ func NewBAC() *BAC {
 	return &BAC{randomBytesFn: cryptoutils.RandomBytes}
 }
 
-func (bac *BAC) generateKseed(MRZi string) []byte {
-	out := cryptoutils.CryptoHash(crypto.SHA1, []byte(MRZi))
-	out = out[0:16]
-	return out
+func (bac *BAC) generateKseed(password *password.Password) []byte {
+	tmpKey := password.GetKey()
+	return tmpKey[0:16]
+	// TODO - could we use 'getKeyForPassword' and then just take first 16 bytes?
+	//out := cryptoutils.CryptoHash(crypto.SHA1, []byte(MRZi))
+	//out = out[0:16]
+	//return out
 }
 
 // generates kEnc/kMac
@@ -156,7 +158,7 @@ func (bac *BAC) DoBAC(nfc *iso7816.NfcSession, pass *password.Password) (err err
 		return nil
 	}
 
-	kEnc, kMac := bac.generateKeys(bac.generateKseed(pass.Password))
+	kEnc, kMac := bac.generateKeys(bac.generateKseed(pass))
 
 	// request challenge (RND.IC) from the chip
 	var rndIcc []byte

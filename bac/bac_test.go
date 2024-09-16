@@ -17,11 +17,11 @@ func TestGenerateKseed(t *testing.T) {
 	// 4. Take the most significant 16 bytes to form the Kseed:
 	// Kseed = ‘239AB9CB282DAF66231DC5A4DF6BFBAE’
 
-	mrzi := "L898902C<369080619406236"
+	pass := password.NewPasswordMrzi("L898902C", "690806", "940623")
 
 	exp := utils.HexToBytes("239AB9CB282DAF66231DC5A4DF6BFBAE")
 
-	out := NewBAC().generateKseed(mrzi)
+	out := NewBAC().generateKseed(pass)
 
 	if !bytes.Equal(exp, out) {
 		t.Errorf("Kseed failed (Exp:%x) (Act:%x)", exp, out)
