@@ -66,6 +66,38 @@ func TestBuildRequest(t *testing.T) {
 	}
 }
 
+func TestBuildRequestKEncKeyErr(t *testing.T) {
+	// as per 'TestBuildRequest', BUT kEnc is changed to have wrong length (+1 byte)
+
+	kEnc := utils.HexToBytes("AB94FDECF2674FDFB9B391F85D7F76F200")
+	kMac := utils.HexToBytes("7962D9ECE03D1ACD4C76089DCE131543")
+
+	rndIcc := utils.HexToBytes("4608F91988702212")
+	rndIfd := utils.HexToBytes("781723860C06C226")
+	kIfd := utils.HexToBytes("0B795240CB7049B01C19B33E32804F0B")
+
+	_, err := NewBAC().buildRequest(rndIfd, rndIcc, kIfd, kEnc, kMac)
+	if err == nil {
+		t.Errorf("Expected error")
+	}
+}
+
+func TestBuildRequestKMacKeyErr(t *testing.T) {
+	// as per 'TestBuildRequest', BUT kMac is changed to have wrong length (+1 byte)
+
+	kEnc := utils.HexToBytes("AB94FDECF2674FDFB9B391F85D7F76F2")
+	kMac := utils.HexToBytes("7962D9ECE03D1ACD4C76089DCE13154300")
+
+	rndIcc := utils.HexToBytes("4608F91988702212")
+	rndIfd := utils.HexToBytes("781723860C06C226")
+	kIfd := utils.HexToBytes("0B795240CB7049B01C19B33E32804F0B")
+
+	_, err := NewBAC().buildRequest(rndIfd, rndIcc, kIfd, kEnc, kMac)
+	if err == nil {
+		t.Errorf("Expected error")
+	}
+}
+
 // BAC worked example, taken from ICAO9303 p11 (D.3 AUTHENTICATION AND ESTABLISHMENT OF SESSION KEY)
 func TestDoBAC(t *testing.T) {
 	var nfc *iso7816.NfcSession
