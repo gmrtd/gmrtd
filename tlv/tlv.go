@@ -242,6 +242,10 @@ func NewTlvSimpleNode(tag TlvTag, value []byte) *TlvSimpleNode {
 }
 
 func NewTlvConstructedNode(tag TlvTag) *TlvConstructedNode {
+	if !TlvIsConstructedTag(tag) {
+		panic(fmt.Sprintf("[NewTlvConstructedNode] Cannot create using a non-constructed tag (%02x)", tag))
+	}
+
 	return &TlvConstructedNode{Tag: tag}
 }
 
