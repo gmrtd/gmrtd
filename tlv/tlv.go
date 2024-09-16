@@ -417,7 +417,7 @@ func TlvEncodeLength(length int) []byte {
 		out = append(out, byte(0x80+len(significantBytes)))
 		out = append(out, significantBytes...)
 	} else {
-		log.Panicf("Unsupported length (%d)", length)
+		panic(fmt.Sprintf("[TlvEncodeLength] Unsupported length (%d)", length))
 	}
 
 	return out

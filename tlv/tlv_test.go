@@ -306,6 +306,16 @@ func TestTlvGetLengthBadLengthErr(t *testing.T) {
 	t.Errorf("expected panic, but didn't get")
 }
 
+func TestTlvEncodeLengthBadLengthErr(t *testing.T) {
+	defer func() { _ = recover() }()
+
+	// trigger error by using length > 32-bits
+	_ = TlvEncodeLength(0x1ffffffff)
+
+	// Never reaches here if panic
+	t.Errorf("expected panic, but didn't get")
+}
+
 func TestNewTlvConstructedNodeBadTagErr(t *testing.T) {
 	defer func() { _ = recover() }()
 
