@@ -48,8 +48,14 @@ func (chipAuth *ChipAuth) DoChipAuth(nfc *iso7816.NfcSession, doc *document.Docu
 	if err != nil {
 		return err
 	} else if caInfo == nil || caAlgInfo == nil {
-		// cannot proceed with CA
-		return nil
+		// try to infer from any available CA key
+		caInfo, caAlgInfo, err = inferCAInfoFromKey(doc)
+		if err != nil {
+			return err
+		} else if caInfo == nil || caAlgInfo == nil {
+			// cannot proceed with CA
+			return nil
+		}
 	}
 
 	var caPubKeyInfo *document.ChipAuthenticationPublicKeyInfo
@@ -109,6 +115,38 @@ func selectCAInfo(doc *document.Document) (caInfo *document.ChipAuthenticationIn
 	}
 
 	return bestCaInfo, bestCaAlgInfo, nil
+}
+
+// infer the CA entry (based on available CA keys)
+// returns: nil (caAuthInfo/caAlgInfo) if none found, otherwise CA entry
+func inferCAInfoFromKey(doc *document.Document) (caInfo *document.ChipAuthenticationInfo, caAlgInfo *CaAlgorithmInfo, err error) {
+
+	/*
+	* Some passports (e.g. FR) are missing the ca-info, so we default to 3DES
+	 */
+
+	if len(doc.Mf.Lds1.Dg14.SecInfos.ChipAuthPubKeyInfos) > 0 {
+		// just go with the 1st key
+		var keyInfo *document.ChipAuthenticationPublicKeyInfo = &(doc.Mf.Lds1.Dg14.SecInfos.ChipAuthPubKeyInfos[0])
+
+		// process based on the type of key (DH/ECDH)
+		if keyInfo.Protocol.Equal(oid.OidPkDh) {
+			// DH
+			caInfo = &document.ChipAuthenticationInfo{Protocol: oid.OidCaDh3DesCbcCbc, Version: 1}
+		} else if keyInfo.Protocol.Equal(oid.OidPkEcdh) {
+			// ECDH
+			caInfo = &document.ChipAuthenticationInfo{Protocol: oid.OidCaEcdh3DesCbcCbc, Version: 1}
+		} else {
+			return nil, nil, fmt.Errorf("(inferCAInfoFromKey) unsupported key type (OID:%s)", keyInfo.Protocol.String())
+		}
+
+		caAlgInfo, err = getAlgInfo(caInfo.Protocol)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	return caInfo, caAlgInfo, nil
 }
 
 // selects the public key matching the target OID (i.e. oidPkDh / oidPkEcdh) as well as the 'KeyId' (if specified)
