@@ -2,7 +2,9 @@
 package document
 
 import (
+	"encoding/json"
 	"fmt"
+	"log"
 
 	"github.com/gmrtd/gmrtd/iso7816"
 )
@@ -149,4 +151,14 @@ func (doc *Document) NewDG(dg int, data []byte) (err error) {
 	}
 
 	return err
+}
+
+func (doc *Document) IndentedJson() string {
+
+	b, err := json.MarshalIndent(doc, "", "    ")
+	if err != nil {
+		log.Panicf("MarshalIndent error: %s", err)
+	}
+
+	return string(b)
 }
