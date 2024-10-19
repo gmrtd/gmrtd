@@ -248,7 +248,6 @@ func OidHasPrefix(oid asn1.ObjectIdentifier, prefixOid asn1.ObjectIdentifier) bo
 func OidBytes(oid asn1.ObjectIdentifier) []byte {
 	asn1bytes, err := asn1.Marshal(oid)
 	if err != nil {
-		// TODO - may want to replace log.panic calls with panic... otherwise it'll get logged during negative UTs
 		panic(fmt.Sprintf("Unable to encode OID []int (%s)", err.Error()))
 	}
 
