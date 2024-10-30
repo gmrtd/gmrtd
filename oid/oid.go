@@ -89,6 +89,7 @@ var (
 	OidSha384WithRSAEncryption          = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 12}
 	OidSha512WithRSAEncryption          = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 13}
 	OidSha224WithRSAEncryption          = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 14}
+	OidIdData                           = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 7, 1}
 	OidSignedData                       = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 7, 2}
 	OidEmailAddress                     = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 1}
 	OidContentType                      = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 3}
@@ -197,6 +198,7 @@ var OidLookup = map[string]string{
 	OidSha384WithRSAEncryption.String():          "sha384WithRSAEncryption",
 	OidSha512WithRSAEncryption.String():          "sha512WithRSAEncryption",
 	OidSha224WithRSAEncryption.String():          "sha224WithRSAEncryption",
+	OidIdData.String():                           "id-data",
 	OidSignedData.String():                       "id-signedData",
 	OidEmailAddress.String():                     "emailAddress",
 	OidContentType.String():                      "contentType",

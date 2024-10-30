@@ -1,6 +1,7 @@
 package document
 
 import (
+	"encoding/asn1"
 	"fmt"
 	"slices"
 
@@ -19,6 +20,17 @@ type SOD struct {
 	RawData           []byte
 	SD                *cms.SignedData
 	LdsSecurityObject *LDSSecurityObject
+}
+
+func IsValidEContentType(eContentOid asn1.ObjectIdentifier) bool {
+	if eContentOid.Equal(oid.OidLdsSecurityObject) {
+		return true
+	} else if eContentOid.Equal(oid.OidIdData) {
+		// observed on China passport
+		return true
+	}
+
+	return false
 }
 
 func NewSOD(data []byte) (*SOD, error) {
@@ -50,7 +62,7 @@ func NewSOD(data []byte) (*SOD, error) {
 		out.SD = sd
 
 		// verify the content-type is as expected
-		if !sd.SD2.Content.EContentType.Equal(oid.OidLdsSecurityObject) {
+		if !IsValidEContentType(sd.SD2.Content.EContentType) {
 			return nil, fmt.Errorf("incorrect ContentType (got:%s)", sd.SD2.Content.EContentType.String())
 		}
 		eContent := sd.SD2.Content.EContent
