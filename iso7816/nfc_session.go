@@ -134,7 +134,6 @@ func (nfc *NfcSession) SelectMF() (err error) {
 	}
 
 	if !rapdu.IsSuccess() {
-		// TODO - handle special case for china.. 6A81 ?
 		if rapdu.Status == RAPDU_SECURITY_CONDITION_NOT_SATIFIED {
 			// NB observed for NZ passport - silently tolerate
 			return nil
