@@ -283,6 +283,11 @@ func TestSelectMF(t *testing.T) {
 			expError:    false,
 		},
 		{
+			// happy - china passport returning 6A81
+			transceiver: &StaticTransceiver{utils.HexToBytes("6A81")},
+			expError:    false,
+		},
+		{
 			// unhappy - empty response
 			transceiver: &StaticTransceiver{nil},
 			expError:    true,
