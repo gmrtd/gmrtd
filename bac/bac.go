@@ -23,11 +23,8 @@ func NewBAC() *BAC {
 
 func (bac *BAC) generateKseed(password *password.Password) []byte {
 	tmpKey := password.GetKey()
+	// NB only use first 16 bytes
 	return tmpKey[0:16]
-	// TODO - could we use 'getKeyForPassword' and then just take first 16 bytes?
-	//out := cryptoutils.CryptoHash(crypto.SHA1, []byte(MRZi))
-	//out = out[0:16]
-	//return out
 }
 
 // generates kEnc/kMac
