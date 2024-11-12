@@ -334,7 +334,10 @@ func TestDoPaceNoCardAccessFile(t *testing.T) {
 		t.Errorf("Unexpected error: %s", err)
 	}
 
-	// TODO - verify that pace not performed
+	// verify that PACE was not performed (i.e. no secure-messaging)
+	if nfc.SM != nil {
+		t.Errorf("Secure-messaging not expected")
+	}
 }
 
 // PACE test for GM (ECDH) based on worked example in ICAO9303 p11 specs (Appendix G1)
