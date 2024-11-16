@@ -8,8 +8,6 @@ import (
 	"github.com/gmrtd/gmrtd/utils"
 )
 
-// TODO - review/remove commented out code
-
 func TestCscaCertPool(t *testing.T) {
 
 	certPool := CscaCertPool()
