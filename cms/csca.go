@@ -13,7 +13,7 @@ import (
 /*
 * Load the (DE) Master List
  */
-//go:embed master_list/DE_ML_2024-08-07-07-38-24.ml
+//go:embed master_list/DE_ML_2024-12-19-10-09-11.ml
 var masterList []byte
 
 type CscaMasterList struct {
