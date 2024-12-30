@@ -104,7 +104,6 @@ func (attributes AttributeList) GetSetOfAsnBytes() []byte {
 	}
 
 	// wrap with explicit 'SET OF' (0x31) tag
-	// TODO - can we use the native asn1 encoder to achieve this.. with tags to request explicit tag?
 	data = tlv.NewTlvSimpleNode(0x31, data).Encode()
 
 	return data
