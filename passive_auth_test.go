@@ -92,11 +92,11 @@ func TestPassiveAuth(t *testing.T) {
 			}
 		}
 
+		// perform passive authentication
+		// - throws error if verification fails
 		err = PassiveAuth(&doc)
 		if err != nil {
 			t.Errorf("Unexpected error: %s", err)
 		}
-
-		// TODO - verify passive auth results (i.e. trust chain - CSCA / DSC)
 	}
 }
