@@ -344,12 +344,6 @@ func TlvGetTag(buf *bytes.Buffer) TlvTag {
 			if (tmp & 0x80) == 0 {
 				break
 			}
-
-			if tag == 0x5fb0 {
-				// TODO - workaround for DG13 on SG passport with bad tag (5FB0) which gets interpreted as (5FB08201)
-				//		  and affects the parsing of the next tag.... double-check it's not our code
-				break
-			}
 		}
 	}
 
