@@ -81,7 +81,10 @@ func (details *PersonDetails) processTag(tag tlv.TlvTag, node tlv.TlvNode) {
 	switch tag {
 	case 0x5F0E:
 		details.NameOfHolder = mrz.ParseName(mrz.DecodeValue(string(node.GetNode(tag).GetValue())))
-	case 0x5F0f:
+	case 0x5F0F:
+		// TODO - not parsing for china... is it because we're expecting more complex encoding, as below....
+		//			- china just seems to be encoding this as a regular name field (i.e. 1 name)
+
 		// special handling as 'Other Names' are nested within tag A0 and there can be multiple instances
 		numOtherNames := utils.BytesToInt(node.GetNode(0xA0).GetNode(0x02).GetValue())
 		for occur := 1; occur <= numOtherNames; occur++ {
