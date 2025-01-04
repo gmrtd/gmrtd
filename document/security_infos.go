@@ -83,6 +83,7 @@ type PaceDomainParameterInfo struct {
 	ParameterId     *big.Int `asn1:"optional"` // nil if not present
 }
 
+// TODO - what is using this?
 type ActiveAuthenticationInfo struct {
 	Protocol           asn1.ObjectIdentifier
 	Version            int
