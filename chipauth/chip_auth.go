@@ -48,6 +48,8 @@ func (chipAuth *ChipAuth) DoChipAuth(nfc *iso7816.NfcSession, doc *document.Docu
 	if err != nil {
 		return err
 	} else if caInfo == nil || caAlgInfo == nil {
+		// TODO - log
+
 		// try to infer from any available CA key
 		caInfo, caAlgInfo, err = inferCAInfoFromKey(doc)
 		if err != nil {
@@ -114,12 +116,16 @@ func selectCAInfo(doc *document.Document) (caInfo *document.ChipAuthenticationIn
 		}
 	}
 
+	// TODO - log
+
 	return bestCaInfo, bestCaAlgInfo, nil
 }
 
 // infer the CA entry (based on available CA keys)
 // returns: nil (caAuthInfo/caAlgInfo) if none found, otherwise CA entry
 func inferCAInfoFromKey(doc *document.Document) (caInfo *document.ChipAuthenticationInfo, caAlgInfo *CaAlgorithmInfo, err error) {
+
+	// TODO - add logging
 
 	/*
 	* Some passports (e.g. FR) are missing the ca-info, so we default to 3DES
@@ -211,6 +217,7 @@ func (chipAuth *ChipAuth) doMseSetAT(nfc *iso7816.NfcSession, caInfo *document.C
 	slog.Debug("doCaECdh - doMseSetAT")
 
 	nodes := tlv.NewTlvNodes()
+
 	nodes.AddNode(tlv.NewTlvSimpleNode(0x80, oid.OidBytes(caInfo.Protocol)))
 	// specify key-id (if required)
 	if caInfo.KeyId != nil {
@@ -278,6 +285,9 @@ func (chipAuth *ChipAuth) doCaEcdh(nfc *iso7816.NfcSession, caInfo *document.Chi
 
 	// generate ephemeral key
 	var termKeypair cryptoutils.EcKeypair = chipAuth.keyGeneratorEc(*curve)
+
+	// TODO - still having issue with FR passport (T)
+	//			- may need to support the pure TDES flow, instead of the following
 
 	err = chipAuth.doMseSetAT(nfc, caInfo)
 	if err != nil {
