@@ -24,8 +24,10 @@ The following are sample documents that have been read:
 | Country<br/>(Type,Year) | PACE | Chip Authentication | Ext<br/>Len | LDS<br/>Ver |
 | --- | --- | --- | --- | --- |
 |🇦🇹 Austria<br/>(P,2023)|<sub>PACE-ECDH-GM-AES-CBC-CMAC-128<br/>brainpoolP256r1</sub>|<sub>CA-ECDH-AES-CBC-CMAC-128<br/>brainpoolP256r1</sub>|Yes|0107|
+|🇨🇦 Canada<br/>(PP,2023)|<sub>PACE-ECDH-GM-AES-CBC-CMAC-128<br/>secp384r1</sub>|<sub>CA-ECDH-AES-CBC-CMAC-128<br/>secp384r1</sub>|No|0108|
 |🇨🇳 China<br/>(PO,2018)|n/a (BAC)|<sub>AA-rsaEncryption</sub>|No|0107|
-|🇫🇮 Finland<br/>(I,2023)|<sub>PACE-ECDH-GM-AES-CBC-CMAC-256<br/>brainpoolP384r1</sub>|<sub>PACE-ECDH-CAM-AES-CBC-CMAC-256<br/>brainpoolP384r1</sub>|?|0108|
+|🇫🇮 Finland<br/>(I,2023)|<sub>PACE-ECDH-GM-AES-CBC-CMAC-256<br/>brainpoolP384r1</sub>|<sub>PACE-ECDH-CAM-AES-CBC-CMAC-256<br/>brainpoolP384r1</sub>|Yes|0108|
+|🇫🇮 Finland<br/>(P,2024)|<sub>PACE-ECDH-GM-AES-CBC-CMAC-256<br/>brainpoolP384r1</sub>|<sub>PACE-ECDH-CAM-AES-CBC-CMAC-256<br/>brainpoolP384r1</sub>|Yes|0108|
 |🇫🇷 France<br/>(P,2017)|<sub>PACE-ECDH-GM-AES-CBC-CMAC-256<br/>secp256r1</sub>|<sub>(Issue #9)<br/>secp256t1</sub>|Yes|0107|
 |🇫🇷 France<br/>(ID,2024)|<sub>PACE-ECDH-GM-AES-CBC-CMAC-256<br/>brainpoolP256r1<br/>PACE-ECDH-IM-AES-CBC-CMAC-256<br/>brainpoolP256r1<br/>_(PACE-IM not supported)_</sub>|<sub>CA-ECDH-AES-CBC-CMAC-256<br/>brainpoolP256r1</sub>|Yes|0108|
 |🇩🇪 Germany<br/>(P,2023)|<sub>PACE-ECDH-GM-AES-CBC-CMAC-128<br/>brainpoolP256r1</sub>|<sub>PACE-ECDH-CAM-AES-CBC-CMAC-128<br/>brainpoolP256r1<br/>CA-ECDH-AES-CBC-CMAC-128<br/>brainpoolP256r1</sub>|Yes|0108|
