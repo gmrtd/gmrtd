@@ -2,6 +2,7 @@ package document
 
 import (
 	"encoding/asn1"
+	"log"
 	"log/slog"
 	"math/big"
 
@@ -144,7 +145,6 @@ func DecodeSecurityInfos(secInfoData []byte) (secInfos *SecurityInfos, err error
 	secInfos = &SecurityInfos{}
 
 	// TODO - inspect data and check.. e.g. expected OIDs / version / ...
-	//			e.g. paceInfo version should be 1
 	//			e.g. ActiveAuthenticationInfo Version must be 1
 
 	// process each record, based on the record-type (derived from OID)
@@ -160,6 +160,12 @@ func DecodeSecurityInfos(secInfoData []byte) (secInfos *SecurityInfos, err error
 			if err != nil {
 				return nil, err
 			}
+
+			// validation
+			if paceInfo.Version != 2 {
+				log.Panicf("PaceInfo version must be 2 (Version:%d)", paceInfo.Version)
+			}
+
 			secInfos.PaceInfos = append(secInfos.PaceInfos, paceInfo)
 		} else if isPACEDomainParameterInfo(oid) {
 			var paceDomainParamInfo PaceDomainParameterInfo

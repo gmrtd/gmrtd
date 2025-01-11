@@ -625,11 +625,6 @@ func selectPaceConfig(cardAccess *document.CardAccess) (paceConfig *PaceConfig, 
 		for i := range paceInfos {
 			slog.Debug("selectPaceConfig", "paceInfo", paceInfos[i])
 
-			// TODO - this should really be checked during decode
-			if paceInfos[i].Version != 2 {
-				log.Panicf("PaceInfo version must be 2 (Version:%d)", paceInfos[i].Version)
-			}
-
 			if selPaceInfo == nil {
 				selPaceInfo = &paceInfos[i]
 				paceConfig = paceConfigGetByOID(selPaceInfo.Protocol)
