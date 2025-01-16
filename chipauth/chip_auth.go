@@ -48,16 +48,17 @@ func (chipAuth *ChipAuth) DoChipAuth(nfc *iso7816.NfcSession, doc *document.Docu
 	if err != nil {
 		return err
 	} else if caInfo == nil || caAlgInfo == nil {
-		// TODO - log
-
 		// try to infer from any available CA key
 		caInfo, caAlgInfo, err = inferCAInfoFromKey(doc)
 		if err != nil {
 			return err
-		} else if caInfo == nil || caAlgInfo == nil {
-			// cannot proceed with CA
-			return nil
 		}
+	}
+
+	if caInfo == nil || caAlgInfo == nil {
+		// cannot proceed with CA
+		slog.Info("DoChipAuth - skipping")
+		return nil
 	}
 
 	var caPubKeyInfo *document.ChipAuthenticationPublicKeyInfo
@@ -93,6 +94,8 @@ func (chipAuth *ChipAuth) DoChipAuth(nfc *iso7816.NfcSession, doc *document.Docu
 // selects the 'preferred' CA entry (if any are present)
 // returns: nil (caAuthInfo/caAlgInfo) if none found, otherwise preferred CA entry
 func selectCAInfo(doc *document.Document) (caInfo *document.ChipAuthenticationInfo, caAlgInfo *CaAlgorithmInfo, err error) {
+	slog.Debug("selectCAInfo")
+
 	var bestCaInfo *document.ChipAuthenticationInfo
 	var bestCaAlgInfo *CaAlgorithmInfo
 
@@ -116,7 +119,7 @@ func selectCAInfo(doc *document.Document) (caInfo *document.ChipAuthenticationIn
 		}
 	}
 
-	// TODO - log
+	slog.Debug("selectCAInfo", "caInfo(best)", bestCaInfo, "caAlgInfo(best)", bestCaAlgInfo)
 
 	return bestCaInfo, bestCaAlgInfo, nil
 }
@@ -124,8 +127,7 @@ func selectCAInfo(doc *document.Document) (caInfo *document.ChipAuthenticationIn
 // infer the CA entry (based on available CA keys)
 // returns: nil (caAuthInfo/caAlgInfo) if none found, otherwise CA entry
 func inferCAInfoFromKey(doc *document.Document) (caInfo *document.ChipAuthenticationInfo, caAlgInfo *CaAlgorithmInfo, err error) {
-
-	// TODO - add logging
+	slog.Debug("inferCAInfoFromKey")
 
 	/*
 	* Some passports (e.g. FR) are missing the ca-info, so we default to 3DES
@@ -150,6 +152,8 @@ func inferCAInfoFromKey(doc *document.Document) (caInfo *document.ChipAuthentica
 		if err != nil {
 			return nil, nil, err
 		}
+	} else {
+		slog.Debug("inferCAInfoFromKey - skip due to lack of ChipAuthPubKeyInfos")
 	}
 
 	return caInfo, caAlgInfo, nil
