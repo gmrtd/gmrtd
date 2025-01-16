@@ -702,26 +702,27 @@ var ecLookupArr []elliptic.Curve = []elliptic.Curve{
 	brainpool.P512r1(),
 }
 
+// Technically we should support 'total' cryptographic agility and allow the MRTD to
+// dictate any DH/ECDH parameters of its choosing. However, it's more likely that MRTDs
+// are referencing well-known parameters instead of using random (and potentially unsafe)
+// settings, so we intentionally support a limited subset and will evaluate this over time.
+//
+// e.g. if OID = id-ecPublicKey
+//
+//	then get the curve (as here)
+//	and then get/set the public key
+//
+// SubjectPublicKeyInfo is specified in x509, but basically
+//
+//	algorithmIdentifier (OID=id-ecPublicKey, params=specifiedDomain)
+//	params? public key
+//
+//	SubjectPublicKeyInfo  ::=  SEQUENCE  {
+//	   algorithm            AlgorithmIdentifier,
+//	   subjectPublicKey     BIT STRING  }
 func (specDomain ECSpecifiedDomain) GetEcCurve() (*elliptic.Curve, error) {
-	//func GetECCurveForSpecifiedDomain(specDomain *ECSpecifiedDomain) (*elliptic.Curve, error) {
-	// Technically we should support 'total' cryptographic agility and allow the MRTD to
-	// dictate any DH/ECDH parameters of its choosing. However, it's more likely that MRTDs
-	// are referencing well-known parameters instead of using random (and potentially unsafe)
-	// settings, so we intentionally support a limited subset and will evaluate this over time.
-	//
-	// e.g. if OID = id-ecPublicKey
-	//		then get the curve (as here)
-	//		and then get/set the public key
-	//
-	// SubjectPublicKeyInfo is specified in x509, but basically
-	//	algorithmIdentifier (OID=id-ecPublicKey, params=specifiedDomain)
-	//	params? public key
-	//
-	// SubjectPublicKeyInfo  ::=  SEQUENCE  {
-	//    algorithm            AlgorithmIdentifier,
-	//    subjectPublicKey     BIT STRING  }
 
-	slog.Debug("getECCurveForSpecifiedDomain", "Params", utils.BytesToHex(specDomain.FieldId.Parameters.Bytes))
+	slog.Debug("GetEcCurve", "Params", utils.BytesToHex(specDomain.FieldId.Parameters.Bytes))
 
 	// look for matching 'standard' curve
 	// NB we currently expect the use of standard curve, we may need to support custom curves in the future (but hopefully not)
@@ -732,7 +733,7 @@ func (specDomain ECSpecifiedDomain) GetEcCurve() (*elliptic.Curve, error) {
 		// NB normally we skip the 1st byte when matching, but sometimes we do an exact match (e.g. EC521 in DE-master-list cert #361)
 		if slices.Equal(ec.Params().P.Bytes(), specDomain.FieldId.Parameters.Bytes[1:]) || // skip 1st byte
 			slices.Equal(ec.Params().P.Bytes(), specDomain.FieldId.Parameters.Bytes[0:]) { // don't skip 1st byte
-			// TODO - may want to log the selected curve
+			slog.Debug("GetEcCurve - found curve", "i", i)
 			return &ec, nil
 		}
 	}
