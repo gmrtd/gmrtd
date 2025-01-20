@@ -452,9 +452,6 @@ func VerifySignature(pubKeyInfo []byte, digestAlg asn1.ObjectIdentifier, digest 
 		oid.OidEcdsaWithSHA384.String(),
 		oid.OidEcdsaWithSHA512.String():
 		{
-			// TODO - could check that sig-hash(derived-from-oid) matches original hash (or 'digest' size)
-			//			- need to pass in digestAlg for PSS.. so could verify sig-alg is compatible
-
 			var pub *ecdsa.PublicKey
 			{
 				var subPubKeyInfo SubjectPublicKeyInfo = Asn1decodeSubjectPublicKeyInfo(pubKeyInfo)
