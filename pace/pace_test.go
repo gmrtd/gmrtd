@@ -135,7 +135,7 @@ func TestComputeAuthTokenCbcAesErr(t *testing.T) {
 	defer func() { _ = recover() }()
 
 	// start with a valid pace-config
-	var paceConfig PaceConfig = PaceConfig{oid.OidPaceDhGm3DesCbcCbc, GM, cryptoutils.TDES, 112, CBC_CBC, CBC, 200}
+	var paceConfig PaceConfig = PaceConfig{oid.OidPaceDhGm3DesCbcCbc, GM, cryptoutils.TDES, 112, CBC, 200}
 
 	// modify to have an invalid cipher
 	paceConfig.cipher = cryptoutils.AES
@@ -156,7 +156,7 @@ func TestComputeAuthTokenCbcTDesKeyErr(t *testing.T) {
 	defer func() { _ = recover() }()
 
 	// start with a valid pace-config
-	var paceConfig PaceConfig = PaceConfig{oid.OidPaceDhGm3DesCbcCbc, GM, cryptoutils.TDES, 112, CBC_CBC, CBC, 200}
+	var paceConfig PaceConfig = PaceConfig{oid.OidPaceDhGm3DesCbcCbc, GM, cryptoutils.TDES, 112, CBC, 200}
 
 	var key []byte = utils.HexToBytes("AB94FDECF2674FDFB9B391F85D7F76F200") // 1 extra byte
 	var data []byte = utils.HexToBytes("0000000000000000000000000000000000000000000000000000000000000000")
@@ -174,7 +174,7 @@ func TestComputeAuthTokenCmacTDesErr(t *testing.T) {
 	defer func() { _ = recover() }()
 
 	// start with a valid pace-config
-	var paceConfig PaceConfig = PaceConfig{oid.OidPaceDhGmAesCbcCmac256, GM, cryptoutils.AES, 256, CBC_CMAC, CMAC, 203}
+	var paceConfig PaceConfig = PaceConfig{oid.OidPaceDhGmAesCbcCmac256, GM, cryptoutils.AES, 256, CMAC, 203}
 
 	// modify to have an invalid cipher
 	paceConfig.cipher = cryptoutils.TDES
@@ -195,7 +195,7 @@ func TestComputeAuthTokenCmacAesKeyErr(t *testing.T) {
 	defer func() { _ = recover() }()
 
 	// start with a valid pace-config
-	var paceConfig PaceConfig = PaceConfig{oid.OidPaceDhGmAesCbcCmac256, GM, cryptoutils.AES, 256, CBC_CMAC, CMAC, 203}
+	var paceConfig PaceConfig = PaceConfig{oid.OidPaceDhGmAesCbcCmac256, GM, cryptoutils.AES, 256, CMAC, 203}
 
 	var key []byte = utils.HexToBytes("000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F00") // 1 extra byte
 	var data []byte = utils.HexToBytes("0000000000000000000000000000000000000000000000000000000000000000")
@@ -213,7 +213,7 @@ func TestComputeAuthTokenATErr(t *testing.T) {
 	defer func() { _ = recover() }()
 
 	// start with a valid pace-config
-	var paceConfig PaceConfig = PaceConfig{oid.OidPaceDhGm3DesCbcCbc, GM, cryptoutils.TDES, 112, CBC_CBC, CBC, 200}
+	var paceConfig PaceConfig = PaceConfig{oid.OidPaceDhGm3DesCbcCbc, GM, cryptoutils.TDES, 112, CBC, 200}
 
 	// modify to have an invalid auth-token
 	paceConfig.authToken = 255 // invalid

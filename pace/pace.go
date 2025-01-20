@@ -66,11 +66,6 @@ const (
 
 type PACESeccureMessaging int
 
-const (
-	CBC_CBC PACESeccureMessaging = iota
-	CBC_CMAC
-)
-
 type PACEAuthToken int
 
 const (
@@ -78,19 +73,19 @@ const (
 	CMAC
 )
 
+// NB secure-messaging is currently inferred from 'cipher'
 type PaceConfig struct {
-	oid              asn1.ObjectIdentifier
-	mapping          PACEMapping
-	cipher           cryptoutils.BlockCipherAlg
-	keyLengthBits    int
-	ZsecureMessaging PACESeccureMessaging // TODO - not even used in code..
-	authToken        PACEAuthToken
-	weighting        int
+	oid           asn1.ObjectIdentifier
+	mapping       PACEMapping
+	cipher        cryptoutils.BlockCipherAlg
+	keyLengthBits int
+	authToken     PACEAuthToken
+	weighting     int
 }
 
 func (cfg *PaceConfig) String() string {
-	return fmt.Sprintf("(oid:%s, mapping:%d, cipher:%d, keyLenBits:%d, secureMessaging:%d, authToken:%d, weighting:%d)",
-		cfg.oid.String(), cfg.mapping, cfg.cipher, cfg.keyLengthBits, cfg.ZsecureMessaging, cfg.authToken, cfg.weighting)
+	return fmt.Sprintf("(oid:%s, mapping:%d, cipher:%d, keyLenBits:%d, authToken:%d, weighting:%d)",
+		cfg.oid.String(), cfg.mapping, cfg.cipher, cfg.keyLengthBits, cfg.authToken, cfg.weighting)
 }
 
 /*
@@ -119,29 +114,29 @@ func (cfg *PaceConfig) String() string {
 
 var paceConfig = map[string]PaceConfig{
 
-	oid.OidPaceDhGm3DesCbcCbc.String():    {oid.OidPaceDhGm3DesCbcCbc, GM, cryptoutils.TDES, 112, CBC_CBC, CBC, 200},
-	oid.OidPaceDhGmAesCbcCmac128.String(): {oid.OidPaceDhGmAesCbcCmac128, GM, cryptoutils.AES, 128, CBC_CMAC, CMAC, 201},
-	oid.OidPaceDhGmAesCbcCmac192.String(): {oid.OidPaceDhGmAesCbcCmac192, GM, cryptoutils.AES, 192, CBC_CMAC, CMAC, 202},
-	oid.OidPaceDhGmAesCbcCmac256.String(): {oid.OidPaceDhGmAesCbcCmac256, GM, cryptoutils.AES, 256, CBC_CMAC, CMAC, 203},
+	oid.OidPaceDhGm3DesCbcCbc.String():    {oid.OidPaceDhGm3DesCbcCbc, GM, cryptoutils.TDES, 112, CBC, 200},
+	oid.OidPaceDhGmAesCbcCmac128.String(): {oid.OidPaceDhGmAesCbcCmac128, GM, cryptoutils.AES, 128, CMAC, 201},
+	oid.OidPaceDhGmAesCbcCmac192.String(): {oid.OidPaceDhGmAesCbcCmac192, GM, cryptoutils.AES, 192, CMAC, 202},
+	oid.OidPaceDhGmAesCbcCmac256.String(): {oid.OidPaceDhGmAesCbcCmac256, GM, cryptoutils.AES, 256, CMAC, 203},
 
-	oid.OidPaceEcdhGm3DesCbcCbc.String():    {oid.OidPaceEcdhGm3DesCbcCbc, GM, cryptoutils.TDES, 112, CBC_CBC, CBC, 250},
-	oid.OidPaceEcdhGmAesCbcCmac128.String(): {oid.OidPaceEcdhGmAesCbcCmac128, GM, cryptoutils.AES, 128, CBC_CMAC, CMAC, 251},
-	oid.OidPaceEcdhGmAesCbcCmac192.String(): {oid.OidPaceEcdhGmAesCbcCmac192, GM, cryptoutils.AES, 192, CBC_CMAC, CMAC, 252},
-	oid.OidPaceEcdhGmAesCbcCmac256.String(): {oid.OidPaceEcdhGmAesCbcCmac256, GM, cryptoutils.AES, 256, CBC_CMAC, CMAC, 253},
+	oid.OidPaceEcdhGm3DesCbcCbc.String():    {oid.OidPaceEcdhGm3DesCbcCbc, GM, cryptoutils.TDES, 112, CBC, 250},
+	oid.OidPaceEcdhGmAesCbcCmac128.String(): {oid.OidPaceEcdhGmAesCbcCmac128, GM, cryptoutils.AES, 128, CMAC, 251},
+	oid.OidPaceEcdhGmAesCbcCmac192.String(): {oid.OidPaceEcdhGmAesCbcCmac192, GM, cryptoutils.AES, 192, CMAC, 252},
+	oid.OidPaceEcdhGmAesCbcCmac256.String(): {oid.OidPaceEcdhGmAesCbcCmac256, GM, cryptoutils.AES, 256, CMAC, 253},
 
-	oid.OidPaceDhIm3DesCbcCbc.String():    {oid.OidPaceDhIm3DesCbcCbc, IM, cryptoutils.TDES, 112, CBC_CBC, CBC, 100},
-	oid.OidPaceDhImAesCbcCmac128.String(): {oid.OidPaceDhImAesCbcCmac128, IM, cryptoutils.AES, 128, CBC_CMAC, CMAC, 101},
-	oid.OidPaceDhImAesCbcCmac192.String(): {oid.OidPaceDhImAesCbcCmac192, IM, cryptoutils.AES, 192, CBC_CMAC, CMAC, 102},
-	oid.OidPaceDhImAesCbcCmac256.String(): {oid.OidPaceDhImAesCbcCmac256, IM, cryptoutils.AES, 256, CBC_CMAC, CMAC, 103},
+	oid.OidPaceDhIm3DesCbcCbc.String():    {oid.OidPaceDhIm3DesCbcCbc, IM, cryptoutils.TDES, 112, CBC, 100},
+	oid.OidPaceDhImAesCbcCmac128.String(): {oid.OidPaceDhImAesCbcCmac128, IM, cryptoutils.AES, 128, CMAC, 101},
+	oid.OidPaceDhImAesCbcCmac192.String(): {oid.OidPaceDhImAesCbcCmac192, IM, cryptoutils.AES, 192, CMAC, 102},
+	oid.OidPaceDhImAesCbcCmac256.String(): {oid.OidPaceDhImAesCbcCmac256, IM, cryptoutils.AES, 256, CMAC, 103},
 
-	oid.OidPaceEcdhIm3DesCbcCbc.String():    {oid.OidPaceEcdhIm3DesCbcCbc, IM, cryptoutils.TDES, 112, CBC_CBC, CBC, 150},
-	oid.OidPaceEcdhImAesCbcCmac128.String(): {oid.OidPaceEcdhImAesCbcCmac128, IM, cryptoutils.AES, 128, CBC_CMAC, CMAC, 151},
-	oid.OidPaceEcdhImAesCbcCmac192.String(): {oid.OidPaceEcdhImAesCbcCmac192, IM, cryptoutils.AES, 192, CBC_CMAC, CMAC, 152},
-	oid.OidPaceEcdhImAesCbcCmac256.String(): {oid.OidPaceEcdhImAesCbcCmac256, IM, cryptoutils.AES, 256, CBC_CMAC, CMAC, 153},
+	oid.OidPaceEcdhIm3DesCbcCbc.String():    {oid.OidPaceEcdhIm3DesCbcCbc, IM, cryptoutils.TDES, 112, CBC, 150},
+	oid.OidPaceEcdhImAesCbcCmac128.String(): {oid.OidPaceEcdhImAesCbcCmac128, IM, cryptoutils.AES, 128, CMAC, 151},
+	oid.OidPaceEcdhImAesCbcCmac192.String(): {oid.OidPaceEcdhImAesCbcCmac192, IM, cryptoutils.AES, 192, CMAC, 152},
+	oid.OidPaceEcdhImAesCbcCmac256.String(): {oid.OidPaceEcdhImAesCbcCmac256, IM, cryptoutils.AES, 256, CMAC, 153},
 
-	oid.OidPaceEcdhCamAesCbcCmac128.String(): {oid.OidPaceEcdhCamAesCbcCmac128, CAM, cryptoutils.AES, 128, CBC_CMAC, CMAC, 300},
-	oid.OidPaceEcdhCamAesCbcCmac192.String(): {oid.OidPaceEcdhCamAesCbcCmac192, CAM, cryptoutils.AES, 192, CBC_CMAC, CMAC, 301},
-	oid.OidPaceEcdhCamAesCbcCmac256.String(): {oid.OidPaceEcdhCamAesCbcCmac256, CAM, cryptoutils.AES, 256, CBC_CMAC, CMAC, 302},
+	oid.OidPaceEcdhCamAesCbcCmac128.String(): {oid.OidPaceEcdhCamAesCbcCmac128, CAM, cryptoutils.AES, 128, CMAC, 300},
+	oid.OidPaceEcdhCamAesCbcCmac192.String(): {oid.OidPaceEcdhCamAesCbcCmac192, CAM, cryptoutils.AES, 192, CMAC, 301},
+	oid.OidPaceEcdhCamAesCbcCmac256.String(): {oid.OidPaceEcdhCamAesCbcCmac256, CAM, cryptoutils.AES, 256, CMAC, 302},
 }
 
 type PACEDomainParams struct {
