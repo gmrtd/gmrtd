@@ -246,17 +246,19 @@ func (chipAuth *ChipAuth) doGeneralAuthenticate(nfc *iso7816.NfcSession, curve *
 	//			+ 0x7C - Dynamic Authentication Data
 	//			Exp errors: 6300 / 6A80 / 6A88 / ...
 
-	slog.Debug("doCaECdh - doGeneralAuthenticate")
+	slog.Debug("doGeneralAuthenticate")
 
 	var rApdu *iso7816.RApdu = nfc.GeneralAuthenticate(false, encodeDynAuthData(0x80, cryptoutils.EncodeX962EcPoint(*curve, termKeypair.Pub)))
 	if !rApdu.IsSuccess() {
-		return nil, nil, fmt.Errorf("doCaEcdh: General Authenticate failed (Status:%d)", rApdu.Status)
+		return nil, nil, fmt.Errorf("doGeneralAuthenticate: General Authenticate failed (Status:%d)", rApdu.Status)
 	}
 
-	slog.Debug("doCaEcdh", "rApdu-bytes", utils.BytesToHex(rApdu.Data))
+	slog.Debug("doGeneralAuthenticate", "rApdu-bytes", utils.BytesToHex(rApdu.Data))
 
-	// TODO - should validate the response... as 7C is mandatory
-	//			AT/MY passport simply return 7C00
+	// verify that the response includes a 7C tag
+	if !tlv.TlvDecode(rApdu.Data).GetNode(0x7C).IsValidNode() {
+		return nil, nil, fmt.Errorf("doGeneralAuthenticate: missing 7C tag in response (rspBytes:%x)", rApdu.Data)
+	}
 
 	// 3. Both the eMRTD chip and the terminal compute the following:
 	// a) The shared secret K = KA(SKIC, PKDH,IFD, DIC) = KA(SKDH,IFD, PKIC, DIC)
@@ -265,12 +267,12 @@ func (chipAuth *ChipAuth) doGeneralAuthenticate(nfc *iso7816.NfcSession, curve *
 	// NB secret is just based on 'x'
 	sharedSecret := k.X.Bytes()
 
-	slog.Debug("doCaEcdh", "sharedSecret", utils.BytesToHex(sharedSecret))
+	slog.Debug("doGeneralAuthenticate", "sharedSecret", utils.BytesToHex(sharedSecret))
 
 	// b) The session keys KSMAC = KDFMAC(K) and KSEnc = KDFEnc(K) derived from K for Secure Messaging.
 	ksEnc = cryptoutils.KDF(sharedSecret, cryptoutils.KDF_COUNTER_KSENC, caAlgInfo.cipherAlg, caAlgInfo.keySizeBits)
 	ksMac = cryptoutils.KDF(sharedSecret, cryptoutils.KDF_COUNTER_KSMAC, caAlgInfo.cipherAlg, caAlgInfo.keySizeBits)
-	slog.Debug("doCaEcdh", "ksEnc", utils.BytesToHex(ksEnc), "ksMac", utils.BytesToHex(ksMac))
+	slog.Debug("doGeneralAuthenticate", "ksEnc", utils.BytesToHex(ksEnc), "ksMac", utils.BytesToHex(ksMac))
 
 	return ksEnc, ksMac, err
 }
@@ -340,7 +342,6 @@ func (chipAuth *ChipAuth) doCaEcdh(nfc *iso7816.NfcSession, caInfo *document.Chi
 }
 
 // dynamic authentication data - (TLV) 7C <tag> <data>
-// TODO - duplicated in pace.go
 func encodeDynAuthData(tag byte, data []byte) []byte {
 	node := tlv.NewTlvConstructedNode(0x7C)
 	node.AddChild(tlv.NewTlvSimpleNode(tlv.TlvTag(tag), data))
