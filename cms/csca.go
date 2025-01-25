@@ -39,7 +39,6 @@ func CscaCertPool() *CertPool {
 		cscaCertPool = loadMasterListDE()
 	}
 
-	// TODO - should return a copy?
 	return cscaCertPool
 }
 
