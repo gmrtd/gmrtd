@@ -39,8 +39,7 @@ func isActiveAuthenticationInfo(theOid asn1.ObjectIdentifier) bool {
 }
 
 // ChipAuthenticationInfo
-// IF OID is a child under... id_PK_DH | id_PK_ECDH
-// TODO - why does above comment indicate something different to what is in code?
+// IF OID is a child under... id-CA-DH or id-CA-ECDH
 func isChipAuthenticationInfo(theOid asn1.ObjectIdentifier) bool {
 	return oid.OidHasPrefix(theOid, oid.OidCaDh) ||
 		oid.OidHasPrefix(theOid, oid.OidCaEcdh)
