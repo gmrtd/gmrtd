@@ -30,7 +30,7 @@ func TestDecodeSecurityInfos(t *testing.T) {
 	}
 
 	if (secInfos.TotalCnt != 1) || (len(secInfos.PaceInfos) != 1) {
-		t.Errorf("Unexpected data")
+		t.Errorf("Security-Info error")
 	}
 }
 
@@ -61,7 +61,7 @@ func TestDecodeSecurityInfos2(t *testing.T) {
 	}
 
 	if (secInfos.TotalCnt != 1) || (len(secInfos.ChipAuthPubKeyInfos) != 1) {
-		t.Errorf("Unexpected data")
+		t.Errorf("Security-Info error")
 	}
 }
 
@@ -75,16 +75,28 @@ func TestDecodeSecurityInfosEfDir(t *testing.T) {
 		t.Errorf("Unexpected error: %s", err)
 	}
 
-	if len(secInfos.EfDirInfos) != 1 {
-		t.Errorf("EF.DIR SecInfo expected")
-	}
-
-	// TODO - other tests.. also check the EF.DIR data
-
 	if (secInfos.TotalCnt != 1) || (len(secInfos.EfDirInfos) != 1) {
-		t.Errorf("Unexpected data")
+		t.Errorf("Security-Info error")
 	}
 
 }
 
-// TODO - add in security-infos from DE card-security file... which contains an unhandled object
+func TestDecodeSecurityInfosCardSecFile(t *testing.T) {
+	// taken from CardSecurity file on DE passport
+	cardAccessFile := utils.HexToBytes("31820131300d060804007f00070202020201023012060a04007f000702020302020201020201483012060a04007f0007020204020202010202010d3012060a04007f0007020204060202010202010d301c060904007f000702020302300c060704007f0007010202010d0201483062060904007f0007020201023052300c060704007f0007010202010d03420004614cd88b00821a887869d0060b44a9d18789353e8cf7dfbc3f29f79327de30b97b1b2dda0be77f24ad415c327c7b7ab2e9c10b0258f5bcbf90c01825fbdfdef702010d3062060904007f0007020201023052300c060704007f0007010202010d034200048488a2dc34b6b36d6c01a8dfbd70a874610c53b32893a1de3b1c4bbf477eef3761aa51dfd6b52da43587e95386fc34ffe178d90086a7d646047c82bebc27da3e020148")
+
+	secInfos, err := DecodeSecurityInfos(cardAccessFile)
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+
+	// NB test data includes an unhandled sec-info, where id-CA-ECDH (0.4.0.127.0.7.2.2.3.2) is incorrectly specified (from DE passport)
+	if (secInfos.TotalCnt != 7) ||
+		(len(secInfos.PaceInfos) != 2) ||
+		(len(secInfos.ChipAuthInfos) != 1) ||
+		(len(secInfos.ChipAuthPubKeyInfos) != 2) ||
+		(len(secInfos.TermAuthInfos) != 1) ||
+		(len(secInfos.UnhandledInfos) != 1) {
+		t.Errorf("Security-Info error")
+	}
+}
