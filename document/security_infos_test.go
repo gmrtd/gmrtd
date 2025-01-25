@@ -29,13 +29,7 @@ func TestDecodeSecurityInfos(t *testing.T) {
 		}
 	}
 
-	if (len(secInfos.PaceDomainParamInfos) != 0) ||
-		(len(secInfos.ActiveAuthInfos) != 0) ||
-		(len(secInfos.ChipAuthInfos) != 0) ||
-		(len(secInfos.ChipAuthPubKeyInfos) != 0) ||
-		(len(secInfos.TermAuthInfos) != 0) ||
-		(len(secInfos.EfDirInfos) != 0) ||
-		(len(secInfos.UnhandledInfos) != 0) {
+	if (secInfos.TotalCnt != 1) || (len(secInfos.PaceInfos) != 1) {
 		t.Errorf("Unexpected data")
 	}
 }
@@ -66,13 +60,7 @@ func TestDecodeSecurityInfos2(t *testing.T) {
 		}
 	}
 
-	if (len(secInfos.PaceInfos) != 0) ||
-		(len(secInfos.PaceDomainParamInfos) != 0) ||
-		(len(secInfos.ActiveAuthInfos) != 0) ||
-		(len(secInfos.ChipAuthInfos) != 0) ||
-		(len(secInfos.TermAuthInfos) != 0) ||
-		(len(secInfos.EfDirInfos) != 0) ||
-		(len(secInfos.UnhandledInfos) != 0) {
+	if (secInfos.TotalCnt != 1) || (len(secInfos.ChipAuthPubKeyInfos) != 1) {
 		t.Errorf("Unexpected data")
 	}
 }
@@ -92,4 +80,11 @@ func TestDecodeSecurityInfosEfDir(t *testing.T) {
 	}
 
 	// TODO - other tests.. also check the EF.DIR data
+
+	if (secInfos.TotalCnt != 1) || (len(secInfos.EfDirInfos) != 1) {
+		t.Errorf("Unexpected data")
+	}
+
 }
+
+// TODO - add in security-infos from DE card-security file... which contains an unhandled object
