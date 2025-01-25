@@ -95,8 +95,18 @@ func TestNewCardSecurityDE(t *testing.T) {
 		if !bytes.Equal(certChain[1], expCertDSC) {
 			t.Errorf("Cert (DSC) mismatch (exp:%x, act:%x)", expCertDSC, certChain[1])
 		}
-
 	}
 
-	// TODO - check securityInfos?
+	// verify security-infos
+	if cardSecurity != nil {
+		// NB test data includes an unhandled sec-info, where id-CA-ECDH is incorrectly specified (from DE passport)
+		if (cardSecurity.SecurityInfos.TotalCnt != 7) ||
+			(len(cardSecurity.SecurityInfos.PaceInfos) != 2) ||
+			(len(cardSecurity.SecurityInfos.ChipAuthInfos) != 1) ||
+			(len(cardSecurity.SecurityInfos.ChipAuthPubKeyInfos) != 2) ||
+			(len(cardSecurity.SecurityInfos.TermAuthInfos) != 1) ||
+			(len(cardSecurity.SecurityInfos.UnhandledInfos) != 1) {
+			t.Errorf("Security-Info error")
+		}
+	}
 }
