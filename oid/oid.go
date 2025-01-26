@@ -127,8 +127,7 @@ var (
 	OidDocumentTypeList                 = asn1.ObjectIdentifier{2, 23, 136, 1, 1, 6, 2}
 )
 
-// TODO - why not have a function to lookup the Oid... just used for TLV string output?
-var OidLookup = map[string]string{
+var oidLookup = map[string]string{
 	OidBsiDe.String():                            "bsi-de",
 	OidBsiDeAlgorithms.String():                  "algorithms",
 	OidBsiDeEcKeyType.String():                   "keyType",
@@ -234,6 +233,11 @@ var OidLookup = map[string]string{
 	OidHashAlgorithmSHA224.String():              "sha224",
 	OidLdsSecurityObject.String():                "ldsSecurityObject",
 	OidDocumentTypeList.String():                 "documentTypeList",
+}
+
+// returns the OID Description (where known)
+func OidDesc(oid asn1.ObjectIdentifier) string {
+	return oidLookup[oid.String()]
 }
 
 // determines if 'Oid' starts with 'prefix' (but not equal to - i.e. Oid != prefix)
