@@ -51,7 +51,7 @@ func NewDG11(data []byte) (*DG11, error) {
 
 	out.RawData = slices.Clone(data)
 
-	nodes := tlv.TlvDecode(out.RawData)
+	nodes := tlv.Decode(out.RawData)
 
 	slog.Debug("DG11", "TLV", nodes)
 
@@ -69,7 +69,7 @@ func NewDG11(data []byte) (*DG11, error) {
 }
 
 func (details *PersonDetails) parseData(node tlv.TlvNode) {
-	tagList := tlv.TlvGetTags(bytes.NewBuffer(node.GetNode(0x5C).GetValue()))
+	tagList := tlv.GetTags(bytes.NewBuffer(node.GetNode(0x5C).GetValue()))
 
 	for _, tag := range tagList {
 		details.processTag(tag, node)

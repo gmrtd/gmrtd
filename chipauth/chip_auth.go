@@ -256,7 +256,7 @@ func (chipAuth *ChipAuth) doGeneralAuthenticate(nfc *iso7816.NfcSession, curve *
 	slog.Debug("doGeneralAuthenticate", "rApdu-bytes", utils.BytesToHex(rApdu.Data))
 
 	// verify that the response includes a 7C tag
-	if !tlv.TlvDecode(rApdu.Data).GetNode(0x7C).IsValidNode() {
+	if !tlv.Decode(rApdu.Data).GetNode(0x7C).IsValidNode() {
 		return nil, nil, fmt.Errorf("doGeneralAuthenticate: missing 7C tag in response (rspBytes:%x)", rApdu.Data)
 	}
 

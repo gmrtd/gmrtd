@@ -314,7 +314,7 @@ func encodeDynAuthData(tag byte, data []byte) []byte {
 
 // dynamic authentication data - (TLV) 7C <tag> <data>
 func decodeDynAuthData(tag byte, data []byte) []byte {
-	return tlv.TlvDecode(data).GetNode(0x7C).GetNode(tlv.TlvTag(tag)).GetValue()
+	return tlv.Decode(data).GetNode(0x7C).GetNode(tlv.TlvTag(tag)).GetValue()
 }
 
 // encodes a public-key template (7F49) containing the OID and the public-key (86)

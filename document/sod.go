@@ -42,7 +42,7 @@ func NewSOD(data []byte) (*SOD, error) {
 
 	out.RawData = slices.Clone(data)
 
-	nodes := tlv.TlvDecode(out.RawData)
+	nodes := tlv.Decode(out.RawData)
 
 	rootNode := nodes.GetNode(SODTag)
 

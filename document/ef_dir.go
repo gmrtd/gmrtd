@@ -25,7 +25,7 @@ func NewEFDIR(data []byte) *EFDIR {
 	out.RawData = slices.Clone(data)
 
 	{
-		var nodes *tlv.TlvNodes = tlv.TlvDecode(data)
+		var nodes *tlv.TlvNodes = tlv.Decode(data)
 
 		occur := 1
 		for {

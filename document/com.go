@@ -29,7 +29,7 @@ func NewCOM(data []byte) (*COM, error) {
 
 	out.RawData = slices.Clone(data)
 
-	nodes := tlv.TlvDecode(out.RawData)
+	nodes := tlv.Decode(out.RawData)
 
 	rootNode := nodes.GetNode(COMTag)
 
@@ -50,7 +50,7 @@ func NewCOM(data []byte) (*COM, error) {
 	}
 
 	// Tag list
-	out.TagList = tlv.TlvGetTags(bytes.NewBuffer(rootNode.GetNode(0x5C).GetValue()))
+	out.TagList = tlv.GetTags(bytes.NewBuffer(rootNode.GetNode(0x5C).GetValue()))
 
 	return out, nil
 }

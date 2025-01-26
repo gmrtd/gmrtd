@@ -23,7 +23,7 @@ func NewDG15(data []byte) (*DG15, error) {
 
 	out.RawData = slices.Clone(data)
 
-	nodes := tlv.TlvDecode(out.RawData)
+	nodes := tlv.Decode(out.RawData)
 
 	rootNode := nodes.GetNode(DG15Tag)
 

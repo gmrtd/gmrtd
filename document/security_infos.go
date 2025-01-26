@@ -151,7 +151,7 @@ func DecodeSecurityInfos(secInfoData []byte) (secInfos *SecurityInfos, err error
 		oid := secInfoOids[i].Protocol
 		data := secInfoOids[i].Raw
 
-		slog.Debug("parsing secInfo", "oid", oid, "tlv", tlv.TlvDecode(data))
+		slog.Debug("parsing secInfo", "oid", oid, "tlv", tlv.Decode(data))
 
 		if isPACEInfo(oid) {
 			var paceInfo PaceInfo

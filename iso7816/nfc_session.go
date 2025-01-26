@@ -241,8 +241,8 @@ func (nfc *NfcSession) ReadFile(fileId uint16) (fileData []byte) {
 	{
 		// extract length (of parent tag) to determine file size
 		tmpBuf := bytes.NewBuffer(fileHeader)
-		tlv.TlvGetTag(tmpBuf)
-		totalBytes = tlv.TlvGetLength(tmpBuf)
+		tlv.GetTag(tmpBuf)
+		totalBytes = int(tlv.GetLength(tmpBuf))
 		totalBytes += 4 - tmpBuf.Len()
 	}
 

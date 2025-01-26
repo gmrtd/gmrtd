@@ -32,12 +32,12 @@ func NewDG13(data []byte) (*DG13, error) {
 		// extract length (of parent tag) to determine file size
 		tmpBuf := bytes.NewBuffer(out.RawData)
 
-		tag := tlv.TlvGetTag(tmpBuf)
+		tag := tlv.GetTag(tmpBuf)
 		if DG13Tag != tag {
 			return nil, fmt.Errorf("(NewDG13) invalid root tag (Exp:%x, Act:%x)", DG13Tag, tag)
 		}
 
-		len := tlv.TlvGetLength(tmpBuf)
+		len := int(tlv.GetLength(tmpBuf))
 
 		out.Content = utils.GetBytesFromBuffer(tmpBuf, len)
 	}
