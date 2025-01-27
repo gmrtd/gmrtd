@@ -53,10 +53,10 @@ func isChipAuthenticationPublicKeyInfo(theOid asn1.ObjectIdentifier) bool {
 }
 
 // TerminalAuthenticationInfo
-// If OID starts/matches... id_TA		(not clear from spec... seems to imply id_TA)
+// If OID starts/matches... id_TA
 func isTerminalAuthenticationInfo(theOid asn1.ObjectIdentifier) bool {
 	return oid.OidHasPrefix(theOid, oid.OidTa) ||
-		theOid.Equal(oid.OidTa) // TODO - looks like equal NOT prefix, but need to verify
+		theOid.Equal(oid.OidTa) || oid.OidHasPrefix(theOid, oid.OidTa)
 }
 
 // EFDIRInfo
