@@ -122,7 +122,6 @@ type SecurityInfos struct {
 	TermAuthInfos        []TerminalAuthenticationInfo
 	EfDirInfos           []EFDirInfo
 	UnhandledInfos       []UnhandledInfo
-	TotalCnt             int
 }
 
 type UnhandledInfo struct {
@@ -217,15 +216,16 @@ func DecodeSecurityInfos(secInfoData []byte) (secInfos *SecurityInfos, err error
 		}
 	}
 
-	secInfos.TotalCnt =
-		len(secInfos.PaceInfos) +
-			len(secInfos.PaceDomainParamInfos) +
-			len(secInfos.ActiveAuthInfos) +
-			len(secInfos.ChipAuthInfos) +
-			len(secInfos.ChipAuthPubKeyInfos) +
-			len(secInfos.TermAuthInfos) +
-			len(secInfos.EfDirInfos) +
-			len(secInfos.UnhandledInfos)
-
 	return secInfos, nil
+}
+
+func (secInfos *SecurityInfos) GetTotalCnt() int {
+	return len(secInfos.PaceInfos) +
+		len(secInfos.PaceDomainParamInfos) +
+		len(secInfos.ActiveAuthInfos) +
+		len(secInfos.ChipAuthInfos) +
+		len(secInfos.ChipAuthPubKeyInfos) +
+		len(secInfos.TermAuthInfos) +
+		len(secInfos.EfDirInfos) +
+		len(secInfos.UnhandledInfos)
 }

@@ -63,7 +63,7 @@ func TestNewDG14(t *testing.T) {
 		(len(dg14.SecInfos.ChipAuthInfos) != 1) ||
 		(len(dg14.SecInfos.ChipAuthPubKeyInfos) != 1) ||
 		(len(dg14.SecInfos.TermAuthInfos) != 1) ||
-		(dg14.SecInfos.TotalCnt != 5) {
+		(dg14.SecInfos.GetTotalCnt() != 5) {
 		t.Errorf("Unexpected DG14 data - %+v", dg14.SecInfos)
 	}
 }
@@ -83,7 +83,7 @@ func TestNewDG14_AT(t *testing.T) {
 		(len(dg14.SecInfos.ChipAuthInfos) != 1) ||
 		(len(dg14.SecInfos.ChipAuthPubKeyInfos) != 1) ||
 		(len(dg14.SecInfos.TermAuthInfos) != 1) ||
-		(dg14.SecInfos.TotalCnt != 4) {
+		(dg14.SecInfos.GetTotalCnt() != 4) {
 		t.Errorf("Unexpected DG14 data - %+v", dg14.SecInfos)
 	}
 }
@@ -102,7 +102,7 @@ func TestNewDG14_MY(t *testing.T) {
 	if (len(dg14.SecInfos.ChipAuthInfos) != 1) ||
 		(len(dg14.SecInfos.ChipAuthPubKeyInfos) != 1) ||
 		(len(dg14.SecInfos.TermAuthInfos) != 1) ||
-		(dg14.SecInfos.TotalCnt != 3) {
+		(dg14.SecInfos.GetTotalCnt() != 3) {
 		t.Errorf("Unexpected DG14 data - %+v", dg14.SecInfos)
 	}
 }
