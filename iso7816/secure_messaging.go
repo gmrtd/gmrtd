@@ -157,6 +157,74 @@ func (sm *SecureMessaging) cryptoUnpad(data []byte) []byte {
 	return cryptoutils.ISO9797Method2Unpad(data)
 }
 
+// builds tag 85/87 (depending on Ins)
+// adds the tag (if any) to 'nodes'
+func (sm *SecureMessaging) buildTag85or87(cApdu *CApdu, nodes *tlv.TlvNodes) {
+	if cApdu.HaveData() {
+		var tag tlv.TlvTag
+		if cApdu.ins%2 == 0 {
+			tag = 0x87
+		} else {
+			tag = 0x85
+		}
+
+		value := []byte{0x01}
+		value = append(value, sm.cbcCrypt(sm.cryptoPad(cApdu.data), true)...)
+
+		nodes.AddNode(tlv.NewTlvSimpleNode(tlv.TlvTag(tag), value))
+	}
+
+	return
+}
+
+// builds tag 97 (depending on presence of Le)
+// adds the tag (if any) to 'nodes'
+func (sm *SecureMessaging) buildTag97(cApdu *CApdu, nodes *tlv.TlvNodes) {
+	if cApdu.HaveLe() {
+		nodes.AddNode(tlv.NewTlvSimpleNode(tlv.TlvTag(0x97), cApdu.EncodeLe()))
+	}
+
+	return
+}
+
+// builds tag 85
+// adds the tag to 'nodes'
+func (sm *SecureMessaging) buildTag8E(cApdu *CApdu, nodes *tlv.TlvNodes) (err error) {
+	// cmdHeader
+	var cmdHeaderPadded []byte = sm.cryptoPad(cApdu.EncodeHeader())
+	// mask CLA
+	if len(cmdHeaderPadded) < 1 {
+		panic("cmdHeaderPadded must have more than 0 bytes")
+	}
+	cmdHeaderPadded[0] = CLA_MASK
+
+	macData := make([]byte, 0)
+	macData = append(macData, sm.ssc...)
+	macData = append(macData, cmdHeaderPadded...)
+	macData = append(macData, nodes.Encode()...)
+
+	var mac []byte
+	if mac, err = sm.generateMac(sm.cryptoPad(macData)); err != nil {
+		return err
+	}
+
+	nodes.AddNode(tlv.NewTlvSimpleNode(tlv.TlvTag(0x8E), mac))
+
+	return nil
+}
+
+// calculate the secure-messaging cApdu Le
+// LE should always be 256 or 65536 for secure-messaging
+// NB 256->0x00, 65536->0x0000 when LE is encoded
+func calcSmLe(cApdu *CApdu) int {
+	var smLe int = 256
+	if cApdu.IsExtended() {
+		smLe = 65536
+	}
+
+	return smLe
+}
+
 func (sm *SecureMessaging) Encode(cApdu *CApdu) (out *CApdu, err error) {
 	// 9303p11 - page 63 (Message Structure of SM APDUs)
 
@@ -172,56 +240,18 @@ func (sm *SecureMessaging) Encode(cApdu *CApdu) (out *CApdu, err error) {
 	nodes := tlv.NewTlvNodes()
 
 	// do85/do87
-	if cApdu.HaveData() {
-		var tag tlv.TlvTag
-		if cApdu.ins%2 == 0 {
-			tag = 0x87
-		} else {
-			tag = 0x85
-		}
-
-		value := []byte{0x01}
-		value = append(value, sm.cbcCrypt(sm.cryptoPad(cApdu.data), true)...)
-
-		nodes.AddNode(tlv.NewTlvSimpleNode(tlv.TlvTag(tag), value))
-	}
+	sm.buildTag85or87(cApdu, nodes)
 
 	// do97
-	if cApdu.HaveLe() {
-		nodes.AddNode(tlv.NewTlvSimpleNode(tlv.TlvTag(0x97), cApdu.EncodeLe()))
-	}
-
-	// cmdHeader
-	var cmdHeaderPadded []byte
-	{
-		cmdHeaderPadded = sm.cryptoPad(cApdu.EncodeHeader())
-		// mask CLA
-		cmdHeaderPadded[0] = CLA_MASK
-	}
+	sm.buildTag97(cApdu, nodes)
 
 	// do8E
-	{
-		macData := make([]byte, 0)
-		macData = append(macData, sm.ssc...)
-		macData = append(macData, cmdHeaderPadded...)
-		macData = append(macData, nodes.Encode()...)
-
-		var mac []byte
-		if mac, err = sm.generateMac(sm.cryptoPad(macData)); err != nil {
-			return nil, err
-		}
-
-		nodes.AddNode(tlv.NewTlvSimpleNode(tlv.TlvTag(0x8E), mac))
+	err = sm.buildTag8E(cApdu, nodes)
+	if err != nil {
+		return nil, err
 	}
 
-	// LE should always be 256 or 65536 for secure-messaging
-	// NB 256->0x00, 65536->0x0000 when LE is encoded
-	var smLe int = 256
-	if cApdu.IsExtended() {
-		smLe = 65536
-	}
-
-	out = NewCApdu(CLA_MASK, cApdu.ins, cApdu.p1, cApdu.p2, nodes.Encode(), smLe)
+	out = NewCApdu(CLA_MASK, cApdu.ins, cApdu.p1, cApdu.p2, nodes.Encode(), calcSmLe(cApdu))
 
 	slog.Debug("Encode", "In", cApdu.String(), "Out", out.String(), "Out(bytes)", utils.BytesToHex(out.Encode()))
 
