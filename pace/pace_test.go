@@ -3,6 +3,7 @@ package pace
 import (
 	"bytes"
 	"crypto/elliptic"
+	"math"
 	"math/big"
 	"testing"
 
@@ -83,9 +84,21 @@ func TestGetStandardisedDomainParams(t *testing.T) {
 			t.Errorf("Incorrect BitSize (ParamId:%d, Exp:%d, Act%d:)", tc.paramId, tc.bitSize, domainParams.ec.Params().BitSize)
 		}
 
-		// TODO - deeper testing.. including EC key?
-	}
+		// verify that we can generate a keypair
+		var ecKeypair cryptoutils.EcKeypair = cryptoutils.KeyGeneratorEc(domainParams.ec)
 
+		/*
+		* sanity check that the public key doesn't exceed the bit-size
+		 */
+		maxBytes := int(math.Ceil(float64(tc.bitSize) / 8))
+
+		xBytes := len(ecKeypair.Pub.X.Bytes())
+		yBytes := len(ecKeypair.Pub.Y.Bytes())
+
+		if (xBytes > maxBytes) || (yBytes > maxBytes) {
+			t.Errorf("Incorrect public key size: exp(max):%1d, actX:%1d, actY:%1d signX:%1d signY:%1d", maxBytes, xBytes, yBytes, ecKeypair.Pub.X.Sign(), ecKeypair.Pub.Y.Sign())
+		}
+	}
 }
 
 func TestGetStandardisedDomainParamsErr(t *testing.T) {
