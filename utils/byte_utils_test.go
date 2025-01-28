@@ -16,10 +16,24 @@ func TestParseAsn1(t *testing.T) {
 	}{
 		{
 			// SUCCESS
-			data:      []byte{0x2B, 0x06, 0x01, 0x04, 0x01, 0x82, 0x37, 0x15, 0x14},
+			data:      []byte{0x06, 0x03, 0x81, 0x34, 0x03}, // OID: 2.100.3
 			partial:   false,
 			out:       &asn1.ObjectIdentifier{},
 			expectErr: false,
+		},
+		{
+			// SUCCESS
+			data:      []byte{0x06, 0x03, 0x81, 0x34, 0x03, 0xF1}, // OID: 2.100.3 (with extra data: 0xF1)
+			partial:   true,
+			out:       &asn1.ObjectIdentifier{},
+			expectErr: false,
+		},
+		{
+			// ERROR - unexpected partial read
+			data:      []byte{0x06, 0x03, 0x81, 0x34, 0x03, 0xF1}, // OID: 2.100.3 (with UNEXPECTED extra data: 0xF1)
+			partial:   false,
+			out:       &asn1.ObjectIdentifier{},
+			expectErr: true,
 		},
 		{
 			// ERROR: no data to parse

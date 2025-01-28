@@ -10,15 +10,14 @@ import (
 	"unicode"
 )
 
-// isPartiallyParsed - if false then panics if there is any data remaining after the parsing
+// isPartiallyParsed - if false then returns error if data remains after parsing
 func ParseAsn1[T any](data []byte, isPartiallyParsed bool, out *T) (err error) {
 	rest, err := asn1.Unmarshal(data, out)
 	if err != nil {
 		return fmt.Errorf("(ParseAsn1) error: %w", err)
 	}
 
-	// TODO - isPartiallyParsed - seems opposite to comment?
-	if isPartiallyParsed && (len(rest) > 0) {
+	if !isPartiallyParsed && (len(rest) > 0) {
 		return fmt.Errorf("unexpected data remaining after ASN1 parsing (Data:%x) (Remaining:%x)", data, rest)
 	}
 
