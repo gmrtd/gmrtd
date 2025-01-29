@@ -46,13 +46,20 @@ import (
 	"github.com/osanderson/brainpool"
 )
 
+// TODO - review BAC (and others - CA?) to consider similar changes
 type Pace struct {
 	keyGeneratorEc cryptoutils.KeyGeneratorEcFn
+	nfcSession     **iso7816.NfcSession
+	document       **document.Document
+	password       *password.Password
 }
 
-func NewPace() *Pace {
+func NewPace(nfc *iso7816.NfcSession, doc *document.Document, pass *password.Password) *Pace {
 	var pace Pace
 	pace.keyGeneratorEc = cryptoutils.KeyGeneratorEc
+	pace.nfcSession = &nfc
+	pace.document = &doc
+	pace.password = pass
 	return &pace
 }
 
@@ -331,18 +338,17 @@ func encodePubicKeyTemplate7F49(paceOid []byte, tag86data []byte) []byte {
 	return node.Encode()
 }
 
-// TODO - should we make this (and others) a Pace method?
-func doApduMsgSetAT(nfc *iso7816.NfcSession, paceConfig *PaceConfig, password *password.Password) (err error) {
+func (pace *Pace) doApduMsgSetAT(paceConfig *PaceConfig) (err error) {
 	slog.Debug("doApduMsgSetAT")
 
 	paceOidBytes := oid.OidBytes(paceConfig.oid)
 
 	nodes := tlv.NewTlvNodes()
 	nodes.AddNode(tlv.NewTlvSimpleNode(0x80, paceOidBytes))
-	nodes.AddNode(tlv.NewTlvSimpleNode(0x83, []byte{password.GetType()}))
+	nodes.AddNode(tlv.NewTlvSimpleNode(0x83, []byte{pace.password.GetType()}))
 
 	// MSE:Set AT (0xC1A4: Set Authentication Template for mutual authentication)
-	err = nfc.MseSetAT(0xC1, 0xA4, nodes.Encode())
+	err = (*pace.nfcSession).MseSetAT(0xC1, 0xA4, nodes.Encode())
 	if err != nil {
 		return err
 	}
@@ -355,7 +361,7 @@ func doApduMsgSetAT(nfc *iso7816.NfcSession, paceConfig *PaceConfig, password *p
 //   - exchanges with chip
 //   - generates shared secret
 //   - do generic mapping (and return G)
-func (pace *Pace) mapNonceGmEcDh(nfc *iso7816.NfcSession, domainParams *PACEDomainParams, s []byte) (mapped_g *cryptoutils.EcPoint, pubMapIC *cryptoutils.EcPoint) {
+func (pace *Pace) mapNonceGmEcDh(domainParams *PACEDomainParams, s []byte) (mapped_g *cryptoutils.EcPoint, pubMapIC *cryptoutils.EcPoint) {
 	slog.Debug("mapNonceGmEcDh", "s", utils.BytesToHex(s))
 
 	// generate terminal key (private/public)
@@ -365,7 +371,7 @@ func (pace *Pace) mapNonceGmEcDh(nfc *iso7816.NfcSession, domainParams *PACEDoma
 	{
 		reqData := encodeDynAuthData(0x81, cryptoutils.EncodeX962EcPoint(domainParams.ec, termKeypair.Pub))
 
-		rApdu := nfc.GeneralAuthenticate(true, reqData)
+		rApdu := (*pace.nfcSession).GeneralAuthenticate(true, reqData)
 		if !rApdu.IsSuccess() {
 			log.Panicf("Error mapping the nonce - GM-EC (Status:%x)", rApdu.Status)
 		}
@@ -388,7 +394,7 @@ func (pace *Pace) mapNonceGmEcDh(nfc *iso7816.NfcSession, domainParams *PACEDoma
 	return mapped_g, pubMapIC
 }
 
-func (pace *Pace) keyAgreementGmEcDh(nfc *iso7816.NfcSession, domainParams *PACEDomainParams, G *cryptoutils.EcPoint) (sharedSecret []byte, termKeypair cryptoutils.EcKeypair, chipPub *cryptoutils.EcPoint) {
+func (pace *Pace) keyAgreementGmEcDh(domainParams *PACEDomainParams, G *cryptoutils.EcPoint) (sharedSecret []byte, termKeypair cryptoutils.EcKeypair, chipPub *cryptoutils.EcPoint) {
 	// reader and chip generate/exchange another set of public-keys
 	//			- needs to be generated using mapped-g.x/y
 	//			- new keys for terminal
@@ -411,7 +417,7 @@ func (pace *Pace) keyAgreementGmEcDh(nfc *iso7816.NfcSession, domainParams *PACE
 	{
 		reqData := encodeDynAuthData(0x83, cryptoutils.EncodeX962EcPoint(domainParams.ec, termKeypair.Pub))
 
-		rApdu := nfc.GeneralAuthenticate(true, reqData)
+		rApdu := (*pace.nfcSession).GeneralAuthenticate(true, reqData)
 		if !rApdu.IsSuccess() {
 			log.Panicf("Error performing key agreement - GM-ECDH (Status:%x)", rApdu.Status)
 		}
@@ -439,7 +445,7 @@ func (pace *Pace) keyAgreementGmEcDh(nfc *iso7816.NfcSession, domainParams *PACE
 
 // performs mutual authentication and sets up secure messaging
 // ecadIC: only populated for CAM
-func (pace *Pace) mutualAuthGmEcDh(nfc *iso7816.NfcSession, paceConfig *PaceConfig, domainParams *PACEDomainParams, sharedSecret []byte, termPub *cryptoutils.EcPoint, chipPub *cryptoutils.EcPoint) (ecadIC []byte) {
+func (pace *Pace) mutualAuthGmEcDh(paceConfig *PaceConfig, domainParams *PACEDomainParams, sharedSecret []byte, termPub *cryptoutils.EcPoint, chipPub *cryptoutils.EcPoint) (ecadIC []byte) {
 	// derive KSenc / KSmac
 	var ksEnc, ksMac []byte
 	ksEnc = cryptoutils.KDF(sharedSecret, cryptoutils.KDF_COUNTER_KSENC, paceConfig.cipher, paceConfig.keyLengthBits)
@@ -463,7 +469,7 @@ func (pace *Pace) mutualAuthGmEcDh(nfc *iso7816.NfcSession, paceConfig *PaceConf
 	{
 		reqData := encodeDynAuthData(0x85, tIfd)
 
-		rApdu := nfc.GeneralAuthenticate(false, reqData)
+		rApdu := (*pace.nfcSession).GeneralAuthenticate(false, reqData)
 		if !rApdu.IsSuccess() {
 			log.Panicf("Error exchanging auth tokens (Status:%x)", rApdu.Status)
 		}
@@ -488,7 +494,7 @@ func (pace *Pace) mutualAuthGmEcDh(nfc *iso7816.NfcSession, paceConfig *PaceConf
 	// setup secure messaging
 	{
 		var err error
-		if nfc.SM, err = iso7816.NewSecureMessaging(paceConfig.cipher, ksEnc, ksMac); err != nil {
+		if (*pace.nfcSession).SM, err = iso7816.NewSecureMessaging(paceConfig.cipher, ksEnc, ksMac); err != nil {
 			log.Panicf("Error setting up Secure Messaging: %s", err)
 		}
 	}
@@ -526,7 +532,7 @@ func getIcPubKeyECForCAM(domainParams *PACEDomainParams, cardSecurity *document.
 
 // pubMapIC: IC Public Key from earlier mapping operation
 // ecadIC: encrypted chip authentication data (tag:8A) from 'mutual auth' response
-func (pace *Pace) doCamEcdh(nfc *iso7816.NfcSession, paceConfig *PaceConfig, domainParams *PACEDomainParams, pubMapIC *cryptoutils.EcPoint, ecadIC []byte, doc *document.Document) {
+func (pace *Pace) doCamEcdh(paceConfig *PaceConfig, domainParams *PACEDomainParams, pubMapIC *cryptoutils.EcPoint, ecadIC []byte) {
 	if paceConfig.mapping != CAM {
 		log.Panicf("Unexpected mapping during CAM processing (Mapping:%d)", paceConfig.mapping)
 	}
@@ -538,7 +544,7 @@ func (pace *Pace) doCamEcdh(nfc *iso7816.NfcSession, paceConfig *PaceConfig, dom
 
 	// ICAO9303 p11... 4.4.3.3.3 Chip Authentication Mapping
 
-	blockCipher, err := cryptoutils.GetCipherForKey(paceConfig.cipher, nfc.SM.GetKsEnc())
+	blockCipher, err := cryptoutils.GetCipherForKey(paceConfig.cipher, (*pace.nfcSession).SM.GetKsEnc())
 	if err != nil {
 		log.Panicf("Unexpected error: %s", err)
 	}
@@ -568,7 +574,7 @@ func (pace *Pace) doCamEcdh(nfc *iso7816.NfcSession, paceConfig *PaceConfig, dom
 		//    to find a key that matches the param-id
 
 		// get IC PubKey (EC) for paramId
-		var pkIC *cryptoutils.EcPoint = getIcPubKeyECForCAM(domainParams, doc.Mf.CardSecurity)
+		var pkIC *cryptoutils.EcPoint = getIcPubKeyECForCAM(domainParams, (*pace.document).Mf.CardSecurity)
 
 		var KA *cryptoutils.EcPoint = cryptoutils.DoEcDh(caIC, pkIC, domainParams.ec)
 		slog.Debug("doCamEcdh", "KA", KA.String())
@@ -581,7 +587,7 @@ func (pace *Pace) doCamEcdh(nfc *iso7816.NfcSession, paceConfig *PaceConfig, dom
 		}
 
 		// record that Chip Auth has been performed using PACE-CAM
-		doc.ChipAuthStatus = document.CHIP_AUTH_STATUS_PACE_CAM
+		(*pace.document).ChipAuthStatus = document.CHIP_AUTH_STATUS_PACE_CAM
 	}
 }
 
@@ -589,11 +595,11 @@ func getKeyForPassword(paceConfig *PaceConfig, pass *password.Password) []byte {
 	return cryptoutils.KDF(pass.GetKey(), cryptoutils.KDF_COUNTER_PACE, paceConfig.cipher, paceConfig.keyLengthBits)
 }
 
-func getNonce(nfc *iso7816.NfcSession, paceConfig *PaceConfig, kKdf []byte) []byte {
+func (pace *Pace) getNonce(paceConfig *PaceConfig, kKdf []byte) []byte {
 	var nonceE []byte
 	{
 		reqData := []byte{0x7C, 0x00}
-		rApdu := nfc.GeneralAuthenticate(true, reqData)
+		rApdu := (*pace.nfcSession).GeneralAuthenticate(true, reqData)
 		if !rApdu.IsSuccess() {
 			// TODO -this is firing for NZ.. maxRead=65536... RAPDU=6982
 			//			- maybe we can include this as a catch.. and try to decrease max-read
@@ -644,41 +650,41 @@ func selectPaceConfig(cardAccess *document.CardAccess) (paceConfig *PaceConfig, 
 	return paceConfig, domainParams
 }
 
-func (pace *Pace) doGenericMappingCAM(nfc *iso7816.NfcSession, paceConfig *PaceConfig, domainParams *PACEDomainParams, s []byte, doc *document.Document) (err error) {
+func (pace *Pace) doGenericMappingCAM(paceConfig *PaceConfig, domainParams *PACEDomainParams, s []byte) (err error) {
 	switch domainParams.isECDH {
 	case true: // ECDH
 		// map the nonce
 		var mappedG, pubMapIC *cryptoutils.EcPoint
-		mappedG, pubMapIC = pace.mapNonceGmEcDh(nfc, domainParams, s)
+		mappedG, pubMapIC = pace.mapNonceGmEcDh(domainParams, s)
 
 		// Perform Key Agreement
 		var sharedSecret []byte
 		var kaTermKeypair cryptoutils.EcKeypair
 		var kaChipPub *cryptoutils.EcPoint
-		sharedSecret, kaTermKeypair, kaChipPub = pace.keyAgreementGmEcDh(nfc, domainParams, mappedG)
+		sharedSecret, kaTermKeypair, kaChipPub = pace.keyAgreementGmEcDh(domainParams, mappedG)
 
 		var ecadIC []byte
-		ecadIC = pace.mutualAuthGmEcDh(nfc, paceConfig, domainParams, sharedSecret, kaTermKeypair.Pub, kaChipPub)
+		ecadIC = pace.mutualAuthGmEcDh(paceConfig, domainParams, sharedSecret, kaTermKeypair.Pub, kaChipPub)
 
 		// Perform Chip Authentication (if applicable)
 		if paceConfig.mapping == CAM {
 			slog.Debug("doGenericMappingCAM - reading CardSecurity")
 
 			// attempt to read CardSecurity (if we don't already have it)
-			if doc.Mf.CardSecurity == nil {
+			if (*pace.document).Mf.CardSecurity == nil {
 				const MRTDFileIdCardSecurity = uint16(0x011D)
 
-				doc.Mf.CardSecurity, err = document.NewCardSecurity(nfc.ReadFile(MRTDFileIdCardSecurity))
+				(*pace.document).Mf.CardSecurity, err = document.NewCardSecurity((*pace.nfcSession).ReadFile(MRTDFileIdCardSecurity))
 				if err != nil {
 					return err
 				}
 			}
 
-			if doc.Mf.CardSecurity == nil {
+			if (*pace.document).Mf.CardSecurity == nil {
 				return fmt.Errorf("cannot proceed with PACE-CAM without CardSecurity file")
 			}
 
-			pace.doCamEcdh(nfc, paceConfig, domainParams, pubMapIC, ecadIC, doc)
+			pace.doCamEcdh(paceConfig, domainParams, pubMapIC, ecadIC)
 		}
 	case false: // DH
 		return fmt.Errorf("PACE GM (DH) NOT IMPLEMENTED")
@@ -687,11 +693,11 @@ func (pace *Pace) doGenericMappingCAM(nfc *iso7816.NfcSession, paceConfig *PaceC
 	return nil
 }
 
-func (pace *Pace) DoPACE(nfc *iso7816.NfcSession, pass *password.Password, doc *document.Document) (err error) {
-	slog.Debug("DoPACE", "password-type", pass.PasswordType, "password", pass.Password)
+func (pace *Pace) DoPACE() (err error) {
+	slog.Debug("DoPACE", "password-type", pace.password.PasswordType, "password", pace.password.Password)
 
 	// PACE requires card-access
-	if doc.Mf.CardAccess == nil {
+	if (*pace.document).Mf.CardAccess == nil {
 		slog.Debug("DoPACE - SKIPPING as no CardAccess file is present")
 		return nil
 	}
@@ -699,25 +705,25 @@ func (pace *Pace) DoPACE(nfc *iso7816.NfcSession, pass *password.Password, doc *
 	var paceConfig *PaceConfig
 	var domainParams *PACEDomainParams
 
-	paceConfig, domainParams = selectPaceConfig(doc.Mf.CardAccess)
+	paceConfig, domainParams = selectPaceConfig((*pace.document).Mf.CardAccess)
 
 	slog.Debug("DoPace", "selected paceConfig", paceConfig.String())
 
-	var kKdf []byte = getKeyForPassword(paceConfig, pass)
+	var kKdf []byte = getKeyForPassword(paceConfig, pace.password)
 
 	// init PACE (via 'MSE:Set AT' command)
 	// TODO - aren't there some cases where we need to specified the domain params? (i.e. multiple entries)
-	if err = doApduMsgSetAT(nfc, paceConfig, pass); err != nil {
+	if err = pace.doApduMsgSetAT(paceConfig); err != nil {
 		return err
 	}
 
 	// get nonce
-	var s []byte = getNonce(nfc, paceConfig, kKdf)
+	var s []byte = pace.getNonce(paceConfig, kKdf)
 
 	// process based on the mapping type (GM/IM/CAM) and the key type (ECDH/DH)
 	switch paceConfig.mapping {
 	case GM, CAM:
-		err = pace.doGenericMappingCAM(nfc, paceConfig, domainParams, s, doc)
+		err = pace.doGenericMappingCAM(paceConfig, domainParams, s)
 		if err != nil {
 			return err
 		}
@@ -725,7 +731,7 @@ func (pace *Pace) DoPACE(nfc *iso7816.NfcSession, pass *password.Password, doc *
 		return fmt.Errorf("PACE IM NOT IMPLEMENTED")
 	}
 
-	slog.Debug("DoPACE - Completed", "SM", nfc.SM.String())
+	slog.Debug("DoPACE - Completed", "SM", (*pace.nfcSession).SM.String())
 
 	return nil
 }

@@ -339,10 +339,9 @@ func TestDoPaceNoCardAccessFile(t *testing.T) {
 	var transceiver *iso7816.MockTransceiver = new(iso7816.MockTransceiver)
 	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(transceiver)
 	var password *password.Password = password.NewPasswordMrzi("T22000129", "640812", "101031")
-	var pace *Pace = NewPace()
+	var pace *Pace = NewPace(nfc, &doc, password)
 
-	err = pace.DoPACE(nfc, password, &doc)
-
+	err = pace.DoPACE()
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
@@ -412,12 +411,15 @@ func TestDoPace_GM_ECDH(t *testing.T) {
 	// password (MRZ)
 	var password *password.Password = password.NewPasswordMrzi("T22000129", "640812", "101031")
 
-	var pace *Pace = NewPace()
+	var pace *Pace = NewPace(nfc, &doc, password)
 
 	// override EC key-generator (to ensure predictable keys)
 	pace.keyGeneratorEc = getTestKeyGenEc()
 
-	pace.DoPACE(nfc, password, &doc)
+	err = pace.DoPACE()
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
 
 	// verify Secure-Messaging was setup correctly
 	{
@@ -497,12 +499,15 @@ func TestDoPace_GM_ECDH_TDES_CBC_NZ(t *testing.T) {
 	// password (MRZ)
 	var password *password.Password = password.NewPasswordMrzi("LM277954", "781214", "271115")
 
-	var pace *Pace = NewPace()
+	var pace *Pace = NewPace(nfc, &doc, password)
 
 	// override EC key-generator (to ensure predictable keys)
 	pace.keyGeneratorEc = getTestKeyGenEc()
 
-	pace.DoPACE(nfc, password, &doc)
+	err = pace.DoPACE()
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
 
 	// verify Secure-Messaging was setup correctly
 	{
@@ -592,12 +597,15 @@ func TestDoPace_CAM_ECDH_DE(t *testing.T) {
 	// password (MRZ)
 	var password *password.Password = password.NewPasswordMrzi("C4KHNY1PF", "780214", "330315")
 
-	var pace *Pace = NewPace()
+	var pace *Pace = NewPace(nfc, &doc, password)
 
 	// override EC key-generator (to ensure predictable keys)
 	pace.keyGeneratorEc = getTestKeyGenEc()
 
-	pace.DoPACE(nfc, password, &doc)
+	err = pace.DoPACE()
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
 
 	// verify Secure-Messaging state (inc final SSC) is correct
 	{

@@ -229,7 +229,7 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 	 */
 	// TODO - should we have an option to skip PACE
 	{
-		err = pace.NewPace().DoPACE(nfc, password, doc)
+		err = pace.NewPace(nfc, doc, password).DoPACE()
 		if err != nil {
 			return doc, err
 		}
