@@ -266,12 +266,17 @@ func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
 
 	var smRApdu *RApdu
 	if smRApdu, err = ParseRApdu(rApduBytes); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("(sm.Decode) ParseRApdu error: %w", err)
 	}
 
-	// TODO - check status code? error if not success.... otherwise we get errors like tag 8E missing
+	// stop if we got an error status
+	if !smRApdu.IsSuccess() {
+		return nil, fmt.Errorf("(sm.Decode) rApdu error (Status:%04x) (Data:%x)", smRApdu.Status, smRApdu.Data)
+	}
 
-	// Response APDU: [DO‘85’ or DO‘87’] [DO‘99’] DO‘8E’.
+	/*
+	* Response APDU: [DO‘85’ or DO‘87’] [DO‘99’] DO‘8E’.
+	 */
 
 	tlv := tlv.Decode(smRApdu.Data)
 
@@ -284,7 +289,7 @@ func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
 	tag8E := tlv.GetNode(0x8E)
 
 	if !tag8E.IsValidNode() {
-		return nil, fmt.Errorf("tag 0x8E must be present")
+		return nil, fmt.Errorf("(sm.Decode) tag 0x8E must be present")
 	}
 
 	// verify the MAC
@@ -297,12 +302,12 @@ func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
 
 		var expMAC []byte
 		if expMAC, err = sm.generateMac(sm.cryptoPad(tmpData)); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("(sm.Decode) generateMac error: %w", err)
 		}
 
 		if !bytes.Equal(expMAC, tag8E.GetValue()) {
 			slog.Debug("sm.Decode: MAC mismatch", "Exp", utils.BytesToHex(expMAC), "Act", utils.BytesToHex(tag8E.GetValue()))
-			return nil, fmt.Errorf("MAC mismatch (Exp: %x) (Act: %x)", expMAC, tag8E.GetValue())
+			return nil, fmt.Errorf("(sm.Decode) MAC mismatch (Exp: %x) (Act: %x)", expMAC, tag8E.GetValue())
 		}
 	}
 
@@ -315,7 +320,7 @@ func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
 
 		// verify that 'verison' is 0x01 before removing
 		if tmpBytes[0] != 0x01 {
-			return nil, fmt.Errorf("version not set to 0x01")
+			return nil, fmt.Errorf("(sm.Decode) version not set to 0x01")
 		}
 
 		// remove the leading 'version' byte
@@ -328,7 +333,7 @@ func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
 
 	// sanity check that insecure/secure status values match
 	if smRApdu.Status != rApduStatus {
-		return nil, fmt.Errorf("rapdu status value mimatch (Insecure:%04x, Secure:%04x)", smRApdu.Status, rApduStatus)
+		return nil, fmt.Errorf("(sm.Decode) rapdu status value mimatch (Insecure:%04x, Secure:%04x)", smRApdu.Status, rApduStatus)
 	}
 
 	rApdu = NewRApdu(rApduStatus, rapduData)
