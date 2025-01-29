@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
+	"github.com/gmrtd/gmrtd/document"
 	"github.com/gmrtd/gmrtd/iso7816"
 	"github.com/gmrtd/gmrtd/password"
 	"github.com/gmrtd/gmrtd/utils"
@@ -17,11 +18,13 @@ func TestGenerateKseed(t *testing.T) {
 	// 4. Take the most significant 16 bytes to form the Kseed:
 	// Kseed = ‘239AB9CB282DAF66231DC5A4DF6BFBAE’
 
+	nfc := iso7816.NewNfcSession(&iso7816.MockTransceiver{})
+	doc := &document.Document{}
 	pass := password.NewPasswordMrzi("L898902C", "690806", "940623")
 
 	exp := utils.HexToBytes("239AB9CB282DAF66231DC5A4DF6BFBAE")
 
-	out := NewBAC().generateKseed(pass)
+	out := NewBAC(nfc, doc, pass).generateKseed(pass)
 
 	if !bytes.Equal(exp, out) {
 		t.Errorf("Kseed failed (Exp:%x) (Act:%x)", exp, out)
@@ -56,7 +59,11 @@ func TestBuildRequest(t *testing.T) {
 
 	exp := utils.HexToBytes("72C29C2371CC9BDB65B779B8E8D37B29ECC154AA56A8799FAE2F498F76ED92F25F1448EEA8AD90A7")
 
-	out, err := NewBAC().buildRequest(rndIfd, rndIcc, kIfd, kEnc, kMac)
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.MockTransceiver{})
+	var doc *document.Document = &document.Document{}
+	var pass *password.Password = password.NewPasswordNil()
+
+	out, err := NewBAC(nfc, doc, pass).buildRequest(rndIfd, rndIcc, kIfd, kEnc, kMac)
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
@@ -76,7 +83,11 @@ func TestBuildRequestKEncKeyLenErr(t *testing.T) {
 	rndIfd := utils.HexToBytes("781723860C06C226")
 	kIfd := utils.HexToBytes("0B795240CB7049B01C19B33E32804F0B")
 
-	_, err := NewBAC().buildRequest(rndIfd, rndIcc, kIfd, kEnc, kMac)
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.MockTransceiver{})
+	var doc *document.Document = &document.Document{}
+	var pass *password.Password = password.NewPasswordNil()
+
+	_, err := NewBAC(nfc, doc, pass).buildRequest(rndIfd, rndIcc, kIfd, kEnc, kMac)
 	if err == nil {
 		t.Errorf("Expected error")
 	}
@@ -92,7 +103,11 @@ func TestBuildRequestKMacKeyLenErr(t *testing.T) {
 	rndIfd := utils.HexToBytes("781723860C06C226")
 	kIfd := utils.HexToBytes("0B795240CB7049B01C19B33E32804F0B")
 
-	_, err := NewBAC().buildRequest(rndIfd, rndIcc, kIfd, kEnc, kMac)
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.MockTransceiver{})
+	var doc *document.Document = &document.Document{}
+	var pass *password.Password = password.NewPasswordNil()
+
+	_, err := NewBAC(nfc, doc, pass).buildRequest(rndIfd, rndIcc, kIfd, kEnc, kMac)
 	if err == nil {
 		t.Errorf("Expected error")
 	}
@@ -109,7 +124,11 @@ func TestProcessResponse(t *testing.T) {
 
 	var expKIcc []byte = utils.HexToBytes("0b4f80323eb3191cb04970cb4052790b")
 
-	var bac *BAC = NewBAC()
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.MockTransceiver{})
+	var doc *document.Document = &document.Document{}
+	var pass *password.Password = password.NewPasswordNil()
+
+	var bac *BAC = NewBAC(nfc, doc, pass)
 
 	actKIcc, err := bac.processResponse(rApduData, kEnc, kMac, rndIfd, rndIcc)
 	if err != nil {
@@ -132,7 +151,11 @@ func TestProcessResponseKMacKeyLenErr(t *testing.T) {
 
 	var rApduData []byte = utils.HexToBytes("46B9342A41396CD7386BF5803104D7CEDC122B9132139BAF2EEDC94EE178534F2F2D235D074D7449")
 
-	var bac *BAC = NewBAC()
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.MockTransceiver{})
+	var doc *document.Document = &document.Document{}
+	var pass *password.Password = password.NewPasswordNil()
+
+	var bac *BAC = NewBAC(nfc, doc, pass)
 
 	_, err := bac.processResponse(rApduData, kEnc, kMac, rndIfd, rndIcc)
 
@@ -152,7 +175,11 @@ func TestProcessResponseKMacKeyMismatchErr(t *testing.T) {
 
 	var rApduData []byte = utils.HexToBytes("46B9342A41396CD7386BF5803104D7CEDC122B9132139BAF2EEDC94EE178534F2F2D235D074D7449")
 
-	var bac *BAC = NewBAC()
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.MockTransceiver{})
+	var doc *document.Document = &document.Document{}
+	var pass *password.Password = password.NewPasswordNil()
+
+	var bac *BAC = NewBAC(nfc, doc, pass)
 
 	_, err := bac.processResponse(rApduData, kEnc, kMac, rndIfd, rndIcc)
 
@@ -172,7 +199,11 @@ func TestProcessResponseKEncKeyLenErr(t *testing.T) {
 
 	var rApduData []byte = utils.HexToBytes("46B9342A41396CD7386BF5803104D7CEDC122B9132139BAF2EEDC94EE178534F2F2D235D074D7449")
 
-	var bac *BAC = NewBAC()
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.MockTransceiver{})
+	var doc *document.Document = &document.Document{}
+	var pass *password.Password = password.NewPasswordNil()
+
+	var bac *BAC = NewBAC(nfc, doc, pass)
 
 	_, err := bac.processResponse(rApduData, kEnc, kMac, rndIfd, rndIcc)
 
@@ -192,7 +223,11 @@ func TestProcessResponseRndIfcMismatchErr(t *testing.T) {
 
 	var rApduData []byte = utils.HexToBytes("46B9342A41396CD7386BF5803104D7CEDC122B9132139BAF2EEDC94EE178534F2F2D235D074D7449")
 
-	var bac *BAC = NewBAC()
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.MockTransceiver{})
+	var doc *document.Document = &document.Document{}
+	var pass *password.Password = password.NewPasswordNil()
+
+	var bac *BAC = NewBAC(nfc, doc, pass)
 
 	_, err := bac.processResponse(rApduData, kEnc, kMac, rndIfd, rndIcc)
 
@@ -212,7 +247,11 @@ func TestProcessResponseRndIccMismatchErr(t *testing.T) {
 
 	var rApduData []byte = utils.HexToBytes("46B9342A41396CD7386BF5803104D7CEDC122B9132139BAF2EEDC94EE178534F2F2D235D074D7449")
 
-	var bac *BAC = NewBAC()
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.MockTransceiver{})
+	var doc *document.Document = &document.Document{}
+	var pass *password.Password = password.NewPasswordNil()
+
+	var bac *BAC = NewBAC(nfc, doc, pass)
 
 	_, err := bac.processResponse(rApduData, kEnc, kMac, rndIfd, rndIcc)
 
@@ -224,7 +263,6 @@ func TestProcessResponseRndIccMismatchErr(t *testing.T) {
 // BAC worked example, taken from ICAO9303 p11 (D.3 AUTHENTICATION AND ESTABLISHMENT OF SESSION KEY)
 func TestDoBAC(t *testing.T) {
 	var nfc *iso7816.NfcSession
-
 	{
 		var transceiver *iso7816.MockTransceiver = new(iso7816.MockTransceiver)
 
@@ -262,14 +300,16 @@ func TestDoBAC(t *testing.T) {
 		}
 	}
 
+	var doc *document.Document = &document.Document{}
+
 	var password *password.Password = password.NewPasswordMrzi("L898902C", "690806", "940623")
 
-	var bac *BAC = NewBAC()
+	var bac *BAC = NewBAC(nfc, doc, password)
 
 	// override random-byte generator
 	bac.randomBytesFn = getTestRandomBytesFn()
 
-	err := bac.DoBAC(nfc, password)
+	err := bac.DoBAC()
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
@@ -293,12 +333,12 @@ func TestDoBACPasswordTypeCAN(t *testing.T) {
 	// BAC only supports MRZi passwords, so test with CAN
 
 	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(new(iso7816.MockTransceiver))
-
+	var doc *document.Document = &document.Document{}
 	var password *password.Password = password.NewPasswordCan("123456")
 
-	var bac *BAC = NewBAC()
+	var bac *BAC = NewBAC(nfc, doc, password)
 
-	err := bac.DoBAC(nfc, password)
+	err := bac.DoBAC()
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}

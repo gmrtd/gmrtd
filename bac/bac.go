@@ -8,6 +8,7 @@ import (
 	"log/slog"
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
+	"github.com/gmrtd/gmrtd/document"
 	"github.com/gmrtd/gmrtd/iso7816"
 	"github.com/gmrtd/gmrtd/password"
 	"github.com/gmrtd/gmrtd/utils"
@@ -15,10 +16,19 @@ import (
 
 type BAC struct {
 	randomBytesFn cryptoutils.RandomBytesFn
+	nfcSession    **iso7816.NfcSession
+	document      **document.Document
+	password      *password.Password
 }
 
-func NewBAC() *BAC {
-	return &BAC{randomBytesFn: cryptoutils.RandomBytes}
+func NewBAC(nfc *iso7816.NfcSession, doc *document.Document, pass *password.Password) *BAC {
+	var bac BAC
+	bac.randomBytesFn = cryptoutils.RandomBytes
+	bac.nfcSession = &nfc
+	bac.document = &doc
+	bac.password = pass
+	return &bac
+
 }
 
 func (bac *BAC) generateKseed(password *password.Password) []byte {
@@ -146,20 +156,20 @@ func (bac *BAC) setupSecureMessaging(nfc *iso7816.NfcSession, kEnc []byte, kMac 
 }
 
 // TODO - return an indicator as to whether or not BAC was performed... same for PACE also
-func (bac *BAC) DoBAC(nfc *iso7816.NfcSession, pass *password.Password) (err error) {
-	slog.Debug("DoBAC", "password-type", pass.PasswordType, "password", pass.Password)
+func (bac *BAC) DoBAC() (err error) {
+	slog.Debug("DoBAC", "password-type", bac.password.PasswordType, "password", bac.password.Password)
 
-	if pass.PasswordType != password.PASSWORD_TYPE_MRZi {
+	if bac.password.PasswordType != password.PASSWORD_TYPE_MRZi {
 		// not supported, but not an error as caller shouldn't care
-		slog.Debug("DoBAC - SKIPPING as BAC is only supported for MRZi password types")
+		slog.Debug("DoBAC - SKIPPING as BAC is only supported for MRZi password types", "passwordType", bac.password.PasswordType)
 		return nil
 	}
 
-	kEnc, kMac := bac.generateKeys(bac.generateKseed(pass))
+	kEnc, kMac := bac.generateKeys(bac.generateKseed(bac.password))
 
 	// request challenge (RND.IC) from the chip
 	var rndIcc []byte
-	rndIcc, err = nfc.GetChallenge(8)
+	rndIcc, err = (*bac.nfcSession).GetChallenge(8)
 	if err != nil {
 		return err
 	}
@@ -177,7 +187,7 @@ func (bac *BAC) DoBAC(nfc *iso7816.NfcSession, pass *password.Password) (err err
 
 	// external authenticate
 	var bacRsp []byte
-	bacRsp, err = nfc.ExternalAuthenticate(bacReq, 40)
+	bacRsp, err = (*bac.nfcSession).ExternalAuthenticate(bacReq, 40)
 	// TODO - any error code for indicating BAC is not supported?.. so we don't have to return a misleading error
 	if err != nil {
 		return err
@@ -194,7 +204,7 @@ func (bac *BAC) DoBAC(nfc *iso7816.NfcSession, pass *password.Password) (err err
 	// update kEnc/kMac with the derived key
 	kEnc, kMac = bac.generateKeys(kXor)
 
-	err = bac.setupSecureMessaging(nfc, kEnc, kMac, rndIcc, rndIfd)
+	err = bac.setupSecureMessaging((*bac.nfcSession), kEnc, kMac, rndIcc, rndIfd)
 	if err != nil {
 		return err
 	}

@@ -14,13 +14,22 @@ import (
 type PasswordType int
 
 const (
-	PASSWORD_TYPE_MRZi PasswordType = iota
+	PASSWORD_TYPE_NIL PasswordType = iota
+	PASSWORD_TYPE_MRZi
 	PASSWORD_TYPE_CAN
 )
 
 type Password struct {
 	PasswordType PasswordType
 	Password     string
+}
+
+// 'nil' password - used primarily by unit tests
+func NewPasswordNil() *Password {
+	var out Password
+	out.PasswordType = PASSWORD_TYPE_NIL
+	out.Password = ""
+	return &out
 }
 
 func NewPasswordMrz(mrzStr string) (pass *Password, err error) {
