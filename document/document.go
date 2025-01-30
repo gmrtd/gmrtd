@@ -9,14 +9,6 @@ import (
 	"github.com/gmrtd/gmrtd/iso7816"
 )
 
-// TODO - 9303p11 indicates that PubKey for regular Chip Auth can be in DG14/CardSecurity
-//
-// 2. Chip Authentication, as defined in Section 6.2. Support of Chip Authentication is indicated by the presence
-// of corresponding SecurityInfos in EF.DG14/EF.CardSecurity. If available, the terminal MAY read and
-// verify EF.DG14/EF.CardSecurity and perform Chip Authentication.
-//
-// currently we're only attempting to read CardSecurity during PACE-CAM!
-
 type MasterFile struct {
 	// TODO - ATR is technically within here?
 	CardAccess   *CardAccess
@@ -59,7 +51,7 @@ type Document struct {
 	PassiveAuthSOD     *PassiveAuth
 	PassiveAuthCardSec *PassiveAuth
 
-	Apdus []iso7816.ApduLog // TODO - should move this out of document
+	Apdus []iso7816.ApduLog
 }
 
 type ChipAuthStatus int
