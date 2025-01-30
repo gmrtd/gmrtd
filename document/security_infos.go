@@ -265,6 +265,14 @@ func handleEfDirInfo(oid asn1.ObjectIdentifier, data []byte, secInfos *SecurityI
 	return true, nil
 }
 
+// returns true (as will always handle the data)
+// NB should be called after all other handlers
+func handleUnsupportedInfo(oid asn1.ObjectIdentifier, data []byte, secInfos *SecurityInfos) (handled bool, err error) {
+	var unhandledInfo UnhandledInfo = UnhandledInfo{Protocol: oid, RawData: data}
+	secInfos.UnhandledInfos = append(secInfos.UnhandledInfos, unhandledInfo)
+	return true, nil
+}
+
 /*
 * Security Info handlers configuration
  */
@@ -279,6 +287,7 @@ var securityInfoHandleFnArr []SecurityInfoHandlerFn = []SecurityInfoHandlerFn{
 	handleChipAuthenticationPublicKeyInfo,
 	handleTerminalAuthenticationInfo,
 	handleEfDirInfo,
+	handleUnsupportedInfo,
 }
 
 // TODO - currently fails if anything wrong... maybe we should be more tolerant, but record issues?
@@ -316,10 +325,8 @@ func DecodeSecurityInfos(secInfoData []byte) (secInfos *SecurityInfos, err error
 			}
 		}
 
-		// record any 'unsupported' secInfo
 		if !handled {
-			var unhandledInfo UnhandledInfo = UnhandledInfo{Protocol: secInfoOids[i].Protocol, RawData: secInfoOids[i].Raw}
-			secInfos.UnhandledInfos = append(secInfos.UnhandledInfos, unhandledInfo)
+			panic("secInfo should have been handled by at least one of the handlers (e.g. handleUnsupportedInfo)")
 		}
 	}
 
