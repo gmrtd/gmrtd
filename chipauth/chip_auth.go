@@ -17,39 +17,43 @@ import (
 
 type ChipAuth struct {
 	keyGeneratorEc cryptoutils.KeyGeneratorEcFn
+	nfcSession     **iso7816.NfcSession
+	document       **document.Document
 }
 
-func NewChipAuth() *ChipAuth {
+func NewChipAuth(nfc *iso7816.NfcSession, doc *document.Document) *ChipAuth {
 	var chipAuth ChipAuth
 	chipAuth.keyGeneratorEc = cryptoutils.KeyGeneratorEc
+	chipAuth.nfcSession = &nfc
+	chipAuth.document = &doc
 	return &chipAuth
 }
 
-func (chipAuth *ChipAuth) DoChipAuth(nfc *iso7816.NfcSession, doc *document.Document) (err error) {
+func (chipAuth *ChipAuth) DoChipAuth() (err error) {
 	// skip if we have already performed chip authentication
-	if doc.ChipAuthStatus != document.CHIP_AUTH_STATUS_NONE {
+	if (*chipAuth.document).ChipAuthStatus != document.CHIP_AUTH_STATUS_NONE {
 		return nil
 	}
 
 	// skip if DG14 is missing
-	if doc.Mf.Lds1.Dg14 == nil {
+	if (*chipAuth.document).Mf.Lds1.Dg14 == nil {
 		slog.Debug("doChipAuth - skipping CA as DG14 is not present")
 		return nil
 	}
 
-	if nfc.SM != nil {
-		slog.Debug("doChipAuth", "SM(pre)", nfc.SM.String())
+	if (*chipAuth.nfcSession).SM != nil {
+		slog.Debug("doChipAuth", "SM(pre)", (*chipAuth.nfcSession).SM.String())
 	}
 
 	var caInfo *document.ChipAuthenticationInfo
 	var caAlgInfo *CaAlgorithmInfo
 
-	caInfo, caAlgInfo, err = selectCAInfo(doc)
+	caInfo, caAlgInfo, err = selectCAInfo((*chipAuth.document))
 	if err != nil {
 		return err
 	} else if caInfo == nil || caAlgInfo == nil {
 		// try to infer from any available CA key
-		caInfo, caAlgInfo, err = inferCAInfoFromKey(doc)
+		caInfo, caAlgInfo, err = inferCAInfoFromKey((*chipAuth.document))
 		if err != nil {
 			return err
 		}
@@ -63,7 +67,7 @@ func (chipAuth *ChipAuth) DoChipAuth(nfc *iso7816.NfcSession, doc *document.Docu
 
 	var caPubKeyInfo *document.ChipAuthenticationPublicKeyInfo
 
-	caPubKeyInfo, err = selectCAPubKeyInfo(caInfo, caAlgInfo, doc)
+	caPubKeyInfo, err = selectCAPubKeyInfo(caInfo, caAlgInfo, (*chipAuth.document))
 	if err != nil {
 		return err
 	}
@@ -74,18 +78,18 @@ func (chipAuth *ChipAuth) DoChipAuth(nfc *iso7816.NfcSession, doc *document.Docu
 		return fmt.Errorf("chipAuth: DH not currently supported (Raw:%x)", caPubKeyInfo.Raw)
 	} else if caPubKeyInfo.Protocol.Equal(oid.OidPkEcdh) {
 		// ECDH
-		err = chipAuth.doCaEcdh(nfc, caInfo, caAlgInfo, caPubKeyInfo)
+		err = chipAuth.doCaEcdh((*chipAuth.nfcSession), caInfo, caAlgInfo, caPubKeyInfo)
 		if err != nil {
 			return err
 		}
 		// record chip-auth status
-		doc.ChipAuthStatus = document.CHIP_AUTH_STATUS_CA
+		(*chipAuth.document).ChipAuthStatus = document.CHIP_AUTH_STATUS_CA
 	} else {
 		return fmt.Errorf("chipAuth: unsupported public key type (OID:%s)", caPubKeyInfo.Protocol.String())
 	}
 
-	if nfc.SM != nil {
-		slog.Debug("doChipAuth", "SM(post)", nfc.SM.String())
+	if (*chipAuth.nfcSession).SM != nil {
+		slog.Debug("doChipAuth", "SM(post)", (*chipAuth.nfcSession).SM.String())
 	}
 
 	return nil

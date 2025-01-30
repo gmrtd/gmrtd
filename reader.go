@@ -145,14 +145,14 @@ func readLDS1dgs(nfc *iso7816.NfcSession, doc *document.Document) (err error) {
 
 func performChipAuthentication(nfc *iso7816.NfcSession, doc *document.Document) (err error) {
 	if doc.ChipAuthStatus == document.CHIP_AUTH_STATUS_NONE {
-		err = chipauth.NewChipAuth().DoChipAuth(nfc, doc)
+		err = chipauth.NewChipAuth(nfc, doc).DoChipAuth()
 		if err != nil {
 			return err
 		}
 	}
 
 	if doc.ChipAuthStatus == document.CHIP_AUTH_STATUS_NONE {
-		err = activeauth.NewActiveAuth().DoActiveAuth(nfc, doc)
+		err = activeauth.NewActiveAuth(nfc, doc).DoActiveAuth()
 		if err != nil {
 			return err
 		}

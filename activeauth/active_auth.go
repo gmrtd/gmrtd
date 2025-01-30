@@ -17,11 +17,15 @@ import (
 
 type ActiveAuth struct {
 	randomBytesFn cryptoutils.RandomBytesFn
+	nfcSession    **iso7816.NfcSession
+	document      **document.Document
 }
 
-func NewActiveAuth() *ActiveAuth {
+func NewActiveAuth(nfc *iso7816.NfcSession, doc *document.Document) *ActiveAuth {
 	var activeAuth ActiveAuth
 	activeAuth.randomBytesFn = cryptoutils.RandomBytes
+	activeAuth.nfcSession = &nfc
+	activeAuth.document = &doc
 	return &activeAuth
 }
 
@@ -94,21 +98,21 @@ func (activeAuth *ActiveAuth) doGetRandomIfd() []byte {
 	return rndIfd
 }
 
-func (activeAuth *ActiveAuth) doInternalAuthenticate(nfc *iso7816.NfcSession, doc *document.Document, rndIfd []byte) (rspBytes []byte, err error) {
+func (activeAuth *ActiveAuth) doInternalAuthenticate(rndIfd []byte) (rspBytes []byte, err error) {
 	var errContext string
 
-	errContext = fmt.Sprintf("dg15:%x,rndIfd:%x", doc.Mf.Lds1.Dg15, rndIfd)
+	errContext = fmt.Sprintf("dg15:%x,rndIfd:%x", (*activeAuth.document).Mf.Lds1.Dg15, rndIfd)
 
-	var cApdu *iso7816.CApdu = iso7816.NewCApdu(0, iso7816.INS_INTERNAL_AUTHENTICATE, 0x00, 0x00, rndIfd, nfc.MaxLe)
+	var cApdu *iso7816.CApdu = iso7816.NewCApdu(0, iso7816.INS_INTERNAL_AUTHENTICATE, 0x00, 0x00, rndIfd, (*activeAuth.nfcSession).MaxLe)
 
 	var rApdu *iso7816.RApdu
 
-	rApdu, err = nfc.DoAPDU(cApdu, "AA Internal Authenticate")
+	rApdu, err = (*activeAuth.nfcSession).DoAPDU(cApdu, "AA Internal Authenticate")
 	if err != nil {
 		return nil, fmt.Errorf("(doInternalAuthenticate) Internal Authenticate APDU error: %w (Context:%s)", err, errContext)
 	}
 
-	errContext = fmt.Sprintf("dg15:%x,rndIfd:%x,rApdu:%s", doc.Mf.Lds1.Dg15, rndIfd, rApdu.String())
+	errContext = fmt.Sprintf("dg15:%x,rndIfd:%x,rApdu:%s", (*activeAuth.document).Mf.Lds1.Dg15, rndIfd, rApdu.String())
 
 	if !rApdu.IsSuccess() {
 		return nil, fmt.Errorf("(doInternalAuthenticate) Internal-Auth failed (rApduStatus:%04x) (Context:%s)", rApdu.Status, errContext)
@@ -121,35 +125,35 @@ func (activeAuth *ActiveAuth) doInternalAuthenticate(nfc *iso7816.NfcSession, do
 	return rspBytes, nil
 }
 
-func (activeAuth *ActiveAuth) DoActiveAuth(nfc *iso7816.NfcSession, doc *document.Document) (err error) {
+func (activeAuth *ActiveAuth) DoActiveAuth() (err error) {
 	var errContext string
 
 	// skip if we have already performed chip authentication
-	if doc.ChipAuthStatus != document.CHIP_AUTH_STATUS_NONE {
+	if (*activeAuth.document).ChipAuthStatus != document.CHIP_AUTH_STATUS_NONE {
 		return nil
 	}
 
 	// skip if DG15 is missing
-	if doc.Mf.Lds1.Dg15 == nil {
+	if (*activeAuth.document).Mf.Lds1.Dg15 == nil {
 		slog.Debug("DoActiveAuth - skipping AA as DG15 is not present")
 		return nil
 	}
 
-	if nfc.SM != nil {
-		slog.Debug("DoActiveAuth", "SM(pre)", nfc.SM.String())
+	if (*activeAuth.nfcSession).SM != nil {
+		slog.Debug("DoActiveAuth", "SM(pre)", (*activeAuth.nfcSession).SM.String())
 	}
 
 	var rndIfd []byte = activeAuth.doGetRandomIfd()
 
 	var intAuthRspBytes []byte
 
-	intAuthRspBytes, err = activeAuth.doInternalAuthenticate(nfc, doc, rndIfd)
+	intAuthRspBytes, err = activeAuth.doInternalAuthenticate(rndIfd)
 	if err != nil {
 		return err
 	}
 
 	{
-		var subPubKeyInfo cms.SubjectPublicKeyInfo = cms.Asn1decodeSubjectPublicKeyInfo(doc.Mf.Lds1.Dg15.SubjectPublicKeyInfoBytes)
+		var subPubKeyInfo cms.SubjectPublicKeyInfo = cms.Asn1decodeSubjectPublicKeyInfo((*activeAuth.document).Mf.Lds1.Dg15.SubjectPublicKeyInfoBytes)
 
 		switch subPubKeyInfo.Algorithm.Algorithm.String() {
 		case oid.OidRsaEncryption.String():
@@ -180,7 +184,7 @@ func (activeAuth *ActiveAuth) DoActiveAuth(nfc *iso7816.NfcSession, doc *documen
 				}
 
 				// update status to reflect AA was performed
-				doc.ChipAuthStatus = document.CHIP_AUTH_STATUS_AA
+				(*activeAuth.document).ChipAuthStatus = document.CHIP_AUTH_STATUS_AA
 			}
 			/*
 				6.1.2.3 ECDSA
@@ -195,8 +199,8 @@ func (activeAuth *ActiveAuth) DoActiveAuth(nfc *iso7816.NfcSession, doc *documen
 		}
 	}
 
-	if nfc.SM != nil {
-		slog.Debug("DoActiveAuth", "SM(post)", nfc.SM.String())
+	if (*activeAuth.nfcSession).SM != nil {
+		slog.Debug("DoActiveAuth", "SM(post)", (*activeAuth.nfcSession).SM.String())
 	}
 
 	return

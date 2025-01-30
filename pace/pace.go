@@ -46,7 +46,6 @@ import (
 	"github.com/osanderson/brainpool"
 )
 
-// TODO - review BAC (and others - CA?) to consider similar changes
 type Pace struct {
 	keyGeneratorEc cryptoutils.KeyGeneratorEcFn
 	nfcSession     **iso7816.NfcSession

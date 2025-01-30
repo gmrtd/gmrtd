@@ -70,7 +70,7 @@ func TestDoActiveAuth(t *testing.T) {
 		}
 	}
 
-	var doc document.Document
+	var doc *document.Document = &document.Document{}
 
 	var dg15bytes []byte = utils.HexToBytes("6F8201023081FF300D06092A864886F70D01010105000381ED003081E90281E100BB8F93F4DC95E205CDA17C6927AB1E365B13065D03CD12E0FCE95D96840529453202F56CC4C13F77CD062930C8BC89A2873B257045C286E601CF3C09323A53103314902804AA10A314628CE222206A8866946A36B442041BB54AC81E6855DD1D6E16101833D65A191C20AC8B33B8A1A32920F46043F8031CF2BC17417030865FC5BE5A39DEE423BCBA3CA8177168EB23CFE01BA43EC87711B1CFFF85DB46F300DD8AE317B50D543B573E119E23AF7070D0B2FED6A3B2313A5EC02A531AAED1741F4390D1013E2A0F081EAC5DC8B0A1B2C6BDB1206F08D30E3643E1E5BDF536110203010001")
 
@@ -79,11 +79,11 @@ func TestDoActiveAuth(t *testing.T) {
 		t.Errorf("Unexpected error: %s", err)
 	}
 
-	var activeAuth *ActiveAuth = NewActiveAuth()
+	var activeAuth *ActiveAuth = NewActiveAuth(nfc, doc)
 
 	activeAuth.randomBytesFn = getTestRandomBytesFn()
 
-	err = activeAuth.DoActiveAuth(nfc, &doc)
+	err = activeAuth.DoActiveAuth()
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
@@ -110,16 +110,16 @@ func TestDoActiveAuth(t *testing.T) {
 }
 
 func TestDoActiveAuthChipStatusErr(t *testing.T) {
-	var doc document.Document
+	var doc *document.Document = &document.Document{}
 
 	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(new(iso7816.MockTransceiver))
 
-	var activeAuth *ActiveAuth = NewActiveAuth()
+	var activeAuth *ActiveAuth = NewActiveAuth(nfc, doc)
 
 	// NB indicate ChipAuth performed elsewhere (CA) to skip AA
 	doc.ChipAuthStatus = document.CHIP_AUTH_STATUS_CA
 
-	err := activeAuth.DoActiveAuth(nfc, &doc)
+	err := activeAuth.DoActiveAuth()
 
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
@@ -131,13 +131,13 @@ func TestDoActiveAuthChipStatusErr(t *testing.T) {
 }
 
 func TestDoActiveAuthMissingDg15Err(t *testing.T) {
-	var doc document.Document
+	var doc *document.Document = &document.Document{}
 
 	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(new(iso7816.MockTransceiver))
 
-	var activeAuth *ActiveAuth = NewActiveAuth()
+	var activeAuth *ActiveAuth = NewActiveAuth(nfc, doc)
 
-	err := activeAuth.DoActiveAuth(nfc, &doc)
+	err := activeAuth.DoActiveAuth()
 
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
