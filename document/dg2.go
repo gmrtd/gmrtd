@@ -206,7 +206,11 @@ func processBHT(node tlv.TlvNode) BiometricHeaderTemplate {
 	out.FormatOwner = node.GetNode(0x87).GetValue()
 	out.FormatType = node.GetNode(0x88).GetValue()
 
-	// TODO - Format Owner / Type are mandatory and each have length=2
+	/*
+	* We're current lenient when it comes to missing mandatory fields
+	*
+	* e.g. Format Owner/Type are mandatory (2 bytes), but we don't actually use for processing
+	 */
 
 	return out
 }
