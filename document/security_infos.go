@@ -333,13 +333,15 @@ func DecodeSecurityInfos(secInfoData []byte) (secInfos *SecurityInfos, err error
 	return secInfos, nil
 }
 
-func (secInfos *SecurityInfos) GetTotalCnt() int {
-	return len(secInfos.PaceInfos) +
-		len(secInfos.PaceDomainParamInfos) +
-		len(secInfos.ActiveAuthInfos) +
-		len(secInfos.ChipAuthInfos) +
-		len(secInfos.ChipAuthPubKeyInfos) +
-		len(secInfos.TermAuthInfos) +
-		len(secInfos.EfDirInfos) +
-		len(secInfos.UnhandledInfos)
+func (secInfos *SecurityInfos) GetTotalCnt() (cnt int) {
+	cnt = 0
+	cnt += len(secInfos.PaceInfos)
+	cnt += len(secInfos.PaceDomainParamInfos)
+	cnt += len(secInfos.ActiveAuthInfos)
+	cnt += len(secInfos.ChipAuthInfos)
+	cnt += len(secInfos.ChipAuthPubKeyInfos)
+	cnt += len(secInfos.TermAuthInfos)
+	cnt += len(secInfos.EfDirInfos)
+	cnt += len(secInfos.UnhandledInfos)
+	return cnt
 }
