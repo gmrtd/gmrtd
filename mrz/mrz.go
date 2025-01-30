@@ -148,8 +148,6 @@ func verifyCheckdigit(data string, checkDigit string) {
 	}
 }
 
-// TODO - TD1/2 have similar handling for extended doc-no... maybe update to use shared code
-
 func decodeTD1(mrz string) (*MRZ, error) {
 	slog.Debug("decodeTD1", "MRZ", mrz)
 

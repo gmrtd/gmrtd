@@ -269,14 +269,11 @@ func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
 		return nil, fmt.Errorf("(sm.Decode) ParseRApdu error: %w", err)
 	}
 
-	// TODO - causing problem as parent code sometimes allows !success status, but now we're throwing error
-	//			- need to also handle the case where we have !success, but we also have a valid SM response that can be parsed
-	/*
-		// stop if we got an error status
-		if !smRApdu.IsSuccess() {
-			return nil, fmt.Errorf("(sm.Decode) rApdu error (Status:%04x) (Data:%x)", smRApdu.Status, smRApdu.Data)
-		}
-	*/
+	// Simply return the SM rApdu if it doesn't contain any data, as SM (TLV)
+	// decode will fail due to missing tags (e.g. 0x8E)
+	if len(smRApdu.Data) < 1 {
+		return smRApdu, nil
+	}
 
 	/*
 	* Response APDU: [DO‘85’ or DO‘87’] [DO‘99’] DO‘8E’.
