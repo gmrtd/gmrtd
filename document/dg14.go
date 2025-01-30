@@ -10,7 +10,7 @@ import (
 const DG14Tag = 0x6E
 
 type DG14 struct {
-	RawData  []byte // TODO - add to test cases (for all other DGs also)
+	RawData  []byte
 	SecInfos *SecurityInfos
 }
 
