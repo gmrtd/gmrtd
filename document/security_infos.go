@@ -129,6 +129,158 @@ type UnhandledInfo struct {
 	RawData  []byte
 }
 
+/*
+* Security Info handlers
+ */
+
+// returns true if handled, false otherwise, may also return an error
+func handlePaceInfo(oid asn1.ObjectIdentifier, data []byte, secInfos *SecurityInfos) (handled bool, err error) {
+	if !isPACEInfo(oid) {
+		return false, nil
+	}
+
+	var paceInfo PaceInfo
+	err = utils.ParseAsn1(data, false, &paceInfo)
+	if err != nil {
+		return false, err
+	}
+
+	// validation
+	if paceInfo.Version != 2 {
+		log.Panicf("PaceInfo version must be 2 (Version:%d)", paceInfo.Version)
+	}
+
+	secInfos.PaceInfos = append(secInfos.PaceInfos, paceInfo)
+
+	return true, nil
+}
+
+// returns true if handled, false otherwise, may also return an error
+func handlePaceDomainParameterInfo(oid asn1.ObjectIdentifier, data []byte, secInfos *SecurityInfos) (handled bool, err error) {
+	if !isPACEDomainParameterInfo(oid) {
+		return false, nil
+	}
+
+	var paceDomainParamInfo PaceDomainParameterInfo
+
+	err = utils.ParseAsn1(data, false, &paceDomainParamInfo)
+	if err != nil {
+		return false, err
+	}
+
+	secInfos.PaceDomainParamInfos = append(secInfos.PaceDomainParamInfos, paceDomainParamInfo)
+
+	return true, nil
+}
+
+// returns true if handled, false otherwise, may also return an error
+func handleActiveAuthenticationInfo(oid asn1.ObjectIdentifier, data []byte, secInfos *SecurityInfos) (handled bool, err error) {
+	if !isActiveAuthenticationInfo(oid) {
+		return false, nil
+	}
+
+	var activeAuthInfo ActiveAuthenticationInfo
+
+	err = utils.ParseAsn1(data, false, &activeAuthInfo)
+	if err != nil {
+		return false, err
+	}
+
+	secInfos.ActiveAuthInfos = append(secInfos.ActiveAuthInfos, activeAuthInfo)
+
+	return true, nil
+}
+
+// returns true if handled, false otherwise, may also return an error
+func handleChipAuthenticationInfo(oid asn1.ObjectIdentifier, data []byte, secInfos *SecurityInfos) (handled bool, err error) {
+	if !isChipAuthenticationInfo(oid) {
+		return false, nil
+	}
+
+	var chipAuthInfo ChipAuthenticationInfo
+
+	err = utils.ParseAsn1(data, false, &chipAuthInfo)
+	if err != nil {
+		return false, err
+	}
+
+	secInfos.ChipAuthInfos = append(secInfos.ChipAuthInfos, chipAuthInfo)
+
+	return true, nil
+}
+
+// returns true if handled, false otherwise, may also return an error
+func handleChipAuthenticationPublicKeyInfo(oid asn1.ObjectIdentifier, data []byte, secInfos *SecurityInfos) (handled bool, err error) {
+	if !isChipAuthenticationPublicKeyInfo(oid) {
+		return false, nil
+	}
+
+	var chipAuthPubKeyInfo ChipAuthenticationPublicKeyInfo
+
+	err = utils.ParseAsn1(data, false, &chipAuthPubKeyInfo)
+	if err != nil {
+		return false, err
+	}
+
+	secInfos.ChipAuthPubKeyInfos = append(secInfos.ChipAuthPubKeyInfos, chipAuthPubKeyInfo)
+	// TODO - may want to record warning/error if OID is not one of the 8 supported (i.e. 4 DH, 4 ECDH)
+	//			see 9303p11 - 6.2.3 Cryptographic Specifications
+
+	return true, nil
+}
+
+// returns true if handled, false otherwise, may also return an error
+func handleTerminalAuthenticationInfo(oid asn1.ObjectIdentifier, data []byte, secInfos *SecurityInfos) (handled bool, err error) {
+	if !isTerminalAuthenticationInfo(oid) {
+		return false, nil
+	}
+
+	var termAuthInfo TerminalAuthenticationInfo
+
+	err = utils.ParseAsn1(data, false, &termAuthInfo)
+	if err != nil {
+		return false, err
+	}
+
+	secInfos.TermAuthInfos = append(secInfos.TermAuthInfos, termAuthInfo)
+
+	return true, nil
+}
+
+// returns true if handled, false otherwise, may also return an error
+func handleEfDirInfo(oid asn1.ObjectIdentifier, data []byte, secInfos *SecurityInfos) (handled bool, err error) {
+	if !isEFDIRInfo(oid) {
+		return false, nil
+	}
+
+	var efDirInfo EFDirInfo
+
+	err = utils.ParseAsn1(data, false, &efDirInfo)
+	if err != nil {
+		return false, err
+	}
+
+	secInfos.EfDirInfos = append(secInfos.EfDirInfos, efDirInfo)
+
+	return true, nil
+}
+
+/*
+* Security Info handlers configuration
+ */
+
+type SecurityInfoHandlerFn func(asn1.ObjectIdentifier, []byte, *SecurityInfos) (bool, error)
+
+var securityInfoHandleFnArr []SecurityInfoHandlerFn = []SecurityInfoHandlerFn{
+	handlePaceInfo,
+	handlePaceDomainParameterInfo,
+	handleActiveAuthenticationInfo,
+	handleChipAuthenticationInfo,
+	handleChipAuthenticationPublicKeyInfo,
+	handleTerminalAuthenticationInfo,
+	handleEfDirInfo,
+}
+
 // TODO - currently fails if anything wrong... maybe we should be more tolerant, but record issues?
 func DecodeSecurityInfos(secInfoData []byte) (secInfos *SecurityInfos, err error) {
 	var secInfoOids SecurityInfoOidSET
@@ -152,65 +304,20 @@ func DecodeSecurityInfos(secInfoData []byte) (secInfos *SecurityInfos, err error
 
 		slog.Debug("parsing secInfo", "oid", oid, "tlv", tlv.Decode(data))
 
-		if isPACEInfo(oid) {
-			var paceInfo PaceInfo
-			err = utils.ParseAsn1(data, false, &paceInfo)
-			if err != nil {
-				return nil, err
-			}
+		var handled bool = false
 
-			// validation
-			if paceInfo.Version != 2 {
-				log.Panicf("PaceInfo version must be 2 (Version:%d)", paceInfo.Version)
+		for _, handleFn := range securityInfoHandleFnArr {
+			handled, err = handleFn(oid, data, secInfos)
+			if err != nil {
+				return nil, err
 			}
+			if handled {
+				break
+			}
+		}
 
-			secInfos.PaceInfos = append(secInfos.PaceInfos, paceInfo)
-		} else if isPACEDomainParameterInfo(oid) {
-			var paceDomainParamInfo PaceDomainParameterInfo
-			err = utils.ParseAsn1(data, false, &paceDomainParamInfo)
-			if err != nil {
-				return nil, err
-			}
-			secInfos.PaceDomainParamInfos = append(secInfos.PaceDomainParamInfos, paceDomainParamInfo)
-		} else if isActiveAuthenticationInfo(oid) {
-			var activeAuthInfo ActiveAuthenticationInfo
-			err = utils.ParseAsn1(data, false, &activeAuthInfo)
-			if err != nil {
-				return nil, err
-			}
-			secInfos.ActiveAuthInfos = append(secInfos.ActiveAuthInfos, activeAuthInfo)
-		} else if isChipAuthenticationInfo(oid) {
-			var chipAuthInfo ChipAuthenticationInfo
-			err = utils.ParseAsn1(data, false, &chipAuthInfo)
-			if err != nil {
-				return nil, err
-			}
-			secInfos.ChipAuthInfos = append(secInfos.ChipAuthInfos, chipAuthInfo)
-		} else if isChipAuthenticationPublicKeyInfo(oid) {
-			var chipAuthPubKeyInfo ChipAuthenticationPublicKeyInfo
-			err = utils.ParseAsn1(data, false, &chipAuthPubKeyInfo)
-			if err != nil {
-				return nil, err
-			}
-			secInfos.ChipAuthPubKeyInfos = append(secInfos.ChipAuthPubKeyInfos, chipAuthPubKeyInfo)
-			// TODO - may want to record warning/error if OID is not one of the 8 supported (i.e. 4 DH, 4 ECDH)
-			//			see 9303p11 - 6.2.3 Cryptographic Specifications
-		} else if isTerminalAuthenticationInfo(oid) {
-			var termAuthInfo TerminalAuthenticationInfo
-			err = utils.ParseAsn1(data, false, &termAuthInfo)
-			if err != nil {
-				return nil, err
-			}
-			secInfos.TermAuthInfos = append(secInfos.TermAuthInfos, termAuthInfo)
-		} else if isEFDIRInfo(oid) {
-			var efDirInfo EFDirInfo
-			err = utils.ParseAsn1(data, false, &efDirInfo)
-			if err != nil {
-				return nil, err
-			}
-			secInfos.EfDirInfos = append(secInfos.EfDirInfos, efDirInfo)
-		} else {
-			// unsupported - so simply record
+		// record any 'unsupported' secInfo
+		if !handled {
 			var unhandledInfo UnhandledInfo = UnhandledInfo{Protocol: secInfoOids[i].Protocol, RawData: secInfoOids[i].Raw}
 			secInfos.UnhandledInfos = append(secInfos.UnhandledInfos, unhandledInfo)
 		}
