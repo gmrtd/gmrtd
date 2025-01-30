@@ -238,7 +238,7 @@ func (chipAuth *ChipAuth) doMseSetAT(nfc *iso7816.NfcSession, caInfo *document.C
 	return err
 }
 
-func (chipAuth *ChipAuth) doGeneralAuthenticate(nfc *iso7816.NfcSession, curve *elliptic.Curve, termKeypair cryptoutils.EcKeypair, chipPubKey *cryptoutils.EcPoint, caAlgInfo *CaAlgorithmInfo) (ksEnc []byte, ksMac []byte, err error) {
+func (chipAuth *ChipAuth) doGeneralAuthenticate(curve *elliptic.Curve, termKeypair cryptoutils.EcKeypair, chipPubKey *cryptoutils.EcPoint, caAlgInfo *CaAlgorithmInfo) (ksEnc []byte, ksMac []byte, err error) {
 	// General Authenticate
 	//
 	// INS: 0x86
@@ -252,7 +252,7 @@ func (chipAuth *ChipAuth) doGeneralAuthenticate(nfc *iso7816.NfcSession, curve *
 
 	slog.Debug("doGeneralAuthenticate")
 
-	var rApdu *iso7816.RApdu = nfc.GeneralAuthenticate(false, encodeDynAuthData(0x80, cryptoutils.EncodeX962EcPoint(*curve, termKeypair.Pub)))
+	var rApdu *iso7816.RApdu = (*chipAuth.nfcSession).GeneralAuthenticate(false, encodeDynAuthData(0x80, cryptoutils.EncodeX962EcPoint(*curve, termKeypair.Pub)))
 	if !rApdu.IsSuccess() {
 		return nil, nil, fmt.Errorf("doGeneralAuthenticate: General Authenticate failed (Status:%d)", rApdu.Status)
 	}
@@ -306,7 +306,7 @@ func (chipAuth *ChipAuth) doCaEcdh(nfc *iso7816.NfcSession, caInfo *document.Chi
 
 	var ksEnc, ksMac []byte
 
-	ksEnc, ksMac, err = chipAuth.doGeneralAuthenticate(nfc, curve, termKeypair, chipPubKey, caAlgInfo)
+	ksEnc, ksMac, err = chipAuth.doGeneralAuthenticate(curve, termKeypair, chipPubKey, caAlgInfo)
 	if err != nil {
 		return err
 	}
