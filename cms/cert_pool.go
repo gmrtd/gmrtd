@@ -38,7 +38,7 @@ func (certPool *CertPool) GetBySki(ski []byte) []Certificate {
 
 		if bytes.Equal(*tmpSki, ski) {
 			slog.Debug("CertPool.GetBySki - found matching cert", "Idx", i, "SKI", utils.BytesToHex(ski))
-			matchingCerts = append(matchingCerts, *cert) // TODO - copy?
+			matchingCerts = append(matchingCerts, *cert)
 		}
 	}
 

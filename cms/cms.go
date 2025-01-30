@@ -658,7 +658,7 @@ func ParseECSpecifiedDomain(algIdentifier *AlgorithmIdentifier) (out *ECSpecifie
 
 	slog.Debug("ParseECSpecifiedDomain", "Parameters(bytes)", utils.BytesToHex(algIdentifier.Parameters.FullBytes))
 
-	err = utils.ParseAsn1(algIdentifier.Parameters.FullBytes, true, out) // TODO - NB may have extra field after
+	err = utils.ParseAsn1(algIdentifier.Parameters.FullBytes, true, out) // NB may have extra field after
 	if err != nil {
 		return nil, fmt.Errorf("(ParseECSpecifiedDomain) ASN1 parsing error: %w", err)
 	}
