@@ -258,30 +258,34 @@ func (sm *SecureMessaging) Encode(cApdu *CApdu) (out *CApdu, err error) {
 	return out, nil
 }
 
-func (sm *SecureMessaging) decodeVerifyMAC(tlv *tlv.TlvNodes) (err error) {
-	tmpData := make([]byte, 0)
-	tmpData = append(tmpData, sm.ssc...)
-	tmpData = append(tmpData, tlv.GetNode(0x85).Encode()...)
-	tmpData = append(tmpData, tlv.GetNode(0x87).Encode()...)
-	tmpData = append(tmpData, tlv.GetNode(0x99).Encode()...)
+// generates the mac data (ie data to be mac'd) for the specified SM rApdu TLV
+func generateMacDataForSmRApduTlv(smRApduTlv *tlv.TlvNodes, ssc []byte) []byte {
+	out := make([]byte, 0)
+	out = append(out, ssc...)
+	out = append(out, smRApduTlv.GetNode(0x85).Encode()...)
+	out = append(out, smRApduTlv.GetNode(0x87).Encode()...)
+	out = append(out, smRApduTlv.GetNode(0x99).Encode()...)
+	return out
+}
 
-	var expMAC []byte
-	expMAC, err = sm.generateMac(sm.cryptoPad(tmpData))
+func (sm *SecureMessaging) decodeVerifyMAC(tlv *tlv.TlvNodes) error {
+	macData := generateMacDataForSmRApduTlv(tlv, sm.ssc)
+	actMAC := tlv.GetNode(0x8E).GetValue()
+
+	expMAC, err := sm.generateMac(sm.cryptoPad(macData))
 	if err != nil {
 		return fmt.Errorf("(sm.decodeVerifyMAC) generateMac error: %w", err)
 	}
 
-	tag8Evalue := tlv.GetNode(0x8E).GetValue()
-
-	if !bytes.Equal(expMAC, tag8Evalue) {
-		slog.Debug("sm.decodeVerifyMAC: MAC mismatch", "Exp", utils.BytesToHex(expMAC), "Act", utils.BytesToHex(tag8Evalue))
-		return fmt.Errorf("(sm.decodeVerifyMAC) MAC mismatch (Exp: %x) (Act: %x)", expMAC, tag8Evalue)
+	if !bytes.Equal(expMAC, actMAC) {
+		slog.Debug("sm.decodeVerifyMAC: MAC mismatch", "Exp", utils.BytesToHex(expMAC), "Act", utils.BytesToHex(actMAC))
+		return fmt.Errorf("(sm.decodeVerifyMAC) MAC mismatch (Exp: %x) (Act: %x)", expMAC, actMAC)
 	}
 
 	return nil
 }
 
-func (sm *SecureMessaging) decodeRApduData(encodedData []byte) (out []byte, err error) {
+func (sm *SecureMessaging) decodeSmRApduData(encodedData []byte) (out []byte, err error) {
 	out = make([]byte, 0)
 
 	tmpBytes := bytes.Clone(encodedData)
@@ -290,7 +294,7 @@ func (sm *SecureMessaging) decodeRApduData(encodedData []byte) (out []byte, err 
 
 	// verify that 'verison' is 0x01 before removing
 	if tmpBytes[0] != 0x01 {
-		return nil, fmt.Errorf("(sm.decodeRApduData) version not set to 0x01")
+		return nil, fmt.Errorf("(sm.decodeSmRApduData) version not set to 0x01")
 	}
 
 	// remove the leading 'version' byte
@@ -341,20 +345,21 @@ func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
 		return nil, fmt.Errorf("(sm.Decode) verify MAC error: %w", err)
 	}
 
-	// decrypt and unpad the data (if applicable)
-	var rapduData []byte
-	if tag85or87.IsValidNode() {
-		rapduData, err = sm.decodeRApduData(tag85or87.GetValue())
-		if err != nil {
-			return nil, fmt.Errorf("(sm.Decode) error decoding rApduData: %w", err)
-		}
-	}
-
+	// set the status
 	rApduStatus := binary.BigEndian.Uint16(tag99.GetValue())
 
 	// sanity check that insecure/secure status values match
 	if smRApdu.Status != rApduStatus {
-		return nil, fmt.Errorf("(sm.Decode) rapdu status value mimatch (Insecure:%04x, Secure:%04x)", smRApdu.Status, rApduStatus)
+		return nil, fmt.Errorf("(sm.Decode) rapdu status value mismatch (Insecure:%04x, Secure:%04x)", smRApdu.Status, rApduStatus)
+	}
+
+	// decrypt and unpad the data (if applicable)
+	var rapduData []byte
+	if tag85or87.IsValidNode() {
+		rapduData, err = sm.decodeSmRApduData(tag85or87.GetValue())
+		if err != nil {
+			return nil, fmt.Errorf("(sm.Decode) error decoding rApduData: %w", err)
+		}
 	}
 
 	rApdu = NewRApdu(rApduStatus, rapduData)
