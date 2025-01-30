@@ -26,7 +26,7 @@ type MRZ struct {
 	Sex            string
 	DateOfExpiry   string
 	OptionalData   string
-	OptionalData2  string // TODO - just required for TD1?.. should this be considered as a single logical field?
+	OptionalData2  string
 }
 
 // "Type 3" is typical of passport booklets. The MRZ consists of 2 lines × 44 characters.

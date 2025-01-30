@@ -257,10 +257,19 @@ func OidBytes(oid asn1.ObjectIdentifier) []byte {
 		panic(fmt.Sprintf("Unable to encode OID []int (%s)", err.Error()))
 	}
 
-	// TODO (HACK) can't use TLV due to circular dep... just skip first 2 bytes (tag/len)
-	//return TlvDecode(asn1bytes).GetNode(0x06).GetValue()
-	return asn1bytes[2:]
+	if len(asn1bytes) < 3 {
+		panic("asn1 oid with tag/length must be at least 3 bytes in length")
+	}
 
+	if asn1bytes[0] != 0x06 {
+		panic("asn1 oid must have tag=0x06")
+	}
+
+	if int(asn1bytes[1]) != (len(asn1bytes) - 2) {
+		panic("unexpected length")
+	}
+
+	return asn1bytes[2:]
 }
 
 // decodes the raw OID bytes (excluding the tag/length)
