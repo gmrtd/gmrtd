@@ -549,44 +549,33 @@ func (pace *Pace) doCamEcdh(paceConfig *PaceConfig, domainParams *PACEDomainPara
 
 	// IV = K(KSenc,-1)
 	var iv []byte = make([]byte, blockCipher.BlockSize())
-	{
-		data := bytes.Repeat([]byte{0xff}, blockCipher.BlockSize())
-		blockCipher.Encrypt(iv, data)
-	}
+	blockCipher.Encrypt(iv, bytes.Repeat([]byte{0xff}, blockCipher.BlockSize()))
 
 	// decrypt the data we got earlier...
-	var caIC []byte
-	{
-		caIC = cryptoutils.ISO9797Method2Unpad(cryptoutils.CryptCBC(blockCipher, iv, ecadIC, false))
-		slog.Debug("doCamEcdh", "CA-IC", utils.BytesToHex(caIC))
-	}
+	var caIC []byte = cryptoutils.ISO9797Method2Unpad(cryptoutils.CryptCBC(blockCipher, iv, ecadIC, false))
+	slog.Debug("doCamEcdh", "CA-IC", utils.BytesToHex(caIC))
 
 	// 4.4.3.5.2 Verification by the terminal
 	// The terminal SHALL decrypt AIC to recover CAIC and verify PKMap,IC = KA(CAIC, PKIC, DIC), where PKIC is the static public
 	// key of the eMRTD chip.
-
 	// t_ic_dcad --> CAic
 
-	{
-		// NB we assume that CAM needs to use the same domain-params as used earlier, so we scan card-security file
-		//    to find a key that matches the param-id
+	// NB we assume that CAM needs to use the same domain-params as used earlier, so we scan card-security file
+	//    to find a key that matches the param-id
 
-		// get IC PubKey (EC) for paramId
-		var pkIC *cryptoutils.EcPoint = getIcPubKeyECForCAM(domainParams, (*pace.document).Mf.CardSecurity)
+	// get IC PubKey (EC) for paramId
+	var pkIC *cryptoutils.EcPoint = getIcPubKeyECForCAM(domainParams, (*pace.document).Mf.CardSecurity)
 
-		var KA *cryptoutils.EcPoint = cryptoutils.DoEcDh(caIC, pkIC, domainParams.ec)
-		slog.Debug("doCamEcdh", "KA", KA.String())
+	var KA *cryptoutils.EcPoint = cryptoutils.DoEcDh(caIC, pkIC, domainParams.ec)
+	slog.Debug("doCamEcdh", "KA", KA.String())
 
-		//
-		// Verify that PKMAP,IC = KA(CAIC, PKIC, DIC).
-		//
-		if !KA.Equal(*pubMapIC) {
-			log.Panicf("PACE CAM verification failed (Bad KA.X/Y) KA:%s, pubMapIC:%s", KA.String(), pubMapIC.String())
-		}
-
-		// record that Chip Auth has been performed using PACE-CAM
-		(*pace.document).ChipAuthStatus = document.CHIP_AUTH_STATUS_PACE_CAM
+	// Verify that PKMAP,IC = KA(CAIC, PKIC, DIC).
+	if !KA.Equal(*pubMapIC) {
+		log.Panicf("PACE CAM verification failed (Bad KA.X/Y) KA:%s, pubMapIC:%s", KA.String(), pubMapIC.String())
 	}
+
+	// record that Chip Auth has been performed using PACE-CAM
+	(*pace.document).ChipAuthStatus = document.CHIP_AUTH_STATUS_PACE_CAM
 }
 
 func getKeyForPassword(paceConfig *PaceConfig, pass *password.Password) []byte {
