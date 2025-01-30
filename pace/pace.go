@@ -409,8 +409,7 @@ func (pace *Pace) keyAgreementGmEcDh(domainParams *PACEDomainParams, G *cryptout
 	// generate the public-key, using the mapped generator (Gxy)
 	termKeypair.Pub.X, termKeypair.Pub.Y = domainParams.ec.ScalarMult(G.X, G.Y, termKeypair.Pri)
 
-	// TODO - common String function for KeyPair (check others also)
-	slog.Debug("keyAgreementGmEcDh", "termPri", utils.BytesToHex(termKeypair.Pri), "termPub", termKeypair.Pub.String())
+	slog.Debug("keyAgreementGmEcDh", "termKeypair", termKeypair.String())
 
 	// exchange terminal public-key with chip and get chip's public-key
 	{

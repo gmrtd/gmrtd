@@ -66,6 +66,10 @@ type RsaPublicKey struct {
 	E int
 }
 
+func (ecKeypair EcKeypair) String() string {
+	return fmt.Sprintf("(Pri:%x, Pub:%s)", utils.BytesToHex(ecKeypair.Pri), ecKeypair.Pub.String())
+}
+
 func (ec EcPoint) String() string {
 	return fmt.Sprintf("(x:%x, y:%x)", ec.X.Bytes(), ec.Y.Bytes())
 }
@@ -249,7 +253,7 @@ func KeyGeneratorEc(ec elliptic.Curve) EcKeypair {
 		log.Panic(err)
 	}
 
-	slog.Debug("KeyGeneratorEc", "Pri", utils.BytesToHex(out.Pri), "Pub", out.Pub.String())
+	slog.Debug("KeyGeneratorEc", "Keypair", out.String())
 
 	return out
 }
