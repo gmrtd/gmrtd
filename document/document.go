@@ -10,7 +10,6 @@ import (
 )
 
 type MasterFile struct {
-	// TODO - ATR is technically within here?
 	CardAccess   *CardAccess
 	CardSecurity *CardSecurity // NB only read for PACE-CAM - read during PACE flow
 	Dir          *EFDIR        // indicates which applications are present - generally not acvailable
