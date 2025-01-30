@@ -389,6 +389,16 @@ func (cert *Certificate) Verify(certPool *CertPool) (certChain [][]byte, err err
 		return certChain, fmt.Errorf("(Certificate.Verify) AKI missing from cert (%x)", cert.Raw)
 	}
 
+	// determine the digest-alg for the cert
+	var certDigestAlg *asn1.ObjectIdentifier
+	certDigestAlg, err = cert.SignatureAlgorithm.DetermineDigestAlgFromSigAlg()
+	if err != nil {
+		return certChain, fmt.Errorf("(Certificate.Verify) unable to determine digest-alg from signature-alg: %w", err)
+	}
+
+	// calculate the cert digest
+	var certDigest []byte = cryptoutils.CryptoHashByOid(*certDigestAlg, cert.TbsCertificate.Raw)
+
 	// get any matching parent certificates
 	// NB often >1 due to cross-signing in master-list
 	parentCerts := certPool.GetBySki(aki.KeyIdentifier)
@@ -404,21 +414,12 @@ func (cert *Certificate) Verify(certPool *CertPool) (certChain [][]byte, err err
 
 	// test each parent cert until we find one that validates the cert signature
 	for i := 0; i < len(parentCerts); i++ {
-		var err error
+		var tmpErr error
 
-		var digestAlg *asn1.ObjectIdentifier
-		digestAlg, err = cert.SignatureAlgorithm.DetermineDigestAlgFromSigAlg()
-		if err != nil {
+		tmpErr = VerifySignature(parentCerts[i].TbsCertificate.SubjectPublicKeyInfo.FullBytes, *certDigestAlg, certDigest, cert.SignatureAlgorithm.Algorithm, cert.SignatureValue.Bytes)
+		if tmpErr != nil {
 			// ignore error and try other parent certs
-			// TODO - should we really be ignoring this error? at least we may want some logging
-			continue
-		}
-
-		var digest []byte = cryptoutils.CryptoHashByOid(*digestAlg, cert.TbsCertificate.Raw)
-
-		err = VerifySignature(parentCerts[i].TbsCertificate.SubjectPublicKeyInfo.FullBytes, *digestAlg, digest, cert.SignatureAlgorithm.Algorithm, cert.SignatureValue.Bytes)
-		if err != nil {
-			// ignore error and try other parent certs
+			slog.Debug("Certificate.Verify - skipping parent cert as it failed to verify the signature", "idx", i)
 			continue
 		}
 
@@ -428,10 +429,10 @@ func (cert *Certificate) Verify(certPool *CertPool) (certChain [][]byte, err err
 		// record cert
 		certChain = append(certChain, bytes.Clone(parentCerts[i].Raw))
 
+		// TODO - still need to match cert-country.. and should also check MRZ country (TBC?)... don't want country A signing docs for country B!
+
 		return certChain, nil
 	}
-
-	// TODO - still need to match cert-country.. and should also check MRZ country (TBC?)
 
 	return certChain, fmt.Errorf("(Certificate.Verify) signature not verified against matched certificates (matchCnt:%d,aki:%x,cert:%x)", len(parentCerts), aki.KeyIdentifier, cert.Raw)
 }
