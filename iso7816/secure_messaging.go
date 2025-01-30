@@ -258,8 +258,51 @@ func (sm *SecureMessaging) Encode(cApdu *CApdu) (out *CApdu, err error) {
 	return out, nil
 }
 
+func (sm *SecureMessaging) decodeVerifyMAC(tlv *tlv.TlvNodes) (err error) {
+	tmpData := make([]byte, 0)
+	tmpData = append(tmpData, sm.ssc...)
+	tmpData = append(tmpData, tlv.GetNode(0x85).Encode()...)
+	tmpData = append(tmpData, tlv.GetNode(0x87).Encode()...)
+	tmpData = append(tmpData, tlv.GetNode(0x99).Encode()...)
+
+	var expMAC []byte
+	expMAC, err = sm.generateMac(sm.cryptoPad(tmpData))
+	if err != nil {
+		return fmt.Errorf("(sm.decodeVerifyMAC) generateMac error: %w", err)
+	}
+
+	tag8Evalue := tlv.GetNode(0x8E).GetValue()
+
+	if !bytes.Equal(expMAC, tag8Evalue) {
+		slog.Debug("sm.decodeVerifyMAC: MAC mismatch", "Exp", utils.BytesToHex(expMAC), "Act", utils.BytesToHex(tag8Evalue))
+		return fmt.Errorf("(sm.decodeVerifyMAC) MAC mismatch (Exp: %x) (Act: %x)", expMAC, tag8Evalue)
+	}
+
+	return nil
+}
+
+func (sm *SecureMessaging) decodeRApduData(encodedData []byte) (out []byte, err error) {
+	out = make([]byte, 0)
+
+	tmpBytes := bytes.Clone(encodedData)
+
+	// field has a leading 'version' byte that needs to be removed (if field is present)
+
+	// verify that 'verison' is 0x01 before removing
+	if tmpBytes[0] != 0x01 {
+		return nil, fmt.Errorf("(sm.decodeRApduData) version not set to 0x01")
+	}
+
+	// remove the leading 'version' byte
+	tmpBytes = tmpBytes[1:]
+
+	out = sm.cryptoUnpad(sm.cbcCrypt(tmpBytes, false))
+
+	return out, nil
+}
+
 func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
-	slog.Debug("Decode", "SM(pre)", sm.String())
+	slog.Debug("sm.Decode", "SM(pre)", sm.String())
 
 	// increment SSC
 	sm.sscIncrement()
@@ -294,40 +337,17 @@ func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
 	}
 
 	// verify the MAC
-	{
-		tmpData := make([]byte, 0)
-		tmpData = append(tmpData, sm.ssc...)
-		tmpData = append(tmpData, tlv.GetNode(0x85).Encode()...)
-		tmpData = append(tmpData, tlv.GetNode(0x87).Encode()...)
-		tmpData = append(tmpData, tlv.GetNode(0x99).Encode()...)
-
-		var expMAC []byte
-		if expMAC, err = sm.generateMac(sm.cryptoPad(tmpData)); err != nil {
-			return nil, fmt.Errorf("(sm.Decode) generateMac error: %w", err)
-		}
-
-		if !bytes.Equal(expMAC, tag8E.GetValue()) {
-			slog.Debug("sm.Decode: MAC mismatch", "Exp", utils.BytesToHex(expMAC), "Act", utils.BytesToHex(tag8E.GetValue()))
-			return nil, fmt.Errorf("(sm.Decode) MAC mismatch (Exp: %x) (Act: %x)", expMAC, tag8E.GetValue())
-		}
+	if err = sm.decodeVerifyMAC(tlv); err != nil {
+		return nil, fmt.Errorf("(sm.Decode) verify MAC error: %w", err)
 	}
 
 	// decrypt and unpad the data (if applicable)
 	var rapduData []byte
 	if tag85or87.IsValidNode() {
-		tmpBytes := tag85or87.GetValue()
-
-		// field has a leading 'version' byte that needs to be removed (if field is present)
-
-		// verify that 'verison' is 0x01 before removing
-		if tmpBytes[0] != 0x01 {
-			return nil, fmt.Errorf("(sm.Decode) version not set to 0x01")
+		rapduData, err = sm.decodeRApduData(tag85or87.GetValue())
+		if err != nil {
+			return nil, fmt.Errorf("(sm.Decode) error decoding rApduData: %w", err)
 		}
-
-		// remove the leading 'version' byte
-		tmpBytes = tmpBytes[1:]
-
-		rapduData = sm.cryptoUnpad(sm.cbcCrypt(tmpBytes, false))
 	}
 
 	rApduStatus := binary.BigEndian.Uint16(tag99.GetValue())
@@ -339,7 +359,7 @@ func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
 
 	rApdu = NewRApdu(rApduStatus, rapduData)
 
-	slog.Debug("Decode", "In", utils.BytesToHex(rApduBytes), "Out", rApdu.String())
+	slog.Debug("sm.Decode", "In", utils.BytesToHex(rApduBytes), "Out", rApdu.String())
 
 	return rApdu, err
 }
