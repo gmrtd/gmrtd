@@ -105,10 +105,6 @@ func readLDS1files(nfc *iso7816.NfcSession, doc *document.Document) (err error) 
 // error if <2 DG hashes are present in SOD (as DG1/2 are always mandatory)
 func readLDS1dgs(nfc *iso7816.NfcSession, doc *document.Document) (err error) {
 	dgHashes := doc.Mf.Lds1.Sod.LdsSecurityObject.DataGroupHashValues
-	if len(dgHashes) < 2 {
-		// TODO - should we do this check here... or should we check for mandatory files later?
-		return fmt.Errorf("(readLDS1dgs) EF.SOD must have at least two datagroup hashes")
-	}
 
 	for _, dgHash := range dgHashes {
 		fileId, fileIdOk := dgToFileId[dgHash.DataGroupNumber]
@@ -128,7 +124,6 @@ func readLDS1dgs(nfc *iso7816.NfcSession, doc *document.Document) (err error) {
 		}
 
 		// validate the DG hash against the hash in the SOD
-		// TODO - need to decide whether to keep this here or move to passive-auth to have everything in one place
 		{
 			actHash := cryptoutils.CryptoHashByOid(doc.Mf.Lds1.Sod.LdsSecurityObject.HashAlgorithm.Algorithm, dgBytes)
 

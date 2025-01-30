@@ -13,6 +13,7 @@ func PassiveAuth(doc *document.Document) error {
 
 	// NB currently assumes that EF.SOD DG hashes have been verified earlier
 	//		- this is currently done in reader.readDGs()
+	// TODO - this will be problematic if we want to verify passiveAuth on the server using an imported Document
 
 	// get the CSCA certificate pool
 	var cscaCertPool *cms.CertPool = cms.CscaCertPool()
