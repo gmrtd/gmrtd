@@ -19,9 +19,6 @@ import (
 	"github.com/gmrtd/gmrtd/utils"
 )
 
-// TODO - if we read card-access.. then should check it matches with DG14.. as that is protected by SoD
-//			review 9303p11... 4.2 Chip Access Procedure
-
 // TODO - refer to BSI doc.. s5.6 for different inspection flows
 // https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TR03135/BSI-TR-03135-1-v2-5.pdf?__blob=publicationFile&v=3
 //
@@ -41,12 +38,6 @@ import (
 //EF.DG1 and EF.DG2. If fingerprints are stored in EF.DG3 and if they are protected with EAC according to [BSI
 //TR-03110], they can be accessed only after TAv1 was performed successfully. For this purpose, the EF.CVCA
 //file SHALL be read first in order to obtain the information required for performing TAv1.
-
-// TODO - docs say should move over to EF.SOD (LDS 1.8)... (p10 page 33)
-
-// TODO - should check certain parts of the document.. e.g. COM,SOD,DG1/2 are mandatory.. others are optional / conditional (e.g. DG14 based on conditions)
-
-// TODO - verify DG14 matches unsecured files
 
 const MRTDFileIdCardAccess = uint16(0x011C)
 const MRTDFileIdCardSecurity = uint16(0x011D)
@@ -173,7 +164,9 @@ func (reader *Reader) SetApduMaxLe(maxRead int) {
 	reader.apduMaxLe = maxRead
 }
 
+// reads the document using the specified transceiver and password
 // NB returns partial data (MrtdDocument) in the event of an error
+// NB does NOT perform document verification (doc.Verify) or Passive Authentication!
 func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *password.Password, atr []byte, ats []byte) (doc *document.Document, err error) {
 	defer func() {
 		if e := recover(); e != nil {

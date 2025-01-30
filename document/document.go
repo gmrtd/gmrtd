@@ -144,6 +144,25 @@ func (doc *Document) NewDG(dg int, data []byte) (err error) {
 	return err
 }
 
+// verifies the files within the document (e.g. mandatory/conditional files and content)
+// does NOT perform Passive-Authentication against the document files!
+func (doc *Document) Verify() error {
+	// verify that the mandatory files (COM,DG1,DG2,SOD) are present
+	if (doc.Mf.Lds1.Com == nil) || (doc.Mf.Lds1.Dg1 == nil) || (doc.Mf.Lds1.Dg2 == nil) || (doc.Mf.Lds1.Sod == nil) {
+		return fmt.Errorf("(doc.Verify) One or more mandatory files are missing (COM,SOD,DG1,DG2)")
+	}
+
+	// TODO - DG14
+	//			- if not present then verify that it wasn't referenced in SOD.. if it is then error
+	//			- if present
+	//				- if card-access is present, then verify that it's contents are also within DG14
+	//              - other checks (such as efDir)?
+
+	// TODO - review 9303p11... 4.2 Chip Access Procedure
+
+	return nil
+}
+
 func (doc *Document) IndentedJson() string {
 
 	b, err := json.MarshalIndent(doc, "", "    ")
