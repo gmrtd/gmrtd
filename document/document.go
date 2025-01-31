@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"log/slog"
 
 	"github.com/gmrtd/gmrtd/iso7816"
 )
@@ -152,13 +153,30 @@ func (doc *Document) Verify() error {
 		return fmt.Errorf("(doc.Verify) One or more mandatory files are missing (COM,SOD,DG1,DG2)")
 	}
 
-	// TODO - DG14
-	//			- if not present then verify that it wasn't referenced in SOD.. if it is then error
-	//			- if present
-	//				- if card-access is present, then verify that it's contents are also within DG14
-	//              - other checks (such as efDir)?
+	// error if DG14 is not present, but is referenced by SOD
+	if (doc.Mf.Lds1.Dg14 == nil) && doc.Mf.Lds1.Sod.HasDgHash(14) {
+		return fmt.Errorf("(doc.Verify) DG14 file missing but referenced by SOD")
+	}
 
-	// TODO - review 9303p11... 4.2 Chip Access Procedure
+	// error if CardAccess SecInfos are not present within DG14
+	if (doc.Mf.CardAccess != nil) && (doc.Mf.Lds1.Dg14 != nil) {
+		slog.Info("Document.Verify: Verifying that CardAccess content is present within DG14")
+		if !doc.Mf.Lds1.Dg14.SecInfos.Contains(doc.Mf.CardAccess.SecurityInfos) {
+			return fmt.Errorf("(doc.Verify) CardAccess SecInfos are not present within DG14")
+		}
+	}
+
+	if (doc.Mf.Dir != nil) && (doc.Mf.Lds1.Dg14 != nil) {
+		// TODO - verify that EF.DIR is present in DG14 (has this always been a requirement?)
+	}
+
+	// error if DG15 is not present, but is referenced by SOD
+	if (doc.Mf.Lds1.Dg15 == nil) && doc.Mf.Lds1.Sod.HasDgHash(15) {
+		return fmt.Errorf("(doc.Verify) DG15 file missing but referenced by SOD")
+	}
+
+	// TODO - any other validation required?
+	// 			- review 9303p11... 4.2 Chip Access Procedure
 
 	return nil
 }

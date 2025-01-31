@@ -1,6 +1,7 @@
 package document
 
 import (
+	"bytes"
 	"encoding/asn1"
 	"fmt"
 	"slices"
@@ -22,7 +23,25 @@ type SOD struct {
 	LdsSecurityObject *LDSSecurityObject
 }
 
-func IsValidEContentType(eContentOid asn1.ObjectIdentifier) bool {
+type LDSSecurityObject struct {
+	Version             int
+	HashAlgorithm       cms.AlgorithmIdentifier
+	DataGroupHashValues []DataGroupHash
+	LdsVersionInfo      LDSVersionInfo `asn1:"optional"`
+}
+
+type DataGroupHash struct {
+	DataGroupNumber    int
+	DataGroupHashValue []byte
+}
+
+// NB present but empty strings if not present in parsed data (i.e. older version of EF.SOD)
+type LDSVersionInfo struct {
+	LdsVersion     string
+	UnicodeVersion string
+}
+
+func isValidEContentType(eContentOid asn1.ObjectIdentifier) bool {
 	if eContentOid.Equal(oid.OidLdsSecurityObject) {
 		return true
 	} else if eContentOid.Equal(oid.OidIdData) {
@@ -62,7 +81,7 @@ func NewSOD(data []byte) (*SOD, error) {
 		out.SD = sd
 
 		// verify the content-type is as expected
-		if !IsValidEContentType(sd.SD2.Content.EContentType) {
+		if !isValidEContentType(sd.SD2.Content.EContentType) {
 			return nil, fmt.Errorf("incorrect ContentType (got:%s)", sd.SD2.Content.EContentType.String())
 		}
 		eContent := sd.SD2.Content.EContent
@@ -76,8 +95,20 @@ func NewSOD(data []byte) (*SOD, error) {
 	return out, nil
 }
 
-func (sod SOD) ldsVersion() string {
+func (sod SOD) haveLdsVersionInfo() bool {
 	if sod.LdsSecurityObject != nil {
+		if (len(sod.LdsSecurityObject.LdsVersionInfo.LdsVersion) > 0) &&
+			(len(sod.LdsSecurityObject.LdsVersionInfo.UnicodeVersion) > 0) {
+			// NB only considered present if we have values for both Lds/Unicode version
+			return true
+		}
+	}
+
+	return false
+}
+
+func (sod SOD) ldsVersion() string {
+	if sod.haveLdsVersionInfo() {
 		return sod.LdsSecurityObject.LdsVersionInfo.LdsVersion
 	}
 
@@ -85,29 +116,11 @@ func (sod SOD) ldsVersion() string {
 }
 
 func (sod SOD) unicodeVersion() string {
-	if sod.LdsSecurityObject != nil {
+	if sod.haveLdsVersionInfo() {
 		return sod.LdsSecurityObject.LdsVersionInfo.UnicodeVersion
 	}
 
 	return ""
-}
-
-type LDSSecurityObject struct {
-	Version             int
-	HashAlgorithm       cms.AlgorithmIdentifier
-	DataGroupHashValues []DataGroupHash
-	LdsVersionInfo      LDSVersionInfo `asn1:"optional"`
-}
-
-type DataGroupHash struct {
-	DataGroupNumber    int
-	DataGroupHashValue []byte
-}
-
-// NB present but empty strings if not present in parsed data (i.e. older version of EF.SOD)
-type LDSVersionInfo struct {
-	LdsVersion     string
-	UnicodeVersion string
 }
 
 func parseLdsSecurityObject(data []byte) (*LDSSecurityObject, error) {
@@ -119,7 +132,24 @@ func parseLdsSecurityObject(data []byte) (*LDSSecurityObject, error) {
 		return nil, fmt.Errorf("asn1 parsing error: %s", err)
 	}
 
-	// TODO - data verification... e.g. v0/1 differences, such as presence of LDSVersionInfo
+	// NB main difference between v0 and v1 is the presence of LDSVersionInfo in v1
 
 	return &securityObject, nil
+}
+
+// returns: hash for DG, or nil if not present
+func (sod SOD) DgHash(dgNumber int) []byte {
+	if sod.LdsSecurityObject != nil {
+		for _, dgHashValue := range sod.LdsSecurityObject.DataGroupHashValues {
+			if dgHashValue.DataGroupNumber == dgNumber {
+				return bytes.Clone(dgHashValue.DataGroupHashValue)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (sod SOD) HasDgHash(dgNumber int) bool {
+	return len(sod.DgHash(dgNumber)) > 0
 }

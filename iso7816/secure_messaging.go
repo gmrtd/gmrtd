@@ -173,8 +173,6 @@ func (sm *SecureMessaging) buildTag85or87(cApdu *CApdu, nodes *tlv.TlvNodes) {
 
 		nodes.AddNode(tlv.NewTlvSimpleNode(tlv.TlvTag(tag), value))
 	}
-
-	return
 }
 
 // builds tag 97 (depending on presence of Le)
@@ -183,8 +181,6 @@ func (sm *SecureMessaging) buildTag97(cApdu *CApdu, nodes *tlv.TlvNodes) {
 	if cApdu.HaveLe() {
 		nodes.AddNode(tlv.NewTlvSimpleNode(tlv.TlvTag(0x97), cApdu.EncodeLe()))
 	}
-
-	return
 }
 
 // builds tag 85

@@ -1,6 +1,7 @@
 package document
 
 import (
+	"bytes"
 	"encoding/asn1"
 	"log"
 	"log/slog"
@@ -72,12 +73,14 @@ type SecurityInfoOid struct {
 type SecurityInfoOidSET []SecurityInfoOid
 
 type PaceInfo struct {
+	Raw         asn1.RawContent
 	Protocol    asn1.ObjectIdentifier
 	Version     int
 	ParameterId *big.Int `asn1:"optional"` // nil if not present
 }
 
 type PaceDomainParameterInfo struct {
+	Raw             asn1.RawContent
 	Protocol        asn1.ObjectIdentifier
 	DomainParameter cms.AlgorithmIdentifier
 	ParameterId     *big.Int `asn1:"optional"` // nil if not present
@@ -85,12 +88,14 @@ type PaceDomainParameterInfo struct {
 
 // TODO - what is using this?
 type ActiveAuthenticationInfo struct {
+	Raw                asn1.RawContent
 	Protocol           asn1.ObjectIdentifier
 	Version            int
 	SignatureAlgorithm asn1.ObjectIdentifier
 }
 
 type ChipAuthenticationInfo struct {
+	Raw      asn1.RawContent
 	Protocol asn1.ObjectIdentifier
 	Version  int
 	KeyId    *big.Int `asn1:"optional"`
@@ -104,11 +109,13 @@ type ChipAuthenticationPublicKeyInfo struct {
 }
 
 type TerminalAuthenticationInfo struct {
+	Raw      asn1.RawContent
 	Protocol asn1.ObjectIdentifier
 	Version  int
 }
 
 type EFDirInfo struct {
+	Raw      asn1.RawContent
 	Protocol asn1.ObjectIdentifier
 	EFDir    []byte
 }
@@ -125,8 +132,8 @@ type SecurityInfos struct {
 }
 
 type UnhandledInfo struct {
+	Raw      asn1.RawContent
 	Protocol asn1.ObjectIdentifier
-	RawData  []byte
 }
 
 /*
@@ -268,7 +275,14 @@ func handleEfDirInfo(oid asn1.ObjectIdentifier, data []byte, secInfos *SecurityI
 // returns true (as will always handle the data)
 // NB should be called after all other handlers
 func handleUnsupportedInfo(oid asn1.ObjectIdentifier, data []byte, secInfos *SecurityInfos) (handled bool, err error) {
-	var unhandledInfo UnhandledInfo = UnhandledInfo{Protocol: oid, RawData: data}
+	var unhandledInfo UnhandledInfo
+
+	// NB isPartiallyParsed=TRUE because we expect data after the Protocol(OID)
+	err = utils.ParseAsn1(data, true, &unhandledInfo)
+	if err != nil {
+		return false, err
+	}
+
 	secInfos.UnhandledInfos = append(secInfos.UnhandledInfos, unhandledInfo)
 	return true, nil
 }
@@ -331,6 +345,170 @@ func DecodeSecurityInfos(secInfoData []byte) (secInfos *SecurityInfos, err error
 	}
 
 	return secInfos, nil
+}
+
+// determines whether the 'paceInfos' are present within the 'secInfos'
+func (secInfos *SecurityInfos) ContainsPaceInfos(paceInfos []PaceInfo) bool {
+	for _, paceInfo := range paceInfos {
+		var isPresent bool = false
+		for i := range secInfos.PaceInfos {
+			if bytes.Equal(paceInfo.Raw, secInfos.PaceInfos[i].Raw) {
+				isPresent = true
+				break
+			}
+		}
+		if !isPresent {
+			slog.Warn("SecInfos.ContainsPaceInfos - does NOT contain SecInfo", "PaceInfo", paceInfo)
+			return false
+		}
+	}
+	return true
+}
+
+// determines whether the 'paceDomainParamerInfos' are present within the 'secInfos'
+func (secInfos *SecurityInfos) ContainsPaceDomainParameterInfos(paceDomainParamerInfos []PaceDomainParameterInfo) bool {
+	for _, paceDomainParameterInfo := range paceDomainParamerInfos {
+		var isPresent bool = false
+		for i := range secInfos.PaceDomainParamInfos {
+			if bytes.Equal(paceDomainParameterInfo.Raw, secInfos.PaceDomainParamInfos[i].Raw) {
+				isPresent = true
+				break
+			}
+		}
+		if !isPresent {
+			slog.Warn("SecInfos.ContainsPaceDomainParameterInfos - does NOT contain SecInfo", "PaceDomainParameterInfo", paceDomainParameterInfo)
+			return false
+		}
+	}
+	return true
+}
+
+// determines whether the 'activeAuthInfos' are present within the 'secInfos'
+func (secInfos *SecurityInfos) ContainsActiveAuthInfos(activeAuthInfos []ActiveAuthenticationInfo) bool {
+	for _, activeAuthInfo := range activeAuthInfos {
+		var isPresent bool = false
+		for i := range secInfos.ActiveAuthInfos {
+			if bytes.Equal(activeAuthInfo.Raw, secInfos.ActiveAuthInfos[i].Raw) {
+				isPresent = true
+				break
+			}
+		}
+		if !isPresent {
+			slog.Warn("SecInfos.ContainsActiveAuthInfos - does NOT contain SecInfo", "ActiveAuthenticationInfo", activeAuthInfo)
+			return false
+		}
+	}
+	return true
+}
+
+// determines whether the 'chipAuthInfos' are present within the 'secInfos'
+func (secInfos *SecurityInfos) ContainsChipAuthInfos(chipAuthInfos []ChipAuthenticationInfo) bool {
+	for _, chipAuthInfo := range chipAuthInfos {
+		var isPresent bool = false
+		for i := range secInfos.ChipAuthInfos {
+			if bytes.Equal(chipAuthInfo.Raw, secInfos.ChipAuthInfos[i].Raw) {
+				isPresent = true
+				break
+			}
+		}
+		if !isPresent {
+			slog.Warn("SecInfos.ContainsChipAuthInfos - does NOT contain SecInfo", "ChipAuthenticationInfo", chipAuthInfo)
+			return false
+		}
+	}
+	return true
+}
+
+// determines whether the 'chipAuthPubKeyInfos' are present within the 'secInfos'
+func (secInfos *SecurityInfos) ContainsChipAuthPubKeyInfos(chipAuthPubKeyInfos []ChipAuthenticationPublicKeyInfo) bool {
+	for _, chipAuthPubKeyInfo := range chipAuthPubKeyInfos {
+		var isPresent bool = false
+		for i := range secInfos.ChipAuthPubKeyInfos {
+			if bytes.Equal(chipAuthPubKeyInfo.Raw, secInfos.ChipAuthPubKeyInfos[i].Raw) {
+				isPresent = true
+				break
+			}
+		}
+		if !isPresent {
+			slog.Warn("SecInfos.ContainsChipAuthPubKeyInfos - does NOT contain SecInfo", "ChipAuthenticationPublicKeyInfo", chipAuthPubKeyInfo)
+			return false
+		}
+	}
+	return true
+}
+
+// determines whether the 'termAuthInfos' are present within the 'secInfos'
+func (secInfos *SecurityInfos) ContainsTermAuthInfos(termAuthInfos []TerminalAuthenticationInfo) bool {
+	for _, termAuthInfo := range termAuthInfos {
+		var isPresent bool = false
+		for i := range secInfos.TermAuthInfos {
+			if bytes.Equal(termAuthInfo.Raw, secInfos.TermAuthInfos[i].Raw) {
+				isPresent = true
+				break
+			}
+		}
+		if !isPresent {
+			slog.Warn("SecInfos.ContainsTermAuthInfos - does NOT contain SecInfo", "TerminalAuthenticationInfo", termAuthInfo)
+			return false
+		}
+	}
+	return true
+}
+
+// determines whether the 'efDirInfos' are present within the 'secInfos'
+func (secInfos *SecurityInfos) ContainsEfDirInfos(efDirInfos []EFDirInfo) bool {
+	for _, efDirInfo := range efDirInfos {
+		var isPresent bool = false
+		for i := range secInfos.EfDirInfos {
+			if bytes.Equal(efDirInfo.Raw, secInfos.EfDirInfos[i].Raw) {
+				isPresent = true
+				break
+			}
+		}
+		if !isPresent {
+			slog.Warn("SecInfos.ContainsEfDirInfos - does NOT contain SecInfo", "EFDirInfo", efDirInfo)
+			return false
+		}
+	}
+	return true
+}
+
+// determines whether the 'unhandledInfos' are present within the 'secInfos'
+func (secInfos *SecurityInfos) ContainsUnhandledInfos(unhandledInfos []UnhandledInfo) bool {
+	for _, unhandledInfo := range unhandledInfos {
+		var isPresent bool = false
+		for i := range secInfos.UnhandledInfos {
+			if bytes.Equal(unhandledInfo.Raw, secInfos.UnhandledInfos[i].Raw) {
+				isPresent = true
+				break
+			}
+		}
+		if !isPresent {
+			slog.Warn("SecInfos.ContainsUnhandledInfos - does NOT contain SecInfo", "UnhandledInfo", unhandledInfo)
+			return false
+		}
+	}
+	return true
+}
+
+// evaluates whether 'secInfoSubset' exists within 'secInfo'
+func (secInfos *SecurityInfos) Contains(secInfoSubset *SecurityInfos) bool {
+	/*
+	* Note: we also evaluate against 'unhandled' infos as these are technically
+	*       records, even if we don't support them
+	 */
+	if secInfos.ContainsPaceInfos(secInfoSubset.PaceInfos) &&
+		secInfos.ContainsPaceDomainParameterInfos(secInfoSubset.PaceDomainParamInfos) &&
+		secInfos.ContainsActiveAuthInfos(secInfoSubset.ActiveAuthInfos) &&
+		secInfos.ContainsChipAuthInfos(secInfoSubset.ChipAuthInfos) &&
+		secInfos.ContainsChipAuthPubKeyInfos(secInfoSubset.ChipAuthPubKeyInfos) &&
+		secInfos.ContainsTermAuthInfos(secInfoSubset.TermAuthInfos) &&
+		secInfos.ContainsEfDirInfos(secInfoSubset.EfDirInfos) &&
+		secInfos.ContainsUnhandledInfos(secInfoSubset.UnhandledInfos) {
+		return true
+	}
+
+	return false
 }
 
 func (secInfos *SecurityInfos) GetTotalCnt() (cnt int) {

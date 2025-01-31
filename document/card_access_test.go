@@ -38,7 +38,7 @@ func TestNewCardAccessHappyAT(t *testing.T) {
 	var cardAccessFile []byte = utils.HexToBytes("31143012060a04007f0007020204020202010202010d")
 
 	expPaceInfos := []PaceInfo{
-		{Protocol: oid.OidPaceEcdhGmAesCbcCmac128, Version: 2, ParameterId: big.NewInt(13)},
+		{Raw: utils.HexToBytes("3012060a04007f0007020204020202010202010d"), Protocol: oid.OidPaceEcdhGmAesCbcCmac128, Version: 2, ParameterId: big.NewInt(13)},
 	}
 
 	cardAccess, err := NewCardAccess(cardAccessFile)
@@ -62,8 +62,8 @@ func TestNewCardAccessHappyDE(t *testing.T) {
 	var cardAccessFile []byte = utils.HexToBytes("31283012060a04007f0007020204020202010202010d3012060a04007f0007020204060202010202010d")
 
 	expPaceInfos := []PaceInfo{
-		{Protocol: oid.OidPaceEcdhGmAesCbcCmac128, Version: 2, ParameterId: big.NewInt(13)},
-		{Protocol: oid.OidPaceEcdhCamAesCbcCmac128, Version: 2, ParameterId: big.NewInt(13)},
+		{Raw: utils.HexToBytes("3012060a04007f0007020204020202010202010d"), Protocol: oid.OidPaceEcdhGmAesCbcCmac128, Version: 2, ParameterId: big.NewInt(13)},
+		{Raw: utils.HexToBytes("3012060a04007f0007020204060202010202010d"), Protocol: oid.OidPaceEcdhCamAesCbcCmac128, Version: 2, ParameterId: big.NewInt(13)},
 	}
 
 	cardAccess, err := NewCardAccess(cardAccessFile)

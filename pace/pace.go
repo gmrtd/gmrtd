@@ -631,7 +631,9 @@ func selectPaceConfig(cardAccess *document.CardAccess) (paceConfig *PaceConfig, 
 		log.Panicf("No supported PACE INFO")
 	}
 
-	// TODO - what if this is not set? technically it's optional... should we try to infer.. can do nil check for presence
+	if selPaceInfo.ParameterId == nil {
+		log.Panicf("Missing ParameterId in PaceInfo")
+	}
 	domainParams = getStandardisedDomainParams(int(selPaceInfo.ParameterId.Int64()))
 
 	return paceConfig, domainParams
