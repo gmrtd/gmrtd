@@ -12,8 +12,11 @@ import (
 	"github.com/gmrtd/gmrtd/utils"
 )
 
-// TODO - 2 versions of SOD... v1 (preferred) and legacy format v0
-//			- current code is based on v1... need to also check for v0.. i.e. is it just LDS/Unicode data?
+/*
+* 2 versions of SoD are currently supported (v0/v1)
+*
+* v1 introduces LDSVersionInfo to include LDS/Unicode version information within the SoD
+ */
 
 const SODTag = 0x77
 
