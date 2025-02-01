@@ -148,7 +148,8 @@ func performChipAuthentication(nfc *iso7816.NfcSession, doc *document.Document) 
 }
 
 type Reader struct {
-	apduMaxLe int // overrides if >0 (1..65536)
+	apduMaxLe int  // overrides if >0 (1..65536)
+	skipPace  bool // skip PACE
 }
 
 func NewReader() *Reader {
@@ -162,6 +163,10 @@ func (reader *Reader) SetApduMaxLe(maxRead int) {
 		log.Panicf("Invalid APDU Max LE range (Exp:0..65536) (Act:%d)", maxRead)
 	}
 	reader.apduMaxLe = maxRead
+}
+
+func (reader *Reader) SkipPace() {
+	reader.skipPace = true
 }
 
 // reads the document using the specified transceiver and password
@@ -215,8 +220,7 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 	/*
 	 * PACE
 	 */
-	// TODO - should we have an option to skip PACE
-	{
+	if !reader.skipPace {
 		err = pace.NewPace(nfc, doc, password).DoPACE()
 		if err != nil {
 			return doc, err
