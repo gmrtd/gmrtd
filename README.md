@@ -23,6 +23,7 @@ The following are sample documents that have been read:
 
 | Country<br/>(Type,Year) | PACE | Chip Authentication | Ext<br/>Len | LDS<br/>Ver |
 | --- | --- | --- | --- | --- |
+|🇦🇺 Australia<br/>(P,2016)|n/a (BAC)|<sub>AA-rsaEncryption</sub>|Yes|0107|
 |🇦🇹 Austria<br/>(P,2023)|<sub>PACE-ECDH-GM-AES-CBC-CMAC-128<br/>brainpoolP256r1</sub>|<sub>CA-ECDH-AES-CBC-CMAC-128<br/>brainpoolP256r1</sub>|Yes|0107|
 |🇨🇦 Canada<br/>(PP,2023)|<sub>PACE-ECDH-GM-AES-CBC-CMAC-128<br/>secp384r1</sub>|<sub>CA-ECDH-AES-CBC-CMAC-128<br/>secp384r1</sub>|No|0108|
 |🇨🇳 China<br/>(PO,2018)|n/a (BAC)|<sub>AA-rsaEncryption</sub>|No|0107|
