@@ -140,6 +140,10 @@ func (nfc *NfcSession) SelectMF() (err error) {
 		} else if rapdu.Status == RAPDU_STATUS_FUNCTION_NOT_SUPPORTED {
 			// NB observed for CN passport - silently tolerate
 			return nil
+		} else if rapdu.Status == RAPDU_STATUS_INCORRECT_P1_OR_P2_PARAMETER {
+			// NB observed for AU passport - silently tolerate
+			// TODO - could be an indicator that we should support other variants also for select-MF
+			return nil
 		} else {
 			return fmt.Errorf("[SelectMF] Status:%x", rapdu.Status)
 		}
