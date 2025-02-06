@@ -119,7 +119,7 @@ func ParseSignedData(data []byte) (*SignedData, error) {
 	var err error
 	var signedData SignedData
 
-	err = utils.ParseAsn1(data, true, &signedData)
+	err = utils.ParseAsn1(data, false, &signedData)
 	if err != nil {
 		return nil, fmt.Errorf("asn1 parsing error: %s", err)
 	}
@@ -783,7 +783,7 @@ func (signature AlgorithmIdentifier) DetermineDigestAlgFromSigAlg() (*asn1.Objec
 		 */
 		var tmpParams RsaSsaPssParams
 
-		err := utils.ParseAsn1(signature.Parameters.FullBytes, true, &tmpParams)
+		err := utils.ParseAsn1(signature.Parameters.FullBytes, false, &tmpParams)
 		if err != nil {
 			return nil, fmt.Errorf("(AlgorithmIdentifier.DetermineDigestAlg) error: %s", err)
 		}
