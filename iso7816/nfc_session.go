@@ -223,9 +223,6 @@ func (nfc *NfcSession) ReadBinaryFromOffset(offset int, length int) []byte {
 func (nfc *NfcSession) ReadFile(fileId uint16) (fileData []byte) {
 	slog.Debug("ReadFile", "fileId", fileId)
 
-	// TODO - read (without select) using short-EF is mandatory for MRTD (p10-page-18).. so maybe better to do this rather than selecting the file first
-	//			- although having problems getting it to work
-
 	sel, err := nfc.SelectEF(fileId)
 	if err != nil {
 		log.Panicf("SelectEF error: %s", err)
