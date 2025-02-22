@@ -9,8 +9,6 @@ import (
 	"strings"
 )
 
-// TODO - check that MRZ only contains 0-9,A-Z and filler ('<')
-
 type MrzName struct {
 	Primary   string
 	Secondary string // optional
