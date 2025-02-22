@@ -76,20 +76,55 @@ func (details *PersonDetails) parseData(node tlv.TlvNode) {
 	}
 }
 
+func (details *PersonDetails) processTag5F0F(parentNode tlv.TlvNode) {
+	/*
+		Expected format as per: Table 71. Data Group 11 Tags (9303 p10)
+
+		Tag 	L 		Value
+		‘A0’ 	Var 	Content-specific class
+		->	Tag 	L 		Value
+		->	‘02’ 	‘01’ 	Number of other names
+		->	‘5F0F’ 	Var 	Other name formatted per Doc 9303. The data object repeats as many times as indicated in number of other names (data object with Tag’02’)
+	*/
+
+	numOtherNamesNode := parentNode.GetNode(0xA0).GetNode(0x02)
+
+	if numOtherNamesNode.IsValidNode() {
+		// special handling as 'Other Names' are nested within tag A0 and there can be multiple instances
+		numOtherNames := utils.BytesToInt(numOtherNamesNode.GetValue())
+
+		for occur := 1; occur <= numOtherNames; occur++ {
+			details.OtherNames = append(details.OtherNames, mrz.ParseName(mrz.DecodeValue(string(parentNode.GetNode(0xA0).GetNodeByOccur(0x5F0F, occur).GetValue()))))
+		}
+	} else {
+		/*
+		* special case handling for non-conformant encodings
+		* as we've seen China passports directly using the 5F0F tag
+		 */
+
+		// handle any direct instances of the 5F0F tag
+		occur := 1
+		for {
+			otherNameNode := parentNode.GetNodeByOccur(0x5F0F, occur)
+
+			if !otherNameNode.IsValidNode() {
+				break
+			}
+
+			details.OtherNames = append(details.OtherNames, mrz.ParseName(mrz.DecodeValue(string(otherNameNode.GetValue()))))
+
+			occur++
+		}
+	}
+}
+
 // processes the 'tag', getting the data from the TLV and populating PersonDetails
 func (details *PersonDetails) processTag(tag tlv.TlvTag, node tlv.TlvNode) {
 	switch tag {
 	case 0x5F0E:
 		details.NameOfHolder = mrz.ParseName(mrz.DecodeValue(string(node.GetNode(tag).GetValue())))
 	case 0x5F0F:
-		// TODO - not parsing for china... is it because we're expecting more complex encoding, as below....
-		//			- china just seems to be encoding this as a regular name field (i.e. 1 name)
-
-		// special handling as 'Other Names' are nested within tag A0 and there can be multiple instances
-		numOtherNames := utils.BytesToInt(node.GetNode(0xA0).GetNode(0x02).GetValue())
-		for occur := 1; occur <= numOtherNames; occur++ {
-			details.OtherNames = append(details.OtherNames, mrz.ParseName(mrz.DecodeValue(string(node.GetNode(0xA0).GetNodeByOccur(tag, occur).GetValue()))))
-		}
+		details.processTag5F0F(node)
 	case 0x5F10:
 		details.PersonalNumber = string(node.GetNode(tag).GetValue())
 	case 0x5F2B:
