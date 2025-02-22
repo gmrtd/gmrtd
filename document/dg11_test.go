@@ -29,10 +29,6 @@ func TestNewDG11NoData(t *testing.T) {
 // 		‘5F12’ ‘0B’ 16125551212									5F120B3136313235353531323132
 // 		‘5F13’ ‘0C’ TRAVEL<AGENT								5F130C54524156454C3C4147454E54
 
-// TODO - spec says that some tags are mandatory based on others (e.g. Title if Profession is present)
-//			- however the example in the spec (as above) has Profession (5F13), but not Title (5F14), so not sure how
-//			  much we can really on this
-
 func TestNewDG11UnhappyRootTag(t *testing.T) {
 	var dg11bytes []byte = utils.HexToBytes("01021234") // valid TLV but invalid DG11, as tag 6B is missing
 

@@ -15,12 +15,6 @@ import (
 
 const DG11Tag = 0x6B
 
-// TODO - review parsing (< to space) and < separator on fields
-//			- currently we replace '<' with space, unless spec indicates that '<' is used as separator
-
-// TODO - verify data.. e.g. max length.. some fields are mandatory based on others (but example contradicts spec)
-//			9303p10 - Table 71. Data Group 11 Tags
-
 type PersonDetails struct {
 	NameOfHolder         mrz.MrzName
 	OtherNames           []mrz.MrzName
