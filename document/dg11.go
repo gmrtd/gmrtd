@@ -122,9 +122,8 @@ func (details *PersonDetails) processTag(tag tlv.TlvTag, node tlv.TlvNode) {
 	case 0x5F10:
 		details.PersonalNumber = string(node.GetNode(tag).GetValue())
 	case 0x5F2B:
-		// TODO - observed as BCD on MY passport.. 5f2b: 19920115 (i.e. 4 bytes instead of 8)
-		//			- similar issue could exist for other fields
-		details.FullDateOfBirth = string(node.GetNode(tag).GetValue())
+		// should be 8 bytes (YYYYMMDD) but we've also seen 4 bytes (BCD) - e.g. Malaysia passport
+		details.FullDateOfBirth = parseDateYYYYMMDD(node.GetNode(tag).GetValue())
 	case 0x5F11:
 		details.PlaceOfBirth = strings.Split(string(node.GetNode(tag).GetValue()), "<")
 	case 0x5F42:

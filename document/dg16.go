@@ -83,9 +83,13 @@ func parsePersonToNotify(node tlv.TlvNode) PersonToNotify {
 
 	slog.Debug("parsePersonToNotify", "tlv", node.String())
 
-	out.DateRecorded = string(node.GetNode(0x5F50).GetValue())
+	// should be 8 bytes (YYYYMMDD), but probably also have 4 byte BCD variants
+	out.DateRecorded = parseDateYYYYMMDD(node.GetNode(0x5F50).GetValue())
+
 	out.Name = mrz.ParseName(mrz.DecodeValue(string(node.GetNode(0x5F51).GetValue())))
+
 	out.Telephone = string(node.GetNode(0x5F52).GetValue())
+
 	out.Address = strings.Split(string(node.GetNode(0x5F53).GetValue()), "<")
 
 	slog.Debug("parsePersonToNotify", "out", out)

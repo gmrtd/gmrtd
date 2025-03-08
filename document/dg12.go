@@ -69,7 +69,8 @@ func (details *DocumentDetails) processTag(tag tlv.TlvTag, node tlv.TlvNode) {
 	case 0x5F19:
 		details.IssuingAuthority = string(node.GetNode(tag).GetValue())
 	case 0x5F26:
-		details.DateOfIssue = string(node.GetNode(tag).GetValue())
+		// should be 8 bytes (YYYYMMDD) but we've also seen 4 bytes (BCD) - e.g. Taiwan passport
+		details.DateOfIssue = parseDateYYYYMMDD(node.GetNode(tag).GetValue())
 	case 0x5F1A:
 		// special handling as 'Other Persons' are nested within tag A0 and there can be multiple instances
 		numOtherPersons := utils.BytesToInt(node.GetNode(0xA0).GetNode(0x02).GetValue())
@@ -87,7 +88,8 @@ func (details *DocumentDetails) processTag(tag tlv.TlvTag, node tlv.TlvNode) {
 		// image data
 		details.ImageRear = node.GetNode(tag).GetValue()
 	case 0x5F55:
-		details.PersoDateTime = string(node.GetNode(tag).GetValue())
+		// should be 14 bytes (YYYYMMDDHHMISS), but probably also have 7 byte BCD encoded variants
+		details.PersoDateTime = parseDatetimeYYYYMMDDHHMISS(node.GetNode(tag).GetValue())
 	case 0x5F56:
 		details.PersoSystemSerialNumber = string(node.GetNode(tag).GetValue())
 	default:

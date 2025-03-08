@@ -1,6 +1,7 @@
 package document
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/utils"
@@ -100,6 +101,54 @@ func TestLdsUnicodeVersion(t *testing.T) {
 			if unicodeVersion != tc.expUnicodeVersion {
 				t.Errorf("Incorrect UnicodeVersion (Exp:%s, Act:%s)", tc.expUnicodeVersion, unicodeVersion)
 			}
+		}
+	}
+}
+
+func TestParseDateYYYYMMDD(t *testing.T) {
+	testCases := []struct {
+		act []byte
+		exp string
+	}{
+		{
+			act: []byte{0x20, 0x25, 0x03, 0x08},
+			exp: "20250308",
+		},
+		{
+			act: []byte{'2', '0', '2', '4', '0', '2', '2', '9'},
+			exp: "20240229",
+		},
+	}
+
+	for _, tc := range testCases {
+		tmpDate := parseDateYYYYMMDD(tc.act)
+
+		if strings.Compare(tmpDate, tc.exp) != 0 {
+			t.Errorf("Unexpected value (Exp:%s, Act:%s)", tc.exp, tmpDate)
+		}
+	}
+}
+
+func TestParseDateYYYYMMDDHHMISS(t *testing.T) {
+	testCases := []struct {
+		act []byte
+		exp string
+	}{
+		{
+			act: []byte{0x20, 0x25, 0x03, 0x08, 0x19, 0x23, 0x59},
+			exp: "20250308192359",
+		},
+		{
+			act: []byte{'2', '0', '2', '4', '0', '2', '2', '9', '1', '0', '2', '4', '1', '3'},
+			exp: "20240229102413",
+		},
+	}
+
+	for _, tc := range testCases {
+		tmpDatetime := parseDatetimeYYYYMMDDHHMISS(tc.act)
+
+		if strings.Compare(tmpDatetime, tc.exp) != 0 {
+			t.Errorf("Unexpected value (Exp:%s, Act:%s)", tc.exp, tmpDatetime)
 		}
 	}
 }

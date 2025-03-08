@@ -190,3 +190,29 @@ func (doc *Document) IndentedJson() string {
 
 	return string(b)
 }
+
+// should be 8-byte (YYYYMMDD) encoded, but we're seen passports with 4-byte BCD encoding
+func parseDateYYYYMMDD(data []byte) string {
+	var out string
+
+	if len(data) == 4 {
+		out = fmt.Sprintf("%x", data)
+	} else {
+		out = string(data)
+	}
+
+	return out
+}
+
+// should be 14-byte (YYYYMMDDHHMISS) encoded, but we expects passports with 7-byte BCD encoding
+func parseDatetimeYYYYMMDDHHMISS(data []byte) string {
+	var out string
+
+	if len(data) == 7 {
+		out = fmt.Sprintf("%x", data)
+	} else {
+		out = string(data)
+	}
+
+	return out
+}
