@@ -14,10 +14,10 @@ const COMTag = 0x60
 //		 should be used as these will give priority to data within EF.SOD
 
 type COM struct {
-	RawData        []byte
-	LdsVersion     string
-	UnicodeVersion string
-	TagList        []tlv.TlvTag
+	RawData        []byte       `json:"rawData,omitempty"`
+	LdsVersion     string       `json:"ldsVersion,omitempty"`
+	UnicodeVersion string       `json:"unicodeVersion,omitempty"`
+	TagList        []tlv.TlvTag `json:"tagList,omitempty"`
 }
 
 func NewCOM(data []byte) (*COM, error) {

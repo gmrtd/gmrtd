@@ -21,9 +21,9 @@ import (
 const SODTag = 0x77
 
 type SOD struct {
-	RawData           []byte
-	SD                *cms.SignedData
-	LdsSecurityObject *LDSSecurityObject
+	RawData           []byte             `json:"rawData,omitempty"`
+	SD                *cms.SignedData    `json:"sd,omitempty"`
+	LdsSecurityObject *LDSSecurityObject `json:"ldsSecurityObject,omitempty"`
 }
 
 type LDSSecurityObject struct {

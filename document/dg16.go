@@ -14,15 +14,15 @@ import (
 const DG16Tag = 0x70
 
 type PersonToNotify struct {
-	DateRecorded string
-	Name         mrz.MrzName
-	Telephone    string
-	Address      []string
+	DateRecorded string      `json:"dateRecorded,omitempty"`
+	Name         mrz.MrzName `json:"name,omitempty"`
+	Telephone    string      `json:"telephone,omitempty"`
+	Address      []string    `json:"address,omitempty"`
 }
 
 type DG16 struct {
-	RawData         []byte
-	PersonsToNotify []PersonToNotify
+	RawData         []byte           `json:"rawData,omitempty"`
+	PersonsToNotify []PersonToNotify `json:"personsToNotify,omitempty"`
 }
 
 func NewDG16(data []byte) (*DG16, error) {

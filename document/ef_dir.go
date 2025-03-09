@@ -11,8 +11,8 @@ type EfDirApplication struct {
 }
 
 type EFDIR struct {
-	RawData     []byte
-	Application []EfDirApplication
+	RawData     []byte             `json:"rawData,omitempty"`
+	Application []EfDirApplication `json:"application,omitempty"`
 }
 
 func NewEFDIR(data []byte) *EFDIR {

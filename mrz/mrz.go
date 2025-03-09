@@ -10,21 +10,21 @@ import (
 )
 
 type MrzName struct {
-	Primary   string
-	Secondary string // optional
+	Primary   string `json:"primary,omitempty"`
+	Secondary string `json:"secondary,omitempty"` // optional
 }
 
 type MRZ struct {
-	DocumentCode   string
-	IssuingState   string
-	NameOfHolder   MrzName
-	DocumentNumber string
-	Nationality    string
-	DateOfBirth    string
-	Sex            string
-	DateOfExpiry   string
-	OptionalData   string
-	OptionalData2  string
+	DocumentCode   string  `json:"documentCode,omitempty"`
+	IssuingState   string  `json:"issuingState,omitempty"`
+	NameOfHolder   MrzName `json:"nameOfHolder,omitempty"`
+	DocumentNumber string  `json:"documentNumber,omitempty"`
+	Nationality    string  `json:"nationality,omitempty"`
+	DateOfBirth    string  `json:"dateOfBirth,omitempty"`
+	Sex            string  `json:"sex,omitempty"`
+	DateOfExpiry   string  `json:"dateOfExpiry,omitempty"`
+	OptionalData   string  `json:"optionalData,omitempty"`
+	OptionalData2  string  `json:"optionalData2,omitempty"`
 }
 
 // "Type 3" is typical of passport booklets. The MRZ consists of 2 lines × 44 characters.

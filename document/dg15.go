@@ -10,8 +10,8 @@ import (
 const DG15Tag = 0x6F
 
 type DG15 struct {
-	RawData                   []byte
-	SubjectPublicKeyInfoBytes []byte
+	RawData                   []byte `json:"rawData,omitempty"`
+	SubjectPublicKeyInfoBytes []byte `json:"subjectPublicKeyInfoBytes,omitempty"`
 }
 
 func NewDG15(data []byte) (*DG15, error) {

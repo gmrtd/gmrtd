@@ -11,9 +11,9 @@ import (
 )
 
 type CardSecurity struct {
-	RawData       []byte
-	SD            *cms.SignedData
-	SecurityInfos *SecurityInfos
+	RawData       []byte          `json:"rawData,omitempty"`
+	SD            *cms.SignedData `json:"sd,omitempty"`
+	SecurityInfos *SecurityInfos  `json:"securityInfos,omitempty"`
 }
 
 func NewCardSecurity(data []byte) (out *CardSecurity, err error) {

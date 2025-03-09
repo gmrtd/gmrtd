@@ -11,8 +11,8 @@ import (
 const DG1Tag = 0x61
 
 type DG1 struct {
-	RawData []byte
-	Mrz     *mrz.MRZ
+	RawData []byte   `json:"rawData,omitempty"`
+	Mrz     *mrz.MRZ `json:"mrz,omitempty"`
 }
 
 func NewDG1(data []byte) (dg1 *DG1, err error) {

@@ -10,8 +10,8 @@ import (
 const DG14Tag = 0x6E
 
 type DG14 struct {
-	RawData  []byte
-	SecInfos *SecurityInfos
+	RawData  []byte         `json:"rawData,omitempty"`
+	SecInfos *SecurityInfos `json:"securityInfos,omitempty"`
 }
 
 func NewDG14(data []byte) (dg14 *DG14, err error) {

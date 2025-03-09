@@ -5,8 +5,8 @@ import (
 )
 
 type CardAccess struct {
-	RawData       []byte
-	SecurityInfos *SecurityInfos
+	RawData       []byte         `json:"rawData,omitempty"`
+	SecurityInfos *SecurityInfos `json:"securityInfos,omitempty"`
 }
 
 func NewCardAccess(data []byte) (*CardAccess, error) {

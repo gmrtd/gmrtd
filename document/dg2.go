@@ -27,8 +27,8 @@ import (
 const DG2Tag = 0x75
 
 type DG2 struct {
-	RawData []byte
-	BITs    []BiometricInfoTemplate
+	RawData []byte                  `json:"rawData,omitempty"`
+	BITs    []BiometricInfoTemplate `json:"bits,omitempty"`
 }
 
 type BiometricInfoTemplate struct {

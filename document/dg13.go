@@ -12,8 +12,8 @@ import (
 const DG13Tag = 0x6D
 
 type DG13 struct {
-	RawData []byte
-	Content []byte // contents of the DG (ie within the 6D root tag)
+	RawData []byte `json:"rawData,omitempty"`
+	Content []byte `json:"content,omitempty"` // contents of the DG (ie within the 6D root tag)
 }
 
 func NewDG13(data []byte) (*DG13, error) {

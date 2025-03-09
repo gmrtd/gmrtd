@@ -45,7 +45,7 @@ type Document struct {
 
 	Mf MasterFile `json:"mf,omitempty"`
 
-	ChipAuthStatus ChipAuthStatus
+	ChipAuthStatus ChipAuthStatus `json:"chipAuthStatus"`
 
 	// passive auth
 	PassiveAuthSOD     *PassiveAuth `json:"passiveAuthSod,omitempty"`

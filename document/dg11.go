@@ -16,24 +16,24 @@ import (
 const DG11Tag = 0x6B
 
 type PersonDetails struct {
-	NameOfHolder         mrz.MrzName
-	OtherNames           []mrz.MrzName
-	PersonalNumber       string
-	FullDateOfBirth      string // YYYYMMDD
-	PlaceOfBirth         []string
-	Address              []string
-	Telephone            string
-	Profession           string
-	Title                string
-	PersonalSummary      string
-	ProofOfCitizenship   []byte // image (ISO-10918)
-	OtherTravelDocuments []string
-	CustodyInformation   string
+	NameOfHolder         mrz.MrzName   `json:"nameOfHolder,omitempty"`
+	OtherNames           []mrz.MrzName `json:"otherNames,omitempty"`
+	PersonalNumber       string        `json:"personalNumber,omitempty"`
+	FullDateOfBirth      string        `json:"fullDateOfBirth,omitempty"` // YYYYMMDD
+	PlaceOfBirth         []string      `json:"placeOfBirth,omitempty"`
+	Address              []string      `json:"address,omitempty"`
+	Telephone            string        `json:"telephone,omitempty"`
+	Profession           string        `json:"profession,omitempty"`
+	Title                string        `json:"title,omitempty"`
+	PersonalSummary      string        `json:"personalSummary,omitempty"`
+	ProofOfCitizenship   []byte        `json:"proofOfCitizenship,omitempty"` // image (ISO-10918)
+	OtherTravelDocuments []string      `json:"otherTravelDocuments,omitempty"`
+	CustodyInformation   string        `json:"custodyInformation,omitempty"`
 }
 
 type DG11 struct {
-	RawData []byte
-	Details PersonDetails
+	RawData []byte        `json:"rawData,omitempty"`
+	Details PersonDetails `json:"personDetails,omitempty"`
 }
 
 func NewDG11(data []byte) (*DG11, error) {

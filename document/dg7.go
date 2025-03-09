@@ -11,12 +11,12 @@ import (
 const DG7Tag = 0x67
 
 type DG7 struct {
-	RawData []byte
-	Images  []DG7Image
+	RawData []byte     `json:"rawData,omitempty"`
+	Images  []DG7Image `json:"images,omitempty"`
 }
 
 type DG7Image struct {
-	Image []byte
+	Image []byte `json:"image,omitempty"`
 }
 
 // 67
