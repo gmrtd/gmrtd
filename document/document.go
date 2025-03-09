@@ -32,7 +32,7 @@ type LDS1 struct {
 }
 
 type PassiveAuth struct {
-	CertChain [][]byte
+	CertChain [][]byte `json:"certChain,omitempty"`
 }
 
 func NewPassiveAuth(certChain [][]byte) *PassiveAuth {
