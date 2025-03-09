@@ -122,15 +122,15 @@ type EFDirInfo struct {
 }
 
 type SecurityInfos struct {
-	RawData              []byte
-	PaceInfos            []PaceInfo
-	PaceDomainParamInfos []PaceDomainParameterInfo
-	ActiveAuthInfos      []ActiveAuthenticationInfo
-	ChipAuthInfos        []ChipAuthenticationInfo
-	ChipAuthPubKeyInfos  []ChipAuthenticationPublicKeyInfo
-	TermAuthInfos        []TerminalAuthenticationInfo
-	EfDirInfos           []EFDirInfo
-	UnhandledInfos       []UnhandledInfo
+	RawData              []byte                            `json:"rawData,omitempty"`
+	PaceInfos            []PaceInfo                        `json:"paceInfos,omitempty"`
+	PaceDomainParamInfos []PaceDomainParameterInfo         `json:"paceDomainParamInfos,omitempty"`
+	ActiveAuthInfos      []ActiveAuthenticationInfo        `json:"activeAuthInfos,omitempty"`
+	ChipAuthInfos        []ChipAuthenticationInfo          `json:"chipAuthInfos,omitempty"`
+	ChipAuthPubKeyInfos  []ChipAuthenticationPublicKeyInfo `json:"chipAuthPubKeyInfos,omitempty"`
+	TermAuthInfos        []TerminalAuthenticationInfo      `json:"termAuthInfos,omitempty"`
+	EfDirInfos           []EFDirInfo                       `json:"efDirInfos,omitempty"`
+	UnhandledInfos       []UnhandledInfo                   `json:"unhandledInfos,omitempty"`
 }
 
 type UnhandledInfo struct {

@@ -283,12 +283,12 @@ func (nfc *NfcSession) ReadFile(fileId uint16) (fileData []byte) {
 }
 
 type ApduLog struct {
-	Desc      string
-	Tx        []byte
-	Rx        []byte
-	Child     *ApduLog // optional (e.g. if secure-messaging enabled)
-	DurMs     int
-	StartTime time.Time
+	Desc      string    `json:"desc,omitempty"`
+	Tx        []byte    `json:"tx,omitempty"`
+	Rx        []byte    `json:"rx,omitempty"`
+	Child     *ApduLog  `json:"child,omitempty"` // optional (e.g. if secure-messaging enabled)
+	DurMs     int       `json:"durMs,omitempty"`
+	StartTime time.Time `json:"startTime,omitempty"`
 }
 
 // creates a new instance, records the desc/tx information and starts the timer

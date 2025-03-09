@@ -11,24 +11,24 @@ import (
 )
 
 type MasterFile struct {
-	CardAccess   *CardAccess
-	CardSecurity *CardSecurity // NB only read for PACE-CAM - read during PACE flow
-	Dir          *EFDIR        // indicates which applications are present - generally not acvailable
-	Lds1         LDS1
+	CardAccess   *CardAccess   `json:"cardAccess,omitempty"`
+	CardSecurity *CardSecurity `json:"cardSecurity,omitempty"` // NB only read for PACE-CAM - read during PACE flow
+	Dir          *EFDIR        `json:"dir,omitempty"`          // indicates which applications are present - generally not acvailable
+	Lds1         LDS1          `json:"lds1,omitempty"`
 }
 
 type LDS1 struct {
-	Com  *COM  // largely deprecated by SOD, but used to determine Lds/Unicode Version if older SOD formatis present
-	Sod  *SOD  // Document Security Object EF.SOD (MANDATORY)
-	Dg1  *DG1  // DATA GROUP 1 — Machine Readable Zone Information (MANDATORY)
-	Dg2  *DG2  // DATA GROUP 2 — Encoded Identification Features — Face (MANDATORY)
-	Dg7  *DG7  // DATA GROUP 7 — Displayed Signature or Usual Mark (OPTIONAL)
-	Dg11 *DG11 // DATA GROUP 11 — Additional Personal Detail(s) (OPTIONAL)
-	Dg12 *DG12 // DATA GROUP 12 — Additional Document Detail(s) (OPTIONAL)
-	Dg13 *DG13 // DATA GROUP 13 — Optional Details(s) (OPTIONAL)
-	Dg14 *DG14 // DATA GROUP 14 — Security Options (CONDITIONAL)
-	Dg15 *DG15 // DATA GROUP 15 — Active Authentication Public Key Info (CONDITIONAL)
-	Dg16 *DG16 // DATA GROUP 16 — Person(s) to Notify (OPTIONAL)
+	Com  *COM  `json:"com,omitempty"`  // largely deprecated by SOD, but used to determine Lds/Unicode Version if older SOD formatis present
+	Sod  *SOD  `json:"sod,omitempty"`  // Document Security Object EF.SOD (MANDATORY)
+	Dg1  *DG1  `json:"dg1,omitempty"`  // DATA GROUP 1 — Machine Readable Zone Information (MANDATORY)
+	Dg2  *DG2  `json:"dg2,omitempty"`  // DATA GROUP 2 — Encoded Identification Features — Face (MANDATORY)
+	Dg7  *DG7  `json:"dg7,omitempty"`  // DATA GROUP 7 — Displayed Signature or Usual Mark (OPTIONAL)
+	Dg11 *DG11 `json:"dg11,omitempty"` // DATA GROUP 11 — Additional Personal Detail(s) (OPTIONAL)
+	Dg12 *DG12 `json:"dg12,omitempty"` // DATA GROUP 12 — Additional Document Detail(s) (OPTIONAL)
+	Dg13 *DG13 `json:"dg13,omitempty"` // DATA GROUP 13 — Optional Details(s) (OPTIONAL)
+	Dg14 *DG14 `json:"dg14,omitempty"` // DATA GROUP 14 — Security Options (CONDITIONAL)
+	Dg15 *DG15 `json:"dg15,omitempty"` // DATA GROUP 15 — Active Authentication Public Key Info (CONDITIONAL)
+	Dg16 *DG16 `json:"dg16,omitempty"` // DATA GROUP 16 — Person(s) to Notify (OPTIONAL)
 }
 
 type PassiveAuth struct {
@@ -40,18 +40,18 @@ func NewPassiveAuth(certChain [][]byte) *PassiveAuth {
 }
 
 type Document struct {
-	Atr []byte
-	Ats []byte
+	Atr []byte `json:"atr,omitempty"`
+	Ats []byte `json:"ats,omitempty"`
 
-	Mf MasterFile
+	Mf MasterFile `json:"mf,omitempty"`
 
 	ChipAuthStatus ChipAuthStatus
 
 	// passive auth
-	PassiveAuthSOD     *PassiveAuth
-	PassiveAuthCardSec *PassiveAuth
+	PassiveAuthSOD     *PassiveAuth `json:"passiveAuthSod,omitempty"`
+	PassiveAuthCardSec *PassiveAuth `json:"passiveAuthCardSecurity,omitempty"`
 
-	Apdus []iso7816.ApduLog
+	Apdus []iso7816.ApduLog `json:"apdus,omitempty"`
 }
 
 type ChipAuthStatus int
