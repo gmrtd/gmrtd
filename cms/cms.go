@@ -37,18 +37,28 @@ type AlgorithmIdentifier struct {
 	Parameters asn1.RawValue `asn1:"optional"`
 }
 
+func (ai AlgorithmIdentifier) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Algorithm  string `json:"algorithm,omitempty"`
+		Parameters []byte `json:"parameters,omitempty"`
+	}{
+		Algorithm:  ai.Algorithm.String(),
+		Parameters: ai.Parameters.FullBytes,
+	})
+}
+
 type ContentInfo struct {
 	Type    asn1.ObjectIdentifier ``
 	Content asn1.RawValue         `asn1:"explicit,tag:0"`
 }
 
 type SignedData struct {
-	Version          int
-	DigestAlgorithms []AlgorithmIdentifier `asn1:"set"`
-	Content          EncapContentInfo      ``
-	Certificates     asn1.RawValue         `asn1:"optional,tag:0"`
-	CRLs             []asn1.RawValue       `asn1:"optional,set,tag:1"`
-	SignerInfos      []SignerInfo          `asn1:"set"`
+	Version          int                   `json:"version"`
+	DigestAlgorithms []AlgorithmIdentifier `asn1:"set" json:"digestAlgorithms"`
+	Content          EncapContentInfo      `json:"content"`
+	Certificates     asn1.RawValue         `asn1:"optional,tag:0" json:"certificates"`
+	CRLs             []asn1.RawValue       `asn1:"optional,set,tag:1" json:"crls"`
+	SignerInfos      []SignerInfo          `asn1:"set" json:"signerInfos"`
 }
 
 type SignerInfo struct {
@@ -158,8 +168,6 @@ func ParseCertificate(data []byte) (*Certificate, error) {
 	if err != nil {
 		return nil, fmt.Errorf("asn1 parsing error: %s", err)
 	}
-
-	// TODO - data verification...
 
 	return &certificate, nil
 }
