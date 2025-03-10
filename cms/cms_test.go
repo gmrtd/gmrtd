@@ -66,7 +66,7 @@ func TestParseAndVerifySignedData(t *testing.T) {
 
 			var certChain [][]byte
 
-			certChain, err = sd.SD2.Verify(cscaCertPool)
+			certChain, err = sd.Verify(cscaCertPool)
 			if err != nil {
 				t.Errorf("Unexpected error: %s", err)
 			}

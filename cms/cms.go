@@ -11,6 +11,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rsa"
 	"encoding/asn1"
+	"encoding/json"
 	"fmt"
 	"log"
 	"log/slog"
@@ -36,12 +37,12 @@ type AlgorithmIdentifier struct {
 	Parameters asn1.RawValue `asn1:"optional"`
 }
 
-type SignedData struct {
-	Oid asn1.ObjectIdentifier ``
-	SD2 SignedData2           `asn1:"explicit,tag:0"`
+type ContentInfo struct {
+	Type    asn1.ObjectIdentifier ``
+	Content asn1.RawValue         `asn1:"explicit,tag:0"`
 }
 
-type SignedData2 struct {
+type SignedData struct {
 	Version          int
 	DigestAlgorithms []AlgorithmIdentifier `asn1:"set"`
 	Content          EncapContentInfo      ``
@@ -72,6 +73,16 @@ type Attribute struct {
 	Values asn1.RawValue
 }
 type AttributeList []Attribute
+
+func (a Attribute) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type   string        `json:"type,omitempty"`
+		Values asn1.RawValue `json:"values,omitempty"`
+	}{
+		Type:   a.Type.String(),
+		Values: a.Values,
+	})
+}
 
 // returns: nil if no matching attribute found
 func (attributes AttributeList) GetByOID(oid asn1.ObjectIdentifier) *Attribute {
@@ -117,14 +128,24 @@ type EncapContentInfo struct {
 
 func ParseSignedData(data []byte) (*SignedData, error) {
 	var err error
-	var signedData SignedData
+	var contentInfo ContentInfo
 
-	err = utils.ParseAsn1(data, false, &signedData)
+	err = utils.ParseAsn1(data, false, &contentInfo)
 	if err != nil {
-		return nil, fmt.Errorf("asn1 parsing error: %s", err)
+		return nil, fmt.Errorf("asn1 parsing error (contentInfo): %s", err)
 	}
 
-	// TODO - we're not currently verifying the data... e.g. do we have the correct OIDs
+	// verify we got the expected OID
+	if !contentInfo.Type.Equal(oid.OidSignedData) {
+		return nil, fmt.Errorf("invalid OID (exp:%s, act:%s)", oid.OidSignedData.String(), contentInfo.Type.String())
+	}
+
+	var signedData SignedData
+
+	err = utils.ParseAsn1(contentInfo.Content.Bytes, false, &signedData)
+	if err != nil {
+		return nil, fmt.Errorf("asn1 parsing error (signedData): %s", err)
+	}
 
 	return &signedData, nil
 }
@@ -282,7 +303,7 @@ RFC 5280            PKIX Certificate and CRL Profile            May 2008
 			}
 */
 
-func (sd *SignedData2) Verify(certPool *CertPool) (certChain [][]byte, err error) {
+func (sd *SignedData) Verify(certPool *CertPool) (certChain [][]byte, err error) {
 	slog.Debug("SignedData.Verify")
 
 	/*

@@ -3,6 +3,7 @@ package document
 import (
 	"bytes"
 	"encoding/asn1"
+	"encoding/json"
 	"log"
 	"log/slog"
 	"math/big"
@@ -78,6 +79,18 @@ type PaceInfo struct {
 	Protocol    asn1.ObjectIdentifier
 	Version     int
 	ParameterId *big.Int `asn1:"optional"` // nil if not present
+}
+
+func (p PaceInfo) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Protocol    string   `json:"protocol,omitempty"`
+		Version     int      `json:"version,omitempty"`
+		ParameterId *big.Int `json:"parameterId,omitempty"`
+	}{
+		Protocol:    p.Protocol.String(),
+		Version:     p.Version,
+		ParameterId: p.ParameterId,
+	})
 }
 
 type PaceDomainParameterInfo struct {

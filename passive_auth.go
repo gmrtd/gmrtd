@@ -25,7 +25,7 @@ func PassiveAuth(doc *document.Document) error {
 		return fmt.Errorf("(PassiveAuth) mandatory file EF.SOD is missing")
 	} else {
 		var certChainSOD [][]byte
-		certChainSOD, err = doc.Mf.Lds1.Sod.SD.SD2.Verify(cscaCertPool)
+		certChainSOD, err = doc.Mf.Lds1.Sod.SD.Verify(cscaCertPool)
 		if err != nil {
 			return fmt.Errorf("(PassiveAuth) unable to verify SignedData (SOD): %w", err)
 		}
@@ -40,7 +40,7 @@ func PassiveAuth(doc *document.Document) error {
 	 */
 	if doc.Mf.CardSecurity != nil {
 		var certChainCardSecurity [][]byte
-		certChainCardSecurity, err = doc.Mf.CardSecurity.SD.SD2.Verify(cscaCertPool)
+		certChainCardSecurity, err = doc.Mf.CardSecurity.SD.Verify(cscaCertPool)
 		if err != nil {
 			return fmt.Errorf("(PassiveAuth) unable to verify SignedData (CardSecurity): %w", err)
 		}

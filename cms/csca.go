@@ -68,7 +68,7 @@ func loadMasterListDE() *CertPool {
 	{
 		var certs CscaMasterList
 
-		err := utils.ParseAsn1(signedData.SD2.Content.EContent, false, &certs)
+		err := utils.ParseAsn1(signedData.Content.EContent, false, &certs)
 		if err != nil {
 			log.Panicf("error: %s", err)
 		}

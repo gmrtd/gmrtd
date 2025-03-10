@@ -77,7 +77,7 @@ func TestNewCardSecurityDE(t *testing.T) {
 
 		var certChain [][]byte
 
-		certChain, err = cardSecurity.SD.SD2.Verify(cscaCertPool)
+		certChain, err = cardSecurity.SD.Verify(cscaCertPool)
 		if err != nil {
 			t.Errorf("Error verifying SignedData: %s", err)
 		}

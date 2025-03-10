@@ -41,10 +41,10 @@ func NewCardSecurity(data []byte) (out *CardSecurity, err error) {
 		out.SD = sd
 
 		// verify the content-type is as expected
-		if !sd.SD2.Content.EContentType.Equal(oid.OidSecurityObject) {
-			return nil, fmt.Errorf("incorrect ContentType (got:%s)", sd.SD2.Content.EContentType.String())
+		if !sd.Content.EContentType.Equal(oid.OidSecurityObject) {
+			return nil, fmt.Errorf("incorrect ContentType (got:%s)", sd.Content.EContentType.String())
 		}
-		eContent := sd.SD2.Content.EContent
+		eContent := sd.Content.EContent
 
 		if out.SecurityInfos, err = DecodeSecurityInfos(eContent); err != nil {
 			return nil, err
