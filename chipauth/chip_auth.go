@@ -78,7 +78,8 @@ func (chipAuth *ChipAuth) DoChipAuth() (err error) {
 		return fmt.Errorf("chipAuth: DH not currently supported (Raw:%x)", caPubKeyInfo.Raw)
 	} else if caPubKeyInfo.Protocol.Equal(oid.OidPkEcdh) {
 		// ECDH
-		err = chipAuth.doCaEcdh((*chipAuth.nfcSession), caInfo, caAlgInfo, caPubKeyInfo)
+		// TODO - pass in inferred status?
+		err = chipAuth.doCaEcdh(caInfo, caAlgInfo, caPubKeyInfo)
 		if err != nil {
 			return err
 		}
@@ -211,7 +212,7 @@ func getAlgInfo(oid asn1.ObjectIdentifier) (*CaAlgorithmInfo, error) {
 	return &out, nil
 }
 
-func (chipAuth *ChipAuth) doMseSetAT(nfc *iso7816.NfcSession, caInfo *document.ChipAuthenticationInfo) error {
+func (chipAuth *ChipAuth) doMseSetAT(caInfo *document.ChipAuthenticationInfo) error {
 	// MSE:Set AT
 	//
 	// INS: 0x22
@@ -233,7 +234,7 @@ func (chipAuth *ChipAuth) doMseSetAT(nfc *iso7816.NfcSession, caInfo *document.C
 	}
 
 	// MSE:Set AT (0x41A4: Chip Authentication)
-	err := nfc.MseSetAT(0x41, 0xA4, nodes.Encode())
+	err := (*chipAuth.nfcSession).MseSetAT(0x41, 0xA4, nodes.Encode())
 
 	return err
 }
@@ -284,7 +285,7 @@ func (chipAuth *ChipAuth) doGeneralAuthenticate(curve *elliptic.Curve, termKeypa
 // performs Chip Authentication in ECDH mode
 // NB does NOT update doc.ChipAuthStatus, caller is expected to do this!
 // NB we currently implement the AES (2) APDU approach, which should also work for TDES (i.e. we don't implement MSE:Set KAT just for TDES)
-func (chipAuth *ChipAuth) doCaEcdh(nfc *iso7816.NfcSession, caInfo *document.ChipAuthenticationInfo, caAlgInfo *CaAlgorithmInfo, caPubKeyInfo *document.ChipAuthenticationPublicKeyInfo) (err error) {
+func (chipAuth *ChipAuth) doCaEcdh(caInfo *document.ChipAuthenticationInfo, caAlgInfo *CaAlgorithmInfo, caPubKeyInfo *document.ChipAuthenticationPublicKeyInfo) (err error) {
 	slog.Debug("doCaEcdh", "OID", caInfo.Protocol.String())
 
 	var curve *elliptic.Curve
@@ -299,7 +300,7 @@ func (chipAuth *ChipAuth) doCaEcdh(nfc *iso7816.NfcSession, caInfo *document.Chi
 	// TODO - still having issue with FR passport (T)
 	//			- may need to support the pure TDES flow, instead of the following
 
-	err = chipAuth.doMseSetAT(nfc, caInfo)
+	err = chipAuth.doMseSetAT(caInfo)
 	if err != nil {
 		return err
 	}
@@ -317,7 +318,7 @@ func (chipAuth *ChipAuth) doCaEcdh(nfc *iso7816.NfcSession, caInfo *document.Chi
 	{
 		var err error
 
-		nfc.SM, err = iso7816.NewSecureMessaging(caAlgInfo.cipherAlg, ksEnc, ksMac)
+		(*chipAuth.nfcSession).SM, err = iso7816.NewSecureMessaging(caAlgInfo.cipherAlg, ksEnc, ksMac)
 		if err != nil {
 			return err
 		}
@@ -333,7 +334,7 @@ func (chipAuth *ChipAuth) doCaEcdh(nfc *iso7816.NfcSession, caInfo *document.Chi
 	{
 		const MRTDFileIdDG14 = uint16(0x010E)
 
-		selected, err := nfc.SelectEF(MRTDFileIdDG14)
+		selected, err := (*chipAuth.nfcSession).SelectEF(MRTDFileIdDG14)
 		if err != nil {
 			return fmt.Errorf("(CA.doCaEcdh) Error selecting DG14 following ChipAuth: %w", err)
 		}
