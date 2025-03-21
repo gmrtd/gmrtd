@@ -103,6 +103,11 @@ func (nfc *NfcSession) GeneralAuthenticate(commandChaining bool, data []byte) *R
 	return rApdu
 }
 
+// TODO - seems the same as SetAT?
+func (nfc *NfcSession) MseSetKAT(p1 uint8, p2 uint8, data []byte) (err error) {
+	return nfc.MseSetAT(p1, p2, data)
+}
+
 func (nfc *NfcSession) MseSetAT(p1 uint8, p2 uint8, data []byte) (err error) {
 	cApdu := NewCApdu(0x00, INS_MANAGE_SE, p1, p2, data, 0)
 

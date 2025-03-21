@@ -30,6 +30,8 @@ func NewChipAuth(nfc *iso7816.NfcSession, doc *document.Document) *ChipAuth {
 }
 
 func (chipAuth *ChipAuth) DoChipAuth() (err error) {
+	var algInferred bool = false
+
 	// skip if we have already performed chip authentication
 	if (*chipAuth.document).ChipAuthStatus != document.CHIP_AUTH_STATUS_NONE {
 		return nil
@@ -57,6 +59,7 @@ func (chipAuth *ChipAuth) DoChipAuth() (err error) {
 		if err != nil {
 			return err
 		}
+		algInferred = true
 	}
 
 	if caInfo == nil || caAlgInfo == nil {
@@ -78,8 +81,7 @@ func (chipAuth *ChipAuth) DoChipAuth() (err error) {
 		return fmt.Errorf("chipAuth: DH not currently supported (Raw:%x)", caPubKeyInfo.Raw)
 	} else if caPubKeyInfo.Protocol.Equal(oid.OidPkEcdh) {
 		// ECDH
-		// TODO - pass in inferred status?
-		err = chipAuth.doCaEcdh(caInfo, caAlgInfo, caPubKeyInfo)
+		err = chipAuth.doCaEcdh(caInfo, caAlgInfo, caPubKeyInfo, algInferred)
 		if err != nil {
 			return err
 		}
@@ -212,6 +214,51 @@ func getAlgInfo(oid asn1.ObjectIdentifier) (*CaAlgorithmInfo, error) {
 	return &out, nil
 }
 
+func (chipAuth *ChipAuth) doMseSetKAT(curve *elliptic.Curve, termKeypair cryptoutils.EcKeypair, caInfo *document.ChipAuthenticationInfo, caAlgInfo *CaAlgorithmInfo, chipPubKey *cryptoutils.EcPoint) (ksEnc []byte, ksMac []byte, err error) {
+	// MSE:Set KAT
+	//
+	// INS: 0x22
+	// P1/P2: 0x41A6
+	// Data: 0x91 - Ephemeral Public Key (mandatory)
+	//       0x84 - KeyId			     (conditional)		<-- if multiple public keys are available
+	//
+	// Exp Rsp: 9000
+	//			Exp errors: 6A80 / ...
+
+	nodes := tlv.NewTlvNodes()
+
+	nodes.AddNode(tlv.NewTlvSimpleNode(0x91, cryptoutils.EncodeX962EcPoint(*curve, termKeypair.Pub)))
+
+	// specify key-id (if required)
+	if caInfo.KeyId != nil {
+		nodes.AddNode(tlv.NewTlvSimpleNode(0x84, caInfo.KeyId.Bytes()))
+	}
+
+	// MSE:Set KAT (0x41A6: Set Key Agreement Template for computation)
+	err = (*chipAuth.nfcSession).MseSetKAT(0x41, 0xA6, nodes.Encode())
+	if err != nil {
+		return nil, nil, fmt.Errorf("(CA.doMseSetKAT) Error: %w", err)
+	}
+
+	// TODO - following has code which is also shared with 'doGeneralAuthenticate'.. essentially deriving ksEnc/ksMac using ECDH
+
+	// 3. Both the eMRTD chip and the terminal compute the following:
+	// a) The shared secret K = KA(SKIC, PKDH,IFD, DIC) = KA(SKDH,IFD, PKIC, DIC)
+	var k *cryptoutils.EcPoint = cryptoutils.DoEcDh(termKeypair.Pri, chipPubKey, *curve)
+
+	// NB secret is just based on 'x'
+	sharedSecret := k.X.Bytes()
+
+	slog.Debug("doGeneralAuthenticate", "sharedSecret", utils.BytesToHex(sharedSecret))
+
+	// b) The session keys KSMAC = KDFMAC(K) and KSEnc = KDFEnc(K) derived from K for Secure Messaging.
+	ksEnc = cryptoutils.KDF(sharedSecret, cryptoutils.KDF_COUNTER_KSENC, caAlgInfo.cipherAlg, caAlgInfo.keySizeBits)
+	ksMac = cryptoutils.KDF(sharedSecret, cryptoutils.KDF_COUNTER_KSMAC, caAlgInfo.cipherAlg, caAlgInfo.keySizeBits)
+	slog.Debug("doGeneralAuthenticate", "ksEnc", utils.BytesToHex(ksEnc), "ksMac", utils.BytesToHex(ksMac))
+
+	return ksEnc, ksMac, err
+}
+
 func (chipAuth *ChipAuth) doMseSetAT(caInfo *document.ChipAuthenticationInfo) error {
 	// MSE:Set AT
 	//
@@ -285,7 +332,7 @@ func (chipAuth *ChipAuth) doGeneralAuthenticate(curve *elliptic.Curve, termKeypa
 // performs Chip Authentication in ECDH mode
 // NB does NOT update doc.ChipAuthStatus, caller is expected to do this!
 // NB we currently implement the AES (2) APDU approach, which should also work for TDES (i.e. we don't implement MSE:Set KAT just for TDES)
-func (chipAuth *ChipAuth) doCaEcdh(caInfo *document.ChipAuthenticationInfo, caAlgInfo *CaAlgorithmInfo, caPubKeyInfo *document.ChipAuthenticationPublicKeyInfo) (err error) {
+func (chipAuth *ChipAuth) doCaEcdh(caInfo *document.ChipAuthenticationInfo, caAlgInfo *CaAlgorithmInfo, caPubKeyInfo *document.ChipAuthenticationPublicKeyInfo, algInferred bool) (err error) {
 	slog.Debug("doCaEcdh", "OID", caInfo.Protocol.String())
 
 	var curve *elliptic.Curve
@@ -297,19 +344,32 @@ func (chipAuth *ChipAuth) doCaEcdh(caInfo *document.ChipAuthenticationInfo, caAl
 	// generate ephemeral key
 	var termKeypair cryptoutils.EcKeypair = chipAuth.keyGeneratorEc(*curve)
 
-	// TODO - still having issue with FR passport (T)
-	//			- may need to support the pure TDES flow, instead of the following
-
-	err = chipAuth.doMseSetAT(caInfo)
-	if err != nil {
-		return err
-	}
-
 	var ksEnc, ksMac []byte
 
-	ksEnc, ksMac, err = chipAuth.doGeneralAuthenticate(curve, termKeypair, chipPubKey, caAlgInfo)
-	if err != nil {
-		return err
+	slog.Debug("doCaEcdh", "algInferred", algInferred)
+
+	if algInferred && caInfo.Protocol.Equal(oid.OidCaEcdh3DesCbcCbc) {
+		// TODO - we could potentially always use KAT for 3DES, but we'd need to check our UTs for the other 3DES passports (malaysia/russia?)
+
+		// TODO - still having issue with FR passport (T)
+		//			- may need to support the pure TDES flow, instead of the following
+		//
+		// *** update function comment once implemented, as we'll be supporting
+
+		ksEnc, ksMac, err = chipAuth.doMseSetKAT(curve, termKeypair, caInfo, caAlgInfo, chipPubKey)
+		if err != nil {
+			return err
+		}
+	} else {
+		err = chipAuth.doMseSetAT(caInfo)
+		if err != nil {
+			return err
+		}
+
+		ksEnc, ksMac, err = chipAuth.doGeneralAuthenticate(curve, termKeypair, chipPubKey, caAlgInfo)
+		if err != nil {
+			return err
+		}
 	}
 
 	// setup secure-messaging
