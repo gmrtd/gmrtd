@@ -71,20 +71,22 @@ var dgToFileId = map[int]uint16{
 }
 
 // reads the LDS1 files (EF.SOD,EF.COM,EF.DGxx)
-func readLDS1files(nfc *iso7816.NfcSession, doc *document.Document) (err error) {
+func (reader *Reader) readLDS1files(nfc *iso7816.NfcSession, doc *document.Document) (err error) {
 	slog.Info("Read EF.SOD")
+	reader.status.Status(fmt.Sprintf("Reading EF.SOD"))
 	doc.Mf.Lds1.Sod, err = document.NewSOD(nfc.ReadFile(MRTDFileIdEFSOD))
 	if err != nil {
 		return fmt.Errorf("(readLDS1files) error reading EF.SOD: %w", err)
 	}
 
 	slog.Info("Read EF.COM")
+	reader.status.Status(fmt.Sprintf("Reading EF.COM"))
 	doc.Mf.Lds1.Com, err = document.NewCOM(nfc.ReadFile(MRTDFileIdEFCOM))
 	if err != nil {
 		return fmt.Errorf("(readLDS1files) error reading EF.COM: %w", err)
 	}
 
-	err = readLDS1dgs(nfc, doc)
+	err = reader.readLDS1dgs(nfc, doc)
 	if err != nil {
 		return fmt.Errorf("(readLDS1files) error reading DGs: %w", err)
 	}
@@ -94,7 +96,7 @@ func readLDS1files(nfc *iso7816.NfcSession, doc *document.Document) (err error) 
 
 // reads the LDS1 data-groups (DGs) based on the DG hashes present in EF.SOD
 // error if <2 DG hashes are present in SOD (as DG1/2 are always mandatory)
-func readLDS1dgs(nfc *iso7816.NfcSession, doc *document.Document) (err error) {
+func (reader *Reader) readLDS1dgs(nfc *iso7816.NfcSession, doc *document.Document) (err error) {
 	dgHashes := doc.Mf.Lds1.Sod.LdsSecurityObject.DataGroupHashValues
 
 	for _, dgHash := range dgHashes {
@@ -106,6 +108,7 @@ func readLDS1dgs(nfc *iso7816.NfcSession, doc *document.Document) (err error) {
 		}
 
 		slog.Info("Reading DG", "DG", dgHash.DataGroupNumber)
+		reader.status.Status(fmt.Sprintf("Reading DG%02d", dgHash.DataGroupNumber))
 
 		var dgBytes []byte = nfc.ReadFile(uint16(fileId))
 
@@ -147,13 +150,20 @@ func performChipAuthentication(nfc *iso7816.NfcSession, doc *document.Document) 
 	return nil
 }
 
+// TODO
+type ReaderStatus interface {
+	Status(msg string) // TODO - not currently calling to update on the status
+}
+
 type Reader struct {
+	status    ReaderStatus
 	apduMaxLe int  // overrides if >0 (1..65536)
 	skipPace  bool // skip PACE
 }
 
-func NewReader() *Reader {
+func NewReader(status ReaderStatus) *Reader {
 	var reader Reader
+	reader.status = status
 	return &reader
 }
 
@@ -257,7 +267,7 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 	/*
 	 * Read LDS1 files
 	 */
-	err = readLDS1files(nfc, doc)
+	err = reader.readLDS1files(nfc, doc)
 	if err != nil {
 		return doc, err
 	}
