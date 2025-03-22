@@ -15,6 +15,7 @@ import (
 	"github.com/gmrtd/gmrtd/document"
 	"github.com/gmrtd/gmrtd/iso7816"
 	"github.com/gmrtd/gmrtd/pace"
+	"github.com/gmrtd/gmrtd/passiveauth"
 	"github.com/gmrtd/gmrtd/password"
 	"github.com/gmrtd/gmrtd/utils"
 )
@@ -150,9 +151,8 @@ func performChipAuthentication(nfc *iso7816.NfcSession, doc *document.Document) 
 	return nil
 }
 
-// TODO
 type ReaderStatus interface {
-	Status(msg string) // TODO - not currently calling to update on the status
+	Status(msg string)
 }
 
 type Reader struct {
@@ -180,8 +180,8 @@ func (reader *Reader) SkipPace() {
 }
 
 // reads the document using the specified transceiver and password
+// - also performs doc.Verify() and Passive Authentication!
 // NB returns partial data (MrtdDocument) in the event of an error
-// NB does NOT perform document verification (doc.Verify) or Passive Authentication!
 func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *password.Password, atr []byte, ats []byte) (doc *document.Document, err error) {
 	defer func() {
 		if e := recover(); e != nil {
@@ -231,6 +231,7 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 	 * PACE
 	 */
 	if !reader.skipPace {
+		reader.status.Status(fmt.Sprintf("PACE"))
 		err = pace.NewPace(nfc, doc, password).DoPACE()
 		if err != nil {
 			return doc, err
@@ -256,6 +257,7 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 
 	// NB we only attempt BAC if we don't already have SecureMessaging (i.e. via PACE)
 	if nfc.SM == nil {
+		reader.status.Status(fmt.Sprintf("BAC"))
 		err = bac.NewBAC(nfc, doc, password).DoBAC()
 		if err != nil {
 			return doc, err
@@ -277,10 +279,29 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 	 *
 	 * NB requires DG data, so performed after DG read
 	 */
+	reader.status.Status(fmt.Sprintf("Active Authentication"))
 	err = performChipAuthentication(nfc, doc)
 	if err != nil {
 		return doc, err
 	}
+
+	// verify the document
+	reader.status.Status(fmt.Sprintf("Verifying Document"))
+	err = doc.Verify()
+	if err != nil {
+		slog.Error("Document.Verify", "error", err)
+		return doc, err
+	}
+
+	// perforn passive authentication
+	reader.status.Status(fmt.Sprintf("Passive Authentication"))
+	err = passiveauth.PassiveAuth(doc)
+	if err != nil {
+		slog.Error("MrtdPassiveAuth", "error", err)
+		return doc, err
+	}
+
+	reader.status.Status(fmt.Sprintf("Valid Document!"))
 
 	// copy apdu-log over to document
 	doc.Apdus = nfc.ApduLog
