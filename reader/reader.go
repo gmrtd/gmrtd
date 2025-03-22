@@ -1,4 +1,4 @@
-package gmrtd
+package reader
 
 import (
 	"bytes"
