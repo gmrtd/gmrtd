@@ -20,7 +20,10 @@ func TestGenerateKseed(t *testing.T) {
 
 	nfc := iso7816.NewNfcSession(&iso7816.MockTransceiver{})
 	doc := &document.Document{}
-	pass := password.NewPasswordMrzi("L898902C", "690806", "940623")
+	pass, err := password.NewPasswordMrzi("L898902C", "690806", "940623")
+	if err != nil {
+		t.Errorf("unexpected error: %s", err)
+	}
 
 	exp := utils.HexToBytes("239AB9CB282DAF66231DC5A4DF6BFBAE")
 
@@ -302,14 +305,20 @@ func TestDoBAC(t *testing.T) {
 
 	var doc *document.Document = &document.Document{}
 
-	var password *password.Password = password.NewPasswordMrzi("L898902C", "690806", "940623")
+	var err error
+	var pass *password.Password
 
-	var bac *BAC = NewBAC(nfc, doc, password)
+	pass, err = password.NewPasswordMrzi("L898902C", "690806", "940623")
+	if err != nil {
+		t.Errorf("unexpected error: %s", err)
+	}
+
+	var bac *BAC = NewBAC(nfc, doc, pass)
 
 	// override random-byte generator
 	bac.randomBytesFn = getTestRandomBytesFn()
 
-	err := bac.DoBAC()
+	err = bac.DoBAC()
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}

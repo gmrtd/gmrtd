@@ -72,7 +72,10 @@ func TestNewDG1(t *testing.T) {
 		}
 
 		// generate MRZi (as a quick way of verifying)
-		actMrzi := doc.Mf.Lds1.Dg1.Mrz.EncodeMrzi()
+		actMrzi, err := doc.Mf.Lds1.Dg1.Mrz.EncodeMrzi()
+		if err != nil {
+			t.Errorf("Unexpected error: %s", err)
+		}
 
 		if actMrzi != tc.mrzi {
 			t.Errorf("DG1 MRZi mismatch (Exp:%s, Act:%s)", tc.mrzi, actMrzi)

@@ -16,7 +16,7 @@ import (
 const DG11Tag = 0x6B
 
 type PersonDetails struct {
-	NameOfHolder         mrz.MrzName   `json:"nameOfHolder,omitempty"`
+	NameOfHolder         *mrz.MrzName  `json:"nameOfHolder,omitempty"`
 	OtherNames           []mrz.MrzName `json:"otherNames,omitempty"`
 	PersonalNumber       string        `json:"personalNumber,omitempty"`
 	FullDateOfBirth      string        `json:"fullDateOfBirth,omitempty"` // YYYYMMDD
@@ -88,7 +88,12 @@ func (details *PersonDetails) processTag5F0F(parentNode tlv.TlvNode) {
 		numOtherNames := utils.BytesToInt(numOtherNamesNode.GetValue())
 
 		for occur := 1; occur <= numOtherNames; occur++ {
-			details.OtherNames = append(details.OtherNames, mrz.ParseName(mrz.DecodeValue(string(parentNode.GetNode(0xA0).GetNodeByOccur(0x5F0F, occur).GetValue()))))
+			tmpName, err := mrz.ParseName(mrz.DecodeValue(string(parentNode.GetNode(0xA0).GetNodeByOccur(0x5F0F, occur).GetValue())))
+			if err != nil {
+				log.Panicf("[processTag5F0F] ParseName error: %s", err)
+			}
+
+			details.OtherNames = append(details.OtherNames, *tmpName)
 		}
 	} else {
 		/*
@@ -105,7 +110,12 @@ func (details *PersonDetails) processTag5F0F(parentNode tlv.TlvNode) {
 				break
 			}
 
-			details.OtherNames = append(details.OtherNames, mrz.ParseName(mrz.DecodeValue(string(otherNameNode.GetValue()))))
+			tmpName, err := mrz.ParseName(mrz.DecodeValue(string(otherNameNode.GetValue())))
+			if err != nil {
+				log.Panicf("[processTag5F0F] ParseName error: %s", err)
+			}
+
+			details.OtherNames = append(details.OtherNames, *tmpName)
 
 			occur++
 		}
@@ -116,7 +126,8 @@ func (details *PersonDetails) processTag5F0F(parentNode tlv.TlvNode) {
 func (details *PersonDetails) processTag(tag tlv.TlvTag, node tlv.TlvNode) {
 	switch tag {
 	case 0x5F0E:
-		details.NameOfHolder = mrz.ParseName(mrz.DecodeValue(string(node.GetNode(tag).GetValue())))
+		// TODO - error check
+		details.NameOfHolder, _ = mrz.ParseName(mrz.DecodeValue(string(node.GetNode(tag).GetValue())))
 	case 0x5F0F:
 		details.processTag5F0F(node)
 	case 0x5F10:

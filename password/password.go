@@ -42,15 +42,17 @@ func NewPasswordMrz(mrzStr string) (pass *Password, err error) {
 		return nil, err
 	}
 
-	pass.Password = m.EncodeMrzi()
+	pass.Password, err = m.EncodeMrzi()
+	if err != nil {
+		return nil, err
+	}
 
 	return pass, err
 }
 
-func NewPasswordMrzi(documentNo string, dateOfBirth string, dateOfExpiry string) *Password {
-	var out Password
-
-	out.PasswordType = PASSWORD_TYPE_MRZi
+func NewPasswordMrzi(documentNo string, dateOfBirth string, dateOfExpiry string) (pass *Password, err error) {
+	pass = new(Password)
+	pass.PasswordType = PASSWORD_TYPE_MRZi
 
 	var mrz *mrz.MRZ = &mrz.MRZ{}
 
@@ -58,9 +60,12 @@ func NewPasswordMrzi(documentNo string, dateOfBirth string, dateOfExpiry string)
 	mrz.DateOfBirth = dateOfBirth
 	mrz.DateOfExpiry = dateOfExpiry
 
-	out.Password = mrz.EncodeMrzi()
+	pass.Password, err = mrz.EncodeMrzi()
+	if err != nil {
+		return nil, err
+	}
 
-	return &out
+	return pass, nil
 }
 
 func NewPasswordCan(can string) *Password {

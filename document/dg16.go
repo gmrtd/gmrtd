@@ -14,10 +14,10 @@ import (
 const DG16Tag = 0x70
 
 type PersonToNotify struct {
-	DateRecorded string      `json:"dateRecorded,omitempty"`
-	Name         mrz.MrzName `json:"name,omitempty"`
-	Telephone    string      `json:"telephone,omitempty"`
-	Address      []string    `json:"address,omitempty"`
+	DateRecorded string       `json:"dateRecorded,omitempty"`
+	Name         *mrz.MrzName `json:"name,omitempty"`
+	Telephone    string       `json:"telephone,omitempty"`
+	Address      []string     `json:"address,omitempty"`
 }
 
 type DG16 struct {
@@ -86,7 +86,8 @@ func parsePersonToNotify(node tlv.TlvNode) PersonToNotify {
 	// should be 8 bytes (YYYYMMDD), but probably also have 4 byte BCD variants
 	out.DateRecorded = parseDateYYYYMMDD(node.GetNode(0x5F50).GetValue())
 
-	out.Name = mrz.ParseName(mrz.DecodeValue(string(node.GetNode(0x5F51).GetValue())))
+	// TODO - error check
+	out.Name, _ = mrz.ParseName(mrz.DecodeValue(string(node.GetNode(0x5F51).GetValue())))
 
 	out.Telephone = string(node.GetNode(0x5F52).GetValue())
 

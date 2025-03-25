@@ -20,7 +20,10 @@ func TestParseName(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		actName := ParseName(tc.input)
+		actName, err := ParseName(tc.input)
+		if err != nil {
+			t.Errorf("unexpected error: %s", err)
+		}
 
 		if actName.Primary != tc.expName.Primary {
 			t.Errorf("Primary name differs to expected (exp:%s) (act:%s)", tc.expName.Primary, actName.Primary)
@@ -33,13 +36,11 @@ func TestParseName(t *testing.T) {
 }
 
 func TestParseNameTooManyComponentsErr(t *testing.T) {
-	// No need to check whether `recover()` is nil. Just turn off the panic.
-	defer func() { _ = recover() }()
+	_, err := ParseName("Invalid name  with  three components")
 
-	_ = ParseName("Invalid name  with  three components")
-
-	// Never reaches here if panic
-	t.Errorf("expected panic, but didn't get")
+	if err == nil {
+		t.Errorf("error expected")
+	}
 }
 
 func TestEncodeValueBadParamsErr(t *testing.T) {
@@ -96,42 +97,44 @@ func TestMrzDecodeBadLengthErr(t *testing.T) {
 func TestCalcCheckdigit(t *testing.T) {
 	testCases := []struct {
 		data          string
-		expCheckDigit int
+		expCheckDigit string
 	}{
 		{
 			// TD1
 			data:          "D231458907<<<<<<<<<<<<<<<34071279507122<<<<<<<<<<<",
-			expCheckDigit: 2,
+			expCheckDigit: "2",
 		},
 		{
 			// TD2 sample
 			data:          "HA672242<658022549601086<<<<<<<",
-			expCheckDigit: 8,
+			expCheckDigit: "8",
 		},
 		{
 			// TD3 sample
 			data:          "HA672242<658022549601086<<<<<<<<<<<<<<0",
-			expCheckDigit: 8,
+			expCheckDigit: "8",
 		},
 	}
 	for _, tc := range testCases {
-		act := calcCheckdigit(tc.data)
+		act, err := calcCheckdigit(tc.data)
+		if err != nil {
+			t.Errorf("unexpected error: %s", err)
+		}
+
 		if act != tc.expCheckDigit {
-			t.Errorf("Incorrect check-digit (Exp:%d, Act:%d, Data:%s)", tc.expCheckDigit, act, tc.data)
+			t.Errorf("Incorrect check-digit (Exp:%s, Act:%s, Data:%s)", tc.expCheckDigit, act, tc.data)
 		}
 	}
 }
 
 func TestCalcCheckdigitBadCharErr(t *testing.T) {
-	// No need to check whether `recover()` is nil. Just turn off the panic.
-	defer func() { _ = recover() }()
-
 	var badData string = "HA672242<658022549601086?<<<<<<"
 
-	_ = calcCheckdigit(badData)
+	_, err := calcCheckdigit(badData)
 
-	// Never reaches here if panic
-	t.Errorf("expected panic, but didn't get")
+	if err == nil {
+		t.Errorf("expected error")
+	}
 }
 
 func TestVerifyCheckdigitEmptyWithoutCheckDigitOk(t *testing.T) {
@@ -140,25 +143,21 @@ func TestVerifyCheckdigitEmptyWithoutCheckDigitOk(t *testing.T) {
 }
 
 func TestVerifyCheckdigitAtoiErr(t *testing.T) {
-	// No need to check whether `recover()` is nil. Just turn off the panic.
-	defer func() { _ = recover() }()
-
 	// NB trigger Atoi error by passing non-integer value for the check-digit
-	verifyCheckdigit("123456789", "A")
+	err := verifyCheckdigit("123456789", "A")
 
-	// Never reaches here if panic
-	t.Errorf("expected panic, but didn't get")
+	if err == nil {
+		t.Errorf("expected error, but didn't get")
+	}
 }
 
 func TestVerifyCheckdigitErr(t *testing.T) {
-	// No need to check whether `recover()` is nil. Just turn off the panic.
-	defer func() { _ = recover() }()
-
 	// NB valid check-digit would be '7', so give '1' to trigger validation error
-	verifyCheckdigit("123456789", "1")
+	err := verifyCheckdigit("123456789", "1")
 
-	// Never reaches here if panic
-	t.Errorf("expected panic, but didn't get")
+	if err == nil {
+		t.Errorf("expected error, but didn't get")
+	}
 }
 
 func TestMrzDecode(t *testing.T) {
@@ -169,17 +168,17 @@ func TestMrzDecode(t *testing.T) {
 		{
 			// TD1
 			data: "I<UTOD231458907<<<<<<<<<<<<<<<7408122F1204159UTO<<<<<<<<<<<6ERIKSSON<<ANNA<MARIA<<<<<<<<<<",
-			exp:  MRZ{DocumentCode: "I", IssuingState: "UTO", NameOfHolder: MrzName{Primary: "ERIKSSON", Secondary: "ANNA MARIA"}, DocumentNumber: "D23145890", Nationality: "UTO", DateOfBirth: "740812", Sex: "F", DateOfExpiry: "120415", OptionalData: "", OptionalData2: ""},
+			exp:  MRZ{DocumentCode: "I", IssuingState: "UTO", NameOfHolder: &MrzName{Primary: "ERIKSSON", Secondary: "ANNA MARIA"}, DocumentNumber: "D23145890", Nationality: "UTO", DateOfBirth: "740812", Sex: "F", DateOfExpiry: "120415", OptionalData: "", OptionalData2: ""},
 		},
 		{
 			// TD2
 			data: "I<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<D231458907UTO7408122F1204159<<<<<<<6",
-			exp:  MRZ{DocumentCode: "I", IssuingState: "UTO", NameOfHolder: MrzName{Primary: "ERIKSSON", Secondary: "ANNA MARIA"}, DocumentNumber: "D23145890", Nationality: "UTO", DateOfBirth: "740812", Sex: "F", DateOfExpiry: "120415", OptionalData: ""},
+			exp:  MRZ{DocumentCode: "I", IssuingState: "UTO", NameOfHolder: &MrzName{Primary: "ERIKSSON", Secondary: "ANNA MARIA"}, DocumentNumber: "D23145890", Nationality: "UTO", DateOfBirth: "740812", Sex: "F", DateOfExpiry: "120415", OptionalData: ""},
 		},
 		{
 			// TD3
 			data: "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<L898902C36UTO7408122F1204159ZE184226B<<<<<10",
-			exp:  MRZ{DocumentCode: "P", IssuingState: "UTO", NameOfHolder: MrzName{Primary: "ERIKSSON", Secondary: "ANNA MARIA"}, DocumentNumber: "L898902C3", Nationality: "UTO", DateOfBirth: "740812", Sex: "F", DateOfExpiry: "120415", OptionalData: "ZE184226B"},
+			exp:  MRZ{DocumentCode: "P", IssuingState: "UTO", NameOfHolder: &MrzName{Primary: "ERIKSSON", Secondary: "ANNA MARIA"}, DocumentNumber: "L898902C3", Nationality: "UTO", DateOfBirth: "740812", Sex: "F", DateOfExpiry: "120415", OptionalData: "ZE184226B"},
 		},
 	}
 	for _, tc := range testCases {
@@ -221,7 +220,10 @@ func TestMrzDecodeMrziEncode(t *testing.T) {
 			t.Errorf("Unexpected error: %s", err)
 		}
 
-		actMrzi := mrz.EncodeMrzi()
+		actMrzi, err := mrz.EncodeMrzi()
+		if err != nil {
+			t.Errorf("Unexpected error: %s", err)
+		}
 
 		if tc.exp_mrzi != string(actMrzi) {
 			t.Errorf("Bad MRZi (Exp:%s) (Act:%s)", tc.exp_mrzi, actMrzi)

@@ -75,7 +75,12 @@ func (details *DocumentDetails) processTag(tag tlv.TlvTag, node tlv.TlvNode) {
 		// special handling as 'Other Persons' are nested within tag A0 and there can be multiple instances
 		numOtherPersons := utils.BytesToInt(node.GetNode(0xA0).GetNode(0x02).GetValue())
 		for occur := 1; occur <= numOtherPersons; occur++ {
-			details.OtherPersons = append(details.OtherPersons, mrz.ParseName(mrz.DecodeValue(string(node.GetNode(0xA0).GetNodeByOccur(tag, occur).GetValue()))))
+			tmpName, err := mrz.ParseName(mrz.DecodeValue(string(node.GetNode(0xA0).GetNodeByOccur(tag, occur).GetValue())))
+			if err != nil {
+				log.Panicf("[processTag] ParseName error: %s", err)
+			}
+
+			details.OtherPersons = append(details.OtherPersons, *tmpName)
 		}
 	case 0x5F1B:
 		details.EndorsementsAndObservations = string(node.GetNode(tag).GetValue())

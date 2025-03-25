@@ -3,7 +3,6 @@ package mrz
 
 import (
 	"fmt"
-	"log"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -15,16 +14,16 @@ type MrzName struct {
 }
 
 type MRZ struct {
-	DocumentCode   string  `json:"documentCode,omitempty"`
-	IssuingState   string  `json:"issuingState,omitempty"`
-	NameOfHolder   MrzName `json:"nameOfHolder,omitempty"`
-	DocumentNumber string  `json:"documentNumber,omitempty"`
-	Nationality    string  `json:"nationality,omitempty"`
-	DateOfBirth    string  `json:"dateOfBirth,omitempty"`
-	Sex            string  `json:"sex,omitempty"`
-	DateOfExpiry   string  `json:"dateOfExpiry,omitempty"`
-	OptionalData   string  `json:"optionalData,omitempty"`
-	OptionalData2  string  `json:"optionalData2,omitempty"`
+	DocumentCode   string   `json:"documentCode,omitempty"`
+	IssuingState   string   `json:"issuingState,omitempty"`
+	NameOfHolder   *MrzName `json:"nameOfHolder,omitempty"`
+	DocumentNumber string   `json:"documentNumber,omitempty"`
+	Nationality    string   `json:"nationality,omitempty"`
+	DateOfBirth    string   `json:"dateOfBirth,omitempty"`
+	Sex            string   `json:"sex,omitempty"`
+	DateOfExpiry   string   `json:"dateOfExpiry,omitempty"`
+	OptionalData   string   `json:"optionalData,omitempty"`
+	OptionalData2  string   `json:"optionalData2,omitempty"`
 }
 
 // "Type 3" is typical of passport booklets. The MRZ consists of 2 lines × 44 characters.
@@ -37,7 +36,7 @@ const MRZLengthTD3 = 88
 
 // parses the name into primary and secondary (if present) components
 // NB field separator is '  ' (double-space) as we've already converted '<' to ' ' earlier
-func ParseName(name string) MrzName {
+func ParseName(name string) (*MrzName, error) {
 	var out MrzName
 
 	strArr := strings.Split(name, "  ")
@@ -49,10 +48,10 @@ func ParseName(name string) MrzName {
 		out.Primary = strArr[0]
 		out.Secondary = strArr[1]
 	default:
-		panic(fmt.Sprintf("[ParseName] Incorrect number of name components: %d", len(strArr)))
+		return nil, fmt.Errorf("[ParseName] Incorrect number of name components: %d", len(strArr))
 	}
 
-	return out
+	return &out, nil
 }
 
 // min/maxLength can be -1
@@ -99,7 +98,7 @@ func MrzDecode(mrz string) (*MRZ, error) {
 	return nil, fmt.Errorf("unsupported MRZ length (length:%d)", len(mrz))
 }
 
-func calcCheckdigit(data string) int {
+func calcCheckdigit(data string) (string, error) {
 	weights := []byte{7, 3, 1}
 
 	value := 0
@@ -116,7 +115,7 @@ func calcCheckdigit(data string) int {
 		} else if (c == '<') || (c == ' ') {
 			tmpValue = 0
 		} else {
-			panic(fmt.Sprintf("[calcCheckdigit] Invalid character (%c) for check-digit calculation", c))
+			return "", fmt.Errorf("[calcCheckdigit] Invalid character (%c) for check-digit calculation", c)
 		}
 
 		tmpValue *= int(weights[i%len(weights)])
@@ -126,24 +125,28 @@ func calcCheckdigit(data string) int {
 
 	value %= 10
 
-	return value
+	return strconv.Itoa(value), nil
 }
 
-func verifyCheckdigit(data string, checkDigit string) {
+func verifyCheckdigit(data string, checkDigit string) error {
 	// check for empty field with unset checkdigit
 	if (checkDigit == "<") && (len(strings.Trim(data, "<")) == 0) {
-		return
+		return nil
 	}
 
-	expCD := calcCheckdigit(data)
-	actCD, err := strconv.Atoi(checkDigit)
+	var err error
+	var expCD string
+
+	expCD, err = calcCheckdigit(data)
 	if err != nil {
-		panic(fmt.Sprintf("[verifyCheckdigit] Atoi error (checkdigit:%s)", checkDigit))
+		return fmt.Errorf("[verifyCheckdigit] error: %w", err)
 	}
 
-	if expCD != actCD {
-		panic(fmt.Sprintf("[verifyCheckdigit] Checkdigit mismatch (Exp:%d, Act:%d, Data:%s)", expCD, actCD, data))
+	if expCD != checkDigit {
+		return fmt.Errorf("[verifyCheckdigit] Checkdigit mismatch (Exp:%s, Act:%s, Data:%s)", expCD, checkDigit, data)
 	}
+
+	return nil
 }
 
 func decodeTD1(mrz string) (*MRZ, error) {
@@ -176,7 +179,7 @@ func decodeTD1(mrz string) (*MRZ, error) {
 	if documentNumberCD == "<" {
 		tmpIdx := strings.Index(optionalData, "<")
 		if tmpIdx < 2 {
-			log.Panicf("Invalid encoding. Index must be >=2 (Act:%d)", tmpIdx)
+			return nil, fmt.Errorf("(decodeTD1) invalid encoding. Index must be >=2 (Act:%d)", tmpIdx)
 		}
 
 		documentNumber += optionalData[0 : tmpIdx-1]
@@ -189,21 +192,33 @@ func decodeTD1(mrz string) (*MRZ, error) {
 	out.DocumentCode = DecodeValue(documentCode)
 	out.IssuingState = DecodeValue(issuingState)
 	out.DocumentNumber = DecodeValue(documentNumber)
-	verifyCheckdigit(documentNumber, documentNumberCD)
+	if err := verifyCheckdigit(documentNumber, documentNumberCD); err != nil {
+		return nil, err
+	}
 	out.OptionalData = DecodeValue(optionalData)
 
 	out.DateOfBirth = DecodeValue(dateOfBirth)
-	verifyCheckdigit(dateOfBirth, dateOfBirthCD)
+	if err := verifyCheckdigit(dateOfBirth, dateOfBirthCD); err != nil {
+		return nil, err
+	}
 	out.Sex = DecodeValue(sex)
 	out.DateOfExpiry = DecodeValue(dateOfExpiry)
-	verifyCheckdigit(dateOfExpiry, dateOfExpiryCD)
+	if err := verifyCheckdigit(dateOfExpiry, dateOfExpiryCD); err != nil {
+		return nil, err
+	}
 	out.Nationality = DecodeValue(nationality)
 	out.OptionalData2 = DecodeValue(optionalData2)
 
 	// composite check digit
-	verifyCheckdigit(mrz[5:30]+mrz[30:37]+mrz[38:45]+mrz[48:59], mrz[59:60])
+	if err := verifyCheckdigit(mrz[5:30]+mrz[30:37]+mrz[38:45]+mrz[48:59], mrz[59:60]); err != nil {
+		return nil, err
+	}
 
-	out.NameOfHolder = ParseName(DecodeValue(nameOfHolder))
+	var err error
+	out.NameOfHolder, err = ParseName(DecodeValue(nameOfHolder))
+	if err != nil {
+		return nil, err
+	}
 
 	return out, nil
 }
@@ -235,7 +250,7 @@ func decodeTD2(mrz string) (*MRZ, error) {
 	if documentNumberCD == "<" {
 		tmpIdx := strings.Index(optionalData, "<")
 		if tmpIdx < 2 {
-			log.Panicf("Invalid encoding. Index must be >=2 (Act:%d)", tmpIdx)
+			return nil, fmt.Errorf("(decodeTD2) invalid encoding. Index must be >=2 (Act:%d)", tmpIdx)
 		}
 
 		documentNumber += optionalData[0 : tmpIdx-1]
@@ -247,20 +262,33 @@ func decodeTD2(mrz string) (*MRZ, error) {
 
 	out.DocumentCode = DecodeValue(documentCode)
 	out.IssuingState = DecodeValue(issuingState)
-	out.NameOfHolder = ParseName(DecodeValue(nameOfHolder))
+
+	var err error
+	out.NameOfHolder, err = ParseName(DecodeValue(nameOfHolder))
+	if err != nil {
+		return nil, err
+	}
 
 	out.DocumentNumber = DecodeValue(documentNumber)
-	verifyCheckdigit(documentNumber, documentNumberCD)
+	if err := verifyCheckdigit(documentNumber, documentNumberCD); err != nil {
+		return nil, err
+	}
 	out.Nationality = DecodeValue(nationality)
 	out.DateOfBirth = DecodeValue(dateOfBirth)
-	verifyCheckdigit(dateOfBirth, dateOfBirthCD)
+	if err := verifyCheckdigit(dateOfBirth, dateOfBirthCD); err != nil {
+		return nil, err
+	}
 	out.Sex = DecodeValue(sex)
 	out.DateOfExpiry = DecodeValue(dateOfExpiry)
-	verifyCheckdigit(dateOfExpiry, dateOfExpiryCD)
+	if err := verifyCheckdigit(dateOfExpiry, dateOfExpiryCD); err != nil {
+		return nil, err
+	}
 	out.OptionalData = DecodeValue(optionalData)
 
 	// composite check digit
-	verifyCheckdigit(mrz[36:46]+mrz[49:56]+mrz[57:71], mrz[71:72])
+	if err := verifyCheckdigit(mrz[36:46]+mrz[49:56]+mrz[57:71], mrz[71:72]); err != nil {
+		return nil, err
+	}
 
 	return out, nil
 }
@@ -293,42 +321,66 @@ func decodeTD3(mrz string) (*MRZ, error) {
 
 	out.DocumentCode = DecodeValue(documentCode)
 	out.IssuingState = DecodeValue(issuingState)
-	out.NameOfHolder = ParseName(DecodeValue(nameOfHolder))
+
+	var err error
+	out.NameOfHolder, err = ParseName(DecodeValue(nameOfHolder))
+	if err != nil {
+		return nil, err
+	}
 
 	out.DocumentNumber = DecodeValue(documentNumber)
-	verifyCheckdigit(documentNumber, documentNumberCD)
+	if err := verifyCheckdigit(documentNumber, documentNumberCD); err != nil {
+		return nil, err
+	}
 	out.Nationality = DecodeValue(nationality)
 	out.DateOfBirth = DecodeValue(dateOfBirth)
-	verifyCheckdigit(dateOfBirth, dateOfBirthCD)
+	if err := verifyCheckdigit(dateOfBirth, dateOfBirthCD); err != nil {
+		return nil, err
+	}
 	out.Sex = DecodeValue(sex)
 	out.DateOfExpiry = DecodeValue(dateOfExpiry)
-	verifyCheckdigit(dateOfExpiry, dateOfExpiryCD)
+	if err := verifyCheckdigit(dateOfExpiry, dateOfExpiryCD); err != nil {
+		return nil, err
+	}
 	out.OptionalData = DecodeValue(optionalData)
-	verifyCheckdigit(optionalData, optionalDataCD)
+	if err := verifyCheckdigit(optionalData, optionalDataCD); err != nil {
+		return nil, err
+	}
 
 	// composite check digit
-	verifyCheckdigit(mrz[44:54]+mrz[57:64]+mrz[65:87], mrz[87:88])
+	if err := verifyCheckdigit(mrz[44:54]+mrz[57:64]+mrz[65:87], mrz[87:88]); err != nil {
+		return nil, err
+	}
 
 	return out, nil
 }
 
-func (mrz *MRZ) EncodeMrzi() string {
+func (mrz *MRZ) EncodeMrzi() (string, error) {
 	// [9] document-number
 	documentNumber := encodeValue(mrz.DocumentNumber, 9, -1)
 	// [1] check-digit
-	documentNumberCD := strconv.Itoa(calcCheckdigit(documentNumber))
+	documentNumberCD, err := calcCheckdigit(documentNumber)
+	if err != nil {
+		return "", err
+	}
 	// [6] date-of-birth
 	dateOfBirth := encodeValue(mrz.DateOfBirth, 6, 6)
 	// [1] check-digit
-	dateOfBirthCD := strconv.Itoa(calcCheckdigit(dateOfBirth))
+	dateOfBirthCD, err := calcCheckdigit(dateOfBirth)
+	if err != nil {
+		return "", err
+	}
 	// [6] date-of-expiry
 	dateOfExpiry := encodeValue(mrz.DateOfExpiry, 6, 6)
 	// [1] check-digit
-	dateOfExpiryCD := strconv.Itoa(calcCheckdigit(dateOfExpiry))
+	dateOfExpiryCD, err := calcCheckdigit(dateOfExpiry)
+	if err != nil {
+		return "", err
+	}
 
 	out := documentNumber + documentNumberCD + dateOfBirth + dateOfBirthCD + dateOfExpiry + dateOfExpiryCD
 
 	slog.Debug("MrzEncodeMRZi", "MRZi", out)
 
-	return out
+	return out, nil
 }

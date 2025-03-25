@@ -338,8 +338,14 @@ func TestDoPaceNoCardAccessFile(t *testing.T) {
 	var doc document.Document
 	var transceiver *iso7816.MockTransceiver = new(iso7816.MockTransceiver)
 	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(transceiver)
-	var password *password.Password = password.NewPasswordMrzi("T22000129", "640812", "101031")
-	var pace *Pace = NewPace(nfc, &doc, password)
+
+	var pass *password.Password
+	pass, err = password.NewPasswordMrzi("T22000129", "640812", "101031")
+	if err != nil {
+		t.Errorf("unexpected error: %s", err)
+	}
+
+	var pace *Pace = NewPace(nfc, &doc, pass)
 
 	err = pace.DoPACE()
 	if err != nil {
@@ -409,9 +415,13 @@ func TestDoPace_GM_ECDH(t *testing.T) {
 	}
 
 	// password (MRZ)
-	var password *password.Password = password.NewPasswordMrzi("T22000129", "640812", "101031")
+	var pass *password.Password
+	pass, err = password.NewPasswordMrzi("T22000129", "640812", "101031")
+	if err != nil {
+		t.Errorf("unexpected error: %s", err)
+	}
 
-	var pace *Pace = NewPace(nfc, &doc, password)
+	var pace *Pace = NewPace(nfc, &doc, pass)
 
 	// override EC key-generator (to ensure predictable keys)
 	pace.keyGeneratorEc = getTestKeyGenEc()
@@ -497,9 +507,13 @@ func TestDoPace_GM_ECDH_TDES_CBC_NZ(t *testing.T) {
 	}
 
 	// password (MRZ)
-	var password *password.Password = password.NewPasswordMrzi("LM277954", "781214", "271115")
+	var pass *password.Password
+	pass, err = password.NewPasswordMrzi("LM277954", "781214", "271115")
+	if err != nil {
+		t.Errorf("unexpected error: %s", err)
+	}
 
-	var pace *Pace = NewPace(nfc, &doc, password)
+	var pace *Pace = NewPace(nfc, &doc, pass)
 
 	// override EC key-generator (to ensure predictable keys)
 	pace.keyGeneratorEc = getTestKeyGenEc()
@@ -595,9 +609,13 @@ func TestDoPace_CAM_ECDH_DE(t *testing.T) {
 	}
 
 	// password (MRZ)
-	var password *password.Password = password.NewPasswordMrzi("C4KHNY1PF", "780214", "330315")
+	var pass *password.Password
+	pass, err = password.NewPasswordMrzi("C4KHNY1PF", "780214", "330315")
+	if err != nil {
+		t.Errorf("unexpected error: %s", err)
+	}
 
-	var pace *Pace = NewPace(nfc, &doc, password)
+	var pace *Pace = NewPace(nfc, &doc, pass)
 
 	// override EC key-generator (to ensure predictable keys)
 	pace.keyGeneratorEc = getTestKeyGenEc()

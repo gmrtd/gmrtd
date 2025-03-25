@@ -30,7 +30,14 @@ func TestNewPasswordMrzInvalid(t *testing.T) {
 }
 
 func TestNewPasswordMrzi(t *testing.T) {
-	var pass *Password = NewPasswordMrzi("D23145890734", "340712", "950712")
+	var err error
+	var pass *Password
+
+	pass, err = NewPasswordMrzi("D23145890734", "340712", "950712")
+	if err != nil {
+		t.Errorf("unexpected error: %s", err)
+	}
+
 	if (pass.PasswordType != PASSWORD_TYPE_MRZi) || (pass.Password != "D23145890734934071279507122") {
 		t.Errorf("Password (MRZi) not encoded correctly")
 	}
@@ -43,35 +50,46 @@ func TestNewPasswordCan(t *testing.T) {
 	}
 }
 
-func TestGetTypeAndKey(t *testing.T) {
-	testCases := []struct {
-		password *Password
-		expType  byte
-		expKey   []byte
-	}{
-		{
-			password: NewPasswordMrzi("123456789", "820101", "291225"),
-			expType:  1,
-			expKey:   utils.HexToBytes("0ec557e7048cc90d31ec67599524b297adc33082"),
-		},
-		{
-			password: NewPasswordCan("123456"),
-			expType:  2,
-			expKey:   []byte("123456"),
-		},
+func TestGetTypeAndKey1(t *testing.T) {
+	var err error
+	var pass *Password
+	pass, err = NewPasswordMrzi("123456789", "820101", "291225")
+	if err != nil {
+		t.Errorf("unexpected error: %s", err)
 	}
-	for _, tc := range testCases {
-		actType := tc.password.GetType()
 
-		if actType != tc.expType {
-			t.Errorf("Password Type differs to expected (exp:%d, act:%d)", tc.expType, actType)
-		}
+	var expType byte = 1
+	var expKey []byte = utils.HexToBytes("0ec557e7048cc90d31ec67599524b297adc33082")
 
-		actKey := tc.password.GetKey()
+	actType := pass.GetType()
 
-		if !bytes.Equal(actKey, tc.expKey) {
-			t.Errorf("Password Key differs to expected (exp:%x, act:%x)", tc.expKey, actKey)
-		}
+	if actType != expType {
+		t.Errorf("Password Type differs to expected (exp:%d, act:%d)", expType, actType)
+	}
+
+	actKey := pass.GetKey()
+
+	if !bytes.Equal(actKey, expKey) {
+		t.Errorf("Password Key differs to expected (exp:%x, act:%x)", expKey, actKey)
+	}
+}
+
+func TestGetTypeAndKey2(t *testing.T) {
+	var pass *Password = NewPasswordCan("123456")
+
+	var expType byte = 2
+	var expKey []byte = []byte("123456")
+
+	actType := pass.GetType()
+
+	if actType != expType {
+		t.Errorf("Password Type differs to expected (exp:%d, act:%d)", expType, actType)
+	}
+
+	actKey := pass.GetKey()
+
+	if !bytes.Equal(actKey, expKey) {
+		t.Errorf("Password Key differs to expected (exp:%x, act:%x)", expKey, actKey)
 	}
 }
 
