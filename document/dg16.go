@@ -2,6 +2,7 @@ package document
 
 import (
 	"fmt"
+	"log"
 	"log/slog"
 	"slices"
 	"strings"
@@ -79,6 +80,7 @@ func parseData(node tlv.TlvNode) []PersonToNotify {
 }
 
 func parsePersonToNotify(node tlv.TlvNode) PersonToNotify {
+	var err error
 	var out PersonToNotify
 
 	slog.Debug("parsePersonToNotify", "tlv", node.String())
@@ -86,8 +88,10 @@ func parsePersonToNotify(node tlv.TlvNode) PersonToNotify {
 	// should be 8 bytes (YYYYMMDD), but probably also have 4 byte BCD variants
 	out.DateRecorded = parseDateYYYYMMDD(node.GetNode(0x5F50).GetValue())
 
-	// TODO - error check
-	out.Name, _ = mrz.ParseName(mrz.DecodeValue(string(node.GetNode(0x5F51).GetValue())))
+	out.Name, err = mrz.ParseName(mrz.DecodeValue(string(node.GetNode(0x5F51).GetValue())))
+	if err != nil {
+		log.Panicf("[parsePersonToNotify] ParseName error: %s", err)
+	}
 
 	out.Telephone = string(node.GetNode(0x5F52).GetValue())
 

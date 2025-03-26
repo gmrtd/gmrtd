@@ -126,8 +126,11 @@ func (details *PersonDetails) processTag5F0F(parentNode tlv.TlvNode) {
 func (details *PersonDetails) processTag(tag tlv.TlvTag, node tlv.TlvNode) {
 	switch tag {
 	case 0x5F0E:
-		// TODO - error check
-		details.NameOfHolder, _ = mrz.ParseName(mrz.DecodeValue(string(node.GetNode(tag).GetValue())))
+		var err error
+		details.NameOfHolder, err = mrz.ParseName(mrz.DecodeValue(string(node.GetNode(tag).GetValue())))
+		if err != nil {
+			log.Panicf("[processTag] ParseName error: %s", err)
+		}
 	case 0x5F0F:
 		details.processTag5F0F(node)
 	case 0x5F10:
