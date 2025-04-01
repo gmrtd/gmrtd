@@ -527,7 +527,7 @@ func VerifySignature(pubKeyInfo []byte, digestAlg asn1.ObjectIdentifier, digest 
 			// https://cryptobook.nakov.com/digital-signatures/rsa-signatures
 			if !bytes.HasSuffix(sigPlaintext, digest) {
 				slog.Debug("VerifySignature - RSA Signature verification FAILED")
-				return fmt.Errorf("(VerifySignature) Invalid RSA signature")
+				return fmt.Errorf("(VerifySignature) Invalid RSA signature (sig:%x, digest:%x)", sigPlaintext, digest)
 			}
 
 			return nil
