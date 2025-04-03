@@ -88,12 +88,16 @@ func GetCipherForKey(alg BlockCipherAlg, key []byte) (cipher.Block, error) {
 
 	switch alg {
 	case DES:
-		out, err = des.NewCipher(key)
+		// Note: suppress weak cipher warning in sonar
+		//		 - DES is required as it is used by 'ISO9797RetailMacDes'
+		out, err = des.NewCipher(key) // NOSONAR
 	case TDES:
 		var tmpTDesKey []byte
 		tmpTDesKey, err = tdesKey(key)
 		if err == nil {
-			out, err = des.NewTripleDESCipher(tmpTDesKey)
+			// Note: suppress weak cipher warning in sonar
+			//		 - TDES is required as it is used by BAC/PACE
+			out, err = des.NewTripleDESCipher(tmpTDesKey) // NOSONAR
 		}
 	case AES:
 		out, err = aes.NewCipher(key)
@@ -145,9 +149,13 @@ func CryptCBC(blockCipher cipher.Block, iv []byte, data []byte, encrypt bool) []
 
 	var mode cipher.BlockMode
 	if encrypt {
-		mode = cipher.NewCBCEncrypter(blockCipher, iv)
+		// Note: suppress secure mode and padding scheme warning in sonar
+		//		 - CBC is used by BAC/PACE
+		mode = cipher.NewCBCEncrypter(blockCipher, iv) // NOSONAR
 	} else {
-		mode = cipher.NewCBCDecrypter(blockCipher, iv)
+		// Note: suppress secure mode and padding scheme warning in sonar
+		//		 - CBC is used by BAC/PACE
+		mode = cipher.NewCBCDecrypter(blockCipher, iv) // NOSONAR
 	}
 	mode.CryptBlocks(out, data)
 
