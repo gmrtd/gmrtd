@@ -105,6 +105,18 @@ func TestLdsUnicodeVersion(t *testing.T) {
 	}
 }
 
+func TestNewDgInvalid(t *testing.T) {
+	var doc Document
+
+	// NB DG 17 is not supported
+	err := doc.NewDG(17, []byte{0, 1, 2, 3, 4, 5, 6, 7, 8})
+
+	if err == nil {
+		t.Errorf("Error expected")
+	}
+
+}
+
 func TestParseDateYYYYMMDD(t *testing.T) {
 	testCases := []struct {
 		act []byte

@@ -13,7 +13,7 @@ import (
 type MasterFile struct {
 	CardAccess   *CardAccess   `json:"cardAccess,omitempty"`
 	CardSecurity *CardSecurity `json:"cardSecurity,omitempty"` // NB only read for PACE-CAM - read during PACE flow
-	Dir          *EFDIR        `json:"dir,omitempty"`          // indicates which applications are present - generally not acvailable
+	Dir          *EFDIR        `json:"dir,omitempty"`          // indicates which applications are present - generally not available
 	Lds1         LDS1          `json:"lds1,omitempty"`
 }
 
