@@ -2,7 +2,7 @@ package iso7816
 
 import (
 	"bytes"
-	"log"
+	"fmt"
 
 	"github.com/gmrtd/gmrtd/utils"
 )
@@ -32,7 +32,7 @@ func (transceiver *MockTransceiver) Transceive(cla int, ins int, p1 int, p2 int,
 		}
 	}
 
-	log.Panicf("Unable to match capdu with pre-registered data\n[REQ] %x", encodedData)
+	panic(fmt.Sprintf("Unable to match capdu with pre-registered data\n[REQ] %x", encodedData))
 
 	return nil
 }
