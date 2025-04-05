@@ -10,7 +10,11 @@ import (
 func TestDecode(t *testing.T) {
 
 	inp := utils.HexToBytes("61085f1f050123456789")
-	out := Decode(inp)
+	out, err := Decode(inp)
+
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
 
 	act := out.GetNode(0x61).GetNode(0x5f1f).GetValue()
 

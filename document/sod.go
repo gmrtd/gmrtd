@@ -64,7 +64,10 @@ func NewSOD(data []byte) (*SOD, error) {
 
 	out.RawData = slices.Clone(data)
 
-	nodes := tlv.Decode(out.RawData)
+	nodes, err := tlv.Decode(out.RawData)
+	if err != nil {
+		return nil, fmt.Errorf("[NewSOD] error: %w", err)
+	}
 
 	rootNode := nodes.GetNode(SODTag)
 

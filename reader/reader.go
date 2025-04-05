@@ -240,7 +240,10 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 
 	// NB moved after PACE as we've seen access related errors on NZ passports when done before PACE
 	slog.Info("Read EF.DIR")
-	doc.Mf.Dir = document.NewEFDIR(nfc.ReadFile(MRTDFileIdEFDIR))
+	doc.Mf.Dir, err = document.NewEFDIR(nfc.ReadFile(MRTDFileIdEFDIR))
+	if err != nil {
+		return doc, err
+	}
 	if doc.Mf.Dir != nil {
 		slog.Debug("EF.DIR", "bytes", utils.BytesToHex(doc.Mf.Dir.RawData))
 	}

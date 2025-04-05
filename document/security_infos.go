@@ -10,7 +10,6 @@ import (
 
 	cms "github.com/gmrtd/gmrtd/cms"
 	"github.com/gmrtd/gmrtd/oid"
-	"github.com/gmrtd/gmrtd/tlv"
 	"github.com/gmrtd/gmrtd/utils"
 )
 
@@ -341,7 +340,7 @@ func DecodeSecurityInfos(secInfoData []byte) (secInfos *SecurityInfos, err error
 		oid := secInfoOids[i].Protocol
 		data := secInfoOids[i].Raw
 
-		slog.Debug("parsing secInfo", "oid", oid, "tlv", tlv.Decode(data))
+		slog.Debug("parsing secInfo", "oid", oid, "data", utils.BytesToHex(data))
 
 		var handled bool = false
 

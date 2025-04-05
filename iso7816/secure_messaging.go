@@ -322,7 +322,10 @@ func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
 	* Response APDU: [DO‘85’ or DO‘87’] [DO‘99’] DO‘8E’.
 	 */
 
-	tlv := tlv.Decode(smRApdu.Data)
+	tlv, err := tlv.Decode(smRApdu.Data)
+	if err != nil {
+		return nil, fmt.Errorf("[SM.Decode] error: %w", err)
+	}
 
 	tag85or87 := tlv.GetNode(0x85)
 	if !tag85or87.IsValidNode() {

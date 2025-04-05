@@ -1,6 +1,7 @@
 package document
 
 import (
+	"fmt"
 	"slices"
 
 	"github.com/gmrtd/gmrtd/tlv"
@@ -15,9 +16,9 @@ type EFDIR struct {
 	Application []EfDirApplication `json:"application,omitempty"`
 }
 
-func NewEFDIR(data []byte) *EFDIR {
+func NewEFDIR(data []byte) (efDir *EFDIR, err error) {
 	if len(data) < 1 {
-		return nil
+		return nil, nil
 	}
 
 	var out *EFDIR = new(EFDIR)
@@ -25,7 +26,12 @@ func NewEFDIR(data []byte) *EFDIR {
 	out.RawData = slices.Clone(data)
 
 	{
-		var nodes *tlv.TlvNodes = tlv.Decode(data)
+		var nodes *tlv.TlvNodes
+
+		nodes, err = tlv.Decode(data)
+		if err != nil {
+			return nil, fmt.Errorf("[NewEFDIR] error: %w", err)
+		}
 
 		occur := 1
 		for {
@@ -40,5 +46,5 @@ func NewEFDIR(data []byte) *EFDIR {
 		}
 	}
 
-	return out
+	return out, nil
 }

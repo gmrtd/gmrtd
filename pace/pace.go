@@ -320,7 +320,11 @@ func encodeDynAuthData(tag byte, data []byte) []byte {
 
 // dynamic authentication data - (TLV) 7C <tag> <data>
 func decodeDynAuthData(tag byte, data []byte) []byte {
-	return tlv.Decode(data).GetNode(0x7C).GetNode(tlv.TlvTag(tag)).GetValue()
+	tmpNodes, err := tlv.Decode(data)
+	if err != nil {
+		panic(fmt.Sprintf("[decodeDynAuthData] tlv.Decode error: %s", err))
+	}
+	return tmpNodes.GetNode(0x7C).GetNode(tlv.TlvTag(tag)).GetValue()
 }
 
 // encodes a public-key template (7F49) containing the OID and the public-key (86)
@@ -694,6 +698,7 @@ func (pace *Pace) DoPACE() (err error) {
 	var paceConfig *PaceConfig
 	var domainParams *PACEDomainParams
 
+	// TODO - currently the following will panic if there are no pace-infos... shouldn't we just skip?
 	paceConfig, domainParams = selectPaceConfig((*pace.document).Mf.CardAccess)
 
 	slog.Debug("DoPace", "selected paceConfig", paceConfig.String())

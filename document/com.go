@@ -29,7 +29,10 @@ func NewCOM(data []byte) (*COM, error) {
 
 	out.RawData = slices.Clone(data)
 
-	nodes := tlv.Decode(out.RawData)
+	nodes, err := tlv.Decode(out.RawData)
+	if err != nil {
+		return nil, fmt.Errorf("[NewCOM] error: %w", err)
+	}
 
 	rootNode := nodes.GetNode(COMTag)
 

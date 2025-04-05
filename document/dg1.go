@@ -24,7 +24,10 @@ func NewDG1(data []byte) (dg1 *DG1, err error) {
 
 	dg1.RawData = slices.Clone(data)
 
-	nodes := tlv.Decode(dg1.RawData)
+	nodes, err := tlv.Decode(dg1.RawData)
+	if err != nil {
+		return nil, fmt.Errorf("[NewDG1] error: %w", err)
+	}
 
 	rootNode := nodes.GetNode(DG1Tag)
 

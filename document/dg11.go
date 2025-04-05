@@ -45,7 +45,10 @@ func NewDG11(data []byte) (*DG11, error) {
 
 	out.RawData = slices.Clone(data)
 
-	nodes := tlv.Decode(out.RawData)
+	nodes, err := tlv.Decode(out.RawData)
+	if err != nil {
+		return nil, fmt.Errorf("[NewDG11] error: %w", err)
+	}
 
 	slog.Debug("DG11", "TLV", nodes)
 

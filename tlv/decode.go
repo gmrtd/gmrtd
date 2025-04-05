@@ -2,13 +2,14 @@ package tlv
 
 import (
 	"bytes"
+	"fmt"
 	"log"
 
 	"github.com/gmrtd/gmrtd/utils"
 )
 
 // internal decode function - clients should use TlvDecode
-func decode(data []byte) (nodes *TlvNodes, remainingData []byte) {
+func decode(data []byte) (nodes *TlvNodes, remainingData []byte, err error) {
 	nodes = NewTlvNodes()
 
 	buf := bytes.NewBuffer(data)
@@ -34,7 +35,10 @@ func decode(data []byte) (nodes *TlvNodes, remainingData []byte) {
 				childData := bytes.Clone(buf.Bytes())
 				buf = bytes.NewBuffer([]byte{})
 
-				children, remainingData = decode(childData)
+				children, remainingData, err = decode(childData)
+				if err != nil {
+					return nil, nil, fmt.Errorf("[decode] error: %w", err)
+				}
 
 				node := NewTlvConstructedNode(tag)
 				node.Children.Nodes = append(node.Children.Nodes, children.Nodes...)
@@ -49,7 +53,10 @@ func decode(data []byte) (nodes *TlvNodes, remainingData []byte) {
 				}
 			} else {
 				childData := utils.GetBytesFromBuffer(buf, int(length))
-				children, remainingData = decode(childData)
+				children, remainingData, err = decode(childData)
+				if err != nil {
+					return nil, nil, fmt.Errorf("[decode] error: %w", err)
+				}
 				if len(remainingData) > 0 {
 					log.Panicf("[decode] Remaining-data not expected (%x)", remainingData)
 				}
@@ -69,15 +76,20 @@ func decode(data []byte) (nodes *TlvNodes, remainingData []byte) {
 		}
 	}
 
-	return nodes, remainingData
+	return nodes, remainingData, nil
 }
 
-func Decode(data []byte) *TlvNodes {
-	nodes, remainingData := decode(data)
+func Decode(data []byte) (nodes *TlvNodes, err error) {
+	var remainingData []byte
 
-	if len(remainingData) > 0 {
-		log.Panicf("[Decode] Unexpected remaining-data (%x)", remainingData)
+	nodes, remainingData, err = decode(data)
+	if err != nil {
+		return nil, err
 	}
 
-	return nodes
+	if len(remainingData) > 0 {
+		return nil, fmt.Errorf("[Decode] Unexpected remaining-data (%x)", remainingData)
+	}
+
+	return nodes, nil
 }

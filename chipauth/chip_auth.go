@@ -308,8 +308,14 @@ func (chipAuth *ChipAuth) doGeneralAuthenticate(curve *elliptic.Curve, termKeypa
 	slog.Debug("doGeneralAuthenticate", "rApdu-bytes", utils.BytesToHex(rApdu.Data))
 
 	// verify that the response includes a 7C tag
-	if !tlv.Decode(rApdu.Data).GetNode(0x7C).IsValidNode() {
-		return nil, nil, fmt.Errorf("doGeneralAuthenticate: missing 7C tag in response (rspBytes:%x)", rApdu.Data)
+	{
+		tmpNodes, err := tlv.Decode(rApdu.Data)
+		if err != nil {
+			return nil, nil, fmt.Errorf("[doGeneralAuthenticate] tlv.Decode error: %w", err)
+		}
+		if !tmpNodes.GetNode(0x7C).IsValidNode() {
+			return nil, nil, fmt.Errorf("doGeneralAuthenticate: missing 7C tag in response (rspBytes:%x)", rApdu.Data)
+		}
 	}
 
 	// 3. Both the eMRTD chip and the terminal compute the following:
