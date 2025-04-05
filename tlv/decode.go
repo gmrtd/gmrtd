@@ -3,7 +3,6 @@ package tlv
 import (
 	"bytes"
 	"fmt"
-	"log"
 
 	"github.com/gmrtd/gmrtd/utils"
 )
@@ -58,7 +57,7 @@ func decode(data []byte) (nodes *TlvNodes, remainingData []byte, err error) {
 					return nil, nil, fmt.Errorf("[decode] error: %w", err)
 				}
 				if len(remainingData) > 0 {
-					log.Panicf("[decode] Remaining-data not expected (%x)", remainingData)
+					return nil, remainingData, fmt.Errorf("[decode] Remaining-data not expected (%x)", remainingData)
 				}
 				node := NewTlvConstructedNode(tag)
 				node.Children.Nodes = append(node.Children.Nodes, children.Nodes...)
@@ -67,7 +66,7 @@ func decode(data []byte) (nodes *TlvNodes, remainingData []byte, err error) {
 			}
 		} else {
 			if length == -1 { // indefinite-length
-				log.Panicf("[decode] Indefinite-length mode is only supported for constructed tags")
+				return nil, nil, fmt.Errorf("[decode] Indefinite-length mode is only supported for constructed tags")
 			} else {
 				value := utils.GetBytesFromBuffer(buf, int(length))
 				node := NewTlvSimpleNode(tag, value)
