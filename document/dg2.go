@@ -144,7 +144,7 @@ func NewDG2(data []byte) (*DG2, error) {
 		}
 
 		for occur := 1; occur <= numInstances; occur++ {
-			tag7F60 := tag7F61.GetNodeByOccur(0x7f60, 1)
+			tag7F60 := tag7F61.GetNodeByOccur(0x7f60, occur)
 			if !tag7F60.IsValidNode() {
 				return nil, fmt.Errorf("missing tag (7F60) (Occur:%d)", occur)
 			}
