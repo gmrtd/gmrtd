@@ -280,3 +280,91 @@ func TestChipAuthMY(t *testing.T) {
 		t.Errorf("SM (Post) state differs to expected")
 	}
 }
+
+func TestChipAuthFR(t *testing.T) {
+	// CA test extracted from actual session with FR passport
+	// 		DG14 CA entry         : *missing* (need to infer)
+	//		DG14 Public Key params: Specified curve for 'nist-P256'
+	//
+	// NB no key-id is specified
+
+	dg14bytes := utils.HexToBytes("6E82015E3182015A30820142060904007F000702020102308201333081EC06072A8648CE3D02013081E0020101302C06072A8648CE3D0101022100FFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF30440420FFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFC04205AC635D8AA3A93E7B3EBBD55769886BC651D06B0CC53B0F63BCE3C3E27D2604B0441046B17D1F2E12C4247F8BCE6E563A440F277037D812DEB33A0F4A13945D898C2964FE342E2FE1A7F9B8EE7EB4A7C0F9E162BCE33576B315ECECBB6406837BF51F5022100FFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551020101034200048367FC170D90AD53A28C6526A9C7EC4F5C59C4F7F5D992583F951A1654B4D1D6332163A33D82CBF245154887A8812ED9A55C15AD9D5C5C463851875BBA9AEABD3012060A04007F0007020204020402010202010C")
+
+	var err error
+	var doc document.Document
+
+	err = doc.NewDG(14, dg14bytes)
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+
+	var nfc *iso7816.NfcSession
+	{
+		var transceiver *iso7816.MockTransceiver = new(iso7816.MockTransceiver)
+
+		// MSE:Set KAT
+		transceiver.AddReqRsp("0c2241a65d8751013ae386873df68bd7e9f8d7ab2e696ced29eeb8da78d502645b5e97d566361341e2eaa56318f6d84bf0bc44f7808afaf14798d16048aab03545f017f557d2cce9dee724f099e3d643abd0fb03e567d9b18e08f2d238dede5abbf100", "990290008e089666ac14d11e8c2c9000")
+		// Select EF (DG14)
+		transceiver.AddReqRsp("0ca4020c15870901db66e918fe3525f98e08d870008cea2ba80000", "990290008e08420dea0a913418ae9000")
+
+		nfc = iso7816.NewNfcSession(transceiver)
+	}
+
+	// setup SM (and SSC)
+	nfc.SM, err = iso7816.NewSecureMessaging(cryptoutils.AES, utils.HexToBytes("17da5d46e356f5b31c3d65b1369ef531ca811effc76967d2b62335e1ad9fe5cb"), utils.HexToBytes("5cb99a25e6081581fac80c8da621087939b6bde273f2f7c65693b3a0ea3051ed"))
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+	nfc.SM.SetSSC(utils.HexToBytes("000000000000000000000000000000c6"))
+
+	// setup static EC keys for test
+	getTestKeyGenEc := func() func(ec elliptic.Curve) cryptoutils.EcKeypair {
+		var idx int
+
+		return func(ec elliptic.Curve) cryptoutils.EcKeypair {
+			var tmpPri *big.Int
+			var tmpPub *cryptoutils.EcPoint = new(cryptoutils.EcPoint)
+
+			switch idx {
+			case 0:
+				tmpPri, _ = new(big.Int).SetString("d9c3b06a4dcb735351429403fcb56db520dc882512d775971f724d6112f96586", 16)
+				tmpPub.X, _ = new(big.Int).SetString("334f809c8842a4c9316c19e52a0d6ea0285996c40ff6db303cef72099198c8ad", 16)
+				tmpPub.Y, _ = new(big.Int).SetString("5d6b46e93482de899533d06eac54c289df5aa1436a846fb9154100c5322439ea", 16)
+			default:
+				t.Errorf("Invalid key-gen index (idx:%1d)", idx)
+			}
+
+			idx++
+
+			return cryptoutils.EcKeypair{Pri: tmpPri.Bytes(), Pub: tmpPub}
+		}
+	}
+
+	chipAuth := NewChipAuth(nfc, &doc)
+
+	chipAuth.keyGeneratorEc = getTestKeyGenEc()
+
+	err = chipAuth.DoChipAuth()
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+
+	// verify CA status reflects that CA was performed
+	if doc.ChipAuthStatus != document.CHIP_AUTH_STATUS_CA {
+		t.Errorf("CA status not reflecting CA (Exp:%d, Act:%d)", document.CHIP_AUTH_STATUS_CA, doc.ChipAuthStatus)
+	}
+
+	var smExp *iso7816.SecureMessaging
+	{
+		smExp, err = iso7816.NewSecureMessaging(cryptoutils.TDES, utils.HexToBytes("8ae910a12991fbfe5e37c2c726a2df29"), utils.HexToBytes("1adac8970843d9bf8570737a04a8d50d"))
+		if err != nil {
+			t.Errorf("Unable to setup smExp")
+		}
+		smExp.SetSSC(utils.HexToBytes("0000000000000002"))
+	}
+
+	// verify the post Secure-Messaging state (as this truly indicates whether it worked)
+	if !nfc.SM.Equal(*smExp) {
+		t.Errorf("SM (Post) state differs to expected")
+	}
+}
