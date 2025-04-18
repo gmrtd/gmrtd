@@ -67,7 +67,7 @@ type RsaPublicKey struct {
 }
 
 func (ecKeypair EcKeypair) String() string {
-	return fmt.Sprintf("(Pri:%x, Pub:%s)", utils.BytesToHex(ecKeypair.Pri), ecKeypair.Pub.String())
+	return fmt.Sprintf("(Pri:%x, Pub:%s)", ecKeypair.Pri, ecKeypair.Pub.String())
 }
 
 func (ec EcPoint) String() string {
@@ -167,10 +167,10 @@ func CryptCBC(blockCipher cipher.Block, iv []byte, data []byte, encrypt bool) []
 var oidHashAlgorithmToCryptoHash = map[string]crypto.Hash{
 	oid.OidHashAlgorithmMD5.String():    crypto.MD5,
 	oid.OidHashAlgorithmSHA1.String():   crypto.SHA1,
+	oid.OidHashAlgorithmSHA224.String(): crypto.SHA224,
 	oid.OidHashAlgorithmSHA256.String(): crypto.SHA256,
 	oid.OidHashAlgorithmSHA384.String(): crypto.SHA384,
 	oid.OidHashAlgorithmSHA512.String(): crypto.SHA512,
-	oid.OidHashAlgorithmSHA224.String(): crypto.SHA224,
 }
 
 // panics if hash algorithm is not supported
