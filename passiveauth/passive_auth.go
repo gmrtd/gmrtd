@@ -8,15 +8,18 @@ import (
 	"github.com/gmrtd/gmrtd/document"
 )
 
-func PassiveAuth(doc *document.Document) error {
-	var err error
-
+func PassiveAuth(doc *document.Document) (err error) {
 	// NB currently assumes that EF.SOD DG hashes have been verified earlier
 	//		- this is currently done in reader.readDGs()
 	// TODO - this will be problematic if we want to verify passiveAuth on the server using an imported Document
 
 	// get the CSCA certificate pool
-	var cscaCertPool *cms.CertPool = cms.CscaCertPool()
+	var cscaCertPool *cms.CertPool
+
+	cscaCertPool, err = cms.CscaCertPool()
+	if err != nil {
+		return fmt.Errorf("(PassiveAuth) CscaCertPool error: %w", err)
+	}
 
 	/*
 	* verify EF.SOD (mandatory)

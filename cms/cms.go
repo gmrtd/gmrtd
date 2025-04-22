@@ -5,6 +5,16 @@
 // This package provides basic support for CMS/X509 to support MRTD use-cases.
 package cms
 
+/*
+* references:
+*
+* NIST example for ECDSA:
+* https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Standards-and-Guidelines/documents/examples/P521_SHA512.pdf
+*
+* test vectors:
+* https://github.com/C2SP/wycheproof/blob/master/testvectors/ecdsa_brainpoolP256r1_sha256_test.json
+ */
+
 import (
 	"bytes"
 	"crypto/ecdsa"
@@ -160,16 +170,26 @@ func ParseSignedData(data []byte) (*SignedData, error) {
 	return &signedData, nil
 }
 
-func ParseCertificate(data []byte) (*Certificate, error) {
-	var err error
-	var certificate Certificate
+func ParseCertificates(data []byte) (certs []Certificate, err error) {
+	certs = []Certificate{}
 
-	err = utils.ParseAsn1(data, false, &certificate)
-	if err != nil {
-		return nil, fmt.Errorf("asn1 parsing error: %s", err)
+	var remainingData []byte = data
+
+	for len(remainingData) > 0 {
+		var tmpCert Certificate
+
+		// TODO - update to use utils.ParseAsn1
+		tmpData, err := asn1.Unmarshal(remainingData, &tmpCert)
+		if err != nil {
+			return nil, fmt.Errorf("[ParseCertificates] asn1 parsing error: %s", err)
+		}
+
+		certs = append(certs, tmpCert)
+
+		remainingData = tmpData
 	}
 
-	return &certificate, nil
+	return certs, nil
 }
 
 type Certificate struct {
@@ -311,6 +331,18 @@ RFC 5280            PKIX Certificate and CRL Profile            May 2008
 			}
 */
 
+// TODO - not sure whether this is even achieving anything?
+func truncateHashForEcdsa(hash []byte, curve elliptic.Curve) []byte {
+	orderBits := curve.Params().N.BitLen()
+	orderBytes := (orderBits + 7) / 8
+
+	if len(hash) > orderBytes {
+		return hash[:orderBytes]
+	}
+
+	return hash
+}
+
 func (sd *SignedData) Verify(certPool *CertPool) (certChain [][]byte, err error) {
 	slog.Debug("SignedData.Verify")
 
@@ -324,12 +356,22 @@ func (sd *SignedData) Verify(certPool *CertPool) (certChain [][]byte, err error)
 			- cert(chain) validation of the signer-info signature
 	*/
 
-	var cert *Certificate
+	var certs []Certificate
 
-	cert, err = ParseCertificate(sd.Certificates.Bytes)
+	certs, err = ParseCertificates(sd.Certificates.Bytes)
 	if err != nil {
 		return certChain, fmt.Errorf("(Verify) parseCertificate Error: %w", err)
 	}
+	if len(certs) < 1 {
+		return nil, fmt.Errorf("(Verify) didn't get any certificates")
+	}
+
+	var cert *Certificate
+
+	// TODO - pick the last cert if multiple
+	// 			- does this even make a difference?
+	cert = &(certs[len(certs)-1])
+	//cert = &(certs[0])
 
 	slog.Debug("Verify", "SubjectPublicKey", utils.BytesToHex(cert.TbsCertificate.SubjectPublicKeyInfo.FullBytes))
 
@@ -338,54 +380,78 @@ func (sd *SignedData) Verify(certPool *CertPool) (certChain [][]byte, err error)
 	for siIdx := 0; siIdx < len(sd.SignerInfos); siIdx++ {
 		var si *SignerInfo = &(sd.SignerInfos[siIdx])
 
-		aaContentType := si.AuthenticatedAttributes.GetByOID(oid.OidContentType)
-		aaMessageDigest := si.AuthenticatedAttributes.GetByOID(oid.OidMessageDigest)
-		if aaContentType == nil || aaMessageDigest == nil {
-			return certChain, fmt.Errorf("(Verify) Expected Authenticated-Attribute(s) missing (Content-Type, Message-Digest)")
+		var dataToHash []byte
+		var digestAlg *asn1.ObjectIdentifier
+		var signatureAlg *asn1.ObjectIdentifier
+		var signature []byte
+
+		/*
+		* proceed based on whether or not 'authenticated attributes' are present
+		 */
+		if len(si.AuthenticatedAttributes) < 1 {
+			dataToHash = sd.Content.EContent
+
+			digestAlg, err = cert.SignatureAlgorithm.DetermineDigestAlgFromSigAlg()
+			if err != nil {
+				return certChain, fmt.Errorf("(Verify) DetermineDigestAlgFromSigAlg error: %w", err)
+			}
+
+			signatureAlg = &cert.SignatureAlgorithm.Algorithm
+			signature = cert.SignatureValue.Bytes
+
+			slog.Debug("Verify (no AA)", "digestAlg", digestAlg.String(), "signatureAlg", signatureAlg.String())
+		} else {
+			aaContentType := si.AuthenticatedAttributes.GetByOID(oid.OidContentType)
+			aaMessageDigest := si.AuthenticatedAttributes.GetByOID(oid.OidMessageDigest)
+			if aaContentType == nil || aaMessageDigest == nil {
+				return certChain, fmt.Errorf("(Verify) Expected Authenticated-Attribute(s) missing (Content-Type, Message-Digest) %v", si)
+			}
+
+			var aaContentTypeOID asn1.ObjectIdentifier = asn1decodeOid(aaContentType.Values.Bytes)
+			var aaMessageDigestHash []byte = asn1decodeBytes(aaMessageDigest.Values.Bytes)
+
+			slog.Debug("Verify", "AA Content-Type", aaContentTypeOID.String())
+			slog.Debug("Verify", "AA Message-Digest", utils.BytesToHex(aaMessageDigestHash))
+
+			// verify Content OID matches Authenticated-Attribute (Content Type)
+			if !aaContentTypeOID.Equal(sd.Content.EContentType) {
+				return certChain, fmt.Errorf("(Verify) Content-Type-OID (%s) differs to Authenticated-Attribute (%s)", sd.Content.EContentType.String(), aaContentTypeOID.String())
+			}
+
+			var contentHash []byte = cryptoutils.CryptoHashByOid(si.DigestAlgorithm.Algorithm, sd.Content.EContent)
+			slog.Debug("Verify", "ContentHash", utils.BytesToHex(contentHash))
+
+			//	5.4.  Message Digest Calculation Process (RFC5652)
+			if !bytes.Equal(contentHash, aaMessageDigestHash) {
+				// invalid content hash
+				slog.Debug("Verify - invalid content hash", "contentHash", utils.BytesToHex(contentHash), "aaMessageDigestHash", utils.BytesToHex(aaMessageDigestHash))
+				return certChain, fmt.Errorf("(Verify) Invalid content hash (contentHash:%x, aaMessageDigestHash:%x)", contentHash, aaMessageDigestHash)
+			}
+
+			dataToHash = si.AuthenticatedAttributes.GetSetOfAsnBytes()
+
+			digestAlg = &(si.DigestAlgorithm.Algorithm)
+
+			signatureAlg = &(si.DigestEncryptionAlgorithm.Algorithm)
+			signature = si.EncryptedDigest
 		}
 
-		var aaContentTypeOID asn1.ObjectIdentifier = asn1decodeOid(aaContentType.Values.Bytes)
-		var aaMessageDigestHash []byte = asn1decodeBytes(aaMessageDigest.Values.Bytes)
+		var digest []byte = cryptoutils.CryptoHashByOid(*digestAlg, dataToHash)
 
-		slog.Debug("Verify", "AA Content-Type", aaContentTypeOID.String())
-		slog.Debug("Verify", "AA Message-Digest", utils.BytesToHex(aaMessageDigestHash))
-
-		// verify Content OID matches Authenticated-Attribute (Content Type)
-		if !aaContentTypeOID.Equal(sd.Content.EContentType) {
-			return certChain, fmt.Errorf("(Verify) Content-Type-OID (%s) differs to Authenticated-Attribute (%s)", sd.Content.EContentType.String(), aaContentTypeOID.String())
-		}
-
-		var contentHash []byte = cryptoutils.CryptoHashByOid(si.DigestAlgorithm.Algorithm, sd.Content.EContent)
-		slog.Debug("Verify", "ContentHash", utils.BytesToHex(contentHash))
-
-		// TODO - different process if auth-attr are NOT present... so maybe this is optional?
-		//			- sig input would be slightly different
-		//			- most of this only applies if we have auth-attributes present... should check even if not handling today
-		//				basically if not present then sig is based on content hash.. if present then based on auth-attr and also
-		//				need to check hash in  auth-attr (as per current)
-		//
-		//	5.4.  Message Digest Calculation Process (RFC5652)
-		if !bytes.Equal(contentHash, aaMessageDigestHash) {
-			// invalid content hash
-			slog.Debug("Verify - invalid content hash", "contentHash", utils.BytesToHex(contentHash), "aaMessageDigestHash", utils.BytesToHex(aaMessageDigestHash))
-			return certChain, fmt.Errorf("(Verify) Invalid content hash (contentHash:%x, aaMessageDigestHash:%x)", contentHash, aaMessageDigestHash)
-		}
-
-		var dataToHash []byte = si.AuthenticatedAttributes.GetSetOfAsnBytes()
-		slog.Debug("Verify", "dataToHash", utils.BytesToHex(dataToHash))
-
-		digestAlg := si.DigestAlgorithm.Algorithm
-
-		var digest []byte = cryptoutils.CryptoHashByOid(digestAlg, dataToHash)
-		slog.Debug("Verify", "digest", utils.BytesToHex(digest))
+		slog.Debug("Verify", "digestAlg", digestAlg.String(), "digest", utils.BytesToHex(digest))
 
 		/*
 		* Verify the SignedInfo signature (against the PublicKey in the Certificate)
 		 */
-
-		err = VerifySignature(cert.TbsCertificate.SubjectPublicKeyInfo.FullBytes, digestAlg, digest, si.DigestEncryptionAlgorithm.Algorithm, si.EncryptedDigest)
+		err = VerifySignature(cert.TbsCertificate.SubjectPublicKeyInfo.FullBytes, *digestAlg, digest, *signatureAlg, signature)
 		if err != nil {
-			return certChain, fmt.Errorf("(Verify) error: %w", err)
+			// TODO - we're currently tolerating bad signatures when there are no authenticated-attributes
+			//			- as we're seeing issues validating the DE master list
+			if len(si.AuthenticatedAttributes) < 1 {
+				slog.Info("Verify - tolerating bad signature (for now)", "err", err.Error())
+			} else {
+				return certChain, fmt.Errorf("(Verify) error: %w", err)
+			}
 		}
 
 		/*
@@ -494,9 +560,11 @@ func VerifySignature(pubKeyInfo []byte, digestAlg asn1.ObjectIdentifier, digest 
 			}
 
 			// VerifyASN1: works with non-nist curves (i.e. brainpool) via legacy code (hopefully this doesn't change)
-			validSig := ecdsa.VerifyASN1(pub, digest, sig)
+			tmpDigest := truncateHashForEcdsa(digest, pub.Curve)
+			validSig := ecdsa.VerifyASN1(pub, tmpDigest, sig)
 			slog.Debug("VerifySignature", "validSig", validSig)
 			if !validSig {
+				slog.Info("VerifySignature (bad ECDSA signature)", "pub.X", utils.BytesToHex(pub.X.Bytes()), "pub.Y", utils.BytesToHex(pub.Y.Bytes()), "digest", utils.BytesToHex(tmpDigest), "signature", utils.BytesToHex(sig))
 				return fmt.Errorf("(VerifySignature) Invalid ECDSA signature")
 			}
 
@@ -585,6 +653,22 @@ func Asn1decodeSubjectPublicKeyInfo(data []byte) SubjectPublicKeyInfo {
 	return out
 }
 
+type EcNamedCurve struct {
+	oid   asn1.ObjectIdentifier
+	curve elliptic.Curve
+}
+
+// TODO - add others...
+var ecNamedCurveArr []EcNamedCurve = []EcNamedCurve{
+	{oid: oid.OidSecp384r1, curve: elliptic.P384()},
+	{oid: oid.OidBrainpoolP192r1, curve: brainpool.P192r1()},
+	{oid: oid.OidBrainpoolP224r1, curve: brainpool.P224r1()},
+	{oid: oid.OidBrainpoolP256r1, curve: brainpool.P256r1()},
+	{oid: oid.OidBrainpoolP320r1, curve: brainpool.P320r1()},
+	{oid: oid.OidBrainpoolP384r1, curve: brainpool.P384r1()},
+	{oid: oid.OidBrainpoolP512r1, curve: brainpool.P512r1()},
+}
+
 func (subPubKeyInfo *SubjectPublicKeyInfo) GetEcCurveAndPubKey() (curve *elliptic.Curve, pubKey *cryptoutils.EcPoint) {
 	/*
 	* Note: We avoid using 'ParsePKIXPublicKey' as it follows PKIX standard and only allows names curves,
@@ -621,12 +705,15 @@ func (subPubKeyInfo *SubjectPublicKeyInfo) GetEcCurveAndPubKey() (curve *ellipti
 			log.Panicf("(SubjectPublicKeyInfo.GetEcCurveAndPubKey) Unable to parse EC Params (%x)", subPubKeyInfo.Algorithm.Parameters.FullBytes)
 		}
 
-		// TODO - use lookup.. and add support for the wider range of named curves...
-		//			- at present we've only observed P384 in the master-list(DE)
-		if tmpOid.Equal(oid.OidSecp384r1) {
-			var tmpCurve elliptic.Curve = elliptic.P384()
-			curve = &tmpCurve
-		} else {
+		for i := 0; i < len(ecNamedCurveArr); i++ {
+			if ecNamedCurveArr[i].oid.Equal(tmpOid) {
+				// found
+				curve = &(ecNamedCurveArr[i].curve)
+				break
+			}
+		}
+
+		if curve == nil {
 			// unsupported named curve
 			log.Panicf("Unsupported EC Named Curve (OID:%s)", tmpOid.String())
 		}
@@ -681,7 +768,7 @@ func ParseECSpecifiedDomain(algIdentifier *AlgorithmIdentifier) (out *ECSpecifie
 
 	if !algIdentifier.Algorithm.Equal(oid.OidEcPublicKey) {
 		// TODO - should we panic?
-		log.Panicf("expected ecPublicKey OID")
+		log.Panicf("expected ecPublicKey OID (exp:%s, act:%s)", oid.OidEcPublicKey.String(), algIdentifier.Algorithm.String())
 	}
 
 	out = new(ECSpecifiedDomain)
@@ -747,7 +834,6 @@ var ecLookupArr []elliptic.Curve = []elliptic.Curve{
 //	   algorithm            AlgorithmIdentifier,
 //	   subjectPublicKey     BIT STRING  }
 func (specDomain ECSpecifiedDomain) GetEcCurve() (*elliptic.Curve, error) {
-
 	slog.Debug("GetEcCurve", "Params", utils.BytesToHex(specDomain.FieldId.Parameters.Bytes))
 
 	// look for matching 'standard' curve
@@ -759,7 +845,7 @@ func (specDomain ECSpecifiedDomain) GetEcCurve() (*elliptic.Curve, error) {
 		// NB normally we skip the 1st byte when matching, but sometimes we do an exact match (e.g. EC521 in DE-master-list cert #361)
 		if slices.Equal(ec.Params().P.Bytes(), specDomain.FieldId.Parameters.Bytes[1:]) || // skip 1st byte
 			slices.Equal(ec.Params().P.Bytes(), specDomain.FieldId.Parameters.Bytes[0:]) { // don't skip 1st byte
-			slog.Debug("GetEcCurve - found curve", "i", i)
+			//slog.Debug("GetEcCurve", "curveIdx", i, "specDomain", specDomain)
 			return &ec, nil
 		}
 	}

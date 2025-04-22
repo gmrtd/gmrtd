@@ -3,6 +3,8 @@ package cms
 import (
 	"testing"
 
+	"github.com/gmrtd/gmrtd/cryptoutils"
+	"github.com/gmrtd/gmrtd/oid"
 	"github.com/gmrtd/gmrtd/utils"
 )
 
@@ -61,8 +63,13 @@ func TestParseAndVerifySignedData(t *testing.T) {
 		if err != nil {
 			t.Errorf("Unexpected error: %s", err)
 		} else {
+			var cscaCertPool *CertPool
+
 			// get the CSCA certificate pool
-			var cscaCertPool *CertPool = CscaCertPool()
+			cscaCertPool, err = CscaCertPool()
+			if err != nil {
+				t.Errorf("CscaCertPool error: %s", err)
+			}
 
 			var certChain [][]byte
 
@@ -74,6 +81,53 @@ func TestParseAndVerifySignedData(t *testing.T) {
 			if len(certChain) != 2 {
 				t.Errorf("Cert chain should have 2 certs")
 			}
+		}
+	}
+}
+
+func TestVerifySignatureEcdsa(t *testing.T) {
+
+	// TODO - use table-based test and add other variants also
+
+	// brainpool384 / sha-384
+	{
+		// https://github.com/C2SP/wycheproof/blob/master/testvectors/ecdsa_brainpoolP384r1_sha384_test.json
+
+		data := utils.HexToBytes("313233343030")
+
+		digestAlg := oid.OidHashAlgorithmSHA384
+		digest := cryptoutils.CryptoHashByOid(digestAlg, data)
+
+		keyDer := utils.HexToBytes("307a301406072a8648ce3d020106092b240303020801010b03620004192ed5ce547d2336911d3f6cecba227f08df077f6242a9147a914e854e6e32d325fd23ccc42921dc4a7e4c2eb71defd3631e69079ba982e7a1cad0a39eff47fc6d6e3a280d081286b624886ba1f3069671ec1a29986d84fb79736d2799e6fc21")
+
+		signatureAlg := oid.OidEcdsaWithSHA384
+		signature := utils.HexToBytes("306402300e8e114a1c351405560bf8d47b166bfe957087a8003b353433b6144f7ee7d6f79c8dd14ef229fa7a2f2782bf33708b910230090ea2de1d5c671a15cb3fe184889f4439b99cc37b82cb0618df9b8c0fa5f611e6a80f13cbac0f921c0ea6ed6dadeb41")
+
+		err := VerifySignature(keyDer, digestAlg, digest, signatureAlg, signature)
+
+		if err != nil {
+			t.Errorf("Unexpected error: %s", err)
+		}
+	}
+
+	// brainpool512 / sha-512
+	{
+		// https://github.com/C2SP/wycheproof/blob/master/testvectors/ecdsa_brainpoolP512r1_sha512_test.json
+
+		data := utils.HexToBytes("313233343030")
+
+		digestAlg := oid.OidHashAlgorithmSHA512
+		digest := cryptoutils.CryptoHashByOid(digestAlg, data)
+
+		keyDer := utils.HexToBytes("30819b301406072a8648ce3d020106092b240303020801010d038182000467cea1bedf84cbdcba69a05bb2ce3a2d1c9d911d236c480929a16ad697b45a6ca127079fe8d7868671e28ef33bdf9319e2e51c84b190ac5c91b51baf0a980ba500a7e79006194b5378f65cbe625ef2c47c64e56040d873b995b5b1ebaa4a6ce971da164391ff619af3bcfc71c5e1ad27ee0e859c2943e2de8ef7c43d3c976e9b")
+
+		signatureAlg := oid.OidEcdsaWithSHA512
+		signature := utils.HexToBytes("30818402400bd2593447cc6c02caf99d60418dd42e9a194c910e6755ed0c7059acac656b04ccfe1e8348462ee43066823aee2fed7ca012e9890dfb69866d7ae88b6506f9c7024066297ab3f5564b25270455d2689fd6b6076515606db7ebeefc91f709dca7ace18e51086e7a1f8c2e85ad79a052959077c58d4140cdf3cb60ec3b22e00cf194f8")
+
+		err := VerifySignature(keyDer, digestAlg, digest, signatureAlg, signature)
+
+		if err != nil {
+			t.Errorf("Unexpected error: %s", err)
 		}
 	}
 }

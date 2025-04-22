@@ -101,6 +101,12 @@ var (
 	OidIcaoMrtdSecurity                 = asn1.ObjectIdentifier{1, 3, 27, 1, 1}
 	OidIcaoMrtdSecurityAaProtocolObject = asn1.ObjectIdentifier{1, 3, 27, 1, 1, 5}
 	OidEfDir                            = asn1.ObjectIdentifier{1, 3, 27, 1, 1, 13}
+	OidBrainpoolP192r1                  = asn1.ObjectIdentifier{1, 3, 36, 3, 3, 2, 8, 1, 1, 3}
+	OidBrainpoolP224r1                  = asn1.ObjectIdentifier{1, 3, 36, 3, 3, 2, 8, 1, 1, 5}
+	OidBrainpoolP256r1                  = asn1.ObjectIdentifier{1, 3, 36, 3, 3, 2, 8, 1, 1, 7}
+	OidBrainpoolP320r1                  = asn1.ObjectIdentifier{1, 3, 36, 3, 3, 2, 8, 1, 1, 9}
+	OidBrainpoolP384r1                  = asn1.ObjectIdentifier{1, 3, 36, 3, 3, 2, 8, 1, 1, 11}
+	OidBrainpoolP512r1                  = asn1.ObjectIdentifier{1, 3, 36, 3, 3, 2, 8, 1, 1, 13}
 	OidSecp384r1                        = asn1.ObjectIdentifier{1, 3, 132, 0, 34}
 	OidNameChange                       = asn1.ObjectIdentifier{2, 23, 136, 1, 1, 6, 1}
 	OidCommonName                       = asn1.ObjectIdentifier{2, 5, 4, 3}
@@ -209,6 +215,12 @@ var oidLookup = map[string]string{
 	OidIcaoMrtdSecurity.String():                 "id-icao-mrtd-security",
 	OidIcaoMrtdSecurityAaProtocolObject.String(): "id-icao-mrtd-security-aaProtocolObject",
 	OidEfDir.String():                            "id-EFDIR",
+	OidBrainpoolP192r1.String():                  "brainpoolP192r1",
+	OidBrainpoolP224r1.String():                  "brainpoolP224r1",
+	OidBrainpoolP256r1.String():                  "brainpoolP256r1",
+	OidBrainpoolP320r1.String():                  "brainpoolP320r1",
+	OidBrainpoolP384r1.String():                  "brainpoolP384r1",
+	OidBrainpoolP512r1.String():                  "brainpoolP512r1",
 	OidSecp384r1.String():                        "secp384r1",
 	OidNameChange.String():                       "nameChange",
 	OidCommonName.String():                       "commonName",

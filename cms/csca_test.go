@@ -10,7 +10,10 @@ import (
 
 func TestCscaCertPool(t *testing.T) {
 
-	certPool := CscaCertPool()
+	certPool, err := CscaCertPool()
+	if err != nil {
+		t.Errorf("CscaCertPool error: %s", err)
+	}
 	if certPool == nil {
 		t.Errorf("missing certPool")
 		return
@@ -23,6 +26,7 @@ func TestCscaCertPool(t *testing.T) {
 		ski := cert.TbsCertificate.Extensions.GetSubjectKeyIdentifier()
 
 		// NB 'aki' is missing for some certs
+		// TODO - doesn't this mean that the cert is self-signed? as there's no authority?
 		aki := cert.TbsCertificate.Extensions.GetAuthorityKeyIdentifier()
 
 		{
@@ -36,6 +40,7 @@ func TestCscaCertPool(t *testing.T) {
 			var checkSelfSignedCert bool = true
 
 			// skip if SKI != AKI (i.e. not self-signed)
+			// TODO - this isn't really right... if aki!=ski then we should look for the 'aki' and use that to verify the signature
 			if aki != nil && !bytes.Equal(aki.KeyIdentifier, *ski) {
 				checkSelfSignedCert = false
 			}
@@ -71,6 +76,8 @@ func TestCscaCertPool(t *testing.T) {
 					t.Errorf("error verifying signature: %s", err)
 				}
 			}
+			// TODO - should include code to find parent cert and use for sig-validation
+			//certPool.GetBySki(aki)
 
 		}
 	}

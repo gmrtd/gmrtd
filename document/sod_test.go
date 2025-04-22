@@ -217,8 +217,13 @@ func TestNewSod(t *testing.T) {
 		}
 
 		{
+			var cscaCertPool *cms.CertPool
+
 			// get the CSCA certificate pool
-			var cscaCertPool *cms.CertPool = cms.CscaCertPool()
+			cscaCertPool, err = cms.CscaCertPool()
+			if err != nil {
+				t.Errorf("CscaCertPool error: %s", err)
+			}
 
 			var certChain [][]byte
 

@@ -16,16 +16,17 @@ func NewCertPool() *CertPool {
 	return &CertPool{}
 }
 
-func (certPool *CertPool) Add(data []byte) {
-	var cert *Certificate
+// adds one or more certificates to the CertPool
+func (certPool *CertPool) Add(certificates []byte) {
+	var certs []Certificate
 	var err error
 
-	cert, err = ParseCertificate(data)
+	certs, err = ParseCertificates(certificates)
 	if err != nil {
-		log.Panicf("(CertPool.Add) cms.ParseCertificate error: %s", err)
+		log.Panicf("(CertPool.Add) cms.ParseCertificates error: %s", err)
 	}
 
-	certPool.certificates = append(certPool.certificates, *cert)
+	certPool.certificates = append(certPool.certificates, certs...)
 }
 
 // TODO - probably needs to be more than just SKI (i.e. country?)

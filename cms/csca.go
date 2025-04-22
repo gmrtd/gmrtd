@@ -3,12 +3,19 @@ package cms
 import (
 	_ "embed"
 	"encoding/asn1"
+	"fmt"
 	"log"
 	"log/slog"
 	"sync"
 
 	"github.com/gmrtd/gmrtd/utils"
 )
+
+/*
+* Load the (DE) Master List Root
+ */
+//go:embed master_list/DE_ROOT_CA_CSCA07.cer
+var masterListRootCA []byte
 
 /*
 * Load the (DE) Master List
@@ -25,52 +32,65 @@ type CscaMasterListCert struct {
 	Cert asn1.RawContent
 }
 
+// TODO
+type TmpStruct struct {
+	Raw asn1.RawContent
+}
+
 /*
 * shared instance
  */
 var lock = &sync.Mutex{}
 var cscaCertPool *CertPool
 
-func CscaCertPool() *CertPool {
+func CscaCertPool() (*CertPool, error) {
 	if cscaCertPool == nil {
 		lock.Lock()
 		defer lock.Unlock()
 
-		cscaCertPool = loadMasterListDE()
+		var err error
+
+		cscaCertPool, err = loadMasterListDE()
+		if err != nil {
+			return nil, fmt.Errorf("(CscaCertPool) loadMasterListDE error: %w", err)
+		}
 	}
 
-	return cscaCertPool
+	return cscaCertPool, nil
 }
 
-func loadMasterListDE() *CertPool {
-	var out *CertPool = NewCertPool()
-
+// returns: CertPool OR error
+func loadMasterListDE() (*CertPool, error) {
 	var err error
+	var out *CertPool = NewCertPool()
 
 	var signedData *SignedData
 	signedData, err = ParseSignedData(masterList)
 	if err != nil {
+		return nil, fmt.Errorf("(loadMasterListDE) ParseSignedData error: %w", err)
+	}
+
+	rootCertPool := NewCertPool()
+	rootCertPool.Add(masterListRootCA)
+
+	/*
+	 * verify the signed data object
+	 */
+	var certChain [][]byte
+	certChain, err = signedData.Verify(rootCertPool)
+	if err != nil {
 		log.Panicf("error: %s", err)
 	}
-	// TODO - where do we validate the hash?... currently removed due to missing attributes
-	// TODO - should really check we go signedData object? or will CMS do this?
-	/*
-		var verified bool
-		verified, err = signedData.SD2.Verify(NewCertPool())
-		if err != nil {
-			log.Panicf("error: %s", err)
-		}
-		if !verified {
-			log.Panicf("unable to verify")
-		}
-	*/
+	if len(certChain) < 1 {
+		log.Panicf("empty cert chain")
+	}
 
 	{
 		var certs CscaMasterList
 
 		err := utils.ParseAsn1(signedData.Content.EContent, false, &certs)
 		if err != nil {
-			log.Panicf("error: %s", err)
+			return nil, fmt.Errorf("(loadMasterListDE) ParseAsn1 error: %w", err)
 		}
 
 		slog.Debug("loadMasterListDE", "cert-cnt", len(certs.Certs))
@@ -82,5 +102,5 @@ func loadMasterListDE() *CertPool {
 		}
 	}
 
-	return out
+	return out, nil
 }
