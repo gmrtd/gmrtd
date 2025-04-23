@@ -183,6 +183,7 @@ func TestMrzDecode(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		mrz, err := MrzDecode(tc.data)
+
 		if err != nil {
 			t.Errorf("Unexpected error: %s", err)
 		}
@@ -231,51 +232,101 @@ func TestMrzDecodeMrziEncode(t *testing.T) {
 	}
 }
 
-func TestMrzDecodeTD1BadLen(t *testing.T) {
-	// TD1 (90 chars)
-	// *** removed last character to make length invalid!
-	inp_mrz := "I<UTOD23145890<7349<<<<<<<<<<<3407127M9507122UTO<<<<<<<<<<<2STEVENSON<<PETER<JOHN<<<<<<<<"
+func TestMrzDecodeErrors(t *testing.T) {
+	testCases := []struct {
+		data string
+	}{
+		{
+			// TD1
+			// invalid document-number check-digit (7->5)
+			data: "I<UTOD231458905<<<<<<<<<<<<<<<7408122F1204159UTO<<<<<<<<<<<6ERIKSSON<<ANNA<MARIA<<<<<<<<<<",
+		},
+		{
+			// TD1
+			// invalid date-of-birth check-digit (2->4)
+			data: "I<UTOD231458907<<<<<<<<<<<<<<<7408124F1204159UTO<<<<<<<<<<<6ERIKSSON<<ANNA<MARIA<<<<<<<<<<",
+		},
+		{
+			// TD1
+			// invalid date-of-expiry check-digit (9->1)
+			data: "I<UTOD231458907<<<<<<<<<<<<<<<7408122F1204151UTO<<<<<<<<<<<6ERIKSSON<<ANNA<MARIA<<<<<<<<<<",
+		},
+		{
+			// TD1
+			// invalid composite check-digit (6->7)
+			data: "I<UTOD231458907<<<<<<<<<<<<<<<7408122F1204159UTO<<<<<<<<<<<7ERIKSSON<<ANNA<MARIA<<<<<<<<<<",
+		},
+		{
+			// TD1 (90 chars)
+			// *** removed last character to make length invalid!
+			data: "I<UTOD23145890<7349<<<<<<<<<<<3407127M9507122UTO<<<<<<<<<<<2STEVENSON<<PETER<JOHN<<<<<<<<",
+		},
+		{
+			// TD2
+			// invalid document-number check-digit (7->6)
+			data: "I<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<D231458906UTO7408122F1204159<<<<<<<6",
+		},
+		{
+			// TD2
+			// invalid date-of-birth check-digit (2->3)
+			data: "I<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<D231458907UTO7408123F1204159<<<<<<<6",
+		},
+		{
+			// TD2
+			// invalid date-of-expiry check-digit (9->8)
+			data: "I<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<D231458907UTO7408122F1204158<<<<<<<6",
+		},
+		{
+			// TD2
+			// invalid composite check-digit (6->8)
+			data: "I<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<D231458907UTO7408122F1204159<<<<<<<8",
+		},
 
-	mrz, err := decodeTD1(inp_mrz)
-
-	if err == nil {
-		t.Errorf("Error expected")
+		{
+			// TD2 (72 chars)
+			// *** removed last character to make length invalid!
+			data: "I<UTOSTEVENSON<<PETER<JOHN<<<<<<<<<<D23145890<UTO3407127M95071227349<<<",
+		},
+		{
+			// TD3
+			// invalid document-number check-digit (6->4)
+			data: "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<L898902C34UTO7408122F1204159ZE184226B<<<<<10",
+		},
+		{
+			// TD3
+			// invalid date-of-birth check-digit (2->6)
+			data: "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<L898902C36UTO7408126F1204159ZE184226B<<<<<10",
+		},
+		{
+			// TD3
+			// invalid date-of-expiry check-digit (9->1)
+			data: "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<L898902C36UTO7408122F1204151ZE184226B<<<<<10",
+		},
+		{
+			// TD3
+			// invalid optional-data check-digit (1->2)
+			data: "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<L898902C36UTO7408122F1204159ZE184226B<<<<<20",
+		},
+		{
+			// TD3
+			// invalid composite check-digit (0->2)
+			data: "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<L898902C36UTO7408122F1204159ZE184226B<<<<<12",
+		},
+		{
+			// TD3 (88 chars)
+			// *** removed last character to make length invalid!
+			data: "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<L898902C36UTO7408122F1204159ZE184226B<<<<<1",
+		},
 	}
+	for _, tc := range testCases {
+		mrz, err := MrzDecode(tc.data)
 
-	if mrz != nil {
-		t.Errorf("MRZ not expected for error case")
-	}
-}
+		if err == nil {
+			t.Errorf("Error expected")
+		}
 
-func TestMrzDecodeTD2BadLen(t *testing.T) {
-	// TD1 (90 chars)
-	// TD2 (72 chars)
-	// *** removed last character to make length invalid!
-	inp_mrz := "I<UTOSTEVENSON<<PETER<JOHN<<<<<<<<<<D23145890<UTO3407127M95071227349<<<"
-
-	mrz, err := decodeTD2(inp_mrz)
-
-	if err == nil {
-		t.Errorf("Error expected")
-	}
-
-	if mrz != nil {
-		t.Errorf("MRZ not expected for error case")
-	}
-}
-
-func TestMrzDecodeTD3BadLen(t *testing.T) {
-	// TD3 (88 chars)
-	// *** removed last character to make length invalid!
-	inp_mrz := "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<L898902C36UTO7408122F1204159ZE184226B<<<<<1"
-
-	mrz, err := decodeTD3(inp_mrz)
-
-	if err == nil {
-		t.Errorf("Error expected")
-	}
-
-	if mrz != nil {
-		t.Errorf("MRZ not expected for error case")
+		if mrz != nil {
+			t.Errorf("MRZ not expected for error case")
+		}
 	}
 }
