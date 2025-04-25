@@ -32,11 +32,6 @@ type CscaMasterListCert struct {
 	Cert asn1.RawContent
 }
 
-// TODO
-type TmpStruct struct {
-	Raw asn1.RawContent
-}
-
 /*
 * shared instance
  */
@@ -71,7 +66,10 @@ func loadMasterListDE() (*CertPool, error) {
 	}
 
 	rootCertPool := NewCertPool()
-	rootCertPool.Add(masterListRootCA)
+	err = rootCertPool.Add(masterListRootCA)
+	if err != nil {
+		return nil, fmt.Errorf("(csca.loadMasterListDE) rootCertPool .add error: %w", err)
+	}
 
 	/*
 	 * verify the signed data object
@@ -98,7 +96,10 @@ func loadMasterListDE() (*CertPool, error) {
 		// for each cert in the master list
 		for i := 0; i < len(certs.Certs); i++ {
 			data := certs.Certs[i].Cert
-			out.Add(data)
+			err = out.Add(data)
+			if err != nil {
+				return nil, fmt.Errorf("(csca.loadMasterListDE) masterList .add error: %w", err)
+			}
 		}
 	}
 

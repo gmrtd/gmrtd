@@ -2,7 +2,7 @@ package cms
 
 import (
 	"bytes"
-	"log"
+	"fmt"
 	"log/slog"
 
 	"github.com/gmrtd/gmrtd/utils"
@@ -17,16 +17,18 @@ func NewCertPool() *CertPool {
 }
 
 // adds one or more certificates to the CertPool
-func (certPool *CertPool) Add(certificates []byte) {
+func (certPool *CertPool) Add(certificates []byte) error {
 	var certs []Certificate
 	var err error
 
 	certs, err = ParseCertificates(certificates)
 	if err != nil {
-		log.Panicf("(CertPool.Add) cms.ParseCertificates error: %s", err)
+		return fmt.Errorf("(CertPool.Add) ParseCertificates error: %w", err)
 	}
 
 	certPool.certificates = append(certPool.certificates, certs...)
+
+	return nil
 }
 
 // TODO - probably needs to be more than just SKI (i.e. country?)
