@@ -337,7 +337,8 @@ func (chipAuth *ChipAuth) doGeneralAuthenticate(curve *elliptic.Curve, termKeypa
 
 // performs Chip Authentication in ECDH mode
 // NB does NOT update doc.ChipAuthStatus, caller is expected to do this!
-// NB we currently implement the AES (2) APDU approach, which should also work for TDES (i.e. we don't implement MSE:Set KAT just for TDES)
+// NB we currently implement the AES (2) APDU approach, which should also work for TDES
+//   - we also have special-case handling where we use MSE-SetKAT if the algorithm was inferred and the mode is 3DES-CBC
 func (chipAuth *ChipAuth) doCaEcdh(caInfo *document.ChipAuthenticationInfo, caAlgInfo *CaAlgorithmInfo, caPubKeyInfo *document.ChipAuthenticationPublicKeyInfo, algInferred bool) (err error) {
 	slog.Debug("doCaEcdh", "OID", caInfo.Protocol.String())
 
@@ -355,13 +356,10 @@ func (chipAuth *ChipAuth) doCaEcdh(caInfo *document.ChipAuthenticationInfo, caAl
 	slog.Debug("doCaEcdh", "algInferred", algInferred)
 
 	if algInferred && caInfo.Protocol.Equal(oid.OidCaEcdh3DesCbcCbc) {
-		// TODO - we could potentially always use KAT for 3DES, but we'd need to check our UTs for the other 3DES passports (malaysia/russia?)
-
-		// TODO - still having issue with FR passport (T)
-		//			- may need to support the pure TDES flow, instead of the following
-		//
-		// *** update function comment once implemented, as we'll be supporting
-
+		/*
+		 * special handling for older passports - we'll use the lagacy MSE-SetKAT
+		 * if the algorithm was inferred and the mode is 3DES-CBC
+		 */
 		ksEnc, ksMac, err = chipAuth.doMseSetKAT(curve, termKeypair, caInfo, caAlgInfo, chipPubKey)
 		if err != nil {
 			return err
