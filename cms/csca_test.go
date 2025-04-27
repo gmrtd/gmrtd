@@ -2,6 +2,8 @@ package cms
 
 import (
 	"bytes"
+	"encoding/asn1"
+	"log"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
@@ -20,13 +22,15 @@ func TestCscaCertPool(t *testing.T) {
 	}
 
 	// for each cert in the master list
+	// NB no need to recursively verify up the cert chain as we're verifying
+	//    each and every certificate in the master-list
 	for i := 0; i < len(certPool.certificates); i++ {
 		cert := certPool.certificates[i]
 
 		ski := cert.TbsCertificate.Extensions.GetSubjectKeyIdentifier()
 
 		// NB 'aki' is missing for some certs
-		// TODO - doesn't this mean that the cert is self-signed? as there's no authority?
+		// - this typically indicates that it is a self-signed cert
 		aki := cert.TbsCertificate.Extensions.GetAuthorityKeyIdentifier()
 
 		{
@@ -37,12 +41,12 @@ func TestCscaCertPool(t *testing.T) {
 
 			digest := cryptoutils.CryptoHashByOid(*digestAlg, cert.TbsCertificate.Raw)
 
-			var checkSelfSignedCert bool = true
+			var isSelfSignedCert bool = true
+			var skipVerification bool = false
 
-			// skip if SKI != AKI (i.e. not self-signed)
-			// TODO - this isn't really right... if aki!=ski then we should look for the 'aki' and use that to verify the signature
-			if aki != nil && !bytes.Equal(aki.KeyIdentifier, *ski) {
-				checkSelfSignedCert = false
+			// check whether certificate references a different authority (i.e. !self-signed)
+			if aki != nil {
+				isSelfSignedCert = false
 			}
 
 			// TODO - need to try and get to bottom of why these certs (6,8,298) are failing,
@@ -54,31 +58,77 @@ func TestCscaCertPool(t *testing.T) {
 
 			// skip idx=6, Latvia
 			if bytes.Equal(*ski, utils.HexToBytes("8f7faa0b418d162b202a71fd631acdbd965ff5e8")) {
-				checkSelfSignedCert = false
+				skipVerification = true
 			}
 
 			// skip idx=8, Latvia
 			if bytes.Equal(*ski, utils.HexToBytes("7bbfa1cda753d6abc3e5fe6eafd7b74abef6af08")) {
-				checkSelfSignedCert = false
+				skipVerification = true
 			}
 
 			// skip idx=298, Estonia
 			if bytes.Equal(*ski, utils.HexToBytes("a97a0fc4047c7561bcb7e59935fe7aac7eebab22")) {
-				checkSelfSignedCert = false
+				skipVerification = true
 			}
 
-			// TODO - for !checkSelfSignedCert we could attempt to lookup the cert in the trust-store (if it references another cert)
+			if skipVerification {
+				continue
+			}
 
-			if checkSelfSignedCert {
-				var err error
-				err = VerifySignature(cert.TbsCertificate.SubjectPublicKeyInfo.FullBytes, *digestAlg, digest, cert.SignatureAlgorithm.Algorithm, cert.SignatureValue.Bytes)
+			if isSelfSignedCert {
+				err := VerifySignature(cert.TbsCertificate.SubjectPublicKeyInfo.FullBytes, *digestAlg, digest, cert.SignatureAlgorithm.Algorithm, cert.SignatureValue.Bytes)
 				if err != nil {
-					t.Errorf("error verifying signature: %s", err)
+					t.Errorf("error verifying signature (self-signed): %s", err)
+				}
+			} else {
+				if aki == nil {
+					t.Fatalf("'aki' is missing for !self-signed certificate")
+				}
+
+				var parentCerts []Certificate = certPool.GetBySki(aki.KeyIdentifier)
+
+				/*
+				* Note: we have some certificates that reference a parent (aki) which is not found in
+				*       the master-list. For these, we whitelist the 'ski' and skip signature verification
+				 */
+				if len(parentCerts) < 1 {
+					if bytes.Equal(*ski, utils.HexToBytes("e7d8dd1758d54b42aa02db88eb701e44c6925ae6")) ||
+						bytes.Equal(*ski, utils.HexToBytes("f5a8f9b1e7a992a0865408db2a471c04a215f4d7")) ||
+						bytes.Equal(*ski, utils.HexToBytes("b90f6a1f82f3b55803cf9b318b883a8954c47f17")) ||
+						bytes.Equal(*ski, utils.HexToBytes("6c17211c20901464d3beb833aa83c538c2a757be")) ||
+						bytes.Equal(*ski, utils.HexToBytes("1fe1572e9b35121363a50fee3e2ce2c1d187a8dd")) ||
+						bytes.Equal(*ski, utils.HexToBytes("3f38d115cbf5b2016609c464fb6375d812f15acd")) ||
+						bytes.Equal(*ski, utils.HexToBytes("2b0f99a34be9d5ae00933a7868cbcd21a6cf47e5")) ||
+						bytes.Equal(*ski, utils.HexToBytes("cd3cc520b508a44e6d518dff33fa36cbde108be2")) {
+						continue
+					}
+				}
+
+				if len(parentCerts) < 1 {
+					log.Printf("0 parent certs")
+				}
+
+				valid := verifySignatureAgainstCerts(parentCerts, *digestAlg, digest, cert.SignatureAlgorithm.Algorithm, cert.SignatureValue.Bytes)
+				if !valid {
+					t.Errorf("error verifying signature (!self-signed): idx:%1d cnt(parentCerts):%1d, ski:%x, aki:%x", i, len(parentCerts), *ski, aki.KeyIdentifier)
 				}
 			}
-			// TODO - should include code to find parent cert and use for sig-validation
-			//certPool.GetBySki(aki)
-
 		}
 	}
+}
+
+func verifySignatureAgainstCerts(parentCerts []Certificate, digestAlg asn1.ObjectIdentifier, digest []byte, signatureAlg asn1.ObjectIdentifier, signature []byte) bool {
+	// NB we keep processing untl we find a valid parent certificate
+	for i := 0; i < len(parentCerts); i++ {
+		parentCert := &(parentCerts[i])
+
+		err := VerifySignature(parentCert.TbsCertificate.SubjectPublicKeyInfo.FullBytes, digestAlg, digest, signatureAlg, signature)
+		if err == nil {
+			return true
+		}
+
+		// NB ignore error
+	}
+
+	return false
 }
