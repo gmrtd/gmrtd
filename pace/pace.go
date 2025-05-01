@@ -706,7 +706,7 @@ func (pace *Pace) DoPACE() (err error) {
 	var kKdf []byte = getKeyForPassword(paceConfig, pace.password)
 
 	// init PACE (via 'MSE:Set AT' command)
-	// TODO - aren't there some cases where we need to specified the domain params? (i.e. multiple entries)
+	// TODO - aren't there some cases where we need to specify the domain params? (i.e. multiple entries)
 	if err = pace.doApduMsgSetAT(paceConfig); err != nil {
 		return err
 	}

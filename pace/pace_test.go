@@ -3,6 +3,7 @@ package pace
 import (
 	"bytes"
 	"crypto/elliptic"
+	"encoding/asn1"
 	"math"
 	"math/big"
 	"testing"
@@ -293,43 +294,43 @@ func TestBuild7F49(t *testing.T) {
 
 func TestSelectPaceForConfig(t *testing.T) {
 	// NB card-access file has 2 entries.. we test with both in different orders to verify priority based selection
-	var cardAccessBytes1 []byte = utils.HexToBytes("31283012060a04007f000702020402040201020201103012060a04007f00070202040604020102020110")
-	var cardAccessBytes2 []byte = utils.HexToBytes("31283012060a04007f000702020406040201020201103012060a04007f00070202040204020102020110")
-
-	var err error
-
-	var cardAccess1 *document.CardAccess
-	cardAccess1, err = document.NewCardAccess(cardAccessBytes1)
-	if err != nil {
-		t.Errorf("Unexpected error: %s", err)
+	testCases := []struct {
+		cardAccessBytes []byte
+		expOid          asn1.ObjectIdentifier
+		expIsEcdh       bool
+		expEc           elliptic.Curve
+	}{
+		{
+			cardAccessBytes: utils.HexToBytes("31283012060a04007f000702020402040201020201103012060a04007f00070202040604020102020110"),
+			expOid:          oid.OidPaceEcdhCamAesCbcCmac256,
+			expIsEcdh:       true,
+			expEc:           brainpool.P384r1(),
+		},
+		{
+			cardAccessBytes: utils.HexToBytes("31283012060a04007f000702020406040201020201103012060a04007f00070202040204020102020110"),
+			expOid:          oid.OidPaceEcdhCamAesCbcCmac256,
+			expIsEcdh:       true,
+			expEc:           brainpool.P384r1(),
+		},
 	}
+	for _, tc := range testCases {
+		var err error
 
-	var cardAccess2 *document.CardAccess
-	cardAccess2, err = document.NewCardAccess(cardAccessBytes2)
-	if err != nil {
-		t.Errorf("Unexpected error: %s", err)
-	}
+		var cardAccess *document.CardAccess
+		cardAccess, err = document.NewCardAccess(tc.cardAccessBytes)
+		if err != nil {
+			t.Errorf("Unexpected NewCardAccess() error: %s", err)
+		}
 
-	// TODO - verify other params... move to table based test?... include single entry test
+		paceConfig, domainParams := selectPaceConfig(cardAccess)
 
-	paceConfig1, domainParams1 := selectPaceConfig(cardAccess1)
+		if !paceConfig.oid.Equal(tc.expOid) {
+			t.Errorf("Invalid PACE OID (%s)", paceConfig.oid)
+		}
 
-	if paceConfig1.oid.String() != "0.4.0.127.0.7.2.2.4.6.4" {
-		t.Errorf("Invalid PACE OID (1) (%s)", paceConfig1.oid)
-	}
-
-	if (domainParams1.isECDH != true) || (domainParams1.ec != brainpool.P384r1()) {
-		t.Errorf("Invaid domain-params (1)")
-	}
-
-	paceConfig2, domainParams2 := selectPaceConfig(cardAccess2)
-
-	if paceConfig2.oid.String() != "0.4.0.127.0.7.2.2.4.6.4" {
-		t.Errorf("Invalid PACE OID (2) (%s)", paceConfig2.oid)
-	}
-
-	if (domainParams2.isECDH != true) || (domainParams2.ec != brainpool.P384r1()) {
-		t.Errorf("Invaid domain-params (2)")
+		if (domainParams.isECDH != tc.expIsEcdh) || (domainParams.ec != tc.expEc) {
+			t.Errorf("Invaid domain-params (1)")
+		}
 	}
 }
 
