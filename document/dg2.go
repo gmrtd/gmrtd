@@ -1,6 +1,7 @@
 package document
 
 // TODO - need to support ISO 39794 going forward (currently ISO 19794-1:2005)
+//			- see 'processBIT'
 //
 // https://www.christoph-busch.de/files/Busch-ICAO-39794-NFIQ2-210419.pdf
 //
@@ -181,8 +182,9 @@ func (dg2 *DG2) processBIT(node tlv.TlvNode) BiometricInfoTemplate {
 
 		var err error
 		var facial *Facial
-		// TODO - currently assume 19794.. but also need to handle 39794 going forward
+
 		facial, err = processISO19794(biometricDataBlock)
+
 		if err != nil {
 			log.Panic(err)
 		}
