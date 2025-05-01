@@ -66,7 +66,6 @@ func isEFDIRInfo(theOid asn1.ObjectIdentifier) bool {
 	return theOid.Equal(oid.OidEfDir)
 }
 
-// TODO - maybe we can use a generic ASN1 helper for this as the standard pattern is to have OID records
 type SecurityInfoOid struct {
 	Raw      asn1.RawContent
 	Protocol asn1.ObjectIdentifier `asn1:""`
@@ -167,6 +166,8 @@ func handlePaceInfo(oid asn1.ObjectIdentifier, data []byte, secInfos *SecurityIn
 	}
 
 	// validation
+	// TODO - ideally we'd log this but not throw a hard error, we should
+	//        also be consistent and do these checks for other record types
 	if paceInfo.Version != 2 {
 		log.Panicf("PaceInfo version must be 2 (Version:%d)", paceInfo.Version)
 	}
@@ -244,8 +245,10 @@ func handleChipAuthenticationPublicKeyInfo(oid asn1.ObjectIdentifier, data []byt
 	}
 
 	secInfos.ChipAuthPubKeyInfos = append(secInfos.ChipAuthPubKeyInfos, chipAuthPubKeyInfo)
+
 	// TODO - may want to record warning/error if OID is not one of the 8 supported (i.e. 4 DH, 4 ECDH)
 	//			see 9303p11 - 6.2.3 Cryptographic Specifications
+	//			- if we do this, then we should also do in other places also
 
 	return true, nil
 }
@@ -318,7 +321,6 @@ var securityInfoHandleFnArr []SecurityInfoHandlerFn = []SecurityInfoHandlerFn{
 	handleUnsupportedInfo,
 }
 
-// TODO - currently fails if anything wrong... maybe we should be more tolerant, but record issues?
 func DecodeSecurityInfos(secInfoData []byte) (secInfos *SecurityInfos, err error) {
 	var secInfoOids SecurityInfoOidSET
 
@@ -331,9 +333,6 @@ func DecodeSecurityInfos(secInfoData []byte) (secInfos *SecurityInfos, err error
 
 	secInfos = &SecurityInfos{}
 	secInfos.RawData = bytes.Clone(secInfoData)
-
-	// TODO - inspect data and check.. e.g. expected OIDs / version / ...
-	//			e.g. ActiveAuthenticationInfo Version must be 1
 
 	// process each record, based on the record-type (derived from OID)
 	for i := range secInfoOids {
