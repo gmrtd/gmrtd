@@ -178,8 +178,7 @@ func ParseCertificates(data []byte) (certs []Certificate, err error) {
 	for len(remainingData) > 0 {
 		var tmpCert Certificate
 
-		// TODO - update to use utils.ParseAsn1
-		tmpData, err := asn1.Unmarshal(remainingData, &tmpCert)
+		tmpData, err := utils.ParseAsn1Ex(remainingData, &tmpCert)
 		if err != nil {
 			return nil, fmt.Errorf("[ParseCertificates] asn1 parsing error: %s", err)
 		}

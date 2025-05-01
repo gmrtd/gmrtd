@@ -10,8 +10,20 @@ import (
 )
 
 // isPartiallyParsed - if false then returns error if data remains after parsing
+func ParseAsn1Ex[T any](data []byte, out *T) (remainingData []byte, err error) {
+	remainingData, err = asn1.Unmarshal(data, out)
+	if err != nil {
+		return nil, fmt.Errorf("(ParseAsn1Ex) error: %w", err)
+	}
+
+	return remainingData, nil
+}
+
+// isPartiallyParsed - if false then returns error if data remains after parsing
 func ParseAsn1[T any](data []byte, isPartiallyParsed bool, out *T) (err error) {
-	rest, err := asn1.Unmarshal(data, out)
+	var rest []byte
+
+	rest, err = ParseAsn1Ex(data, out)
 	if err != nil {
 		return fmt.Errorf("(ParseAsn1) error: %w", err)
 	}
