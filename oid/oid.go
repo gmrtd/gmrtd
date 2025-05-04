@@ -76,6 +76,8 @@ var (
 	OidSecurityObject                   = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 3, 2, 1}
 	OidPrimeField                       = asn1.ObjectIdentifier{1, 2, 840, 10045, 1, 1}
 	OidEcPublicKey                      = asn1.ObjectIdentifier{1, 2, 840, 10045, 2, 1}
+	OidPrime192v1                       = asn1.ObjectIdentifier{1, 2, 840, 10045, 3, 1, 1}
+	OidPrime256v1                       = asn1.ObjectIdentifier{1, 2, 840, 10045, 3, 1, 7}
 	OidEcdsaWithSHA1                    = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 1}
 	OidEcdsaWithSHA224                  = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 3, 1}
 	OidEcdsaWithSHA256                  = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 3, 2}
@@ -107,7 +109,9 @@ var (
 	OidBrainpoolP320r1                  = asn1.ObjectIdentifier{1, 3, 36, 3, 3, 2, 8, 1, 1, 9}
 	OidBrainpoolP384r1                  = asn1.ObjectIdentifier{1, 3, 36, 3, 3, 2, 8, 1, 1, 11}
 	OidBrainpoolP512r1                  = asn1.ObjectIdentifier{1, 3, 36, 3, 3, 2, 8, 1, 1, 13}
+	OidSecp224r1                        = asn1.ObjectIdentifier{1, 3, 132, 0, 33}
 	OidSecp384r1                        = asn1.ObjectIdentifier{1, 3, 132, 0, 34}
+	OidSecp521r1                        = asn1.ObjectIdentifier{1, 3, 132, 0, 35}
 	OidNameChange                       = asn1.ObjectIdentifier{2, 23, 136, 1, 1, 6, 1}
 	OidCommonName                       = asn1.ObjectIdentifier{2, 5, 4, 3}
 	OidSerialNumber                     = asn1.ObjectIdentifier{2, 5, 4, 5}
@@ -190,6 +194,8 @@ var oidLookup = map[string]string{
 	OidSecurityObject.String():                   "id-SecurityObject",
 	OidPrimeField.String():                       "prime-field",
 	OidEcPublicKey.String():                      "id-ecPublicKey",
+	OidPrime192v1.String():                       "prime192v1",
+	OidPrime256v1.String():                       "prime256v1",
 	OidEcdsaWithSHA1.String():                    "ecdsa-with-SHA1",
 	OidEcdsaWithSHA224.String():                  "ecdsa-with-SHA224",
 	OidEcdsaWithSHA256.String():                  "ecdsa-with-SHA256",
@@ -221,7 +227,9 @@ var oidLookup = map[string]string{
 	OidBrainpoolP320r1.String():                  "brainpoolP320r1",
 	OidBrainpoolP384r1.String():                  "brainpoolP384r1",
 	OidBrainpoolP512r1.String():                  "brainpoolP512r1",
+	OidSecp224r1.String():                        "secp224r1",
 	OidSecp384r1.String():                        "secp384r1",
+	OidSecp521r1.String():                        "secp521r1",
 	OidNameChange.String():                       "nameChange",
 	OidCommonName.String():                       "commonName",
 	OidSerialNumber.String():                     "serialNumber",

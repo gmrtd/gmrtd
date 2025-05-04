@@ -657,9 +657,12 @@ type EcNamedCurve struct {
 	curve elliptic.Curve
 }
 
-// TODO - add others...
 var ecNamedCurveArr []EcNamedCurve = []EcNamedCurve{
+	{oid: oid.OidPrime192v1, curve: cryptoutils.EllipticP192()},
+	{oid: oid.OidSecp224r1, curve: elliptic.P224()},
+	{oid: oid.OidPrime256v1, curve: elliptic.P256()},
 	{oid: oid.OidSecp384r1, curve: elliptic.P384()},
+	{oid: oid.OidSecp521r1, curve: elliptic.P521()},
 	{oid: oid.OidBrainpoolP192r1, curve: brainpool.P192r1()},
 	{oid: oid.OidBrainpoolP224r1, curve: brainpool.P224r1()},
 	{oid: oid.OidBrainpoolP256r1, curve: brainpool.P256r1()},
@@ -671,7 +674,7 @@ var ecNamedCurveArr []EcNamedCurve = []EcNamedCurve{
 func (subPubKeyInfo *SubjectPublicKeyInfo) GetEcCurveAndPubKey() (curve *elliptic.Curve, pubKey *cryptoutils.EcPoint) {
 	/*
 	* Note: We avoid using 'ParsePKIXPublicKey' as it follows PKIX standard and only allows names curves,
-	*       but passports tends to use specified curves (i.e. curve parameters, even if corresponding to well-known curves)
+	*       but passports tend to use specified curves (i.e. curve parameters, even if corresponding to well-known curves)
 	 */
 
 	var err error
