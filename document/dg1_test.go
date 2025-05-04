@@ -83,7 +83,6 @@ func TestNewDG1(t *testing.T) {
 	}
 }
 
-// TODO - unhappy cases could be made table-driven
 func TestNewDG1UnhappyBadMRZ(t *testing.T) {
 	// based on sample TD2 MRZ:
 	//		I<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<D231458907UTO7408122F1204159<<<<<<<6

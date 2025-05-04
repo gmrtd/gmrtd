@@ -168,6 +168,11 @@ func (doc *Document) Verify() error {
 
 	if (doc.Mf.Dir != nil) && (doc.Mf.Lds1.Dg14 != nil) {
 		// TODO - verify that EF.DIR is present in DG14 (has this always been a requirement?)
+
+		// TODO - looks like this could be a misunderstanding.. and maybe we shold be checking CardSecurity also
+		//
+		// 9303p11 s4.2.3
+		// The inspection system MUST verify the authenticity of the contents of EF.Car
 	}
 
 	// error if DG15 is not present, but is referenced by SOD

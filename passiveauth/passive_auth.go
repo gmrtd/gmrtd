@@ -21,6 +21,9 @@ func PassiveAuth(doc *document.Document) (err error) {
 		return fmt.Errorf("(PassiveAuth) CscaCertPool error: %w", err)
 	}
 
+	// TODO - easiest way to restrict based on the issuing country is to filter cscaCertPool based on the MRZ country (with 3->2 translation)
+	//			- this way 'Verify' continues to be a generic implementation
+
 	/*
 	* verify EF.SOD (mandatory)
 	 */
