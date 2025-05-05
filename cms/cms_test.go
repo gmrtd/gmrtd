@@ -167,6 +167,15 @@ func TestVerifySignatureEcdsa(t *testing.T) {
 			signature:    utils.HexToBytes("304502202ba3a8be6b94d5ec80a6d9d1190a436effe50d85a1eee859b8cc6af9bd5c2e18022100b329f479a2bbd0a5c384ee1493b1f5186a87139cac5df4087c134b49156847db"),
 		},
 		{
+			// secp256r1 / sha512
+			//https://github.com/C2SP/wycheproof/blob/master/testvectors/ecdsa_secp256r1_sha512_test.json (tcId:3)
+			data:         utils.HexToBytes("313233343030"),
+			digestAlg:    oid.OidHashAlgorithmSHA512,
+			signatureAlg: oid.OidEcdsaWithSHA512,
+			keyDer:       utils.HexToBytes("3059301306072a8648ce3d020106082a8648ce3d030107034200042927b10512bae3eddcfe467828128bad2903269919f7086069c8c4df6c732838c7787964eaac00e5921fb1498a60f4606766b3d9685001558d1a974e7341513e"),
+			signature:    utils.HexToBytes("304502202478f1d049f6d857ac900a7af1772226a4c59b345fbb90613c66f42b98f981c0022100a07a59c4a41688538eb315e94effca0f4039035c6c2ed1dc84841359d1b34eb2"),
+		},
+		{
 			// secp384r1 / sha512
 			// https://github.com/C2SP/wycheproof/blob/master/testvectors/ecdsa_secp384r1_sha512_test.json (tcId:4)
 			data:         utils.HexToBytes("313233343030"),
