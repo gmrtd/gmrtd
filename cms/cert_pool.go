@@ -31,7 +31,7 @@ func (certPool *CertPool) Add(certificates []byte) error {
 	return nil
 }
 
-// TODO - probably needs to be more than just SKI (i.e. country?)
+// gets matching certificates by 'subject key identifier' (ski)
 func (certPool *CertPool) GetBySki(ski []byte) []Certificate {
 	var matchingCerts []Certificate
 
