@@ -3,6 +3,9 @@
 // Support is also provided for X509 (RFC-5652)
 //
 // This package provides basic support for CMS/X509 to support MRTD use-cases.
+//
+// Notes:
+// - Revocation checks not supported
 package cms
 
 /*
@@ -34,8 +37,6 @@ import (
 	"github.com/gmrtd/gmrtd/utils"
 	"github.com/osanderson/brainpool"
 )
-
-// TODO - no attempt made for revocation checking
 
 type SubjectPublicKeyInfo struct {
 	Algorithm        AlgorithmIdentifier

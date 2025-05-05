@@ -235,7 +235,8 @@ func (chipAuth *ChipAuth) doMseSetKAT(curve *elliptic.Curve, termKeypair cryptou
 	}
 
 	// MSE:Set KAT (0x41A6: Set Key Agreement Template for computation)
-	err = (*chipAuth.nfcSession).MseSetKAT(0x41, 0xA6, nodes.Encode())
+	// NB same as 'MseSetAT'
+	err = (*chipAuth.nfcSession).MseSetAT(0x41, 0xA6, nodes.Encode())
 	if err != nil {
 		return nil, nil, fmt.Errorf("(CA.doMseSetKAT) Error: %w", err)
 	}
