@@ -121,33 +121,35 @@ func TestGetChallengeHappy(t *testing.T) {
 	}
 }
 
-func TestGetChallengeUnhappyNoRsp(t *testing.T) {
-	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{nil})
-
-	_, err := nfc.GetChallenge(8)
-
-	if err == nil {
-		t.Errorf("Error expected")
+func TestGetChallengeErrors(t *testing.T) {
+	testCases := []struct {
+		transceiver     Transceiver
+		challengeLength int
+	}{
+		{
+			// error: no response
+			transceiver:     &StaticTransceiver{nil},
+			challengeLength: 8,
+		},
+		{
+			// error: bad rApdu status (6FFF: card dead)
+			transceiver:     &StaticTransceiver{utils.HexToBytes("6FFF")},
+			challengeLength: 8,
+		},
+		{
+			// error: bad response length (9 bytes instead of 8)
+			transceiver:     &StaticTransceiver{utils.HexToBytes("0123456789ABCDEF119000")},
+			challengeLength: 8,
+		},
 	}
-}
+	for _, tc := range testCases {
+		var nfc *NfcSession = NewNfcSession(tc.transceiver)
 
-func TestGetChallengeUnhappyErrorStatus(t *testing.T) {
-	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{utils.HexToBytes("6FFF")}) // card dead
+		_, err := nfc.GetChallenge(tc.challengeLength)
 
-	_, err := nfc.GetChallenge(8)
-
-	if err == nil {
-		t.Errorf("Error expected")
-	}
-}
-
-func TestGetChallengeUnhappyRspLength(t *testing.T) {
-	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{utils.HexToBytes("0123456789ABCDEF119000")}) // 9 bytes instead of 8
-
-	_, err := nfc.GetChallenge(8)
-
-	if err == nil {
-		t.Errorf("Error expected")
+		if err == nil {
+			t.Errorf("Error expected")
+		}
 	}
 }
 
@@ -165,34 +167,43 @@ func TestExternalAuthenticateHappy(t *testing.T) {
 	}
 }
 
-func TestExternalAuthenticateUnhappyNoRsp(t *testing.T) {
-	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{nil})
+// TODO - table based tests
 
-	_, err := nfc.ExternalAuthenticate(utils.HexToBytes("01234567"), 10)
-
-	if err == nil {
-		t.Errorf("Error expected")
+func TestExternalAuthenticateErrors(t *testing.T) {
+	testCases := []struct {
+		transceiver Transceiver
+		data        []byte
+		le          int
+	}{
+		{
+			// error: no response
+			transceiver: &StaticTransceiver{nil},
+			data:        utils.HexToBytes("01234567"),
+			le:          10,
+		},
+		{
+			// error: bad rApdu status (6FFF: card dead)
+			transceiver: &StaticTransceiver{utils.HexToBytes("6FFF")},
+			data:        utils.HexToBytes("01234567"),
+			le:          10,
+		},
+		{
+			// error: bad response length (9 bytes instead of 10)
+			transceiver: &StaticTransceiver{utils.HexToBytes("0123456789ABCDEF019000")},
+			data:        utils.HexToBytes("01234567"),
+			le:          10,
+		},
 	}
-}
+	for _, tc := range testCases {
+		var nfc *NfcSession = NewNfcSession(tc.transceiver)
 
-func TestExternalAuthenticateUnhappyErrorStatus(t *testing.T) {
-	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{utils.HexToBytes("6FFF")}) // card dead
+		_, err := nfc.ExternalAuthenticate(tc.data, tc.le)
 
-	_, err := nfc.ExternalAuthenticate(utils.HexToBytes("01234567"), 10)
-
-	if err == nil {
-		t.Errorf("Error expected")
+		if err == nil {
+			t.Errorf("Error expected")
+		}
 	}
-}
 
-func TestExternalAuthenticateUnhappyRspLength(t *testing.T) {
-	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{utils.HexToBytes("0123456789ABCDEF019000")}) // 9 bytes instead of 10
-
-	_, err := nfc.ExternalAuthenticate(utils.HexToBytes("01234567"), 10)
-
-	if err == nil {
-		t.Errorf("Error expected")
-	}
 }
 
 func TestGeneralAuthenticate(t *testing.T) {
@@ -267,10 +278,6 @@ func TestMseSetAT(t *testing.T) {
 		}
 	}
 }
-
-// TODO - the above (and others) should be table based tests
-//			GetChallenge
-//			ExternalAuthenticate
 
 func TestSelectMF(t *testing.T) {
 	testCases := []struct {
