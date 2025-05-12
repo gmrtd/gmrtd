@@ -194,7 +194,6 @@ func TestGetBytesFromBufferErr(t *testing.T) {
 
 	// Never reaches here if panic
 	t.Errorf("expected panic, but didn't get")
-
 }
 
 func TestGetByteFromBuffer(t *testing.T) {

@@ -645,3 +645,18 @@ func TestDoPace_CAM_ECDH_DE(t *testing.T) {
 		t.Errorf("ChipAuthStatus is not reflecting PACE-CAM")
 	}
 }
+
+func TestDecodeDynAuthDataError(t *testing.T) {
+	// NB we expect an exception when invalid TLV data is passed
+
+	// No need to check whether `recover()` is nil. Just turn off the panic.
+	defer func() { _ = recover() }()
+
+	var badTlvData []byte = utils.HexToBytes("0104123456") // indicates len=4, but only has 3 bytes of data
+	var tag byte = 0x82
+
+	_ = decodeDynAuthData(tag, badTlvData)
+
+	// Never reaches here if panic
+	t.Errorf("expected panic, but didn't get")
+}
