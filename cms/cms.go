@@ -456,8 +456,9 @@ func (sd *SignedData) Verify(certPool *CertPool) (certChain [][]byte, err error)
 	return certChain, nil
 }
 
+// verifies that the certificate was signed by one of the certificates in 'certPool'
+// NB considers all entries in 'certPool' to be valid signers, so doesn't walk the chain to a root-cert
 func (cert *Certificate) Verify(certPool *CertPool) (certChain [][]byte, err error) {
-	// TODO - currently just gets immediate parent.. doesn't move up a deeper cert chain
 	// TODO - currently just verifies the signature... doesn't check anything else... e.g. signing-time-validity... country/name
 	//			see 9303p10 5.1 Passive Authentication for detailed overview
 
@@ -500,9 +501,6 @@ func (cert *Certificate) Verify(certPool *CertPool) (certChain [][]byte, err err
 			slog.Debug("Certificate.Verify - skipping parent cert as it failed to verify the signature", "idx", i)
 			continue
 		}
-
-		// TODO - should really continue until we encounter a CA cert
-		//			- anything in the CSCA cert-pool is considered a CA.. but code could be more generic
 
 		// record cert
 		certChain = append(certChain, bytes.Clone(parentCerts[i].Raw))
