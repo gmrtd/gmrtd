@@ -167,8 +167,6 @@ func TestExternalAuthenticateHappy(t *testing.T) {
 	}
 }
 
-// TODO - table based tests
-
 func TestExternalAuthenticateErrors(t *testing.T) {
 	testCases := []struct {
 		transceiver Transceiver
