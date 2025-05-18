@@ -638,8 +638,6 @@ func (subPubKeyInfo *SubjectPublicKeyInfo) GetRsaPubKey() *cryptoutils.RsaPublic
 	return &out
 }
 
-// TODO - looks like this is the inner part of SubjectPublicKeyInfo (used by ActiveAuth/PassiveAuth)
-//   - maybe we can generalise this code and use the get function to get the key we require
 type ECSpecifiedDomain struct {
 	Raw      asn1.RawContent
 	Version  int
@@ -652,7 +650,6 @@ type ECSpecifiedDomain struct {
 }
 
 // parse ecPublicKey ASN1 object (aka EC Specified Domain)
-// TODO - this looks like SubjectPublicKeyInfo... also required in SOD... this is just specific to EC.. or at least the curve part of it
 func ParseECSpecifiedDomain(algIdentifier *AlgorithmIdentifier) (out *ECSpecifiedDomain, err error) {
 	slog.Debug("ParseECSpecifiedDomain", "Algorithm Identifier", algIdentifier)
 
