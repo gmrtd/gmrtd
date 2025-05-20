@@ -2,8 +2,6 @@ package iso3166
 
 import "testing"
 
-// TODO - error cases
-
 func TestGetByAlpha2(t *testing.T) {
 	testCases := []struct {
 		alpha2    string
