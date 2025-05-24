@@ -684,8 +684,7 @@ func ParseECSpecifiedDomain(algIdentifier *AlgorithmIdentifier) (out *ECSpecifie
 	slog.Debug("ParseECSpecifiedDomain", "Algorithm Identifier", algIdentifier)
 
 	if !algIdentifier.Algorithm.Equal(oid.OidEcPublicKey) {
-		// TODO - should we panic?
-		log.Panicf("expected ecPublicKey OID (exp:%s, act:%s)", oid.OidEcPublicKey.String(), algIdentifier.Algorithm.String())
+		return nil, fmt.Errorf("(ParseECSpecifiedDomain) expected ecPublicKey OID (exp:%s, act:%s)", oid.OidEcPublicKey.String(), algIdentifier.Algorithm.String())
 	}
 
 	out = new(ECSpecifiedDomain)
