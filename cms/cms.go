@@ -752,17 +752,17 @@ var ecLookupArr []elliptic.Curve = []elliptic.Curve{
 func (specDomain ECSpecifiedDomain) GetEcCurve() (*elliptic.Curve, error) {
 	slog.Debug("GetEcCurve", "Params", utils.BytesToHex(specDomain.FieldId.Parameters.Bytes))
 
+	// NB sometimes there can be leading zero
+	specDomainPBytes := utils.TrimLeadingZeroBytes(specDomain.FieldId.Parameters.Bytes)
+
 	// look for matching 'standard' curve
 	// NB we currently expect the use of standard curve, we may need to support custom curves in the future (but hopefully not)
 	for i := 0; i < len(ecLookupArr); i++ {
 		var ec elliptic.Curve = ecLookupArr[i]
 
 		// match using the 'prime field' (P)
-		// NB normally we skip the 1st byte when matching, but sometimes we do an exact match (e.g. EC521 in DE-master-list cert #361)
-		// TODO - is that just if the 1st byte is 0?
-		if slices.Equal(ec.Params().P.Bytes(), specDomain.FieldId.Parameters.Bytes[1:]) || // skip 1st byte
-			slices.Equal(ec.Params().P.Bytes(), specDomain.FieldId.Parameters.Bytes[0:]) { // don't skip 1st byte
-			//slog.Debug("GetEcCurve", "curveIdx", i, "specDomain", specDomain)
+		if slices.Equal(ec.Params().P.Bytes(), specDomainPBytes) {
+			slog.Debug("GetEcCurve", "curveIdx", i, "specDomain", specDomain)
 			return &ec, nil
 		}
 	}

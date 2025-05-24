@@ -9,6 +9,17 @@ import (
 	"unicode"
 )
 
+func TrimLeadingZeroBytes(data []byte) []byte {
+	for i, b := range data {
+		if b != 0 {
+			return data[i:]
+		}
+	}
+
+	// if all bytes are zero, then return empty slice
+	return []byte{}
+}
+
 // isPartiallyParsed - if false then returns error if data remains after parsing
 func ParseAsn1Ex[T any](data []byte, out *T) (remainingData []byte, err error) {
 	remainingData, err = asn1.Unmarshal(data, out)
