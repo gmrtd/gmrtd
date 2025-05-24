@@ -129,7 +129,7 @@ func (attributes AttributeList) GetSetOfAsnBytes() []byte {
 
 	var data []byte
 
-	for i := 0; i < len(attributes); i++ {
+	for i := range attributes {
 		data = append(data, attributes[i].Raw...)
 	}
 
@@ -208,7 +208,7 @@ type AuthorityKeyIdentifier struct {
 type SubjectKeyIdentifier []byte
 
 func (extensions Extensions) GetAuthorityKeyIdentifier() *AuthorityKeyIdentifier {
-	for i := 0; i < len(extensions); i++ {
+	for i := range extensions {
 		if extensions[i].ObjectId.Equal(oid.OidAuthorityKeyIdentifier) {
 			var out AuthorityKeyIdentifier
 
@@ -225,7 +225,7 @@ func (extensions Extensions) GetAuthorityKeyIdentifier() *AuthorityKeyIdentifier
 }
 
 func (extensions Extensions) GetSubjectKeyIdentifier() *SubjectKeyIdentifier {
-	for i := 0; i < len(extensions); i++ {
+	for i := range extensions {
 		if extensions[i].ObjectId.Equal(oid.OidSubjectKeyIdentifier) {
 			var out SubjectKeyIdentifier
 
@@ -242,6 +242,36 @@ func (extensions Extensions) GetSubjectKeyIdentifier() *SubjectKeyIdentifier {
 }
 
 // TODO - handlers for other extensions... key-usage (sign,..)... CSCA: privateKeyUsagePeriod, id-ce-keyUsage (for CA detection?)
+
+type RDNSequence []RelativeDistinguishedNameSET
+type RelativeDistinguishedNameSET AttributeList
+
+func ParseRDNSequence(rdnSeq []byte) RDNSequence {
+	var out RDNSequence
+
+	err := utils.ParseAsn1(rdnSeq, false, &out)
+	if err != nil {
+		log.Panicf("ParseRDNSequence error: %s", err)
+	}
+
+	return out
+}
+
+func (rdnSet RDNSequence) GetByOID(oid asn1.ObjectIdentifier) []byte {
+	for _, set := range rdnSet {
+		for _, atv := range set {
+			if atv.Type.Equal(oid) {
+				return bytes.Clone(atv.Values.Bytes)
+			}
+		}
+	}
+
+	return []byte{}
+}
+
+func (cert TBSCertificate) GetIssuerRDN() RDNSequence {
+	return ParseRDNSequence(cert.Issuer.FullBytes)
+}
 
 type TBSCertificate struct {
 	Raw                  asn1.RawContent
@@ -363,7 +393,7 @@ func (sd *SignedData) Verify(certPool *CertPool) (certChain [][]byte, err error)
 
 	// for-each signer-info
 	// NB we only expect 1, but support >1
-	for siIdx := 0; siIdx < len(sd.SignerInfos); siIdx++ {
+	for siIdx := range sd.SignerInfos {
 		var si *SignerInfo = &(sd.SignerInfos[siIdx])
 
 		var dataToHash []byte
@@ -492,7 +522,7 @@ func (cert *Certificate) Verify(certPool *CertPool) (certChain [][]byte, err err
 	//slog.Info("CERT.Verify", "Cert", utils.BytesToHex(cert.Raw))
 
 	// test each parent cert until we find one that validates the cert signature
-	for i := 0; i < len(parentCerts); i++ {
+	for i := range parentCerts {
 		var tmpErr error
 
 		tmpErr = VerifySignature(parentCerts[i].TbsCertificate.SubjectPublicKeyInfo.FullBytes, *certDigestAlg, certDigest, cert.SignatureAlgorithm.Algorithm, cert.SignatureValue.Bytes)
@@ -730,6 +760,7 @@ func (specDomain ECSpecifiedDomain) GetEcCurve() (*elliptic.Curve, error) {
 
 		// match using the 'prime field' (P)
 		// NB normally we skip the 1st byte when matching, but sometimes we do an exact match (e.g. EC521 in DE-master-list cert #361)
+		// TODO - is that just if the 1st byte is 0?
 		if slices.Equal(ec.Params().P.Bytes(), specDomain.FieldId.Parameters.Bytes[1:]) || // skip 1st byte
 			slices.Equal(ec.Params().P.Bytes(), specDomain.FieldId.Parameters.Bytes[0:]) { // don't skip 1st byte
 			//slog.Debug("GetEcCurve", "curveIdx", i, "specDomain", specDomain)

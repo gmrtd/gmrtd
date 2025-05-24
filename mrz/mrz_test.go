@@ -180,6 +180,11 @@ func TestMrzDecode(t *testing.T) {
 			data: "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<L898902C36UTO7408122F1204159ZE184226B<<<<<10",
 			exp:  MRZ{DocumentCode: "P", IssuingState: "UTO", NameOfHolder: &MrzName{Primary: "ERIKSSON", Secondary: "ANNA MARIA"}, DocumentNumber: "L898902C3", Nationality: "UTO", DateOfBirth: "740812", Sex: "F", DateOfExpiry: "120415", OptionalData: "ZE184226B"},
 		},
+		{
+			// test TD3 that is used by other UTs (e.g. Passive-Auth)
+			data: "P<D<<DOE<<JOHN<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<D123456785UTO6508092M3505207<<<<<<<<<<<<<<<0",
+			exp:  MRZ{DocumentCode: "P", IssuingState: "D", NameOfHolder: &MrzName{Primary: "DOE", Secondary: "JOHN"}, DocumentNumber: "D12345678", Nationality: "UTO", DateOfBirth: "650809", Sex: "M", DateOfExpiry: "350520"},
+		},
 	}
 	for _, tc := range testCases {
 		mrz, err := MrzDecode(tc.data)

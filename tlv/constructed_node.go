@@ -54,8 +54,9 @@ func (node TlvConstructedNode) String() string {
 	return node.stringWithIndent(0)
 }
 
-func (tlv *TlvConstructedNode) AddChild(child TlvNode) {
+func (tlv *TlvConstructedNode) AddChild(child TlvNode) *TlvConstructedNode {
 	tlv.Children.AddNode(child)
+	return tlv
 }
 
 func NewTlvConstructedNode(tag TlvTag) *TlvConstructedNode {

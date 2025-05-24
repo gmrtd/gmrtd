@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/gmrtd/gmrtd/oid"
 	"github.com/gmrtd/gmrtd/utils"
 )
 
@@ -31,11 +32,15 @@ func (certPool *CertPool) Add(certificates []byte) error {
 	return nil
 }
 
-// gets matching certificates by 'subject key identifier' (ski)
+func (certPool *CertPool) AddCerts(certificates []Certificate) {
+	certPool.certificates = append(certPool.certificates, certificates...)
+}
+
+// gets matching certificates by 'subject' key identifier (ski)
 func (certPool *CertPool) GetBySki(ski []byte) []Certificate {
 	var matchingCerts []Certificate
 
-	for i := 0; i < len(certPool.certificates); i++ {
+	for i := range certPool.certificates {
 		var cert *Certificate = &certPool.certificates[i]
 		tmpSki := cert.TbsCertificate.Extensions.GetSubjectKeyIdentifier()
 
@@ -50,4 +55,30 @@ func (certPool *CertPool) GetBySki(ski []byte) []Certificate {
 	}
 
 	return matchingCerts
+}
+
+// gets matching certificates by 'issuer' country
+func (certPool *CertPool) GetByIssuerCountry(countryAlpha2 string) []Certificate {
+	var matchingCerts []Certificate
+
+	for i := range certPool.certificates {
+		var cert *Certificate = &certPool.certificates[i]
+
+		tmpCountry := cert.TbsCertificate.GetIssuerRDN().GetByOID(oid.OidCountryName)
+
+		if bytes.Equal(tmpCountry, []byte(countryAlpha2)) {
+			slog.Debug("CertPool.GetByIssuerCountry - found matching cert", "Idx", i, "Country", countryAlpha2)
+			matchingCerts = append(matchingCerts, *cert)
+		}
+	}
+
+	if len(matchingCerts) < 1 {
+		slog.Debug("CertPool.GetByIssuerCountry - NO matching certs found", "Country", countryAlpha2)
+	}
+
+	return matchingCerts
+}
+
+func (certPool CertPool) Count() int {
+	return len(certPool.certificates)
 }
