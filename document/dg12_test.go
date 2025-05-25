@@ -46,9 +46,8 @@ func TestNewDG12NZ(t *testing.T) {
 	var expDetails DocumentDetails = DocumentDetails{PersoDateTime: "20161115013612", PersoSystemSerialNumber: "N-4962"}
 
 	var doc Document
-	var err error
 
-	err = doc.NewDG(12, dg12bytes)
+	err := doc.NewDG(12, dg12bytes)
 
 	if err != nil {
 		t.Errorf("Error not expected")
@@ -88,9 +87,8 @@ func TestNewDG12FR(t *testing.T) {
 	var expDetails DocumentDetails = DocumentDetails{IssuingAuthority: "JAKARTA - AMBASSADE DE FRANCE EN INDONESIE", DateOfIssue: "20170905"}
 
 	var doc Document
-	var err error
 
-	err = doc.NewDG(12, dg12bytes)
+	err := doc.NewDG(12, dg12bytes)
 
 	if err != nil {
 		t.Errorf("Error not expected")
