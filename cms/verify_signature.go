@@ -99,11 +99,10 @@ func VerifySignature(pubKeyInfo []byte, digestAlg asn1.ObjectIdentifier, digest 
 
 			return nil
 		}
-	default:
-		return fmt.Errorf("(VerifySignature) signature-algorithm not supported: %s", sigAlg.String())
 	}
 
-	return fmt.Errorf("(VerifySignature) unhandled error")
+	return fmt.Errorf("(VerifySignature) signature-algorithm not supported: %s", sigAlg.String())
+	// return fmt.Errorf("(VerifySignature) unhandled error")
 }
 
 // TODO - not sure whether this is even achieving anything?

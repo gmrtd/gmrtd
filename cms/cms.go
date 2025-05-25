@@ -523,9 +523,7 @@ func (cert *Certificate) Verify(certPool *CertPool) (certChain [][]byte, err err
 
 	// test each parent cert until we find one that validates the cert signature
 	for i := range parentCerts {
-		var tmpErr error
-
-		tmpErr = VerifySignature(parentCerts[i].TbsCertificate.SubjectPublicKeyInfo.FullBytes, *certDigestAlg, certDigest, cert.SignatureAlgorithm.Algorithm, cert.SignatureValue.Bytes)
+		tmpErr := VerifySignature(parentCerts[i].TbsCertificate.SubjectPublicKeyInfo.FullBytes, *certDigestAlg, certDigest, cert.SignatureAlgorithm.Algorithm, cert.SignatureValue.Bytes)
 		if tmpErr != nil {
 			// ignore error and try other parent certs
 			slog.Debug("Certificate.Verify - skipping parent cert as it failed to verify the signature", "idx", i)
