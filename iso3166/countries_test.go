@@ -71,7 +71,7 @@ func TestGetByAlpha3Errors(t *testing.T) {
 		alpha3 string
 	}{
 		{
-			// non-existant country
+			// non-existent country
 			alpha3: "ART",
 		},
 		{
