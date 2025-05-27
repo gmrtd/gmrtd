@@ -533,8 +533,6 @@ func (cert *Certificate) Verify(certPool *CertPool) (certChain [][]byte, err err
 		// record cert
 		certChain = append(certChain, bytes.Clone(parentCerts[i].Raw))
 
-		// TODO - still need to match cert-country.. and should also check MRZ country (TBC?)... don't want country A signing docs for country B!
-
 		return certChain, nil
 	}
 
