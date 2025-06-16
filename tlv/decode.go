@@ -2,7 +2,9 @@ package tlv
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"runtime/debug"
 
 	"github.com/gmrtd/gmrtd/utils"
 )
@@ -79,6 +81,20 @@ func decode(data []byte) (nodes *TlvNodes, remainingData []byte, err error) {
 }
 
 func Decode(data []byte) (nodes *TlvNodes, err error) {
+	defer func() {
+		if e := recover(); e != nil {
+			switch x := e.(type) {
+			case string:
+				err = errors.New(x)
+			case error:
+				err = x
+			default:
+				err = errors.New("unknown panic")
+			}
+			debug.PrintStack()
+		}
+	}()
+
 	var remainingData []byte
 
 	nodes, remainingData, err = decode(data)

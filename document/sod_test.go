@@ -18,6 +18,20 @@ func TestNewSODNoData(t *testing.T) {
 	}
 }
 
+func TestNewSODBadTlv(t *testing.T) {
+	var sodBytes []byte = utils.HexToBytes("02101234") // invalid TLV encoding - insufficient bytes
+
+	sod, err := NewSOD(sodBytes)
+
+	if err == nil {
+		t.Errorf("Error expected")
+	}
+
+	if sod != nil {
+		t.Errorf("SOD not expected for error case")
+	}
+}
+
 func TestNewSODUnhappyRootTag(t *testing.T) {
 	var sodbytes []byte = utils.HexToBytes("01021234") // valid TLV but invalid SOD, as tag 77 is missing
 

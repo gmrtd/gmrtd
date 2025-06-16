@@ -18,6 +18,20 @@ func TestNewDG16NoData(t *testing.T) {
 	}
 }
 
+func TestNewDG16BadTlv(t *testing.T) {
+	var dg16bytes []byte = utils.HexToBytes("02101234") // invalid TLV encoding - insufficient bytes
+
+	dg16, err := NewDG16(dg16bytes)
+
+	if err == nil {
+		t.Errorf("Error expected")
+	}
+
+	if dg16 != nil {
+		t.Errorf("DG not expected for error case")
+	}
+}
+
 func TestNewDG16UnhappyRootTag(t *testing.T) {
 	var dg16bytes []byte = utils.HexToBytes("01021234") // valid TLV but invalid DG16, as tag 70 is missing
 
