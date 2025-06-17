@@ -20,7 +20,7 @@ func TestNewCOMNoData(t *testing.T) {
 func TestNewCOMBadTlv(t *testing.T) {
 	var comBytes []byte = utils.HexToBytes("02101234") // invalid TLV encoding - insufficient bytes
 
-	com, err := NewEFDIR(comBytes)
+	com, err := NewCOM(comBytes)
 
 	if err == nil {
 		t.Errorf("Error expected")
