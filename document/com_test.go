@@ -17,6 +17,20 @@ func TestNewCOMNoData(t *testing.T) {
 	}
 }
 
+func TestNewCOMBadTlv(t *testing.T) {
+	var comBytes []byte = utils.HexToBytes("02101234") // invalid TLV encoding - insufficient bytes
+
+	com, err := NewEFDIR(comBytes)
+
+	if err == nil {
+		t.Errorf("Error expected")
+	}
+
+	if com != nil {
+		t.Errorf("COM not expected for error case")
+	}
+}
+
 func TestNewCOM(t *testing.T) {
 	// EF.COM test data from 9303-p10
 	data := utils.HexToBytes("60145F0104303130365F36063034303030305C026175")
