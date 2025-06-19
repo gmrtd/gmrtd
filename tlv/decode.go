@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"runtime/debug"
 
 	"github.com/gmrtd/gmrtd/utils"
 )
@@ -91,7 +90,6 @@ func Decode(data []byte) (nodes *TlvNodes, err error) {
 			default:
 				err = errors.New("unknown panic")
 			}
-			debug.PrintStack()
 		}
 	}()
 
