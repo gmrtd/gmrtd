@@ -169,46 +169,52 @@ func TestPrintableBytes(t *testing.T) {
 
 func TestGetBytesFromBuffer(t *testing.T) {
 	var buf *bytes.Buffer = bytes.NewBuffer([]byte{0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef})
+	var expBytes [][]byte
 
-	bytes1 := GetBytesFromBuffer(buf, 2)
-	bytes2 := GetBytesFromBuffer(buf, 3)
-	bytes3 := GetBytesFromBuffer(buf, 2)
-	bytes4 := GetBytesFromBuffer(buf, 1)
+	expBytes = [][]byte{
+		[]byte{0x12, 0x34},
+		[]byte{0x56, 0x78, 0x90},
+		[]byte{0xab, 0xcd},
+		[]byte{0xef},
+	}
 
-	if !bytes.Equal(bytes1, []byte{0x12, 0x34}) ||
-		!bytes.Equal(bytes2, []byte{0x56, 0x78, 0x90}) ||
-		!bytes.Equal(bytes3, []byte{0xab, 0xcd}) ||
-		!bytes.Equal(bytes4, []byte{0xef}) {
-		t.Errorf("GetBytesFromBuffer data differs to expected")
+	for i := range expBytes {
+		expBytes := expBytes[i]
+
+		actBytes, err := GetBytesFromBuffer(buf, len(expBytes))
+		if err != nil {
+			t.Errorf("unexpected error: %s", err)
+		}
+		if !bytes.Equal(actBytes, expBytes) {
+			t.Errorf("GetBytesFromBuffer data differs to expected (act:%x, exp:%x)", actBytes, expBytes)
+		}
 	}
 }
 
 func TestGetBytesFromBufferErr(t *testing.T) {
-	// No need to check whether `recover()` is nil. Just turn off the panic.
-	defer func() { _ = recover() }()
-
 	var buf *bytes.Buffer = bytes.NewBuffer([]byte{0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef})
 
-	// NB throws exception as we request more bytes than are available
-	_ = GetBytesFromBuffer(buf, 9)
+	// NB error expected as we request more bytes than are available
+	_, err := GetBytesFromBuffer(buf, 9)
 
-	// Never reaches here if panic
-	t.Errorf("expected panic, but didn't get")
+	if err == nil {
+		t.Errorf("error expected")
+	}
 }
 
 func TestGetByteFromBuffer(t *testing.T) {
-	var buf *bytes.Buffer = bytes.NewBuffer([]byte{0x12, 0x34, 0x56, 0x78})
+	var expBytes []byte = []byte{0x12, 0x34, 0x56, 0x78}
+	var buf *bytes.Buffer = bytes.NewBuffer(expBytes)
 
-	byte1 := GetByteFromBuffer(buf)
-	byte2 := GetByteFromBuffer(buf)
-	byte3 := GetByteFromBuffer(buf)
-	byte4 := GetByteFromBuffer(buf)
-
-	if (byte1 != 0x12) ||
-		(byte2 != 0x34) ||
-		(byte3 != 0x56) ||
-		(byte4 != 0x78) {
-		t.Errorf("GetByteFromBuffer data differs to expected")
+	for i := range expBytes {
+		expByte := expBytes[i]
+		actByte, err := GetByteFromBuffer(buf)
+		if err != nil {
+			t.Errorf("unexpected error: %s", err)
+		}
+		if actByte != expByte {
+			t.Errorf("GetByteFromBuffer data differs to expected (act:%x, exp:%x)", actByte, expByte)
+		}
 	}
 }
 

@@ -52,7 +52,11 @@ func TestGetLength(t *testing.T) {
 		// test decode
 		{
 			var bBuf *bytes.Buffer = bytes.NewBuffer(actOut)
-			decodedLen := GetLength(bBuf)
+			decodedLen, err := GetLength(bBuf)
+
+			if err != nil {
+				t.Errorf("unexpected error: %s", err)
+			}
 
 			if decodedLen != TlvLength(tc.inp) {
 				t.Errorf("TLV Length decode error (EncLen:%x, ExpLen:%x, ActLen:%x)", actOut, tc.inp, decodedLen)
@@ -66,14 +70,13 @@ func TestGetLength(t *testing.T) {
 }
 
 func TestGetLengthBadLengthErr(t *testing.T) {
-	defer func() { _ = recover() }()
-
 	var buf *bytes.Buffer = bytes.NewBuffer(utils.HexToBytes("85000000000199"))
 
-	_ = GetLength(buf)
+	_, err := GetLength(buf)
 
-	// Never reaches here if panic
-	t.Errorf("expected panic, but didn't get")
+	if err == nil {
+		t.Errorf("error expected")
+	}
 }
 
 func TestEncodeLengthBadLengthErr(t *testing.T) {

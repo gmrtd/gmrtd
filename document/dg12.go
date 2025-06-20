@@ -51,19 +51,27 @@ func NewDG12(data []byte) (*DG12, error) {
 		return nil, fmt.Errorf("root node (%x) missing", DG12Tag)
 	}
 
-	out.Details.parseData(rootNode)
+	err = out.Details.parseData(rootNode)
+	if err != nil {
+		return nil, fmt.Errorf("[NewDG12] parseData error: %w", err)
+	}
 
 	slog.Debug("DG12", "Details", out.Details)
 
 	return out, nil
 }
 
-func (details *DocumentDetails) parseData(node tlv.TlvNode) {
-	tagList := tlv.GetTags(bytes.NewBuffer(node.GetNode(0x5C).GetValue()))
+func (details *DocumentDetails) parseData(node tlv.TlvNode) error {
+	tagList, err := tlv.GetTags(bytes.NewBuffer(node.GetNode(0x5C).GetValue()))
+	if err != nil {
+		return fmt.Errorf("[parseData] GetTags error: %w", err)
+	}
 
 	for _, tag := range tagList {
 		details.processTag(tag, node)
 	}
+
+	return nil
 }
 
 // processes the 'tag', getting the data from the TLV and populating PersonDetails

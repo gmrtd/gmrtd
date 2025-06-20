@@ -23,7 +23,10 @@ func TestGetTags(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		actOut := GetTags(bytes.NewBuffer(tc.inp))
+		actOut, err := GetTags(bytes.NewBuffer(tc.inp))
+		if err != nil {
+			t.Errorf("unexpected error: %s", err)
+		}
 
 		if !reflect.DeepEqual(actOut, tc.expOut) {
 			t.Errorf("TLV Tags differs to expected (Exp:%x, Act:%x)", tc.expOut, actOut)

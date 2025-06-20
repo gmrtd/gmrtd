@@ -16,12 +16,12 @@ type DG13 struct {
 	Content []byte `json:"content,omitempty"` // contents of the DG (ie within the 6D root tag)
 }
 
-func NewDG13(data []byte) (*DG13, error) {
+func NewDG13(data []byte) (out *DG13, err error) {
 	if len(data) < 1 {
 		return nil, nil
 	}
 
-	var out *DG13 = new(DG13)
+	out = new(DG13)
 
 	out.RawData = slices.Clone(data)
 
@@ -32,14 +32,26 @@ func NewDG13(data []byte) (*DG13, error) {
 		// extract length (of parent tag) to determine file size
 		tmpBuf := bytes.NewBuffer(out.RawData)
 
-		tag := tlv.GetTag(tmpBuf)
+		tag, err := tlv.GetTag(tmpBuf)
+		if err != nil {
+			return nil, fmt.Errorf("[NewDG13] GetTag error: %w", err)
+		}
 		if DG13Tag != tag {
 			return nil, fmt.Errorf("(NewDG13) invalid root tag (Exp:%x, Act:%x)", DG13Tag, tag)
 		}
 
-		len := int(tlv.GetLength(tmpBuf))
+		var tmpTlvLength tlv.TlvLength
 
-		out.Content = utils.GetBytesFromBuffer(tmpBuf, len)
+		tmpTlvLength, err = tlv.GetLength(tmpBuf)
+		if err != nil {
+			return nil, fmt.Errorf("[NewDG13] GetLength error: %w", err)
+		}
+		len := int(tmpTlvLength)
+
+		out.Content, err = utils.GetBytesFromBuffer(tmpBuf, len)
+		if err != nil {
+			return nil, fmt.Errorf("[NewDG13] ByteBuffer error: %w", err)
+		}
 	}
 
 	return out, nil

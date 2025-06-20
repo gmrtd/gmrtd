@@ -2,21 +2,28 @@ package tlv
 
 import (
 	"bytes"
+	"fmt"
 
 	"github.com/gmrtd/gmrtd/utils"
 )
 
 type TlvTag int
 
-func GetTag(buf *bytes.Buffer) TlvTag {
-	b1 := utils.GetByteFromBuffer(buf)
+func GetTag(buf *bytes.Buffer) (TlvTag, error) {
+	b1, err := utils.GetByteFromBuffer(buf)
+	if err != nil {
+		return TlvTag(0), fmt.Errorf("[GetTag] GetByteFromBuffer error: %w", err)
+	}
 
 	var tag int = int(b1)
 
 	// special handling for multi-byte tags
 	if (tag & 0x1f) == 0x1f {
 		for {
-			tmp := utils.GetByteFromBuffer(buf)
+			tmp, err := utils.GetByteFromBuffer(buf)
+			if err != nil {
+				return TlvTag(0), fmt.Errorf("[GetTag] GetByteFromBuffer error: %w", err)
+			}
 
 			tag <<= 8
 			tag += int(tmp)
@@ -27,20 +34,26 @@ func GetTag(buf *bytes.Buffer) TlvTag {
 		}
 	}
 
-	return TlvTag(tag)
+	return TlvTag(tag), nil
 }
 
-func GetTags(buf *bytes.Buffer) []TlvTag {
+func GetTags(buf *bytes.Buffer) ([]TlvTag, error) {
 	var out []TlvTag
 
 	for {
 		if buf.Len() <= 0 {
 			break
 		}
-		out = append(out, GetTag(buf))
+
+		tag, err := GetTag(buf)
+		if err != nil {
+			return nil, fmt.Errorf("[GetTags] GetTag error: %w", err)
+		}
+
+		out = append(out, tag)
 	}
 
-	return out
+	return out, nil
 }
 
 func (tag TlvTag) Encode() []byte {

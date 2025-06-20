@@ -219,17 +219,26 @@ func (nfc *NfcSession) ReadBinaryFromOffset(offset int, length int) []byte {
 	return out
 }
 
+// as per ReadFile, but panics if there is an error
+func (nfc *NfcSession) ReadFileOrPanic(fileId uint16) (fileData []byte) {
+	fileData, err := nfc.ReadFile(fileId)
+	if err != nil {
+		log.Panicf("[ReadFileOrPanic] ReadFile error: %s", err)
+	}
+	return fileData
+}
+
 // returns: file contents OR nil if file not found
-func (nfc *NfcSession) ReadFile(fileId uint16) (fileData []byte) {
+func (nfc *NfcSession) ReadFile(fileId uint16) (fileData []byte, err error) {
 	slog.Debug("ReadFile", "fileId", fileId)
 
 	sel, err := nfc.SelectEF(fileId)
 	if err != nil {
-		log.Panicf("SelectEF error: %s", err)
+		return nil, fmt.Errorf("[ReadFile] SelectEF error: %w", err)
 	}
 	if !sel {
 		// file not found
-		return nil
+		return nil, nil
 	}
 
 	var fileBuf *bytes.Buffer = new(bytes.Buffer)
@@ -240,10 +249,16 @@ func (nfc *NfcSession) ReadFile(fileId uint16) (fileData []byte) {
 
 	var totalBytes int
 	{
+		var tmpTlvLength tlv.TlvLength
+
 		// extract length (of parent tag) to determine file size
 		tmpBuf := bytes.NewBuffer(fileHeader)
 		tlv.GetTag(tmpBuf)
-		totalBytes = int(tlv.GetLength(tmpBuf))
+		tmpTlvLength, err = tlv.GetLength(tmpBuf)
+		if err != nil {
+			return nil, fmt.Errorf("[ReadFile] GetLength error: %w", err)
+		}
+		totalBytes = int(tmpTlvLength)
 		totalBytes += 4 - tmpBuf.Len()
 	}
 
@@ -260,7 +275,7 @@ func (nfc *NfcSession) ReadFile(fileId uint16) (fileData []byte) {
 			// TODO - we've seen issues with jmrtd applet where it returns 0 bytes if we ask for 236 bytes of data...
 			//			... may want to try dropping the requested read amount in this scenario.. and retrying
 			if len(tmpData) < 1 {
-				log.Panicf("[ReadFile] Didn't receive any data")
+				return nil, fmt.Errorf("[ReadFile] Didn't receive any data")
 			}
 
 			fileBuf.Write(tmpData)
@@ -273,13 +288,13 @@ func (nfc *NfcSession) ReadFile(fileId uint16) (fileData []byte) {
 		fileData = bytes.Clone(fileBuf.Bytes())
 
 		if len(fileData) != totalBytes {
-			log.Panicf("Data read differs to expected length (exp:%d, act:%d)", totalBytes, len(fileData))
+			return nil, fmt.Errorf("[ReadFile] Data read differs to expected length (exp:%d, act:%d)", totalBytes, len(fileData))
 		}
 	}
 
 	slog.Debug("ReadFile", "fileId", fileId, "data", utils.BytesToHex(fileData))
 
-	return fileData
+	return fileData, nil
 }
 
 type ApduLog struct {

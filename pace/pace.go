@@ -667,7 +667,12 @@ func (pace *Pace) doGenericMappingCAM(paceConfig *PaceConfig, domainParams *PACE
 			if (*pace.document).Mf.CardSecurity == nil {
 				const MRTDFileIdCardSecurity = uint16(0x011D)
 
-				(*pace.document).Mf.CardSecurity, err = document.NewCardSecurity((*pace.nfcSession).ReadFile(MRTDFileIdCardSecurity))
+				fileBytes, err := (*pace.nfcSession).ReadFile(MRTDFileIdCardSecurity)
+				if err != nil {
+					return fmt.Errorf("[doGenericMappingCAM] ReadFile error: %w", err)
+				}
+
+				(*pace.document).Mf.CardSecurity, err = document.NewCardSecurity(fileBytes)
 				if err != nil {
 					return err
 				}

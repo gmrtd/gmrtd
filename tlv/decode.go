@@ -2,7 +2,6 @@ package tlv
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 
 	"github.com/gmrtd/gmrtd/utils"
@@ -19,8 +18,17 @@ func decode(data []byte) (nodes *TlvNodes, remainingData []byte, err error) {
 			break
 		}
 
-		tag := GetTag(buf)
-		var length TlvLength = GetLength(buf)
+		tag, err := GetTag(buf)
+		if err != nil {
+			return nil, nil, fmt.Errorf("[decode] GetTag error: %w", err)
+		}
+
+		var length TlvLength
+
+		length, err = GetLength(buf)
+		if err != nil {
+			return nil, nil, fmt.Errorf("[decode] GetLength error: %w", err)
+		}
 
 		// special handling for indefinite-length mode end sentinel (i.e. 0x0000)
 		if tag == 0 && length == 0 {
@@ -52,7 +60,10 @@ func decode(data []byte) (nodes *TlvNodes, remainingData []byte, err error) {
 					remainingData = nil
 				}
 			} else {
-				childData := utils.GetBytesFromBuffer(buf, int(length))
+				childData, err := utils.GetBytesFromBuffer(buf, int(length))
+				if err != nil {
+					return nil, nil, fmt.Errorf("[decode] ByteBuffer error: %w", err)
+				}
 				children, remainingData, err = decode(childData)
 				if err != nil {
 					return nil, nil, fmt.Errorf("[decode] error: %w", err)
@@ -69,7 +80,10 @@ func decode(data []byte) (nodes *TlvNodes, remainingData []byte, err error) {
 			if length == -1 { // indefinite-length
 				return nil, nil, fmt.Errorf("[decode] Indefinite-length mode is only supported for constructed tags")
 			} else {
-				value := utils.GetBytesFromBuffer(buf, int(length))
+				value, err := utils.GetBytesFromBuffer(buf, int(length))
+				if err != nil {
+					return nil, nil, fmt.Errorf("[decode] ByteBuffer error: %w", err)
+				}
 				node := NewTlvSimpleNode(tag, value)
 				nodes.AddNode(node)
 			}
@@ -80,19 +94,6 @@ func decode(data []byte) (nodes *TlvNodes, remainingData []byte, err error) {
 }
 
 func Decode(data []byte) (nodes *TlvNodes, err error) {
-	defer func() {
-		if e := recover(); e != nil {
-			switch x := e.(type) {
-			case string:
-				err = errors.New(x)
-			case error:
-				err = x
-			default:
-				err = errors.New("unknown panic")
-			}
-		}
-	}()
-
 	var remainingData []byte
 
 	nodes, remainingData, err = decode(data)

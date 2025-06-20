@@ -58,19 +58,27 @@ func NewDG11(data []byte) (*DG11, error) {
 		return nil, fmt.Errorf("root node (%x) missing", DG11Tag)
 	}
 
-	out.Details.parseData(rootNode)
+	err = out.Details.parseData(rootNode)
+	if err != nil {
+		return nil, fmt.Errorf("[NewDG11] parseData error: %w", err)
+	}
 
 	slog.Debug("DG11", "Details", out.Details)
 
 	return out, nil
 }
 
-func (details *PersonDetails) parseData(node tlv.TlvNode) {
-	tagList := tlv.GetTags(bytes.NewBuffer(node.GetNode(0x5C).GetValue()))
+func (details *PersonDetails) parseData(node tlv.TlvNode) error {
+	tagList, err := tlv.GetTags(bytes.NewBuffer(node.GetNode(0x5C).GetValue()))
+	if err != nil {
+		return fmt.Errorf("[parseData] GetTags error: %w", err)
+	}
 
 	for _, tag := range tagList {
 		details.processTag(tag, node)
 	}
+
+	return nil
 }
 
 func (details *PersonDetails) processTag5F0F(parentNode tlv.TlvNode) {

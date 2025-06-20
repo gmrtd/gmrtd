@@ -88,23 +88,19 @@ func PrintableBytes(data []byte) bool {
 	return true
 }
 
-func GetBytesFromBuffer(buf *bytes.Buffer, length int) []byte {
-	out := make([]byte, length)
-
+func GetBytesFromBuffer(buf *bytes.Buffer, length int) ([]byte, error) {
 	tmp := buf.Next(length)
 
 	if len(tmp) != length {
-		panic(fmt.Sprintf("[GetBytesFromBuffer] Req:%d, Act:%d", length, len(tmp)))
+		return nil, fmt.Errorf("[GetBytesFromBuffer] Req:%d, Act:%d", length, len(tmp))
 	}
 
-	copy(out, tmp)
-
-	return out
+	return bytes.Clone(tmp), nil
 }
 
-func GetByteFromBuffer(buf *bytes.Buffer) byte {
-	tmp := GetBytesFromBuffer(buf, 1)
-	return tmp[0]
+func GetByteFromBuffer(buf *bytes.Buffer) (byte, error) {
+	tmp, err := GetBytesFromBuffer(buf, 1)
+	return tmp[0], err
 }
 
 func BytesToInt(bytes []byte) int {

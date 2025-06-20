@@ -75,14 +75,14 @@ var dgToFileId = map[int]uint16{
 func (reader *Reader) readLDS1files(nfc *iso7816.NfcSession, doc *document.Document) (err error) {
 	slog.Info("Read EF.SOD")
 	reader.status.Status(fmt.Sprintf("Reading EF.SOD"))
-	doc.Mf.Lds1.Sod, err = document.NewSOD(nfc.ReadFile(MRTDFileIdEFSOD))
+	doc.Mf.Lds1.Sod, err = document.NewSOD(nfc.ReadFileOrPanic(MRTDFileIdEFSOD))
 	if err != nil {
 		return fmt.Errorf("(readLDS1files) error reading EF.SOD: %w", err)
 	}
 
 	slog.Info("Read EF.COM")
 	reader.status.Status(fmt.Sprintf("Reading EF.COM"))
-	doc.Mf.Lds1.Com, err = document.NewCOM(nfc.ReadFile(MRTDFileIdEFCOM))
+	doc.Mf.Lds1.Com, err = document.NewCOM(nfc.ReadFileOrPanic(MRTDFileIdEFCOM))
 	if err != nil {
 		return fmt.Errorf("(readLDS1files) error reading EF.COM: %w", err)
 	}
@@ -111,7 +111,7 @@ func (reader *Reader) readLDS1dgs(nfc *iso7816.NfcSession, doc *document.Documen
 		slog.Info("Reading DG", "DG", dgHash.DataGroupNumber)
 		reader.status.Status(fmt.Sprintf("Reading DG%02d", dgHash.DataGroupNumber))
 
-		var dgBytes []byte = nfc.ReadFile(uint16(fileId))
+		var dgBytes []byte = nfc.ReadFileOrPanic(uint16(fileId))
 
 		err = doc.NewDG(dgHash.DataGroupNumber, dgBytes)
 		if err != nil {
@@ -223,7 +223,7 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 
 	slog.Info("Read CardAccess")
 	// may not be present (OR may be present but not have PACE info)
-	if doc.Mf.CardAccess, err = document.NewCardAccess(nfc.ReadFile(MRTDFileIdCardAccess)); err != nil {
+	if doc.Mf.CardAccess, err = document.NewCardAccess(nfc.ReadFileOrPanic(MRTDFileIdCardAccess)); err != nil {
 		return doc, err
 	}
 
@@ -240,7 +240,7 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 
 	// NB moved after PACE as we've seen access related errors on NZ passports when done before PACE
 	slog.Info("Read EF.DIR")
-	doc.Mf.Dir, err = document.NewEFDIR(nfc.ReadFile(MRTDFileIdEFDIR))
+	doc.Mf.Dir, err = document.NewEFDIR(nfc.ReadFileOrPanic(MRTDFileIdEFDIR))
 	if err != nil {
 		return doc, err
 	}
