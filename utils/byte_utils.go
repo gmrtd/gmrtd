@@ -48,7 +48,7 @@ func ParseAsn1[T any](data []byte, isPartiallyParsed bool, out *T) (err error) {
 
 func XorBytes(arr1 []byte, arr2 []byte) []byte {
 	if len(arr1) != len(arr2) {
-		panic(fmt.Sprintf("Arrays must be the same length"))
+		panic(fmt.Sprintf("Arrays must be the same length (arr1:%1d, arr2:%1d)", len(arr1), len(arr2)))
 	}
 
 	out := make([]byte, len(arr1))

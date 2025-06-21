@@ -282,8 +282,6 @@ func (sm *SecureMessaging) decodeVerifyMAC(tlv *tlv.TlvNodes) error {
 }
 
 func (sm *SecureMessaging) decodeSmRApduData(encodedData []byte) (out []byte, err error) {
-	out = make([]byte, 0)
-
 	tmpBytes := bytes.Clone(encodedData)
 
 	// field has a leading 'version' byte that needs to be removed (if field is present)

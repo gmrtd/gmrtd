@@ -2,7 +2,6 @@ package tlv
 
 import (
 	"bytes"
-	"fmt"
 	"strings"
 )
 
@@ -21,7 +20,7 @@ func (nodes TlvNodes) GetNode(tag TlvTag) TlvNode {
 // occurrence: 1-n
 func (nodes TlvNodes) GetNodeByOccur(tag TlvTag, occurrence int) TlvNode {
 	if occurrence < 1 {
-		panic(fmt.Sprintf("[GetNodeByOccur] occurrence must be 1..n"))
+		panic("[GetNodeByOccur] occurrence must be 1..n")
 	}
 
 	curOccurrence := 0
