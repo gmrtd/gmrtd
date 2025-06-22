@@ -297,11 +297,7 @@ func RsaDecryptWithPublicKey(ciphertext []byte, publicKey RsaPublicKey) []byte {
 
 // support for P192 (secp-192r1) which is required by some countries but not supported by the go libraries
 func EllipticP192() elliptic.Curve {
-	var curveParams *elliptic.CurveParams
-
-	// TODO - still needs to be tested (RU?)
-
-	curveParams = &elliptic.CurveParams{
+	var curveParams *elliptic.CurveParams = &elliptic.CurveParams{
 		Name:    "P-192",
 		BitSize: 192,
 		P:       new(big.Int).SetBytes(utils.HexToBytes("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFFFFFFFFFFFF")),

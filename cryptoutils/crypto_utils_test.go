@@ -465,13 +465,91 @@ func TestRandomBytes(t *testing.T) {
 }
 
 func TestKeyGeneratorEc(t *testing.T) {
-	keypair := KeyGeneratorEc(brainpool.P512r1())
+	// basic test:
+	//	- generates keypairs, and ensures that ECDH works correctly
+	//  - verifies that private/public keys do not exceed the expected key-size
 
-	// TODO - not a very good test.. better to do sign/verify sequence.. instead of just testing key lengths
-	if (len(keypair.Pri) > 512/8) ||
-		(len(keypair.Pub.X.Bytes()) > 512/8) ||
-		(len(keypair.Pub.Y.Bytes()) > 512/8) {
-		t.Errorf("Bad key length (pri:%d, pub.x:%d, pub.y:%d)", len(keypair.Pri), len(keypair.Pub.X.Bytes()), len(keypair.Pub.Y.Bytes()))
+	testCases := []struct {
+		ec          elliptic.Curve
+		keySizeBits int
+	}{
+		{
+			ec:          EllipticP192(),
+			keySizeBits: 192,
+		},
+		{
+			ec:          elliptic.P224(),
+			keySizeBits: 224,
+		},
+		{
+			ec:          elliptic.P256(),
+			keySizeBits: 256,
+		},
+		{
+			ec:          elliptic.P384(),
+			keySizeBits: 384,
+		},
+		{
+			ec:          elliptic.P521(),
+			keySizeBits: 521,
+		},
+		{
+			ec:          brainpool.P160r1(),
+			keySizeBits: 160,
+		},
+		{
+			ec:          brainpool.P192r1(),
+			keySizeBits: 192,
+		},
+		{
+			ec:          brainpool.P224r1(),
+			keySizeBits: 224,
+		},
+		{
+			ec:          brainpool.P256r1(),
+			keySizeBits: 256,
+		},
+		{
+			ec:          brainpool.P320r1(),
+			keySizeBits: 320,
+		},
+		{
+			ec:          brainpool.P384r1(),
+			keySizeBits: 384,
+		},
+		{
+			ec:          brainpool.P512r1(),
+			keySizeBits: 512,
+		},
+	}
+
+	for _, tc := range testCases {
+		keyPair1 := KeyGeneratorEc(tc.ec)
+		keyPair2 := KeyGeneratorEc(tc.ec)
+
+		var point1 *EcPoint = DoEcDh(keyPair1.Pri, keyPair2.Pub, tc.ec)
+		var point2 *EcPoint = DoEcDh(keyPair2.Pri, keyPair1.Pub, tc.ec)
+
+		if !point1.Equal(*point2) {
+			t.Errorf("ECDH failed")
+		}
+
+		// NB round-up handling for key-sizes that are not byte aligned (e.g. P521)
+		var expKeySizeBytes int = (tc.keySizeBits + 7) / 8
+
+		// check key-size looks correct (keyPair1)
+		if (len(keyPair1.Pri) > expKeySizeBytes) ||
+			(len(keyPair1.Pub.X.Bytes()) > expKeySizeBytes) ||
+			(len(keyPair1.Pub.Y.Bytes()) > expKeySizeBytes) {
+			t.Errorf("Bad key length (exp:%d, pri:%d, pub.x:%d, pub.y:%d)", expKeySizeBytes, len(keyPair1.Pri), len(keyPair1.Pub.X.Bytes()), len(keyPair1.Pub.Y.Bytes()))
+		}
+
+		// check key-size looks correct (keyPair2)
+		if (len(keyPair2.Pri) > expKeySizeBytes) ||
+			(len(keyPair2.Pub.X.Bytes()) > expKeySizeBytes) ||
+			(len(keyPair2.Pub.Y.Bytes()) > expKeySizeBytes) {
+			t.Errorf("Bad key length (exp:%d, pri:%d, pub.x:%d, pub.y:%d)", expKeySizeBytes, len(keyPair2.Pri), len(keyPair2.Pub.X.Bytes()), len(keyPair2.Pub.Y.Bytes()))
+		}
 	}
 }
 
@@ -561,9 +639,7 @@ func TestRsaDecryptWithPublicKey(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		var plaintext []byte
-
-		plaintext = RsaDecryptWithPublicKey(tc.ciphertext, tc.publicKey)
+		var plaintext []byte = RsaDecryptWithPublicKey(tc.ciphertext, tc.publicKey)
 
 		if !bytes.Equal(plaintext, tc.expPlaintext) {
 			t.Errorf("Decryption error (Exp:%x) (Act:%x)", tc.expPlaintext, plaintext)
