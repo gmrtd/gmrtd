@@ -643,7 +643,24 @@ func selectPaceConfig(cardAccess *document.CardAccess) (paceConfig *PaceConfig, 
 	return paceConfig, domainParams
 }
 
-func (pace *Pace) doGenericMappingCAM(paceConfig *PaceConfig, domainParams *PACEDomainParams, s []byte) (err error) {
+// loads the Card Security file and stores it within the Document
+func (pace *Pace) loadCardSecurityFile() error {
+	const MRTDFileIdCardSecurity = uint16(0x011D)
+
+	fileBytes, err := (*pace.nfcSession).ReadFile(MRTDFileIdCardSecurity)
+	if err != nil {
+		return fmt.Errorf("[loadCardSecurityFile] ReadFile error: %w", err)
+	}
+
+	(*pace.document).Mf.CardSecurity, err = document.NewCardSecurity(fileBytes)
+	if err != nil {
+		return fmt.Errorf("[loadCardSecurityFile] NewCardSecurity error: %w", err)
+	}
+
+	return nil
+}
+
+func (pace *Pace) doGenericMappingGmCam(paceConfig *PaceConfig, domainParams *PACEDomainParams, s []byte) (err error) {
 	switch domainParams.isECDH {
 	case true: // ECDH
 		// map the nonce
@@ -654,38 +671,24 @@ func (pace *Pace) doGenericMappingCAM(paceConfig *PaceConfig, domainParams *PACE
 		var sharedSecret []byte
 		var kaTermKeypair cryptoutils.EcKeypair
 		var kaChipPub *cryptoutils.EcPoint
+
 		sharedSecret, kaTermKeypair, kaChipPub = pace.keyAgreementGmEcDh(domainParams, mappedG)
 
-		var ecadIC []byte
-		ecadIC = pace.mutualAuthGmEcDh(paceConfig, domainParams, sharedSecret, kaTermKeypair.Pub, kaChipPub)
+		var ecadIC []byte = pace.mutualAuthGmEcDh(paceConfig, domainParams, sharedSecret, kaTermKeypair.Pub, kaChipPub)
 
-		// Perform Chip Authentication (if applicable)
+		// Perform Chip Authentication - CAM (if applicable)
 		if paceConfig.mapping == CAM {
-			slog.Debug("doGenericMappingCAM - reading CardSecurity")
-
-			// attempt to read CardSecurity (if we don't already have it)
+			// load Card Security file (if required)
 			if (*pace.document).Mf.CardSecurity == nil {
-				const MRTDFileIdCardSecurity = uint16(0x011D)
-
-				fileBytes, err := (*pace.nfcSession).ReadFile(MRTDFileIdCardSecurity)
-				if err != nil {
-					return fmt.Errorf("[doGenericMappingCAM] ReadFile error: %w", err)
+				if err = pace.loadCardSecurityFile(); err != nil {
+					return fmt.Errorf("[doGenericMappingGmCam] loadCardSecurityFile error: %w", err)
 				}
-
-				(*pace.document).Mf.CardSecurity, err = document.NewCardSecurity(fileBytes)
-				if err != nil {
-					return err
-				}
-			}
-
-			if (*pace.document).Mf.CardSecurity == nil {
-				return fmt.Errorf("cannot proceed with PACE-CAM without CardSecurity file")
 			}
 
 			pace.doCamEcdh(paceConfig, domainParams, pubMapIC, ecadIC)
 		}
 	case false: // DH
-		return fmt.Errorf("PACE GM (DH) NOT IMPLEMENTED")
+		return fmt.Errorf("[doGenericMappingGmCam] PACE GM (DH) NOT IMPLEMENTED")
 	}
 
 	return nil
@@ -722,7 +725,7 @@ func (pace *Pace) DoPACE() (err error) {
 	// process based on the mapping type (GM/IM/CAM) and the key type (ECDH/DH)
 	switch paceConfig.mapping {
 	case GM, CAM:
-		err = pace.doGenericMappingCAM(paceConfig, domainParams, s)
+		err = pace.doGenericMappingGmCam(paceConfig, domainParams, s)
 		if err != nil {
 			return err
 		}
