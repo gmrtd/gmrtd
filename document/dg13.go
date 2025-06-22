@@ -32,23 +32,17 @@ func NewDG13(data []byte) (out *DG13, err error) {
 		// extract length (of parent tag) to determine file size
 		tmpBuf := bytes.NewBuffer(out.RawData)
 
-		tag, err := tlv.GetTag(tmpBuf)
+		tag, length, err := tlv.GetTagAndLength(tmpBuf)
 		if err != nil {
-			return nil, fmt.Errorf("[NewDG13] GetTag error: %w", err)
+			return nil, fmt.Errorf("[NewDG13] GetTagAndLength error: %w", err)
 		}
-		if DG13Tag != tag {
+
+		// verify tag
+		if tag != DG13Tag {
 			return nil, fmt.Errorf("(NewDG13) invalid root tag (Exp:%x, Act:%x)", DG13Tag, tag)
 		}
 
-		var tmpTlvLength tlv.TlvLength
-
-		tmpTlvLength, err = tlv.GetLength(tmpBuf)
-		if err != nil {
-			return nil, fmt.Errorf("[NewDG13] GetLength error: %w", err)
-		}
-		len := int(tmpTlvLength)
-
-		out.Content, err = utils.GetBytesFromBuffer(tmpBuf, len)
+		out.Content, err = utils.GetBytesFromBuffer(tmpBuf, int(length))
 		if err != nil {
 			return nil, fmt.Errorf("[NewDG13] ByteBuffer error: %w", err)
 		}

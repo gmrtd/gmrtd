@@ -100,6 +100,10 @@ func GetBytesFromBuffer(buf *bytes.Buffer, length int) ([]byte, error) {
 
 func GetByteFromBuffer(buf *bytes.Buffer) (byte, error) {
 	tmp, err := GetBytesFromBuffer(buf, 1)
+	if err != nil {
+		return 0, fmt.Errorf("[GetByteFromBuffer] GetBytesFromBuffer error: %w", err)
+	}
+
 	return tmp[0], err
 }
 

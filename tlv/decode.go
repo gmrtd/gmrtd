@@ -18,16 +18,9 @@ func decode(data []byte) (nodes *TlvNodes, remainingData []byte, err error) {
 			break
 		}
 
-		tag, err := GetTag(buf)
+		tag, length, err := GetTagAndLength(buf)
 		if err != nil {
-			return nil, nil, fmt.Errorf("[decode] GetTag error: %w", err)
-		}
-
-		var length TlvLength
-
-		length, err = GetLength(buf)
-		if err != nil {
-			return nil, nil, fmt.Errorf("[decode] GetLength error: %w", err)
+			return nil, nil, fmt.Errorf("[decode] GetTagAndLength error: %w", err)
 		}
 
 		// special handling for indefinite-length mode end sentinel (i.e. 0x0000)
