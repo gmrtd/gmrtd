@@ -98,7 +98,7 @@ func getCountryCscaCerts(doc *document.Document) (countryCerts *cms.CertPool, er
 		countryCerts.AddCerts(tmpCountryCerts)
 	}
 
-	slog.Info("getCountryCscaCerts", "country", countryCode, "cert-cnt", countryCerts.Count())
+	slog.Debug("getCountryCscaCerts", "country", countryCode, "cert-cnt", countryCerts.Count())
 
 	return countryCerts, nil
 }
