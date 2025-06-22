@@ -534,21 +534,22 @@ func getIcPubKeyECForCAM(domainParams *PACEDomainParams, cardSecurity *document.
 
 // pubMapIC: IC Public Key from earlier mapping operation
 // ecadIC: encrypted chip authentication data (tag:8A) from 'mutual auth' response
-func (pace *Pace) doCamEcdh(paceConfig *PaceConfig, domainParams *PACEDomainParams, pubMapIC *cryptoutils.EcPoint, ecadIC []byte) {
+func (pace *Pace) doCamEcdh(paceConfig *PaceConfig, domainParams *PACEDomainParams, pubMapIC *cryptoutils.EcPoint, ecadIC []byte) (err error) {
 	if paceConfig.mapping != CAM {
-		log.Panicf("Unexpected mapping during CAM processing (Mapping:%d)", paceConfig.mapping)
+		return fmt.Errorf("[doCamEcdh] Unexpected mapping during CAM processing (Mapping:%d)", paceConfig.mapping)
 	}
 	if len(ecadIC) < 1 {
-		log.Panicf("ECAD missing")
+		return fmt.Errorf("[doCamEcdh] ECAD missing")
 	}
 
 	slog.Debug("doCamEcdh", "ECAD-IC", utils.BytesToHex(ecadIC))
 
 	// ICAO9303 p11... 4.4.3.3.3 Chip Authentication Mapping
 
-	blockCipher, err := cryptoutils.GetCipherForKey(paceConfig.cipher, (*pace.nfcSession).SM.GetKsEnc())
+	var blockCipher cipher.Block
+	blockCipher, err = cryptoutils.GetCipherForKey(paceConfig.cipher, (*pace.nfcSession).SM.GetKsEnc())
 	if err != nil {
-		log.Panicf("Unexpected error: %s", err)
+		return fmt.Errorf("[doCamEcdh] GetCipherForKey error: %w", err)
 	}
 
 	// IV = K(KSenc,-1)
@@ -556,7 +557,11 @@ func (pace *Pace) doCamEcdh(paceConfig *PaceConfig, domainParams *PACEDomainPara
 	blockCipher.Encrypt(iv, bytes.Repeat([]byte{0xff}, blockCipher.BlockSize()))
 
 	// decrypt the data we got earlier...
-	var caIC []byte = cryptoutils.ISO9797Method2Unpad(cryptoutils.CryptCBC(blockCipher, iv, ecadIC, false))
+	var caIC []byte
+	caIC, err = cryptoutils.ISO9797Method2Unpad(cryptoutils.CryptCBC(blockCipher, iv, ecadIC, false))
+	if err != nil {
+		return fmt.Errorf("[doCamEcdh] ISO9797Method2Unpad error: %w", err)
+	}
 	slog.Debug("doCamEcdh", "CA-IC", utils.BytesToHex(caIC))
 
 	// 4.4.3.5.2 Verification by the terminal
@@ -575,11 +580,13 @@ func (pace *Pace) doCamEcdh(paceConfig *PaceConfig, domainParams *PACEDomainPara
 
 	// Verify that PKMAP,IC = KA(CAIC, PKIC, DIC).
 	if !KA.Equal(*pubMapIC) {
-		log.Panicf("PACE CAM verification failed (Bad KA.X/Y) KA:%s, pubMapIC:%s", KA.String(), pubMapIC.String())
+		return fmt.Errorf("[doCamEcdh] PACE CAM verification failed (Bad KA.X/Y) KA:%s, pubMapIC:%s", KA.String(), pubMapIC.String())
 	}
 
 	// record that Chip Auth has been performed using PACE-CAM
 	(*pace.document).ChipAuthStatus = document.CHIP_AUTH_STATUS_PACE_CAM
+
+	return nil
 }
 
 func getKeyForPassword(paceConfig *PaceConfig, pass *password.Password) []byte {
@@ -685,7 +692,9 @@ func (pace *Pace) doGenericMappingGmCam(paceConfig *PaceConfig, domainParams *PA
 				}
 			}
 
-			pace.doCamEcdh(paceConfig, domainParams, pubMapIC, ecadIC)
+			if err = pace.doCamEcdh(paceConfig, domainParams, pubMapIC, ecadIC); err != nil {
+				return fmt.Errorf("[doGenericMappingGmCam] doCamEcdh error: %w", err)
+			}
 		}
 	case false: // DH
 		return fmt.Errorf("[doGenericMappingGmCam] PACE GM (DH) NOT IMPLEMENTED")

@@ -16,15 +16,15 @@ func ISO9797Method2Pad(data []byte, blockSize int) []byte {
 }
 
 // panics if data is not padded
-func ISO9797Method2Unpad(data []byte) []byte {
+func ISO9797Method2Unpad(data []byte) ([]byte, error) {
 	out := bytes.TrimRight(data, string([]byte{0}))
 	if len(out) > 0 {
 		if out[len(out)-1] == 0x80 {
-			return out[:len(out)-1]
+			return out[:len(out)-1], nil
 		}
 	}
-	panic(fmt.Sprintf("[ISO9797Method2Unpad] Data not padded (%x -> %x)", data, out))
-	return nil
+
+	return nil, fmt.Errorf("[ISO9797Method2Unpad] Data is not padded (%x -> %x)", data, out)
 }
 
 // ISO-9797 Retail MAC (DES)

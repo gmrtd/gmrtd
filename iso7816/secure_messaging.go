@@ -154,7 +154,12 @@ func (sm *SecureMessaging) cryptoPad(data []byte) []byte {
 
 // NB fails if empty data passed in (as doesn't qualify the padding rules)
 func (sm *SecureMessaging) cryptoUnpad(data []byte) []byte {
-	return cryptoutils.ISO9797Method2Unpad(data)
+	data, err := cryptoutils.ISO9797Method2Unpad(data)
+	if err != nil {
+		panic(fmt.Sprintf("[cryptoUnpad] ISO9797Method2Unpad error: %s", err))
+	}
+
+	return data
 }
 
 // builds tag 85/87 (depending on Ins)

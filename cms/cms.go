@@ -621,7 +621,7 @@ func (subPubKeyInfo *SubjectPublicKeyInfo) GetEcCurveAndPubKey() (curve *ellipti
 			log.Panicf("(SubjectPublicKeyInfo.GetEcCurveAndPubKey) Unable to parse EC Params (%x)", subPubKeyInfo.Algorithm.Parameters.FullBytes)
 		}
 
-		for i := 0; i < len(ecNamedCurveArr); i++ {
+		for i := range ecNamedCurveArr {
 			if ecNamedCurveArr[i].oid.Equal(tmpOid) {
 				// found
 				curve = &(ecNamedCurveArr[i].curve)
