@@ -65,8 +65,9 @@ func (bac *BAC) buildRequest(rndIfd []byte, rndIcc []byte, kIfd []byte, kEnc []b
 
 	// eifd = encrypt with TDES key 'kenc'
 	var cipher cipher.Block
-	if cipher, err = cryptoutils.GetCipherForKey(cryptoutils.TDES, kEnc); err != nil {
-		return nil, err
+	cipher, err = cryptoutils.GetCipherForKey(cryptoutils.TDES, kEnc)
+	if err != nil {
+		return nil, fmt.Errorf("[buildRequest] GetCipherForKey error: %w", err)
 	}
 
 	eIfd := cryptoutils.CryptCBC(cipher, make([]byte, cryptoutils.DES_BLOCK_SIZE_BYTES), s, true)
@@ -75,7 +76,7 @@ func (bac *BAC) buildRequest(rndIfd []byte, rndIcc []byte, kIfd []byte, kEnc []b
 	var mIfd []byte
 	mIfd, err = bac.calculateMac(kMac, eIfd)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("[buildRequest] calculateMac error: %w", err)
 	}
 
 	// return eifd + mifd (40 bytes)
@@ -99,11 +100,11 @@ func (bac *BAC) processResponse(data []byte, kEnc []byte, kMac []byte, rndIfd []
 
 		expMac, err = bac.calculateMac(kMac, rspCiphertext)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("[processResponse] calculateMac error: %w", err)
 		}
 
 		if !bytes.Equal(rspMac, expMac) {
-			return nil, fmt.Errorf("MAC mismatch [Exp] %x [Act] %x", expMac, rspMac)
+			return nil, fmt.Errorf("[processResponse] MAC mismatch (Exp:%x, Act:%x)", expMac, rspMac)
 		}
 	}
 
@@ -111,7 +112,7 @@ func (bac *BAC) processResponse(data []byte, kEnc []byte, kMac []byte, rndIfd []
 	var cipher cipher.Block
 	cipher, err = cryptoutils.GetCipherForKey(cryptoutils.TDES, kEnc)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("[processResponse] GetCipherForKey error: %w", err)
 	}
 
 	rspPlaintext := cryptoutils.CryptCBC(cipher, make([]byte, 8), rspCiphertext, false)
@@ -127,13 +128,13 @@ func (bac *BAC) processResponse(data []byte, kEnc []byte, kMac []byte, rndIfd []
 
 	// verify RND.IFD matches original value
 	if !bytes.Equal(rndIfd, rspRndIfd) {
-		return nil, fmt.Errorf("RND.IFD mismatch (Exp: %x) (Act: %x)", rndIfd, rspRndIfd)
+		return nil, fmt.Errorf("[processResponse] RND.IFD mismatch (Exp: %x) (Act: %x)", rndIfd, rspRndIfd)
 	}
 
 	// verify RND.IC matches original value
 	// NB spec doesn't explicitly mention this check, but they should match
 	if !bytes.Equal(rndIcc, rspRndIcc) {
-		return nil, fmt.Errorf("RND.IC mismatch (Exp: %x) (Act: %x)", rndIcc, rspRndIcc)
+		return nil, fmt.Errorf("[processResponse] RND.IC mismatch (Exp: %x) (Act: %x)", rndIcc, rspRndIcc)
 	}
 
 	return rspKIcc, nil
@@ -142,7 +143,7 @@ func (bac *BAC) processResponse(data []byte, kEnc []byte, kMac []byte, rndIfd []
 func (bac *BAC) setupSecureMessaging(nfc *iso7816.NfcSession, kEnc []byte, kMac []byte, rndIc []byte, rndIfd []byte) (err error) {
 	nfc.SM, err = iso7816.NewSecureMessaging(cryptoutils.TDES, kEnc, kMac)
 	if err != nil {
-		return err
+		return fmt.Errorf("[setupSecureMessaging] NewSecureMessaging error: %w", err)
 	}
 
 	// set the SSC
@@ -171,7 +172,7 @@ func (bac *BAC) DoBAC() (err error) {
 	var rndIcc []byte
 	rndIcc, err = (*bac.nfcSession).GetChallenge(8)
 	if err != nil {
-		return err
+		return fmt.Errorf("[DoBAC] GetChallenge error: %w", err)
 	}
 
 	// generate IFD randoms
@@ -182,21 +183,20 @@ func (bac *BAC) DoBAC() (err error) {
 	var bacReq []byte
 	bacReq, err = bac.buildRequest(rndIfd, rndIcc, kIfd, kEnc, kMac)
 	if err != nil {
-		return err
+		return fmt.Errorf("[DoBAC] buildRequest error: %w", err)
 	}
 
 	// external authenticate
 	var bacRsp []byte
 	bacRsp, err = (*bac.nfcSession).ExternalAuthenticate(bacReq, 40)
-	// TODO - any error code for indicating BAC is not supported?.. so we don't have to return a misleading error
 	if err != nil {
-		return err
+		return fmt.Errorf("[DoBAC] ExternalAuthenticate error: %w", err)
 	}
 
 	var kIc []byte
 	kIc, err = bac.processResponse(bacRsp, kEnc, kMac, rndIfd, rndIcc)
 	if err != nil {
-		return err
+		return fmt.Errorf("[DoBAC] processResponse error: %w", err)
 	}
 
 	kXor := utils.XorBytes(kIfd, kIc)
@@ -206,7 +206,7 @@ func (bac *BAC) DoBAC() (err error) {
 
 	err = bac.setupSecureMessaging((*bac.nfcSession), kEnc, kMac, rndIcc, rndIfd)
 	if err != nil {
-		return err
+		return fmt.Errorf("[DoBAC] setupSecureMessaging error: %w", err)
 	}
 
 	return nil
