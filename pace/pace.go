@@ -364,7 +364,7 @@ func (pace *Pace) doApduMsgSetAT(paceConfig *PaceConfig) (err error) {
 //   - exchanges with chip
 //   - generates shared secret
 //   - do generic mapping (and return G)
-func (pace *Pace) mapNonceGmEcDh(domainParams *PACEDomainParams, s []byte) (mapped_g *cryptoutils.EcPoint, pubMapIC *cryptoutils.EcPoint) {
+func (pace *Pace) mapNonceGmEcDh(domainParams *PACEDomainParams, s []byte) (mapped_g *cryptoutils.EcPoint, pubMapIC *cryptoutils.EcPoint, err error) {
 	slog.Debug("mapNonceGmEcDh", "s", utils.BytesToHex(s))
 
 	// generate terminal key (private/public)
@@ -374,9 +374,12 @@ func (pace *Pace) mapNonceGmEcDh(domainParams *PACEDomainParams, s []byte) (mapp
 	{
 		reqData := encodeDynAuthData(0x81, cryptoutils.EncodeX962EcPoint(domainParams.ec, termKeypair.Pub))
 
-		rApdu := (*pace.nfcSession).GeneralAuthenticate(true, reqData)
+		rApdu, err := (*pace.nfcSession).GeneralAuthenticate(true, reqData)
+		if err != nil {
+			return nil, nil, fmt.Errorf("[mapNonceGmEcDh] GeneralAuthenticate error: %w", err)
+		}
 		if !rApdu.IsSuccess() {
-			log.Panicf("Error mapping the nonce - GM-EC (Status:%x)", rApdu.Status)
+			return nil, nil, fmt.Errorf("[mapNonceGmEcDh] Error mapping the nonce - GM-EC (Status:%x)", rApdu.Status)
 		}
 
 		pubMapIC = cryptoutils.DecodeX962EcPoint(domainParams.ec, decodeDynAuthData(0x82, rApdu.Data))
@@ -394,10 +397,10 @@ func (pace *Pace) mapNonceGmEcDh(domainParams *PACEDomainParams, s []byte) (mapp
 	//
 	mapped_g = doGenericMappingEC(s, termShared, domainParams.ec)
 
-	return mapped_g, pubMapIC
+	return mapped_g, pubMapIC, nil
 }
 
-func (pace *Pace) keyAgreementGmEcDh(domainParams *PACEDomainParams, G *cryptoutils.EcPoint) (sharedSecret []byte, termKeypair cryptoutils.EcKeypair, chipPub *cryptoutils.EcPoint) {
+func (pace *Pace) keyAgreementGmEcDh(domainParams *PACEDomainParams, G *cryptoutils.EcPoint) (sharedSecret []byte, termKeypair *cryptoutils.EcKeypair, chipPub *cryptoutils.EcPoint, err error) {
 	// reader and chip generate/exchange another set of public-keys
 	//			- needs to be generated using mapped-g.x/y
 	//			- new keys for terminal
@@ -407,7 +410,10 @@ func (pace *Pace) keyAgreementGmEcDh(domainParams *PACEDomainParams, G *cryptout
 
 	// generate key based on domain-params
 	// NB ignore public-key as we'll generate later using the mapped generator (Gx/y)
-	termKeypair = pace.keyGeneratorEc(domainParams.ec)
+	{
+		tmpTermKeypair := pace.keyGeneratorEc(domainParams.ec)
+		termKeypair = &tmpTermKeypair
+	}
 	termKeypair.Pub = new(cryptoutils.EcPoint) // reset public-key
 
 	// generate the public-key, using the mapped generator (Gxy)
@@ -419,9 +425,12 @@ func (pace *Pace) keyAgreementGmEcDh(domainParams *PACEDomainParams, G *cryptout
 	{
 		reqData := encodeDynAuthData(0x83, cryptoutils.EncodeX962EcPoint(domainParams.ec, termKeypair.Pub))
 
-		rApdu := (*pace.nfcSession).GeneralAuthenticate(true, reqData)
+		rApdu, err := (*pace.nfcSession).GeneralAuthenticate(true, reqData)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("[keyAgreementGmEcDh] GeneralAuthenticate error: %w", err)
+		}
 		if !rApdu.IsSuccess() {
-			log.Panicf("Error performing key agreement - GM-ECDH (Status:%x)", rApdu.Status)
+			return nil, nil, nil, fmt.Errorf("[keyAgreementGmEcDh] Error performing key agreement (Status:%x)", rApdu.Status)
 		}
 
 		chipPub = cryptoutils.DecodeX962EcPoint(domainParams.ec, decodeDynAuthData(0x84, rApdu.Data))
@@ -430,7 +439,7 @@ func (pace *Pace) keyAgreementGmEcDh(domainParams *PACEDomainParams, G *cryptout
 	// verify the terminal and chip public-keys are not the same
 	// 9303p11 4.4.1 d) During Diffie-Hellman key agreement, the IC and the inspection system SHOULD check that the two public keys PKDH,IC and PKDH,IFD differ.
 	if termKeypair.Pub.Equal(*chipPub) {
-		log.Panicf("terminal and chip public-keys must not be the same (Term:%s) (Chip:%s)", termKeypair.Pub.String(), chipPub.String())
+		return nil, nil, nil, fmt.Errorf("[keyAgreementGmEcDh] terminal and chip public-keys must not be the same (Term:%s) (Chip:%s)", termKeypair.Pub.String(), chipPub.String())
 	}
 
 	{
@@ -442,12 +451,12 @@ func (pace *Pace) keyAgreementGmEcDh(domainParams *PACEDomainParams, G *cryptout
 		slog.Debug("keyAgreementGmEcDh", "shared-secret", utils.BytesToHex(sharedSecret))
 	}
 
-	return sharedSecret, termKeypair, chipPub
+	return sharedSecret, termKeypair, chipPub, nil
 }
 
 // performs mutual authentication and sets up secure messaging
 // ecadIC: only populated for CAM
-func (pace *Pace) mutualAuthGmEcDh(paceConfig *PaceConfig, domainParams *PACEDomainParams, sharedSecret []byte, termPub *cryptoutils.EcPoint, chipPub *cryptoutils.EcPoint) (ecadIC []byte) {
+func (pace *Pace) mutualAuthGmEcDh(paceConfig *PaceConfig, domainParams *PACEDomainParams, sharedSecret []byte, termPub *cryptoutils.EcPoint, chipPub *cryptoutils.EcPoint) (ecadIC []byte, err error) {
 	// derive KSenc / KSmac
 	var ksEnc, ksMac []byte
 	ksEnc = cryptoutils.KDF(sharedSecret, cryptoutils.KDF_COUNTER_KSENC, paceConfig.cipher, paceConfig.keyLengthBits)
@@ -471,16 +480,19 @@ func (pace *Pace) mutualAuthGmEcDh(paceConfig *PaceConfig, domainParams *PACEDom
 	{
 		reqData := encodeDynAuthData(0x85, tIfd)
 
-		rApdu := (*pace.nfcSession).GeneralAuthenticate(false, reqData)
+		rApdu, err := (*pace.nfcSession).GeneralAuthenticate(false, reqData)
+		if err != nil {
+			return nil, fmt.Errorf("[mutualAuthGmEcDh] GeneralAuthenticate error: %w", err)
+		}
 		if !rApdu.IsSuccess() {
-			log.Panicf("Error exchanging auth tokens (Status:%x)", rApdu.Status)
+			return nil, fmt.Errorf("[mutualAuthGmEcDh] Error exchanging auth tokens (Status:%x)", rApdu.Status)
 		}
 
 		tIc2 := decodeDynAuthData(0x86, rApdu.Data)
 
 		// verify that chip responded with the expected 'tIC' value
 		if !bytes.Equal(tIc2, tIc) {
-			log.Panicf("Incorrect TIC returned by chip\n[Exp] %x\n[Act] %x", tIc, tIc2)
+			return nil, fmt.Errorf("[mutualAuthGmEcDh] Incorrect TIC returned by chip\n[Exp] %x\n[Act] %x", tIc, tIc2)
 		}
 
 		// get Encrypted Chip Authentication Data' (tag:8A) if CAM
@@ -488,7 +500,7 @@ func (pace *Pace) mutualAuthGmEcDh(paceConfig *PaceConfig, domainParams *PACEDom
 		if paceConfig.mapping == CAM {
 			ecadIC = decodeDynAuthData(0x8A, rApdu.Data)
 			if len(ecadIC) < 1 {
-				log.Panicf("Encrypted Chip Authentication Data (Tag:8A) is mandatory for PACE CAM")
+				return nil, fmt.Errorf("[mutualAuthGmEcDh] Encrypted Chip Authentication Data (Tag:8A) is mandatory for PACE CAM")
 			}
 		}
 	}
@@ -497,11 +509,11 @@ func (pace *Pace) mutualAuthGmEcDh(paceConfig *PaceConfig, domainParams *PACEDom
 	{
 		var err error
 		if (*pace.nfcSession).SM, err = iso7816.NewSecureMessaging(paceConfig.cipher, ksEnc, ksMac); err != nil {
-			log.Panicf("Error setting up Secure Messaging: %s", err)
+			return nil, fmt.Errorf("[mutualAuthGmEcDh] NewSecureMessaging error: %w", err)
 		}
 	}
 
-	return ecadIC
+	return ecadIC, nil
 }
 
 func getIcPubKeyECForCAM(domainParams *PACEDomainParams, cardSecurity *document.CardSecurity) *cryptoutils.EcPoint {
@@ -597,7 +609,10 @@ func (pace *Pace) getNonce(paceConfig *PaceConfig, kKdf []byte) []byte {
 	var nonceE []byte
 	{
 		reqData := []byte{0x7C, 0x00}
-		rApdu := (*pace.nfcSession).GeneralAuthenticate(true, reqData)
+		rApdu, err := (*pace.nfcSession).GeneralAuthenticate(true, reqData)
+		if err != nil {
+			panic(fmt.Sprintf("[getNonce] GeneralAuthenticate error: %s", err))
+		}
 		if !rApdu.IsSuccess() {
 			// TODO -this is firing for NZ.. maxRead=65536... RAPDU=6982
 			//			- maybe we can include this as a catch.. and try to decrease max-read
@@ -672,16 +687,26 @@ func (pace *Pace) doGenericMappingGmCam(paceConfig *PaceConfig, domainParams *PA
 	case true: // ECDH
 		// map the nonce
 		var mappedG, pubMapIC *cryptoutils.EcPoint
-		mappedG, pubMapIC = pace.mapNonceGmEcDh(domainParams, s)
+		mappedG, pubMapIC, err = pace.mapNonceGmEcDh(domainParams, s)
+		if err != nil {
+			return fmt.Errorf("[doGenericMappingGmCam] mapNonceGmEcDh error: %w", err)
+		}
 
 		// Perform Key Agreement
 		var sharedSecret []byte
-		var kaTermKeypair cryptoutils.EcKeypair
+		var kaTermKeypair *cryptoutils.EcKeypair
 		var kaChipPub *cryptoutils.EcPoint
 
-		sharedSecret, kaTermKeypair, kaChipPub = pace.keyAgreementGmEcDh(domainParams, mappedG)
+		sharedSecret, kaTermKeypair, kaChipPub, err = pace.keyAgreementGmEcDh(domainParams, mappedG)
+		if err != nil {
+			return fmt.Errorf("[doGenericMappingGmCam] keyAgreementGmEcDh error: %w", err)
+		}
 
-		var ecadIC []byte = pace.mutualAuthGmEcDh(paceConfig, domainParams, sharedSecret, kaTermKeypair.Pub, kaChipPub)
+		var ecadIC []byte
+		ecadIC, err = pace.mutualAuthGmEcDh(paceConfig, domainParams, sharedSecret, kaTermKeypair.Pub, kaChipPub)
+		if err != nil {
+			return fmt.Errorf("[doGenericMappingGmCam] mutualAuthGmEcDh error: %w", err)
+		}
 
 		// Perform Chip Authentication - CAM (if applicable)
 		if paceConfig.mapping == CAM {

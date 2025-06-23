@@ -301,9 +301,13 @@ func (chipAuth *ChipAuth) doGeneralAuthenticate(curve *elliptic.Curve, termKeypa
 
 	slog.Debug("doGeneralAuthenticate")
 
-	var rApdu *iso7816.RApdu = (*chipAuth.nfcSession).GeneralAuthenticate(false, encodeDynAuthData(0x80, cryptoutils.EncodeX962EcPoint(*curve, termKeypair.Pub)))
+	var rApdu *iso7816.RApdu
+	rApdu, err = (*chipAuth.nfcSession).GeneralAuthenticate(false, encodeDynAuthData(0x80, cryptoutils.EncodeX962EcPoint(*curve, termKeypair.Pub)))
+	if err != nil {
+		return nil, nil, fmt.Errorf("[doGeneralAuthenticate] GeneralAuthenticate error: %w", err)
+	}
 	if !rApdu.IsSuccess() {
-		return nil, nil, fmt.Errorf("doGeneralAuthenticate: General Authenticate failed (Status:%d)", rApdu.Status)
+		return nil, nil, fmt.Errorf("[doGeneralAuthenticate] General Authenticate failed (Status:%d)", rApdu.Status)
 	}
 
 	slog.Debug("doGeneralAuthenticate", "rApdu-bytes", utils.BytesToHex(rApdu.Data))
@@ -315,7 +319,7 @@ func (chipAuth *ChipAuth) doGeneralAuthenticate(curve *elliptic.Curve, termKeypa
 			return nil, nil, fmt.Errorf("[doGeneralAuthenticate] tlv.Decode error: %w", err)
 		}
 		if !tmpNodes.GetNode(0x7C).IsValidNode() {
-			return nil, nil, fmt.Errorf("doGeneralAuthenticate: missing 7C tag in response (rspBytes:%x)", rApdu.Data)
+			return nil, nil, fmt.Errorf("[doGeneralAuthenticate] missing 7C tag in response (rspBytes:%x)", rApdu.Data)
 		}
 	}
 

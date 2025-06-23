@@ -46,7 +46,7 @@ func (nfc *NfcSession) GetChallenge(length int) (out []byte, err error) {
 
 	rapdu, err := nfc.DoAPDU(NewCApdu(0x00, INS_GET_CHALLENGE, 0x00, 0x00, nil, length), "Get Challenge")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("[GetChallenge] DoAPDU error: %w", err)
 	}
 
 	if !rapdu.IsSuccess() {
@@ -67,7 +67,7 @@ func (nfc *NfcSession) ExternalAuthenticate(data []byte, le int) (out []byte, er
 
 	rapdu, err := nfc.DoAPDU(NewCApdu(0x00, INS_EXTERNAL_AUTHENTICATE, 0x00, 0x00, data, le), "External Authenticate")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("[ExternalAuthenticate] DoAPDU error: %w", err)
 	}
 
 	if !rapdu.IsSuccess() {
@@ -83,7 +83,7 @@ func (nfc *NfcSession) ExternalAuthenticate(data []byte, le int) (out []byte, er
 	return rapdu.Data, nil
 }
 
-func (nfc *NfcSession) GeneralAuthenticate(commandChaining bool, data []byte) *RApdu {
+func (nfc *NfcSession) GeneralAuthenticate(commandChaining bool, data []byte) (*RApdu, error) {
 	slog.Debug("GeneralAuthenticate", "cmdChaining", commandChaining, "data", utils.BytesToHex(data))
 
 	cla := 0x00
@@ -95,12 +95,12 @@ func (nfc *NfcSession) GeneralAuthenticate(commandChaining bool, data []byte) *R
 
 	rApdu, err := nfc.DoAPDU(cApdu, "General Authenticate")
 	if err != nil {
-		log.Panicf("DoAPDU error: %s", err)
+		return nil, fmt.Errorf("[GeneralAuthenticate] DoAPDU error: %w", err)
 	}
 
 	slog.Debug("GeneralAuthenticate", "rApdu", rApdu.String())
 
-	return rApdu
+	return rApdu, nil
 }
 
 func (nfc *NfcSession) MseSetAT(p1 uint8, p2 uint8, data []byte) (err error) {
@@ -109,7 +109,7 @@ func (nfc *NfcSession) MseSetAT(p1 uint8, p2 uint8, data []byte) (err error) {
 	var rApdu *RApdu
 	rApdu, err = nfc.DoAPDU(cApdu, fmt.Sprintf("MSE:Set AT (p1:%02x,p2:%02x)", p1, p2))
 	if err != nil {
-		return err
+		return fmt.Errorf("[MseSetAT] DoAPDU error: %w", err)
 	}
 	if !rApdu.IsSuccess() {
 		return fmt.Errorf("MSE:Set AT failed (Status:%x)", rApdu.Status)
@@ -130,7 +130,7 @@ func (nfc *NfcSession) SelectMF() (err error) {
 
 	rapdu, err := nfc.DoAPDU(capdu, "Select MF")
 	if err != nil {
-		return err
+		return fmt.Errorf("[SelectMF] DoAPDU error: %w", err)
 	}
 
 	if !rapdu.IsSuccess() {
@@ -145,7 +145,7 @@ func (nfc *NfcSession) SelectMF() (err error) {
 			// TODO - could be an indicator that we should support other variants also for select-MF
 			return nil
 		} else {
-			return fmt.Errorf("[SelectMF] Status:%x", rapdu.Status)
+			return fmt.Errorf("[SelectMF] Invalid status:%x", rapdu.Status)
 		}
 	}
 
@@ -162,7 +162,7 @@ func (nfc *NfcSession) SelectEF(fileId uint16) (selected bool, err error) {
 
 	rApdu, err = nfc.DoAPDU(capdu, fmt.Sprintf("Select EF (fileId:%04x)", fileId))
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("[SelectEF] DoAPDU error: %w", err)
 	}
 
 	if !rApdu.IsSuccess() {
@@ -172,7 +172,7 @@ func (nfc *NfcSession) SelectEF(fileId uint16) (selected bool, err error) {
 			// NB we've seen this with a Malaysia passport when selecting card.access before BAC
 			return false, nil
 		} else {
-			return false, fmt.Errorf("[SelectEF] Status:%x", rApdu.Status)
+			return false, fmt.Errorf("[SelectEF] Invalid status:%x", rApdu.Status)
 		}
 	}
 
@@ -184,7 +184,7 @@ func (nfc *NfcSession) SelectAid(aid []byte) (selected bool, err error) {
 
 	rApdu, err := nfc.DoAPDU(NewCApdu(0x00, INS_SELECT, 0x04, 0x0C, aid, 0), fmt.Sprintf("Select AID (%x)", aid))
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("[SelectAid] DoAPDU error: %w", err)
 	}
 
 	// TODO - may want to pass status back to caller as error may be tolerated
@@ -207,11 +207,11 @@ func (nfc *NfcSession) ReadBinaryFromOffset(offset int, length int) []byte {
 
 	rapdu, err := nfc.DoAPDU(capdu, fmt.Sprintf("Read Binary (offset:%d, length:%d)", offset, length))
 	if err != nil {
-		log.Panicf("DoAPDU error: %s", err)
+		log.Panicf("[ReadBinaryFromOffset] DoAPDU error: %s", err)
 	}
 
 	if !rapdu.IsSuccess() {
-		log.Panicf("[ReadBinaryFromOffset] Status:%x", rapdu.Status)
+		log.Panicf("[ReadBinaryFromOffset] Invalid status:%x", rapdu.Status)
 	}
 
 	out := rapdu.Data
@@ -337,18 +337,18 @@ func (nfc *NfcSession) DoAPDU(cApdu *CApdu, desc string) (rApdu *RApdu, err erro
 
 		var encCApdu *CApdu
 		if encCApdu, err = nfc.SM.Encode(cApdu); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("DoAPDU] SM.Encode error: %w", err)
 		}
 
 		var encRApdu *RApdu
 		encRApdu, apduLog.Child, err = nfc.doTransceive(encCApdu, desc)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("DoAPDU] doTransceive error: %w", err)
 		}
 
 		rApdu, err = nfc.SM.Decode(encRApdu.Encode())
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("DoAPDU] SM.Decode error: %w", err)
 		}
 
 		apduLog.Finalise(rApdu.Encode())
