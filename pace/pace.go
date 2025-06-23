@@ -566,7 +566,9 @@ func (pace *Pace) doCamEcdh(paceConfig *PaceConfig, domainParams *PACEDomainPara
 
 	// IV = K(KSenc,-1)
 	var iv []byte = make([]byte, blockCipher.BlockSize())
-	blockCipher.Encrypt(iv, bytes.Repeat([]byte{0xff}, blockCipher.BlockSize()))
+	// Note: suppress secure mode and padding scheme warning in sonar
+	//		 - this is required for CAM ECDH to generate the IV
+	blockCipher.Encrypt(iv, bytes.Repeat([]byte{0xff}, blockCipher.BlockSize())) // NOSONAR
 
 	// decrypt the data we got earlier...
 	var caIC []byte
