@@ -20,7 +20,8 @@ var masterListRootCA []byte
 /*
 * Load the (DE) Master List
  */
-//go:embed master_list/DE_ML_2025-03-05-08-05-28.ml
+//go:embed master_list/DE_ML_2025-06-25-09-31-57.ml
+// DE_ML_2025-03-05-08-05-28.ml
 var masterList []byte
 
 type CscaMasterList struct {

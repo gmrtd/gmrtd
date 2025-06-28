@@ -3,7 +3,6 @@ package cms
 import (
 	"bytes"
 	"encoding/asn1"
-	"log"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
@@ -68,6 +67,7 @@ func TestCscaCertPool(t *testing.T) {
 
 			// skip idx=298, Estonia
 			if bytes.Equal(*ski, utils.HexToBytes("a97a0fc4047c7561bcb7e59935fe7aac7eebab22")) {
+				// observed error: Invalid RSA signature
 				skipVerification = true
 			}
 
@@ -99,13 +99,16 @@ func TestCscaCertPool(t *testing.T) {
 						bytes.Equal(*ski, utils.HexToBytes("1fe1572e9b35121363a50fee3e2ce2c1d187a8dd")) ||
 						bytes.Equal(*ski, utils.HexToBytes("3f38d115cbf5b2016609c464fb6375d812f15acd")) ||
 						bytes.Equal(*ski, utils.HexToBytes("2b0f99a34be9d5ae00933a7868cbcd21a6cf47e5")) ||
-						bytes.Equal(*ski, utils.HexToBytes("cd3cc520b508a44e6d518dff33fa36cbde108be2")) {
+						bytes.Equal(*ski, utils.HexToBytes("cd3cc520b508a44e6d518dff33fa36cbde108be2")) ||
+						bytes.Equal(*ski, utils.HexToBytes("a12ae326fc2b0d76a85c8b4711b9c1c22061c919")) ||
+						bytes.Equal(*ski, utils.HexToBytes("9ee0bfdee2d3d4fced1b3928f54aa7b3265dfaf9")) ||
+						bytes.Equal(*ski, utils.HexToBytes("db04dae635a2cbecd63f8d60c2060efd5df719e3")) {
 						continue
 					}
 				}
 
 				if len(parentCerts) < 1 {
-					log.Printf("0 parent certs")
+					t.Errorf("0 parent certs - whitelist may need to be updated!")
 				}
 
 				valid := verifySignatureAgainstCerts(parentCerts, *digestAlg, digest, cert.SignatureAlgorithm.Algorithm, cert.SignatureValue.Bytes)
