@@ -241,8 +241,6 @@ func (chipAuth *ChipAuth) doMseSetKAT(curve *elliptic.Curve, termKeypair cryptou
 		return nil, nil, fmt.Errorf("(CA.doMseSetKAT) Error: %w", err)
 	}
 
-	// TODO - following has code which is also shared with 'doGeneralAuthenticate'.. essentially deriving ksEnc/ksMac using ECDH
-
 	// 3. Both the eMRTD chip and the terminal compute the following:
 	// a) The shared secret K = KA(SKIC, PKDH,IFD, DIC) = KA(SKDH,IFD, PKIC, DIC)
 	var k *cryptoutils.EcPoint = cryptoutils.DoEcDh(termKeypair.Pri, chipPubKey, *curve)
@@ -250,12 +248,11 @@ func (chipAuth *ChipAuth) doMseSetKAT(curve *elliptic.Curve, termKeypair cryptou
 	// NB secret is just based on 'x'
 	sharedSecret := k.X.Bytes()
 
-	slog.Debug("doGeneralAuthenticate", "sharedSecret", utils.BytesToHex(sharedSecret))
-
 	// b) The session keys KSMAC = KDFMAC(K) and KSEnc = KDFEnc(K) derived from K for Secure Messaging.
 	ksEnc = cryptoutils.KDF(sharedSecret, cryptoutils.KDF_COUNTER_KSENC, caAlgInfo.cipherAlg, caAlgInfo.keySizeBits)
 	ksMac = cryptoutils.KDF(sharedSecret, cryptoutils.KDF_COUNTER_KSMAC, caAlgInfo.cipherAlg, caAlgInfo.keySizeBits)
-	slog.Debug("doGeneralAuthenticate", "ksEnc", utils.BytesToHex(ksEnc), "ksMac", utils.BytesToHex(ksMac))
+
+	slog.Debug("doMseSetKAT", "sharedSecret", utils.BytesToHex(sharedSecret), "ksEnc", utils.BytesToHex(ksEnc), "ksMac", utils.BytesToHex(ksMac))
 
 	return ksEnc, ksMac, err
 }

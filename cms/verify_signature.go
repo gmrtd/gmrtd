@@ -74,7 +74,7 @@ func VerifySignature(pubKeyInfo []byte, digestAlg asn1.ObjectIdentifier, digest 
 			// verify the 'RSA Encryption' signature (i.e. the decrypted signature ends with the digest)
 			// https://cryptobook.nakov.com/digital-signatures/rsa-signatures
 			if !bytes.HasSuffix(sigPlaintext, digest) {
-				slog.Debug("VerifySignature - RSA Signature verification FAILED")
+				slog.Debug("VerifySignature - RSA Signature verification FAILED", "digestAlg", digestAlg.String(), "digest", utils.BytesToHex(digest), "sigAlg", sigAlg.String())
 				return fmt.Errorf("(VerifySignature) Invalid RSA signature (sig:%x, digest:%x)", sigPlaintext, digest)
 			}
 

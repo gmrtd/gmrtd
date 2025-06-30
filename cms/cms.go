@@ -389,7 +389,7 @@ func (sd *SignedData) Verify(certPool *CertPool) (certChain [][]byte, err error)
 	cert = &(certs[len(certs)-1])
 	//cert = &(certs[0])
 
-	slog.Debug("Verify", "SubjectPublicKey", utils.BytesToHex(cert.TbsCertificate.SubjectPublicKeyInfo.FullBytes))
+	slog.Debug("Verify", "SignerInfo(cnt)", len(sd.SignerInfos), "SubjectPublicKey", utils.BytesToHex(cert.TbsCertificate.SubjectPublicKeyInfo.FullBytes))
 
 	// for-each signer-info
 	// NB we only expect 1, but support >1
