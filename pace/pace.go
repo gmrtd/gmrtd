@@ -374,15 +374,12 @@ func (pace *Pace) mapNonceGmEcDh(domainParams *PACEDomainParams, s []byte) (mapp
 	{
 		reqData := encodeDynAuthData(0x81, cryptoutils.EncodeX962EcPoint(domainParams.ec, termKeypair.Pub))
 
-		rApdu, err := (*pace.nfcSession).GeneralAuthenticate(true, reqData)
+		rApduBytes, err := (*pace.nfcSession).GeneralAuthenticate(true, reqData)
 		if err != nil {
 			return nil, nil, fmt.Errorf("[mapNonceGmEcDh] GeneralAuthenticate error: %w", err)
 		}
-		if !rApdu.IsSuccess() {
-			return nil, nil, fmt.Errorf("[mapNonceGmEcDh] Error mapping the nonce - GM-EC (Status:%x)", rApdu.Status)
-		}
 
-		pubMapIC = cryptoutils.DecodeX962EcPoint(domainParams.ec, decodeDynAuthData(0x82, rApdu.Data))
+		pubMapIC = cryptoutils.DecodeX962EcPoint(domainParams.ec, decodeDynAuthData(0x82, rApduBytes))
 		slog.Debug("mapNonceGmEcDh", "pubMapIC", pubMapIC.String())
 	}
 
@@ -425,15 +422,12 @@ func (pace *Pace) keyAgreementGmEcDh(domainParams *PACEDomainParams, G *cryptout
 	{
 		reqData := encodeDynAuthData(0x83, cryptoutils.EncodeX962EcPoint(domainParams.ec, termKeypair.Pub))
 
-		rApdu, err := (*pace.nfcSession).GeneralAuthenticate(true, reqData)
+		rApduBytes, err := (*pace.nfcSession).GeneralAuthenticate(true, reqData)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("[keyAgreementGmEcDh] GeneralAuthenticate error: %w", err)
 		}
-		if !rApdu.IsSuccess() {
-			return nil, nil, nil, fmt.Errorf("[keyAgreementGmEcDh] Error performing key agreement (Status:%x)", rApdu.Status)
-		}
 
-		chipPub = cryptoutils.DecodeX962EcPoint(domainParams.ec, decodeDynAuthData(0x84, rApdu.Data))
+		chipPub = cryptoutils.DecodeX962EcPoint(domainParams.ec, decodeDynAuthData(0x84, rApduBytes))
 	}
 
 	// verify the terminal and chip public-keys are not the same
@@ -480,15 +474,12 @@ func (pace *Pace) mutualAuthGmEcDh(paceConfig *PaceConfig, domainParams *PACEDom
 	{
 		reqData := encodeDynAuthData(0x85, tIfd)
 
-		rApdu, err := (*pace.nfcSession).GeneralAuthenticate(false, reqData)
+		rApduBytes, err := (*pace.nfcSession).GeneralAuthenticate(false, reqData)
 		if err != nil {
 			return nil, fmt.Errorf("[mutualAuthGmEcDh] GeneralAuthenticate error: %w", err)
 		}
-		if !rApdu.IsSuccess() {
-			return nil, fmt.Errorf("[mutualAuthGmEcDh] Error exchanging auth tokens (Status:%x)", rApdu.Status)
-		}
 
-		tIc2 := decodeDynAuthData(0x86, rApdu.Data)
+		tIc2 := decodeDynAuthData(0x86, rApduBytes)
 
 		// verify that chip responded with the expected 'tIC' value
 		if !bytes.Equal(tIc2, tIc) {
@@ -498,7 +489,7 @@ func (pace *Pace) mutualAuthGmEcDh(paceConfig *PaceConfig, domainParams *PACEDom
 		// get Encrypted Chip Authentication Data' (tag:8A) if CAM
 		// Encrypted Chip Authentication Data (cf. Section 4.4.3.5) MUST be present if Chip Authentication Mapping is used and MUST NOT be present otherwise.
 		if paceConfig.mapping == CAM {
-			ecadIC = decodeDynAuthData(0x8A, rApdu.Data)
+			ecadIC = decodeDynAuthData(0x8A, rApduBytes)
 			if len(ecadIC) < 1 {
 				return nil, fmt.Errorf("[mutualAuthGmEcDh] Encrypted Chip Authentication Data (Tag:8A) is mandatory for PACE CAM")
 			}
@@ -611,18 +602,15 @@ func (pace *Pace) getNonce(paceConfig *PaceConfig, kKdf []byte) []byte {
 	var nonceE []byte
 	{
 		reqData := []byte{0x7C, 0x00}
-		rApdu, err := (*pace.nfcSession).GeneralAuthenticate(true, reqData)
+		rApduBytes, err := (*pace.nfcSession).GeneralAuthenticate(true, reqData)
 		if err != nil {
-			panic(fmt.Sprintf("[getNonce] GeneralAuthenticate error: %s", err))
-		}
-		if !rApdu.IsSuccess() {
 			// TODO -this is firing for NZ.. maxRead=65536... RAPDU=6982
 			//			- maybe we can include this as a catch.. and try to decrease max-read
 			//			** needs to be handled somewhere common like doAPDU
-			log.Panicf("getNonce error (Status:%x)", rApdu.Status)
+			panic(fmt.Sprintf("[getNonce] GeneralAuthenticate error: %s", err))
 		}
 
-		nonceE = decodeDynAuthData(0x80, rApdu.Data)
+		nonceE = decodeDynAuthData(0x80, rApduBytes)
 	}
 
 	// decrypt the nonce (s)

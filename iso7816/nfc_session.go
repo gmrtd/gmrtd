@@ -83,7 +83,7 @@ func (nfc *NfcSession) ExternalAuthenticate(data []byte, le int) (out []byte, er
 	return rapdu.Data, nil
 }
 
-func (nfc *NfcSession) GeneralAuthenticate(commandChaining bool, data []byte) (*RApdu, error) {
+func (nfc *NfcSession) GeneralAuthenticate(commandChaining bool, data []byte) ([]byte, error) {
 	slog.Debug("GeneralAuthenticate", "cmdChaining", commandChaining, "data", utils.BytesToHex(data))
 
 	cla := 0x00
@@ -100,7 +100,11 @@ func (nfc *NfcSession) GeneralAuthenticate(commandChaining bool, data []byte) (*
 
 	slog.Debug("GeneralAuthenticate", "rApdu", rApdu.String())
 
-	return rApdu, nil
+	if !rApdu.IsSuccess() {
+		return nil, fmt.Errorf("[GeneralAuthenticate] DoAPDU bad rApdu status: %x", rApdu.Status)
+	}
+
+	return bytes.Clone(rApdu.Data), nil
 }
 
 func (nfc *NfcSession) MseSetAT(p1 uint8, p2 uint8, data []byte) (err error) {

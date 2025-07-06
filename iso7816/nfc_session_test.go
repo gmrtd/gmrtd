@@ -240,18 +240,14 @@ func TestGeneralAuthenticate(t *testing.T) {
 
 		nfcSession := NewNfcSession(&transceiver)
 
-		rApdu, err := nfcSession.GeneralAuthenticate(tc.cmdChaining, tc.data)
+		rApduBytes, err := nfcSession.GeneralAuthenticate(tc.cmdChaining, tc.data)
 
 		if err != nil {
 			t.Errorf("unexpected error: %s", err)
 		}
 
-		if !rApdu.IsSuccess() {
-			t.Errorf("Expected rApdu status (Actual:%04x)", rApdu.Status)
-		}
-
-		if !bytes.Equal(rApdu.Data, tc.expData) {
-			t.Errorf("rApdu data differs to expected (exp:%x, act:%x)", tc.expData, rApdu.Data)
+		if !bytes.Equal(rApduBytes, tc.expData) {
+			t.Errorf("rApdu data differs to expected (exp:%x, act:%x)", tc.expData, rApduBytes)
 		}
 	}
 }
