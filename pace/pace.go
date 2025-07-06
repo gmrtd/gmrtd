@@ -353,7 +353,7 @@ func (pace *Pace) doApduMsgSetAT(paceConfig *PaceConfig) (err error) {
 	// MSE:Set AT (0xC1A4: Set Authentication Template for mutual authentication)
 	err = (*pace.nfcSession).MseSetAT(0xC1, 0xA4, nodes.Encode())
 	if err != nil {
-		return err
+		return fmt.Errorf("[doApduMsgSetAT] MseSetAT error: %w", err)
 	}
 
 	return nil
@@ -740,7 +740,7 @@ func (pace *Pace) DoPACE() (err error) {
 	// init PACE (via 'MSE:Set AT' command)
 	// TODO - aren't there some cases where we need to specify the domain params? (i.e. multiple entries)
 	if err = pace.doApduMsgSetAT(paceConfig); err != nil {
-		return err
+		return fmt.Errorf("[DoPACE] doApduMsgSetAT error: %w", err)
 	}
 
 	// get nonce
@@ -749,12 +749,11 @@ func (pace *Pace) DoPACE() (err error) {
 	// process based on the mapping type (GM/IM/CAM) and the key type (ECDH/DH)
 	switch paceConfig.mapping {
 	case GM, CAM:
-		err = pace.doGenericMappingGmCam(paceConfig, domainParams, s)
-		if err != nil {
-			return err
+		if err = pace.doGenericMappingGmCam(paceConfig, domainParams, s); err != nil {
+			return fmt.Errorf("[DoPACE] doGenericMappingGmCam error: %w", err)
 		}
 	case IM:
-		return fmt.Errorf("PACE IM NOT IMPLEMENTED")
+		return fmt.Errorf("[DoPACE] PACE-IM NOT IMPLEMENTED")
 	}
 
 	slog.Debug("DoPACE - Completed", "SM", (*pace.nfcSession).SM.String())
