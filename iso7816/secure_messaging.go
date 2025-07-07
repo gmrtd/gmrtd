@@ -195,7 +195,7 @@ func (sm *SecureMessaging) buildTag8E(cApdu *CApdu, nodes *tlv.TlvNodes) (err er
 	var cmdHeaderPadded []byte = sm.cryptoPad(cApdu.EncodeHeader())
 	// mask CLA
 	if len(cmdHeaderPadded) < 1 {
-		panic("cmdHeaderPadded must have more than 0 bytes")
+		return fmt.Errorf("[buildTag8E] cmdHeaderPadded must have more than 0 bytes")
 	}
 	cmdHeaderPadded[0] = CLA_MASK
 
@@ -206,7 +206,7 @@ func (sm *SecureMessaging) buildTag8E(cApdu *CApdu, nodes *tlv.TlvNodes) (err er
 
 	var mac []byte
 	if mac, err = sm.generateMac(sm.cryptoPad(macData)); err != nil {
-		return err
+		return fmt.Errorf("[buildTag8E] generateMac error: %w", err)
 	}
 
 	nodes.AddNode(tlv.NewTlvSimpleNode(tlv.TlvTag(0x8E), mac))
