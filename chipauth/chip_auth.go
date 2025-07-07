@@ -343,7 +343,10 @@ func (chipAuth *ChipAuth) doCaEcdh(caInfo *document.ChipAuthenticationInfo, caAl
 
 	var curve *elliptic.Curve
 	var chipPubKey *cryptoutils.EcPoint
-	curve, chipPubKey = caPubKeyInfo.ChipAuthenticationPublicKey.GetEcCurveAndPubKey()
+	curve, chipPubKey, err = caPubKeyInfo.ChipAuthenticationPublicKey.GetEcCurveAndPubKey()
+	if err != nil {
+		return fmt.Errorf("[doCaEcdh] GetEcCurveAndPubKey error: %w", err)
+	}
 
 	slog.Debug("doCaEcdh", "chipPubKey", chipPubKey.String())
 
@@ -361,17 +364,17 @@ func (chipAuth *ChipAuth) doCaEcdh(caInfo *document.ChipAuthenticationInfo, caAl
 		 */
 		ksEnc, ksMac, err = chipAuth.doMseSetKAT(curve, termKeypair, caInfo, caAlgInfo, chipPubKey)
 		if err != nil {
-			return err
+			return fmt.Errorf("[doCaEcdh] doMseSetKAT error: %w", err)
 		}
 	} else {
 		err = chipAuth.doMseSetAT(caInfo)
 		if err != nil {
-			return err
+			return fmt.Errorf("[doCaEcdh] doMseSetAT error: %w", err)
 		}
 
 		ksEnc, ksMac, err = chipAuth.doGeneralAuthenticate(curve, termKeypair, chipPubKey, caAlgInfo)
 		if err != nil {
-			return err
+			return fmt.Errorf("[doCaEcdh] doGeneralAuthenticate error: %w", err)
 		}
 	}
 
@@ -383,7 +386,7 @@ func (chipAuth *ChipAuth) doCaEcdh(caInfo *document.ChipAuthenticationInfo, caAl
 
 		(*chipAuth.nfcSession).SM, err = iso7816.NewSecureMessaging(caAlgInfo.cipherAlg, ksEnc, ksMac)
 		if err != nil {
-			return err
+			return fmt.Errorf("[doCaEcdh] NewSecureMessaging error: %w", err)
 		}
 	}
 
@@ -399,10 +402,10 @@ func (chipAuth *ChipAuth) doCaEcdh(caInfo *document.ChipAuthenticationInfo, caAl
 
 		selected, err := (*chipAuth.nfcSession).SelectEF(MRTDFileIdDG14)
 		if err != nil {
-			return fmt.Errorf("(CA.doCaEcdh) Error selecting DG14 following ChipAuth: %w", err)
+			return fmt.Errorf("[doCaEcdh] SelectEF(DG14) error: %w", err)
 		}
 		if !selected {
-			return fmt.Errorf("(CA.doCaEcdh) unable to select DG14 after performing CA")
+			return fmt.Errorf("[doCaEcdh] unable to select DG14 after performing CA")
 		}
 	}
 

@@ -585,19 +585,17 @@ var ecNamedCurveArr []EcNamedCurve = []EcNamedCurve{
 	{oid: oid.OidBrainpoolP512r1, curve: brainpool.P512r1()},
 }
 
-func (subPubKeyInfo *SubjectPublicKeyInfo) GetEcCurveAndPubKey() (curve *elliptic.Curve, pubKey *cryptoutils.EcPoint) {
+func (subPubKeyInfo *SubjectPublicKeyInfo) GetEcCurveAndPubKey() (curve *elliptic.Curve, pubKey *cryptoutils.EcPoint, err error) {
 	/*
 	* Note: We avoid using 'ParsePKIXPublicKey' as it follows PKIX standard and only allows names curves,
 	*       but passports tend to use specified curves (i.e. curve parameters, even if corresponding to well-known curves)
 	 */
 
-	var err error
-
 	// verify Algorithm OID
 	{
 		var expOid asn1.ObjectIdentifier = oid.OidEcPublicKey
 		if !subPubKeyInfo.Algorithm.Algorithm.Equal(expOid) {
-			log.Panicf("(SubjectPublicKeyInfo.GetEcCurveAndPubKey) Algorithm differs to expected (exp:%s) (act:%s)", expOid.String(), subPubKeyInfo.Algorithm.Algorithm.String())
+			return nil, nil, fmt.Errorf("[GetEcCurveAndPubKey] Algorithm differs to expected (exp:%s) (act:%s)", expOid.String(), subPubKeyInfo.Algorithm.Algorithm.String())
 		}
 	}
 
@@ -606,7 +604,7 @@ func (subPubKeyInfo *SubjectPublicKeyInfo) GetEcCurveAndPubKey() (curve *ellipti
 	if err == nil {
 		curve, err = specDomain.GetEcCurve()
 		if err != nil {
-			log.Panicf("(SubjectPublicKeyInfo.GetEcCurveAndPubKey) GetECCurveForSpecifiedDomain error: %s", err)
+			return nil, nil, fmt.Errorf("[GetEcCurveAndPubKey] GetEcCurve error: %w", err)
 		}
 	} else {
 		/*
@@ -618,7 +616,7 @@ func (subPubKeyInfo *SubjectPublicKeyInfo) GetEcCurveAndPubKey() (curve *ellipti
 
 		err = utils.ParseAsn1(subPubKeyInfo.Algorithm.Parameters.FullBytes, false, &tmpOid)
 		if err != nil {
-			log.Panicf("(SubjectPublicKeyInfo.GetEcCurveAndPubKey) Unable to parse EC Params (%x)", subPubKeyInfo.Algorithm.Parameters.FullBytes)
+			return nil, nil, fmt.Errorf("[GetEcCurveAndPubKey] ParseAsn1 error: %w", err)
 		}
 
 		for i := range ecNamedCurveArr {
@@ -631,7 +629,7 @@ func (subPubKeyInfo *SubjectPublicKeyInfo) GetEcCurveAndPubKey() (curve *ellipti
 
 		if curve == nil {
 			// unsupported named curve
-			log.Panicf("Unsupported EC Named Curve (OID:%s)", tmpOid.String())
+			return nil, nil, fmt.Errorf("[GetEcCurveAndPubKey] Unsupported EC Named Curve (OID:%s)", tmpOid.String())
 		}
 	}
 
@@ -641,7 +639,7 @@ func (subPubKeyInfo *SubjectPublicKeyInfo) GetEcCurveAndPubKey() (curve *ellipti
 		pubKey = cryptoutils.DecodeX962EcPoint(*curve, chipPubKeyBytes)
 	}
 
-	return curve, pubKey
+	return curve, pubKey, nil
 }
 
 func (subPubKeyInfo *SubjectPublicKeyInfo) GetRsaPubKey() *cryptoutils.RsaPublicKey {

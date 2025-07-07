@@ -34,7 +34,10 @@ func VerifySignature(pubKeyInfo []byte, digestAlg asn1.ObjectIdentifier, digest 
 
 				var ecCurve *elliptic.Curve
 				var ecPoint *cryptoutils.EcPoint
-				ecCurve, ecPoint = subPubKeyInfo.GetEcCurveAndPubKey()
+				ecCurve, ecPoint, err = subPubKeyInfo.GetEcCurveAndPubKey()
+				if err != nil {
+					return fmt.Errorf("[VerifySignature] GetEcCurveAndPubKey error: %w", err)
+				}
 
 				pub = &ecdsa.PublicKey{Curve: *ecCurve, X: ecPoint.X, Y: ecPoint.Y}
 			}
@@ -45,7 +48,7 @@ func VerifySignature(pubKeyInfo []byte, digestAlg asn1.ObjectIdentifier, digest 
 			slog.Debug("VerifySignature", "validSig", validSig)
 			if !validSig {
 				slog.Info("VerifySignature (bad ECDSA signature)", "pub.X", utils.BytesToHex(pub.X.Bytes()), "pub.Y", utils.BytesToHex(pub.Y.Bytes()), "digest", utils.BytesToHex(tmpDigest), "signature", utils.BytesToHex(sig))
-				return fmt.Errorf("(VerifySignature) Invalid ECDSA signature")
+				return fmt.Errorf("[VerifySignature] Invalid ECDSA signature")
 			}
 
 			return nil
@@ -75,7 +78,7 @@ func VerifySignature(pubKeyInfo []byte, digestAlg asn1.ObjectIdentifier, digest 
 			// https://cryptobook.nakov.com/digital-signatures/rsa-signatures
 			if !bytes.HasSuffix(sigPlaintext, digest) {
 				slog.Debug("VerifySignature - RSA Signature verification FAILED", "digestAlg", digestAlg.String(), "digest", utils.BytesToHex(digest), "sigAlg", sigAlg.String())
-				return fmt.Errorf("(VerifySignature) Invalid RSA signature (sig:%x, digest:%x)", sigPlaintext, digest)
+				return fmt.Errorf("[VerifySignature] Invalid RSA signature (sig:%x, digest:%x)", sigPlaintext, digest)
 			}
 
 			return nil
@@ -94,15 +97,14 @@ func VerifySignature(pubKeyInfo []byte, digestAlg asn1.ObjectIdentifier, digest 
 
 			err = rsa.VerifyPSS(rsaPubKey, cryptoutils.CryptoHashOidToAlg(digestAlg), digest, sig, nil)
 			if err != nil {
-				return fmt.Errorf("(VerifySignature) Invalid PSS signature: %w", err)
+				return fmt.Errorf("[VerifySignature] Invalid PSS signature: %w", err)
 			}
 
 			return nil
 		}
 	}
 
-	return fmt.Errorf("(VerifySignature) signature-algorithm not supported: %s", sigAlg.String())
-	// return fmt.Errorf("(VerifySignature) unhandled error")
+	return fmt.Errorf("[VerifySignature] signature-algorithm not supported: %s", sigAlg.String())
 }
 
 // TODO - not sure whether this is even achieving anything?
