@@ -244,7 +244,7 @@ func (paceConfig *PaceConfig) decryptNonce(key []byte, encryptedNonce []byte) []
 // # AES
 //
 // AES [FIPS 197] SHALL be used in CMAC-mode [SP 800-38B] with a MAC length of 8 bytes.
-func (paceConfig *PaceConfig) computeAuthToken(key []byte, data []byte) []byte {
+func (paceConfig *PaceConfig) computeAuthToken(key []byte, data []byte) ([]byte, error) {
 	slog.Debug("computeAuthToken", "key", utils.BytesToHex(key), "data", utils.BytesToHex(data))
 
 	switch paceConfig.authToken {
@@ -253,7 +253,7 @@ func (paceConfig *PaceConfig) computeAuthToken(key []byte, data []byte) []byte {
 		// 3DES [FIPS 46-3] SHALL be used in Retail-mode according to [ISO/IEC 9797-1] MAC algorithm 3 / padding method 2 with block cipher DES and IV=0.
 
 		if paceConfig.cipher != cryptoutils.TDES {
-			panic(fmt.Sprintf("[computeAuthToken] CBC Authentication Token is only supported for 3DES (ActCipherAlg:%d)", int(paceConfig.cipher)))
+			return nil, fmt.Errorf("[computeAuthToken] CBC Authentication Token is only supported for 3DES (ActCipherAlg:%d)", int(paceConfig.cipher))
 		}
 
 		var err error
@@ -261,17 +261,18 @@ func (paceConfig *PaceConfig) computeAuthToken(key []byte, data []byte) []byte {
 
 		authToken, err = cryptoutils.ISO9797RetailMacDes(key, cryptoutils.ISO9797Method2Pad(data, cryptoutils.DES_BLOCK_SIZE_BYTES))
 		if err != nil {
-			panic(fmt.Sprintf("[computeAuthToken] Unable to generate Auth-Token (CBC): %s", err.Error()))
+			return nil, fmt.Errorf("[computeAuthToken] ISO9797RetailMacDes error: %w", err)
 		}
 
 		slog.Debug("computeAuthToken", "authToken(CBC)", utils.BytesToHex(authToken))
-		return authToken
+
+		return authToken, nil
 	case CMAC:
 		// CMAC-mode with MAC length of 8 bytes
 		// AES [FIPS 197] SHALL be used in CMAC-mode [SP 800-38B] with a MAC length of 8 bytes.
 
 		if paceConfig.cipher != cryptoutils.AES {
-			panic(fmt.Sprintf("[computeAuthToken] CMAC Authentication Token is only supported for AES (ActCipherAlg:%d)", int(paceConfig.cipher)))
+			return nil, fmt.Errorf("[computeAuthToken] CMAC Authentication Token is only supported for AES (ActCipherAlg:%d)", int(paceConfig.cipher))
 		}
 
 		var err error
@@ -279,21 +280,40 @@ func (paceConfig *PaceConfig) computeAuthToken(key []byte, data []byte) []byte {
 
 		cipher, err = cryptoutils.GetCipherForKey(paceConfig.cipher, key)
 		if err != nil {
-			panic(fmt.Sprintf("[computeAuthToken] Unable to get cipher (%s)", err))
+			return nil, fmt.Errorf("[computeAuthToken] GetCipherForKey error: %w", err)
 		}
 
 		authToken, err := cmac.Sum(data, cipher, 8)
 		if err != nil {
-			panic(fmt.Sprintf("Unable to generate Auth-Token (CMAC): %s", err.Error()))
+			return nil, fmt.Errorf("[computeAuthToken] cmac.Sum error: %w", err)
 		}
 
 		slog.Debug("computeAuthToken", "authToken(CMAC)", utils.BytesToHex(authToken))
-		return authToken
+
+		return authToken, nil
 	}
 
-	panic(fmt.Sprintf("Unsupported auth-token alg (%x)", paceConfig.authToken))
+	return nil, fmt.Errorf("[computeAuthToken] Unsupported auth-token alg (%x)", paceConfig.authToken)
+}
 
-	return nil
+func (paceConfig *PaceConfig) computeAuthTokens(ksMac []byte, ec elliptic.Curve, termPub *cryptoutils.EcPoint, chipPub *cryptoutils.EcPoint) (tIfd []byte, tIc []byte, err error) {
+	oidBytes := oid.OidBytes(paceConfig.oid)
+
+	tIfdData := encodePubicKeyTemplate7F49(oidBytes, cryptoutils.EncodeX962EcPoint(ec, chipPub))
+	tIcData := encodePubicKeyTemplate7F49(oidBytes, cryptoutils.EncodeX962EcPoint(ec, termPub))
+
+	// generate auth tokens
+	tIfd, err = paceConfig.computeAuthToken(ksMac, tIfdData)
+	if err != nil {
+		return nil, nil, fmt.Errorf("[computeAuthTokens] computeAuthToken(tIdf) error: %w", err)
+	}
+
+	tIc, err = paceConfig.computeAuthToken(ksMac, tIcData)
+	if err != nil {
+		return nil, nil, fmt.Errorf("[computeAuthTokens] computeAuthToken(tIc) error: %w", err)
+	}
+
+	return tIfd, tIc, nil
 }
 
 // s: nonce (from chip)
@@ -459,15 +479,9 @@ func (pace *Pace) mutualAuthGmEcDh(paceConfig *PaceConfig, domainParams *PACEDom
 
 	// generate auth tokens
 	var tIfd, tIc []byte
-	{
-		oidBytes := oid.OidBytes(paceConfig.oid)
-
-		tIfdData := encodePubicKeyTemplate7F49(oidBytes, cryptoutils.EncodeX962EcPoint(domainParams.ec, chipPub))
-		tIcData := encodePubicKeyTemplate7F49(oidBytes, cryptoutils.EncodeX962EcPoint(domainParams.ec, termPub))
-
-		// generate auth tokens
-		tIfd = paceConfig.computeAuthToken(ksMac, tIfdData)
-		tIc = paceConfig.computeAuthToken(ksMac, tIcData)
+	tIfd, tIc, err = paceConfig.computeAuthTokens(ksMac, domainParams.ec, termPub, chipPub)
+	if err != nil {
+		return nil, fmt.Errorf("[mutualAuthGmEcDh] computeAuthTokens error: %w", err)
 	}
 
 	// exchange/verify auth tokens (tifd/tic) with passport
