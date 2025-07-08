@@ -2,7 +2,6 @@ package document
 
 import (
 	"fmt"
-	"log"
 	"log/slog"
 	"slices"
 	"strings"
@@ -48,18 +47,21 @@ func NewDG16(data []byte) (*DG16, error) {
 		return nil, fmt.Errorf("root node (%x) missing", DG16Tag)
 	}
 
-	out.PersonsToNotify = parseData(rootNode)
+	out.PersonsToNotify, err = parseData(rootNode)
+	if err != nil {
+		return nil, fmt.Errorf("[NewDG16] parseData error: %w", err)
+	}
 
 	return out, nil
 }
 
-func parseData(node tlv.TlvNode) []PersonToNotify {
+func parseData(node tlv.TlvNode) ([]PersonToNotify, error) {
 	var out []PersonToNotify = []PersonToNotify{}
 
 	numTemplates := utils.BytesToInt(node.GetNode(0x2).GetValue())
 	if (numTemplates < 1) || (numTemplates > 15) {
 		// NB numTemplates must be between 1 and 15 as we construct the tag using 4-bits(0-15).. e.g. 0xA{Occur} (where 'Occur' is 1..15)
-		panic(fmt.Sprintf("numTemplates (%1d) must be between 1 and 15(xF)", numTemplates))
+		return nil, fmt.Errorf("[parseData] numTemplates (%1d) must be between 1 and 15(xF)", numTemplates)
 	}
 
 	slog.Debug("parseData", "numTemplates", numTemplates)
@@ -71,18 +73,23 @@ func parseData(node tlv.TlvNode) []PersonToNotify {
 		templateNode := node.GetNode(templateTag)
 
 		if !templateNode.IsValidNode() {
-			panic(fmt.Sprintf("template (%02x) expected based on numTemplates tag (%1d)", templateTag, numTemplates))
+			return nil, fmt.Errorf("[parseData] template (%02x) expected based on numTemplates tag (%1d)", templateTag, numTemplates)
 		}
 
-		out = append(out, parsePersonToNotify(templateNode))
+		personToNotify, err := parsePersonToNotify(templateNode)
+		if err != nil {
+			return nil, fmt.Errorf("[parseData] parsePersonToNotify error: %w", err)
+		}
+
+		out = append(out, *personToNotify)
 	}
 
 	slog.Debug("parseData", "out", out)
 
-	return out
+	return out, nil
 }
 
-func parsePersonToNotify(node tlv.TlvNode) PersonToNotify {
+func parsePersonToNotify(node tlv.TlvNode) (*PersonToNotify, error) {
 	var err error
 	var out PersonToNotify
 
@@ -93,7 +100,7 @@ func parsePersonToNotify(node tlv.TlvNode) PersonToNotify {
 
 	out.Name, err = mrz.ParseName(mrz.DecodeValue(string(node.GetNode(0x5F51).GetValue())))
 	if err != nil {
-		log.Panicf("[parsePersonToNotify] ParseName error: %s", err)
+		return nil, fmt.Errorf("[parsePersonToNotify] mrz.ParseName error: %w", err)
 	}
 
 	out.Telephone = string(node.GetNode(0x5F52).GetValue())
@@ -102,5 +109,5 @@ func parsePersonToNotify(node tlv.TlvNode) PersonToNotify {
 
 	slog.Debug("parsePersonToNotify", "out", out)
 
-	return out
+	return &out, nil
 }
