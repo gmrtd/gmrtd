@@ -191,7 +191,6 @@ func (nfc *NfcSession) SelectAid(aid []byte) (selected bool, err error) {
 		return false, fmt.Errorf("[SelectAid] DoAPDU error: %w", err)
 	}
 
-	// TODO - may want to pass status back to caller as error may be tolerated
 	if !rApdu.IsSuccess() {
 		if rApdu.FileNotFound() {
 			return false, nil
