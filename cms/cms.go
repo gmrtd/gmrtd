@@ -62,6 +62,7 @@ type ContentInfo struct {
 }
 
 type SignedData struct {
+	Raw              asn1.RawContent
 	Version          int                   `json:"version"`
 	DigestAlgorithms []AlgorithmIdentifier `asn1:"set" json:"digestAlgorithms"`
 	Content          EncapContentInfo      `json:"content"`
@@ -376,10 +377,10 @@ func (sd *SignedData) Verify(certPool *CertPool) (certChain [][]byte, err error)
 
 	certs, err = ParseCertificates(sd.Certificates.Bytes)
 	if err != nil {
-		return certChain, fmt.Errorf("(Verify) parseCertificate Error: %w", err)
+		return nil, fmt.Errorf("[Verify] parseCertificate Error: %w", err)
 	}
 	if len(certs) < 1 {
-		return nil, fmt.Errorf("(Verify) didn't get any certificates")
+		return nil, fmt.Errorf("[Verify] didn't get any certificates")
 	}
 
 	var cert *Certificate
@@ -409,7 +410,7 @@ func (sd *SignedData) Verify(certPool *CertPool) (certChain [][]byte, err error)
 
 			digestAlg, err = cert.SignatureAlgorithm.DetermineDigestAlgFromSigAlg()
 			if err != nil {
-				return certChain, fmt.Errorf("(Verify) DetermineDigestAlgFromSigAlg error: %w", err)
+				return nil, fmt.Errorf("[Verify] DetermineDigestAlgFromSigAlg error: %w", err)
 			}
 
 			signatureAlg = &cert.SignatureAlgorithm.Algorithm
@@ -420,7 +421,7 @@ func (sd *SignedData) Verify(certPool *CertPool) (certChain [][]byte, err error)
 			aaContentType := si.AuthenticatedAttributes.GetByOID(oid.OidContentType)
 			aaMessageDigest := si.AuthenticatedAttributes.GetByOID(oid.OidMessageDigest)
 			if aaContentType == nil || aaMessageDigest == nil {
-				return certChain, fmt.Errorf("(Verify) Expected Authenticated-Attribute(s) missing (Content-Type, Message-Digest) %v", si)
+				return nil, fmt.Errorf("[Verify] Expected Authenticated-Attribute(s) missing (Content-Type, Message-Digest) %v", si)
 			}
 
 			var aaContentTypeOID asn1.ObjectIdentifier = asn1decodeOid(aaContentType.Values.Bytes)
@@ -431,17 +432,22 @@ func (sd *SignedData) Verify(certPool *CertPool) (certChain [][]byte, err error)
 
 			// verify Content OID matches Authenticated-Attribute (Content Type)
 			if !aaContentTypeOID.Equal(sd.Content.EContentType) {
-				return certChain, fmt.Errorf("(Verify) Content-Type-OID (%s) differs to Authenticated-Attribute (%s)", sd.Content.EContentType.String(), aaContentTypeOID.String())
+				return nil, fmt.Errorf("[Verify] Content-Type-OID (%s) differs to Authenticated-Attribute (%s)", sd.Content.EContentType.String(), aaContentTypeOID.String())
 			}
 
-			var contentHash []byte = cryptoutils.CryptoHashByOid(si.DigestAlgorithm.Algorithm, sd.Content.EContent)
+			var contentHash []byte
+			contentHash, err = cryptoutils.CryptoHashByOid(si.DigestAlgorithm.Algorithm, sd.Content.EContent)
+			if err != nil {
+				return nil, fmt.Errorf("[Verify] CryptoHashByOid error: %w", err)
+			}
+
 			slog.Debug("Verify", "ContentHash", utils.BytesToHex(contentHash))
 
 			//	5.4.  Message Digest Calculation Process (RFC5652)
 			if !bytes.Equal(contentHash, aaMessageDigestHash) {
 				// invalid content hash
 				slog.Debug("Verify - invalid content hash", "contentHash", utils.BytesToHex(contentHash), "aaMessageDigestHash", utils.BytesToHex(aaMessageDigestHash))
-				return certChain, fmt.Errorf("(Verify) Invalid content hash (contentHash:%x, aaMessageDigestHash:%x)", contentHash, aaMessageDigestHash)
+				return nil, fmt.Errorf("[Verify] Invalid content hash (contentHash:%x, aaMessageDigestHash:%x)", contentHash, aaMessageDigestHash)
 			}
 
 			dataToHash = si.AuthenticatedAttributes.GetSetOfAsnBytes()
@@ -452,7 +458,11 @@ func (sd *SignedData) Verify(certPool *CertPool) (certChain [][]byte, err error)
 			signature = si.EncryptedDigest
 		}
 
-		var digest []byte = cryptoutils.CryptoHashByOid(*digestAlg, dataToHash)
+		var digest []byte
+		digest, err = cryptoutils.CryptoHashByOid(*digestAlg, dataToHash)
+		if err != nil {
+			return nil, fmt.Errorf("[Verify] CryptoHashByOid error: %w", err)
+		}
 
 		slog.Debug("Verify", "digestAlg", digestAlg.String(), "digest", utils.BytesToHex(digest))
 
@@ -466,7 +476,7 @@ func (sd *SignedData) Verify(certPool *CertPool) (certChain [][]byte, err error)
 			if len(si.AuthenticatedAttributes) < 1 {
 				slog.Info("Verify - tolerating bad signature (for now)", "err", err.Error())
 			} else {
-				return certChain, fmt.Errorf("(Verify) error: %w", err)
+				return nil, fmt.Errorf("[Verify] VerifySignature error: %w", err)
 			}
 		}
 
@@ -476,7 +486,7 @@ func (sd *SignedData) Verify(certPool *CertPool) (certChain [][]byte, err error)
 		 */
 		certChain, err = cert.Verify(certPool)
 		if err != nil {
-			return certChain, fmt.Errorf("(Verify) error: %w", err)
+			return nil, fmt.Errorf("[Verify] cert.Verify error: %w", err)
 		}
 
 		// record cert
@@ -488,38 +498,42 @@ func (sd *SignedData) Verify(certPool *CertPool) (certChain [][]byte, err error)
 
 // verifies that the certificate was signed by one of the certificates in 'certPool'
 // NB considers all entries in 'certPool' to be valid signers, so doesn't walk the chain to a root-cert
-func (cert *Certificate) Verify(certPool *CertPool) (certChain [][]byte, err error) {
+func (cert *Certificate) Verify(certPool *CertPool) (certChain [][]byte, err error) { // TODO - this isn't really certChain... more like valid-parent-certs
 	// TODO - currently just verifies the signature... doesn't check anything else... e.g. signing-time-validity... country/name
 	//			see 9303p10 5.1 Passive Authentication for detailed overview
+
+	slog.Debug("CERT.Verify", "Cert(hex)", utils.BytesToHex(cert.Raw))
 
 	// get the parent certificate (authority) key identifier
 	var aki *AuthorityKeyIdentifier = cert.TbsCertificate.Extensions.GetAuthorityKeyIdentifier()
 	if aki == nil {
-		return certChain, fmt.Errorf("(Certificate.Verify) AKI missing from cert (%x)", cert.Raw)
+		return certChain, fmt.Errorf("[Certificate.Verify] AKI missing from cert (%x)", cert.Raw)
 	}
 
 	// determine the digest-alg for the cert
 	var certDigestAlg *asn1.ObjectIdentifier
 	certDigestAlg, err = cert.SignatureAlgorithm.DetermineDigestAlgFromSigAlg()
 	if err != nil {
-		return certChain, fmt.Errorf("(Certificate.Verify) unable to determine digest-alg from signature-alg: %w", err)
+		return certChain, fmt.Errorf("[Certificate.Verify] unable to determine digest-alg from signature-alg: %w", err)
 	}
 
 	// calculate the cert digest
-	var certDigest []byte = cryptoutils.CryptoHashByOid(*certDigestAlg, cert.TbsCertificate.Raw)
+	var certDigest []byte
+	certDigest, err = cryptoutils.CryptoHashByOid(*certDigestAlg, cert.TbsCertificate.Raw)
+	if err != nil {
+		return nil, fmt.Errorf("[Certificate.Verify] CryptoHashByOid error: %w", err)
+	}
 
 	// get any matching parent certificates
 	// NB often >1 due to cross-signing in master-list
 	parentCerts := certPool.GetBySki(aki.KeyIdentifier)
 
-	slog.Debug("Certificate.Verify", "ParentCertCnt", len(parentCerts))
+	slog.Debug("Certificate.Verify", "parentCerts(cnt)", len(parentCerts))
 
 	// stop if no parent cert(s) found
 	if len(parentCerts) < 1 {
-		return certChain, fmt.Errorf("(Certificate.Verify) unable to locate parent certificate (SKI:%x)", aki.KeyIdentifier)
+		return certChain, fmt.Errorf("[Certificate.Verify] unable to locate parent certificate (SKI:%x)", aki.KeyIdentifier)
 	}
-
-	//slog.Info("CERT.Verify", "Cert", utils.BytesToHex(cert.Raw))
 
 	// test each parent cert until we find one that validates the cert signature
 	for i := range parentCerts {
@@ -536,7 +550,7 @@ func (cert *Certificate) Verify(certPool *CertPool) (certChain [][]byte, err err
 		return certChain, nil
 	}
 
-	return certChain, fmt.Errorf("(Certificate.Verify) signature not verified against matched certificates (matchCnt:%d,aki:%x,cert:%x)", len(parentCerts), aki.KeyIdentifier, cert.Raw)
+	return certChain, fmt.Errorf("[Certificate.Verify] signature not verified against matched certificates (matchCnt:%d,aki:%x,cert:%x)", len(parentCerts), aki.KeyIdentifier, cert.Raw)
 }
 
 func asn1decodeOid(data []byte) asn1.ObjectIdentifier {

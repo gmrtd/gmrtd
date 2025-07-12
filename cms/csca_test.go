@@ -38,7 +38,10 @@ func TestCscaCertPool(t *testing.T) {
 				t.Errorf("(DetermineDigestAlg) unexpected error: %s", err)
 			}
 
-			digest := cryptoutils.CryptoHashByOid(*digestAlg, cert.TbsCertificate.Raw)
+			digest, err := cryptoutils.CryptoHashByOid(*digestAlg, cert.TbsCertificate.Raw)
+			if err != nil {
+				t.Errorf("(CryptoHashByOid) unexpected error: %s", err)
+			}
 
 			var isSelfSignedCert bool = true
 			var skipVerification bool = false

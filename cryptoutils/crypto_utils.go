@@ -174,22 +174,25 @@ var oidHashAlgorithmToCryptoHash = map[string]crypto.Hash{
 }
 
 // panics if hash algorithm is not supported
-func CryptoHashOidToAlg(oid asn1.ObjectIdentifier) crypto.Hash {
+func CryptoHashOidToAlg(oid asn1.ObjectIdentifier) (crypto.Hash, error) {
 	hash, ok := oidHashAlgorithmToCryptoHash[oid.String()]
 
 	if !ok {
-		panic(fmt.Sprintf("[CryptoHashOidToAlg] unable to resolve hash algorithm OID (oid: %s)", oid.String()))
+		return 0, fmt.Errorf("[CryptoHashOidToAlg] unable to resolve hash algorithm OID (oid: %s)", oid.String())
 	}
 
-	return hash
+	return hash, nil
 }
 
 // hashes the data using the hash algorithm specified by oid
 // panics if hash algorithm is not supported
-func CryptoHashByOid(oid asn1.ObjectIdentifier, data []byte) []byte {
-	hashAlg := CryptoHashOidToAlg(oid)
+func CryptoHashByOid(oid asn1.ObjectIdentifier, data []byte) ([]byte, error) {
+	hashAlg, err := CryptoHashOidToAlg(oid)
+	if err != nil {
+		return nil, fmt.Errorf("[CryptoHashByOid] CryptoHashOidToAlg error: %w", err)
+	}
 
-	return CryptoHash(hashAlg, data)
+	return CryptoHash(hashAlg, data), nil
 }
 
 func CryptoHash(alg crypto.Hash, data []byte) []byte {

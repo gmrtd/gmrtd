@@ -2,6 +2,7 @@ package cms
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rsa"
@@ -95,7 +96,13 @@ func VerifySignature(pubKeyInfo []byte, digestAlg asn1.ObjectIdentifier, digest 
 				rsaPubKey = &rsa.PublicKey{N: pubKey.N, E: pubKey.E}
 			}
 
-			err = rsa.VerifyPSS(rsaPubKey, cryptoutils.CryptoHashOidToAlg(digestAlg), digest, sig, nil)
+			var hashAlg crypto.Hash
+			hashAlg, err = cryptoutils.CryptoHashOidToAlg(digestAlg)
+			if err != nil {
+				return fmt.Errorf("[VerifySignature] CryptoHashOidToAlg error: %w", err)
+			}
+
+			err = rsa.VerifyPSS(rsaPubKey, hashAlg, digest, sig, nil)
 			if err != nil {
 				return fmt.Errorf("[VerifySignature] Invalid PSS signature: %w", err)
 			}

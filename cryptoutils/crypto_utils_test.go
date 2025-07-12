@@ -310,14 +310,12 @@ func TestCryptCBCDataLengthErr(t *testing.T) {
 }
 
 func TestCryptoHashOidToAlgErr(t *testing.T) {
-	// No need to check whether `recover()` is nil. Just turn off the panic.
-	defer func() { _ = recover() }()
-
 	// NB error as we're using an OID which clearly doesn't map to a hash (i.e. EmailAddress)
-	_ = CryptoHashByOid(oid.OidEmailAddress, []byte{0x12, 0x34})
+	_, err := CryptoHashByOid(oid.OidEmailAddress, []byte{0x12, 0x34})
 
-	// Never reaches here if panic
-	t.Errorf("expected panic, but didn't get")
+	if err == nil {
+		t.Errorf("Expected error")
+	}
 }
 
 func TestCryptoHash(t *testing.T) {
@@ -386,7 +384,10 @@ func TestCryptoHash(t *testing.T) {
 		* Test CryptoHashByOid
 		 */
 		{
-			actHash := CryptoHashByOid(tc.algOid, tc.data)
+			actHash, err := CryptoHashByOid(tc.algOid, tc.data)
+			if err != nil {
+				t.Errorf("Unexpected error: %s", err)
+			}
 
 			if !bytes.Equal(tc.expHash, actHash) {
 				t.Errorf("CryptoHashByOid failed for OID:%s (Exp:%x) (Act:%x)", tc.algOid.String(), tc.expHash, actHash)

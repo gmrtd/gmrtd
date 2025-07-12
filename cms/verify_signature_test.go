@@ -170,9 +170,12 @@ func TestVerifySignature(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		digest := cryptoutils.CryptoHashByOid(tc.digestAlg, tc.data)
+		digest, err := cryptoutils.CryptoHashByOid(tc.digestAlg, tc.data)
+		if err != nil {
+			t.Errorf("CryptoHashByOid error: %s", err)
+		}
 
-		err := VerifySignature(tc.keyDer, tc.digestAlg, digest, tc.signatureAlg, tc.signature)
+		err = VerifySignature(tc.keyDer, tc.digestAlg, digest, tc.signatureAlg, tc.signature)
 
 		if tc.expSuccess {
 			if err != nil {

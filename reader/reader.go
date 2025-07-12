@@ -120,10 +120,13 @@ func (reader *Reader) readLDS1dgs(nfc *iso7816.NfcSession, doc *document.Documen
 
 		// validate the DG hash against the hash in the SOD
 		{
-			actHash := cryptoutils.CryptoHashByOid(doc.Mf.Lds1.Sod.LdsSecurityObject.HashAlgorithm.Algorithm, dgBytes)
+			actHash, err := cryptoutils.CryptoHashByOid(doc.Mf.Lds1.Sod.LdsSecurityObject.HashAlgorithm.Algorithm, dgBytes)
+			if err != nil {
+				return fmt.Errorf("[readLDS1dgs] CryptoHashByOid error: %w", err)
+			}
 
 			if !bytes.Equal(actHash, dgHash.DataGroupHashValue) {
-				return fmt.Errorf("(readLDS1dgs) DG%d hash invalid (Exp:%x, Act:%x)", dgHash.DataGroupNumber, utils.BytesToHex(dgHash.DataGroupHashValue), utils.BytesToHex(actHash))
+				return fmt.Errorf("[readLDS1dgs] DG%d hash invalid (Exp:%x, Act:%x)", dgHash.DataGroupNumber, utils.BytesToHex(dgHash.DataGroupHashValue), utils.BytesToHex(actHash))
 			}
 
 			slog.Info("Valid DG hash", "DG", dgHash.DataGroupNumber, "Hash-Act", utils.BytesToHex(actHash), "Hash-Exp", utils.BytesToHex(dgHash.DataGroupHashValue))
@@ -296,6 +299,7 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 		return doc, err
 	}
 
+	// TODO - don't fail just because of passive auth... or at least return the document/apdus
 	// perforn passive authentication
 	reader.status.Status(fmt.Sprintf("Passive Authentication"))
 	err = passiveauth.PassiveAuth(doc)
