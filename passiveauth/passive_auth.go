@@ -54,6 +54,8 @@ func PassiveAuth(doc *document.Document) (err error) {
 		slog.Debug("PassiveAuth", "certChain(CardSecurity)-cnt", len(certChainCardSecurity))
 	}
 
+	// TODO - don't throw error just because of passive-auth.... prefer to read the document and return a status
+
 	return nil
 }
 
