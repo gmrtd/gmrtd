@@ -91,14 +91,20 @@ func TestNewCardSecurityDE(t *testing.T) {
 			t.Errorf("Cert chain should have 2 certs")
 		}
 
-		// verify CSCA cert
-		if !bytes.Equal(certChain[0], expCertCSCA) {
-			t.Errorf("Cert (CSCA) mismatch (exp:%x, act:%x)", expCertCSCA, certChain[0])
+		// verify DSC cert
+		{
+			var actDscCert []byte = certChain[0]
+			if !bytes.Equal(actDscCert, expCertDSC) {
+				t.Errorf("Cert (DSC) mismatch (exp:%x, act:%x)", expCertDSC, actDscCert)
+			}
 		}
 
-		// verify DSC cert
-		if !bytes.Equal(certChain[1], expCertDSC) {
-			t.Errorf("Cert (DSC) mismatch (exp:%x, act:%x)", expCertDSC, certChain[1])
+		// verify CSCA cert
+		{
+			var actCscaCert []byte = certChain[1]
+			if !bytes.Equal(actCscaCert, expCertCSCA) {
+				t.Errorf("Cert (CSCA) mismatch (exp:%x, act:%x)", expCertCSCA, actCscaCert)
+			}
 		}
 	}
 

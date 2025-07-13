@@ -73,19 +73,24 @@ type SignedData struct {
 
 type SignerInfo struct {
 	Raw                       asn1.RawContent
-	Version                   int                 `asn1:"default:1"`
-	IssuerAndSerialNumber     IssuerAndSerial     `asn1:"optional"` // optional for DE masterlist
-	DigestAlgorithm           AlgorithmIdentifier `asn1:"optional"` // optional for DE masterlist
-	AuthenticatedAttributes   AttributeList       `asn1:"optional,tag:0"`
-	DigestEncryptionAlgorithm AlgorithmIdentifier `asn1:"optional"` // optional for DE masterlist
-	EncryptedDigest           []byte              `asn1:"optional"` // optional for DE masterlist
-	UnauthenticatedAttributes AttributeList       `asn1:"optional,tag:1"`
+	Version                   int `asn1:"default:1"`
+	Sid                       asn1.RawValue
+	DigestAlgorithm           AlgorithmIdentifier
+	AuthenticatedAttributes   AttributeList `asn1:"optional,tag:0"`
+	DigestEncryptionAlgorithm AlgorithmIdentifier
+	EncryptedDigest           []byte
+	UnauthenticatedAttributes AttributeList `asn1:"optional,tag:1"`
 }
 
+// SignerIdentifier ::= CHOICE {
+// issuerAndSerialNumber IssuerAndSerialNumber,
+// subjectKeyIdentifier [0] SubjectKeyIdentifier }
+/*
 type IssuerAndSerial struct {
 	IssuerName   asn1.RawValue
 	SerialNumber *big.Int
 }
+*/
 
 type Attribute struct {
 	Raw    asn1.RawContent
@@ -360,8 +365,11 @@ RFC 5280            PKIX Certificate and CRL Profile            May 2008
 			}
 */
 
-func (sd *SignedData) Verify(certPool *CertPool) (certChain [][]byte, err error) {
-	slog.Debug("SignedData.Verify")
+func (si *SignerInfo) Verify(sd *SignedData, trustedCerts *CertPool) (certChain [][]byte, err error) {
+	var dataToHash []byte
+	var digestAlg *asn1.ObjectIdentifier
+	var signatureAlg *asn1.ObjectIdentifier
+	var signature []byte
 
 	/*
 		- for each signer-info
@@ -373,134 +381,149 @@ func (sd *SignedData) Verify(certPool *CertPool) (certChain [][]byte, err error)
 			- cert(chain) validation of the signer-info signature
 	*/
 
-	var certs []Certificate
-
-	certs, err = ParseCertificates(sd.Certificates.Bytes)
-	if err != nil {
-		return nil, fmt.Errorf("[Verify] parseCertificate Error: %w", err)
-	}
-	if len(certs) < 1 {
-		return nil, fmt.Errorf("[Verify] didn't get any certificates")
-	}
-
-	var cert *Certificate
-
-	// TODO - pick the last cert if multiple
-	// 			- does this even make a difference?
-	cert = &(certs[len(certs)-1])
-	//cert = &(certs[0])
-
-	slog.Debug("Verify", "SignerInfo(cnt)", len(sd.SignerInfos), "SubjectPublicKey", utils.BytesToHex(cert.TbsCertificate.SubjectPublicKeyInfo.FullBytes))
-
-	// for-each signer-info
-	// NB we only expect 1, but support >1
-	for siIdx := range sd.SignerInfos {
-		var si *SignerInfo = &(sd.SignerInfos[siIdx])
-
-		var dataToHash []byte
-		var digestAlg *asn1.ObjectIdentifier
-		var signatureAlg *asn1.ObjectIdentifier
-		var signature []byte
-
-		/*
-		* proceed based on whether or not 'authenticated attributes' are present
-		 */
-		if len(si.AuthenticatedAttributes) < 1 {
-			dataToHash = sd.Content.EContent
-
-			digestAlg, err = cert.SignatureAlgorithm.DetermineDigestAlgFromSigAlg()
-			if err != nil {
-				return nil, fmt.Errorf("[Verify] DetermineDigestAlgFromSigAlg error: %w", err)
-			}
-
-			signatureAlg = &cert.SignatureAlgorithm.Algorithm
-			signature = cert.SignatureValue.Bytes
-
-			slog.Debug("Verify (no AA)", "digestAlg", digestAlg.String(), "signatureAlg", signatureAlg.String())
-		} else {
-			aaContentType := si.AuthenticatedAttributes.GetByOID(oid.OidContentType)
-			aaMessageDigest := si.AuthenticatedAttributes.GetByOID(oid.OidMessageDigest)
-			if aaContentType == nil || aaMessageDigest == nil {
-				return nil, fmt.Errorf("[Verify] Expected Authenticated-Attribute(s) missing (Content-Type, Message-Digest) %v", si)
-			}
-
-			var aaContentTypeOID asn1.ObjectIdentifier = asn1decodeOid(aaContentType.Values.Bytes)
-			var aaMessageDigestHash []byte = asn1decodeBytes(aaMessageDigest.Values.Bytes)
-
-			slog.Debug("Verify", "AA Content-Type", aaContentTypeOID.String())
-			slog.Debug("Verify", "AA Message-Digest", utils.BytesToHex(aaMessageDigestHash))
-
-			// verify Content OID matches Authenticated-Attribute (Content Type)
-			if !aaContentTypeOID.Equal(sd.Content.EContentType) {
-				return nil, fmt.Errorf("[Verify] Content-Type-OID (%s) differs to Authenticated-Attribute (%s)", sd.Content.EContentType.String(), aaContentTypeOID.String())
-			}
-
-			var contentHash []byte
-			contentHash, err = cryptoutils.CryptoHashByOid(si.DigestAlgorithm.Algorithm, sd.Content.EContent)
-			if err != nil {
-				return nil, fmt.Errorf("[Verify] CryptoHashByOid error: %w", err)
-			}
-
-			slog.Debug("Verify", "ContentHash", utils.BytesToHex(contentHash))
-
-			//	5.4.  Message Digest Calculation Process (RFC5652)
-			if !bytes.Equal(contentHash, aaMessageDigestHash) {
-				// invalid content hash
-				slog.Debug("Verify - invalid content hash", "contentHash", utils.BytesToHex(contentHash), "aaMessageDigestHash", utils.BytesToHex(aaMessageDigestHash))
-				return nil, fmt.Errorf("[Verify] Invalid content hash (contentHash:%x, aaMessageDigestHash:%x)", contentHash, aaMessageDigestHash)
-			}
-
-			dataToHash = si.AuthenticatedAttributes.GetSetOfAsnBytes()
-
-			digestAlg = &(si.DigestAlgorithm.Algorithm)
-
-			signatureAlg = &(si.DigestEncryptionAlgorithm.Algorithm)
-			signature = si.EncryptedDigest
+	/*
+	* proceed based on whether or not 'authenticated attributes' are present
+	 */
+	if len(si.AuthenticatedAttributes) < 1 {
+		return nil, fmt.Errorf("[Verify] SignedInfo without AuthenticatedAttributes is NOT supported")
+	} else {
+		aaContentType := si.AuthenticatedAttributes.GetByOID(oid.OidContentType)
+		aaMessageDigest := si.AuthenticatedAttributes.GetByOID(oid.OidMessageDigest)
+		if aaContentType == nil || aaMessageDigest == nil {
+			return nil, fmt.Errorf("[Verify] Expected Authenticated-Attribute(s) missing (Content-Type, Message-Digest) %v", si)
 		}
 
-		var digest []byte
-		digest, err = cryptoutils.CryptoHashByOid(*digestAlg, dataToHash)
+		var aaContentTypeOID asn1.ObjectIdentifier = asn1decodeOid(aaContentType.Values.Bytes)
+		var aaMessageDigestHash []byte = asn1decodeBytes(aaMessageDigest.Values.Bytes)
+
+		slog.Debug("Verify", "AA Content-Type", aaContentTypeOID.String())
+		slog.Debug("Verify", "AA Message-Digest", utils.BytesToHex(aaMessageDigestHash))
+
+		// verify Content OID matches Authenticated-Attribute (Content Type)
+		if !aaContentTypeOID.Equal(sd.Content.EContentType) {
+			return nil, fmt.Errorf("[Verify] Content-Type-OID (%s) differs to Authenticated-Attribute (%s)", sd.Content.EContentType.String(), aaContentTypeOID.String())
+		}
+
+		var contentHash []byte
+		contentHash, err = cryptoutils.CryptoHashByOid(si.DigestAlgorithm.Algorithm, sd.Content.EContent)
 		if err != nil {
 			return nil, fmt.Errorf("[Verify] CryptoHashByOid error: %w", err)
 		}
 
-		slog.Debug("Verify", "digestAlg", digestAlg.String(), "digest", utils.BytesToHex(digest))
+		slog.Debug("Verify", "ContentHash", utils.BytesToHex(contentHash))
 
-		/*
-		* Verify the SignedInfo signature (against the PublicKey in the Certificate)
-		 */
-		err = VerifySignature(cert.TbsCertificate.SubjectPublicKeyInfo.FullBytes, *digestAlg, digest, *signatureAlg, signature)
-		if err != nil {
-			// TODO - we're currently tolerating bad signatures when there are no authenticated-attributes
-			//			- as we're seeing issues validating the DE master list
-			if len(si.AuthenticatedAttributes) < 1 {
-				slog.Info("Verify - tolerating bad signature (for now)", "err", err.Error())
-			} else {
-				return nil, fmt.Errorf("[Verify] VerifySignature error: %w", err)
-			}
+		//	5.4.  Message Digest Calculation Process (RFC5652)
+		if !bytes.Equal(contentHash, aaMessageDigestHash) {
+			// invalid content hash
+			slog.Debug("Verify - invalid content hash", "contentHash", utils.BytesToHex(contentHash), "aaMessageDigestHash", utils.BytesToHex(aaMessageDigestHash))
+			return nil, fmt.Errorf("[Verify] Invalid content hash (contentHash:%x, aaMessageDigestHash:%x)", contentHash, aaMessageDigestHash)
 		}
 
-		/*
-		* verify the cert/chain
-		* so far we've just verified the signedData and enveloped-data we haven't actually verified that the certificate is signed by someone we trust
-		 */
-		certChain, err = cert.Verify(certPool)
+		dataToHash = si.AuthenticatedAttributes.GetSetOfAsnBytes()
+
+		digestAlg = &(si.DigestAlgorithm.Algorithm)
+
+		signatureAlg = &(si.DigestEncryptionAlgorithm.Algorithm)
+		signature = si.EncryptedDigest
+	}
+
+	var digest []byte
+	digest, err = cryptoutils.CryptoHashByOid(*digestAlg, dataToHash)
+	if err != nil {
+		return nil, fmt.Errorf("[Verify] CryptoHashByOid error: %w", err)
+	}
+
+	slog.Debug("Verify", "digestAlg", digestAlg.String(), "digest", utils.BytesToHex(digest))
+
+	/*
+	* Select certificate from signed-data
+	 */
+	var cert *Certificate
+	{
+		var sdCerts *CertPool = NewCertPool()
+
+		err = sdCerts.Add(sd.Certificates.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("[Verify] CertPool.Add error: %w", err)
+		}
+
+		var tmpCerts []Certificate
+
+		if sdCerts.Count() == 1 {
+			// if we only have 1 certificate in the signed-data then we'll just use that
+			tmpCerts = append(tmpCerts, sdCerts.certificates...)
+		} else if sdCerts.Count() > 1 {
+			// pick the certificate(s) if multiple exist
+			// TODO - should support other variants also (e.g. issuer+serialNumber).. sid is not always aki
+			tmpCerts = sdCerts.GetBySki(si.Sid.Bytes)
+		}
+
+		if len(tmpCerts) != 1 {
+			return nil, fmt.Errorf("[Verify] Expected a single matching Cert from within the SignedData (got:%d) (sid:%x)", len(tmpCerts), si.Sid.FullBytes)
+		}
+
+		cert = &tmpCerts[0]
+	}
+
+	/*
+	* Verify the SignedInfo signature (against the PublicKey in the Certificate)
+	 */
+	err = VerifySignature(cert.TbsCertificate.SubjectPublicKeyInfo.FullBytes, *digestAlg, digest, *signatureAlg, signature)
+	if err != nil {
+		return nil, fmt.Errorf("[Verify] VerifySignature error: %w", err)
+	}
+
+	// record the 'initial' certificate
+	certChain = append(certChain, bytes.Clone(cert.Raw))
+
+	/*
+	* verify the cert/chain
+	* so far we've just verified the signedData and enveloped-data we haven't actually verified that the certificate is signed by someone we trust
+	 */
+	{
+		tmpCertChain, err := cert.Verify(trustedCerts)
 		if err != nil {
 			return nil, fmt.Errorf("[Verify] cert.Verify error: %w", err)
 		}
 
-		// record cert
-		certChain = append(certChain, bytes.Clone(cert.Raw))
+		// record the certificate(s) used during verification
+		certChain = append(certChain, tmpCertChain...)
 	}
 
 	return certChain, nil
 }
 
-// verifies that the certificate was signed by one of the certificates in 'certPool'
-// NB considers all entries in 'certPool' to be valid signers, so doesn't walk the chain to a root-cert
-func (cert *Certificate) Verify(certPool *CertPool) (certChain [][]byte, err error) { // TODO - this isn't really certChain... more like valid-parent-certs
-	// TODO - currently just verifies the signature... doesn't check anything else... e.g. signing-time-validity... country/name
+func (sd *SignedData) Verify(trustedCerts *CertPool) (certChain [][]byte, err error) {
+	slog.Debug("SignedData.Verify")
+
+	slog.Debug("Verify", "SignerInfo(cnt)", len(sd.SignerInfos))
+
+	// check that we have some SignedInfos
+	if len(sd.SignerInfos) < 1 {
+		return nil, fmt.Errorf("[Verify] NO SignerInfos present")
+	}
+
+	// for-each signer-info
+	for siIdx := range sd.SignerInfos {
+		var tmpCertChain [][]byte
+
+		tmpCertChain, err = sd.SignerInfos[siIdx].Verify(sd, trustedCerts)
+		if err != nil {
+			return nil, fmt.Errorf("[Verify] si.Verify(idx:%d) error: %w", siIdx, err)
+		}
+
+		certChain = append(certChain, tmpCertChain...)
+	}
+
+	return certChain, nil
+}
+
+// verifies that the certificate was signed by one of the certificates in 'trustedCerts'
+// NB considers all entries in 'trustedCerts' to be valid signers, so doesn't walk the chain to a root-cert
+func (cert *Certificate) Verify(trustedCerts *CertPool) (certChain [][]byte, err error) {
+	// TODO - currently just verifies the signature... doesn't check anything else... e.g. signing-time-validity...
 	//			see 9303p10 5.1 Passive Authentication for detailed overview
+	// - for MRTD, country is indirectly validated by passive-auth as it will only provide 'trustedCerts' for the country based on the MRZ
 
 	slog.Debug("CERT.Verify", "Cert(hex)", utils.BytesToHex(cert.Raw))
 
@@ -526,7 +549,7 @@ func (cert *Certificate) Verify(certPool *CertPool) (certChain [][]byte, err err
 
 	// get any matching parent certificates
 	// NB often >1 due to cross-signing in master-list
-	parentCerts := certPool.GetBySki(aki.KeyIdentifier)
+	parentCerts := trustedCerts.GetBySki(aki.KeyIdentifier) // TODO - other variants? eg issuer/serial
 
 	slog.Debug("Certificate.Verify", "parentCerts(cnt)", len(parentCerts))
 
@@ -546,6 +569,8 @@ func (cert *Certificate) Verify(certPool *CertPool) (certChain [][]byte, err err
 
 		// record cert
 		certChain = append(certChain, bytes.Clone(parentCerts[i].Raw))
+
+		// TODO - if we wanted to process to official root, the parent cert verification would be here, if parentCert is not CA-Cert
 
 		return certChain, nil
 	}
@@ -704,7 +729,6 @@ func ParseECSpecifiedDomain(algIdentifier *AlgorithmIdentifier) (out *ECSpecifie
 		return nil, fmt.Errorf("(ParseECSpecifiedDomain) ASN1 parsing error: %w", err)
 	}
 
-	// TODO - any other data checks?
 	if !out.FieldId.FieldType.Equal(oid.OidPrimeField) {
 		return nil, fmt.Errorf("(ParseECSpecifiedDomain) PrimeField OID expected")
 	}
