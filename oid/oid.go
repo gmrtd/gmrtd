@@ -303,7 +303,7 @@ func DecodeAsn1objectId(data []byte) (oid asn1.ObjectIdentifier) {
 
 	// attempt to parse OID
 	if rest, err := asn1.Unmarshal(dataWithTag, &oid); len(rest) > 0 || err != nil {
-		panic(fmt.Sprintf("Error parsing ASN1 OID"))
+		panic(fmt.Sprintf("Error parsing ASN1 OID (data: %x)", data))
 	}
 
 	return oid

@@ -649,8 +649,6 @@ func (subPubKeyInfo *SubjectPublicKeyInfo) GetEcCurveAndPubKey() (curve *ellipti
 		/*
 		* may be 'named curve'...
 		 */
-		err = nil
-
 		var tmpOid asn1.ObjectIdentifier
 
 		err = utils.ParseAsn1(subPubKeyInfo.Algorithm.Parameters.FullBytes, false, &tmpOid)

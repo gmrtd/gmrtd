@@ -663,9 +663,7 @@ func TestRsaDecryptWithPublicKeyErr(t *testing.T) {
 }
 
 func TestEllipticP192WithEcDh(t *testing.T) {
-	/*
-	* performs a basic test on P192 by verifying the ECDH works
-	 */
+	// performs a basic test on P192 by verifying that ECDH works
 	var p192 elliptic.Curve = EllipticP192()
 
 	var keyPair1 EcKeypair = KeyGeneratorEc(p192)

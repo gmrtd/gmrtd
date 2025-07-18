@@ -256,7 +256,10 @@ func (nfc *NfcSession) ReadFile(fileId uint16) (fileData []byte, err error) {
 
 		// extract length (of parent tag) to determine file size
 		tmpBuf := bytes.NewBuffer(fileHeader)
-		tlv.GetTag(tmpBuf)
+		_, err = tlv.GetTag(tmpBuf) // just to move past the tag
+		if err != nil {
+			return nil, fmt.Errorf("[ReadFile] GetTag error: %w", err)
+		}
 		tmpTlvLength, err = tlv.GetLength(tmpBuf)
 		if err != nil {
 			return nil, fmt.Errorf("[ReadFile] GetLength error: %w", err)

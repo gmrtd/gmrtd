@@ -139,7 +139,10 @@ func TestCalcCheckdigitBadCharErr(t *testing.T) {
 
 func TestVerifyCheckdigitEmptyWithoutCheckDigitOk(t *testing.T) {
 	// special handling for case where the string is empty and the check-digit is not set
-	verifyCheckdigit("<<<<<<<<", "<")
+	err := verifyCheckdigit("<<<<<<<<", "<")
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
 }
 
 func TestVerifyCheckdigitAtoiErr(t *testing.T) {
