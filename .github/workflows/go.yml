@@ -67,7 +67,7 @@ jobs:
             -Dsonar.projectKey=gmrtd_gmrtd
             -Dsonar.organization=gmrtd
             -Dsonar.sources=.
-            -Dsonar.exclusions=**/*_test.go,**/vendor/**
+            -Dsonar.exclusions=**/*_test.go,**/vendor/**,**/*.md,**/*.ml
             -Dsonar.tests=.
             -Dsonar.test.inclusions=**/*_test.go
             -Dsonar.test.exclusions=**/vendor/**
