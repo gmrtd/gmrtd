@@ -1,0 +1,9 @@
+{
+  "packages": {
+    ".": {
+      "package-name": "github.com/gmrtd/gmrtd",
+	  "release-type": "go",
+	  "include-component-in-tag":false
+    }
+  }
+}
