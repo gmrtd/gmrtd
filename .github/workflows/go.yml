@@ -43,7 +43,7 @@ jobs:
         path: report.json
 
   Analysis:
-    needs: build
+    needs: Build
     name: Analysis
     runs-on: ubuntu-latest
 
@@ -71,7 +71,7 @@ jobs:
             -Dsonar.projectKey=gmrtd_gmrtd
             -Dsonar.organization=gmrtd
             -Dsonar.sources=.
-            -Dsonar.exclusions=**/*_test.go,**/vendor/**,**/*.md,**/*.ml
+            -Dsonar.exclusions=**/*_test.go,**/vendor/**,**/*.md,**/*.ml,**/*.yml
             -Dsonar.tests=.
             -Dsonar.test.inclusions=**/*_test.go
             -Dsonar.test.exclusions=**/vendor/**
