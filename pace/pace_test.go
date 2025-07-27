@@ -17,15 +17,12 @@ import (
 	"github.com/osanderson/brainpool"
 )
 
-func TestPaceConfigGetByOID(t *testing.T) {
-	// No need to check whether `recover()` is nil. Just turn off the panic.
-	defer func() { _ = recover() }()
-
+func TestPaceConfigGetByOIDError(t *testing.T) {
 	// NB error as we're using an invalid OID
-	_ = paceConfigGetByOID(oid.OidBsiDe)
-
-	// Never reaches here if panic
-	t.Errorf("expected panic, but didn't get")
+	_, err := paceConfigGetByOID(oid.OidBsiDe)
+	if err == nil {
+		t.Errorf("expected error")
+	}
 }
 
 func TestGetStandardisedDomainParams(t *testing.T) {
@@ -115,7 +112,11 @@ func TestGetStandardisedDomainParamsErr(t *testing.T) {
 
 func TestDecryptNonce(t *testing.T) {
 
-	pace := paceConfigGetByOID(oid.OidPaceEcdhGmAesCbcCmac128)
+	pace, err := paceConfigGetByOID(oid.OidPaceEcdhGmAesCbcCmac128)
+	if err != nil {
+		t.Errorf("paceConfigGetByOID error: %s", err)
+	}
+
 	encryptedNonce := utils.HexToBytes("95A3A016522EE98D01E76CB6B98B42C3")
 	kKdf := utils.HexToBytes("89DED1B26624EC1E634C1989302849DD")
 
@@ -132,7 +133,11 @@ func TestDecryptNonceKeyLengthErr(t *testing.T) {
 	// No need to check whether `recover()` is nil. Just turn off the panic.
 	defer func() { _ = recover() }()
 
-	pace := paceConfigGetByOID(oid.OidPaceEcdhGmAesCbcCmac128)
+	pace, err := paceConfigGetByOID(oid.OidPaceEcdhGmAesCbcCmac128)
+	if err != nil {
+		t.Errorf("paceConfigGetByOID error: %s", err)
+	}
+
 	encryptedNonce := utils.HexToBytes("95A3A016522EE98D01E76CB6B98B42C3")
 	kKdf := utils.HexToBytes("89DED1B26624EC1E634C1989302849DD00") // 1 byte too long
 
@@ -193,7 +198,7 @@ func TestBuild7F49(t *testing.T) {
 
 }
 
-func TestSelectPaceForConfig(t *testing.T) {
+func TestSelectPaceConfig(t *testing.T) {
 	// NB card-access file has 2 entries.. we test with both in different orders to verify priority based selection
 	testCases := []struct {
 		cardAccessBytes []byte
@@ -223,7 +228,10 @@ func TestSelectPaceForConfig(t *testing.T) {
 			t.Errorf("Unexpected NewCardAccess() error: %s", err)
 		}
 
-		paceConfig, domainParams := selectPaceConfig(cardAccess)
+		paceConfig, domainParams, err := selectPaceConfig(cardAccess)
+		if err != nil {
+			t.Fatalf("unexpected selectPaceConfig error: %s", err)
+		}
 
 		if !paceConfig.oid.Equal(tc.expOid) {
 			t.Errorf("Invalid PACE OID (%s)", paceConfig.oid)
@@ -231,6 +239,44 @@ func TestSelectPaceForConfig(t *testing.T) {
 
 		if (domainParams.isECDH != tc.expIsEcdh) || (domainParams.ec != tc.expEc) {
 			t.Errorf("Invaid domain-params (1)")
+		}
+	}
+}
+
+func TestSelectPaceConfigErrors(t *testing.T) {
+	testCases := []struct {
+		cardAccessBytes []byte
+	}{
+		{
+			// error: card-access file is required
+			cardAccessBytes: nil,
+		},
+		{
+			// error: unsupported PACE OIDs
+			// took valid example and created invalid OIDs by changing the last part of the OID to 127
+			// - NB the first part has to at least match [OidPace] in order to quality as a PACE-Info
+			cardAccessBytes: utils.HexToBytes("31283012060a04007f0007020204027f0201020201103012060a04007f0007020204067f020102020110"),
+		},
+		{
+			// error: missing ParameterId
+			cardAccessBytes: utils.HexToBytes("3111300F060a04007f00070202040604020102"),
+		},
+	}
+	for _, tc := range testCases {
+		var err error
+		var cardAccess *document.CardAccess
+
+		if tc.cardAccessBytes != nil {
+			cardAccess, err = document.NewCardAccess(tc.cardAccessBytes)
+			if err != nil {
+				t.Fatalf("Unexpected NewCardAccess() error: %s", err)
+			}
+		}
+
+		_, _, err = selectPaceConfig(cardAccess)
+
+		if err == nil {
+			t.Fatal("Error expected")
 		}
 	}
 }
