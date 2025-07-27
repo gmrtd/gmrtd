@@ -150,14 +150,55 @@ type PACEDomainParams struct {
 	ec     elliptic.Curve
 }
 
-func paceConfigGetByOID(oid asn1.ObjectIdentifier) *PaceConfig {
+func paceConfigGetByOID(oid asn1.ObjectIdentifier) (*PaceConfig, error) {
 	out, ok := paceConfig[oid.String()]
 
 	if !ok {
-		panic(fmt.Sprintf("[paceConfigGetByOID] unknown OID (%s)", oid))
+		return nil, fmt.Errorf("[paceConfigGetByOID] unknown OID (%s)", oid)
 	}
 
-	return &out
+	return &out, nil
+}
+
+// selects the preferred pace-config based on the options advertised in the card-access file
+func selectPaceConfig(cardAccess *document.CardAccess) (*PaceConfig, *PACEDomainParams, error) {
+	slog.Debug("selectPaceConfig: evaluating PACE configs")
+
+	if cardAccess == nil || cardAccess.SecurityInfos == nil || len(cardAccess.SecurityInfos.PaceInfos) < 1 {
+		return nil, nil, fmt.Errorf("[selectPaceConfig] invalid cardAccess: missing CardAccess or SecurityInfos or PaceInfos")
+	}
+
+	var selectedPaceInfo *document.PaceInfo
+	var selectedConfig *PaceConfig
+
+	for i := range cardAccess.SecurityInfos.PaceInfos {
+		paceInfo := &cardAccess.SecurityInfos.PaceInfos[i]
+		slog.Debug("selectPaceConfig: evaluating paceInfo", "protocol", paceInfo.Protocol)
+
+		config, err := paceConfigGetByOID(paceInfo.Protocol)
+		if err != nil {
+			// TODO - we probably want to log this somewhere..
+			slog.Warn("selectPaceConfig: skipping unsupported PACE protocol", "protocol", paceInfo.Protocol, "error", err)
+			continue
+		}
+
+		if selectedConfig == nil || config.weighting > selectedConfig.weighting {
+			selectedPaceInfo = paceInfo
+			selectedConfig = config
+		}
+	}
+
+	if selectedPaceInfo == nil || selectedConfig == nil {
+		return nil, nil, fmt.Errorf("[selectPaceConfig] no supported PACE info found")
+	}
+
+	if selectedPaceInfo.ParameterId == nil {
+		return nil, nil, fmt.Errorf("[selectPaceConfig] missing ParameterId in selected PACE info")
+	}
+
+	domainParams := getStandardisedDomainParams(int(selectedPaceInfo.ParameterId.Int64()))
+
+	return selectedConfig, domainParams, nil
 }
 
 // ICAO9303 part 11... s9.5.1 Standardized Domain Parameters
@@ -543,44 +584,6 @@ func (pace *Pace) getNonce(paceConfig *PaceConfig, kKdf []byte) []byte {
 	return paceConfig.decryptNonce(kKdf, nonceE)
 }
 
-// selects the preferred pace-config based on the options advertised in the card-access file
-func selectPaceConfig(cardAccess *document.CardAccess) (paceConfig *PaceConfig, domainParams *PACEDomainParams) {
-	slog.Debug("selectPaceConfig")
-
-	var paceInfos []document.PaceInfo = cardAccess.SecurityInfos.PaceInfos
-
-	// evaluate all entries and select the preferred, based on the associated weighting
-	var selPaceInfo *document.PaceInfo
-	{
-		for i := range paceInfos {
-			slog.Debug("selectPaceConfig", "paceInfo", paceInfos[i])
-
-			if selPaceInfo == nil {
-				selPaceInfo = &paceInfos[i]
-				paceConfig = paceConfigGetByOID(selPaceInfo.Protocol)
-			} else {
-				tmpPaceConfig := paceConfigGetByOID(paceInfos[i].Protocol)
-
-				if tmpPaceConfig.weighting > paceConfig.weighting {
-					selPaceInfo = &paceInfos[i]
-					paceConfig = tmpPaceConfig
-				}
-			}
-		}
-	}
-
-	if selPaceInfo == nil {
-		log.Panicf("No supported PACE INFO")
-	}
-
-	if selPaceInfo.ParameterId == nil {
-		log.Panicf("Missing ParameterId in PaceInfo")
-	}
-	domainParams = getStandardisedDomainParams(int(selPaceInfo.ParameterId.Int64()))
-
-	return paceConfig, domainParams
-}
-
 // loads the Card Security file and stores it within the Document
 func (pace *Pace) loadCardSecurityFile() error {
 	const MRTDFileIdCardSecurity = uint16(0x011D)
@@ -656,8 +659,10 @@ func (pace *Pace) DoPACE() (err error) {
 	var paceConfig *PaceConfig
 	var domainParams *PACEDomainParams
 
-	// TODO - currently the following will panic if there are no pace-infos... shouldn't we just skip?
-	paceConfig, domainParams = selectPaceConfig((*pace.document).Mf.CardAccess)
+	paceConfig, domainParams, err = selectPaceConfig((*pace.document).Mf.CardAccess)
+	if err != nil {
+		return fmt.Errorf("[DoPACE] selectPaceConfig error: %w", err)
+	}
 
 	slog.Debug("DoPace", "selected paceConfig", paceConfig.String())
 
