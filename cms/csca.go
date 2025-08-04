@@ -2,107 +2,59 @@ package cms
 
 import (
 	_ "embed"
-	"encoding/asn1"
 	"fmt"
-	"log"
-	"log/slog"
-	"sync"
-
-	"github.com/gmrtd/gmrtd/utils"
 )
 
 /*
-* Load the (DE) Master List Root
- */
-//go:embed master_list/DE_ROOT_CA_CSCA07.cer
-var masterListRootCA []byte
-
-/*
 * Load the (DE) Master List
+* https://www.bsi.bund.de/EN/Themen/Oeffentliche-Verwaltung/Elektronische-Identitaeten/Public-Key-Infrastrukturen/CSCA/Root_Cert_Germany/Root_Certificate_node.html
  */
+
+//go:embed master_list/DE_ROOT_CA_CSCA07.cer
+var de_masterListRootCA []byte
+
 //go:embed master_list/DE_ML_2025-06-25-09-31-57.ml
-// DE_ML_2025-03-05-08-05-28.ml
-var masterList []byte
-
-type CscaMasterList struct {
-	Version int
-	Certs   []CscaMasterListCert `asn1:"set"`
-}
-
-type CscaMasterListCert struct {
-	Cert asn1.RawContent
-}
+var de_masterList []byte
 
 /*
-* shared instance
+* Load the (NL) Master List
+* https://www.npkd.nl/index.html
  */
-var lock = &sync.Mutex{}
-var cscaCertPool *CertPool
 
-func CscaCertPool() (*CertPool, error) {
-	if cscaCertPool == nil {
-		lock.Lock()
-		defer lock.Unlock()
+//go:embed master_list/NL_ROOT_CA.cer
+var nl_masterListRootCA []byte
 
-		var err error
+//go:embed master_list/NL_ML_2025-07-29.ml
+var nl_masterList []byte
 
-		cscaCertPool, err = loadMasterListDE()
+func GetDefaultMasterList() (*CombinedCertPool, error) {
+	var out CombinedCertPool
+
+	// German
+	{
+		tmpCertPool, err := GetGermanMasterList()
 		if err != nil {
-			return nil, fmt.Errorf("(CscaCertPool) loadMasterListDE error: %w", err)
+			return nil, fmt.Errorf("[GetDefaultMasterList] GetGermanMasterList error: %w", err)
 		}
+		out.AddCertPool(tmpCertPool)
 	}
 
-	return cscaCertPool, nil
+	// Dutch
+	{
+		tmpCertPool, err := GetDutchMasterList()
+		if err != nil {
+			return nil, fmt.Errorf("[GetDefaultMasterList] GetDutchMasterList error: %w", err)
+		}
+		out.AddCertPool(tmpCertPool)
+	}
+
+	return &out, nil
 }
 
-// returns: CertPool OR error
-func loadMasterListDE() (*CertPool, error) {
-	var err error
-	var out *CertPool = NewCertPool()
+func GetGermanMasterList() (*SignedDataCertPool, error) {
+	return CreateCertPoolFromSignedData(de_masterList, de_masterListRootCA)
+}
 
-	var signedData *SignedData
-	signedData, err = ParseSignedData(masterList)
-	if err != nil {
-		return nil, fmt.Errorf("(loadMasterListDE) ParseSignedData error: %w", err)
-	}
-
-	rootCertPool := NewCertPool()
-	err = rootCertPool.Add(masterListRootCA)
-	if err != nil {
-		return nil, fmt.Errorf("(csca.loadMasterListDE) rootCertPool .add error: %w", err)
-	}
-
-	/*
-	 * verify the signed data object
-	 */
-	var certChain [][]byte
-	certChain, err = signedData.Verify(rootCertPool)
-	if err != nil {
-		log.Panicf("error: %s", err)
-	}
-	if len(certChain) < 1 {
-		log.Panicf("empty cert chain")
-	}
-
-	{
-		var certs CscaMasterList
-
-		err := utils.ParseAsn1(signedData.Content.EContent, false, &certs)
-		if err != nil {
-			return nil, fmt.Errorf("(loadMasterListDE) ParseAsn1 error: %w", err)
-		}
-
-		slog.Debug("loadMasterListDE", "cert-cnt", len(certs.Certs))
-
-		// for each cert in the master list
-		for i := 0; i < len(certs.Certs); i++ {
-			data := certs.Certs[i].Cert
-			err = out.Add(data)
-			if err != nil {
-				return nil, fmt.Errorf("(csca.loadMasterListDE) masterList .add error: %w", err)
-			}
-		}
-	}
-
-	return out, nil
+func GetDutchMasterList() (*SignedDataCertPool, error) {
+	return CreateCertPoolFromSignedData(nl_masterList, nl_masterListRootCA)
 }
