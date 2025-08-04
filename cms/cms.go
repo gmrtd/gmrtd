@@ -157,19 +157,19 @@ func ParseSignedData(data []byte) (*SignedData, error) {
 
 	err = utils.ParseAsn1(data, false, &contentInfo)
 	if err != nil {
-		return nil, fmt.Errorf("asn1 parsing error (contentInfo): %s", err)
+		return nil, fmt.Errorf("[ParseSignedData] asn1 parsing error (contentInfo): %s", err)
 	}
 
 	// verify we got the expected OID
 	if !contentInfo.Type.Equal(oid.OidSignedData) {
-		return nil, fmt.Errorf("invalid OID (exp:%s, act:%s)", oid.OidSignedData.String(), contentInfo.Type.String())
+		return nil, fmt.Errorf("[ParseSignedData] invalid OID (exp:%s, act:%s)", oid.OidSignedData.String(), contentInfo.Type.String())
 	}
 
 	var signedData SignedData
 
 	err = utils.ParseAsn1(contentInfo.Content.Bytes, false, &signedData)
 	if err != nil {
-		return nil, fmt.Errorf("asn1 parsing error (signedData): %s", err)
+		return nil, fmt.Errorf("[ParseSignedData] asn1 parsing error (signedData): %s", err)
 	}
 
 	return &signedData, nil
@@ -365,7 +365,7 @@ RFC 5280            PKIX Certificate and CRL Profile            May 2008
 			}
 */
 
-func (si *SignerInfo) Verify(sd *SignedData, trustedCerts *CertPool) (certChain [][]byte, err error) {
+func (si *SignerInfo) Verify(sd *SignedData, trustedCerts CertPool) (certChain [][]byte, err error) {
 	var dataToHash []byte
 	var digestAlg *asn1.ObjectIdentifier
 	var signatureAlg *asn1.ObjectIdentifier
@@ -440,7 +440,7 @@ func (si *SignerInfo) Verify(sd *SignedData, trustedCerts *CertPool) (certChain 
 	 */
 	var cert *Certificate
 	{
-		var sdCerts *CertPool = NewCertPool()
+		var sdCerts *GenericCertPool = &GenericCertPool{}
 
 		err = sdCerts.Add(sd.Certificates.Bytes)
 		if err != nil {
@@ -455,7 +455,7 @@ func (si *SignerInfo) Verify(sd *SignedData, trustedCerts *CertPool) (certChain 
 		} else if sdCerts.Count() > 1 {
 			// pick the certificate(s) if multiple exist
 			// TODO - should support other variants also (e.g. issuer+serialNumber).. sid is not always aki
-			tmpCerts = sdCerts.GetBySki(si.Sid.Bytes)
+			tmpCerts = sdCerts.GetBySKI(si.Sid.Bytes)
 		}
 
 		if len(tmpCerts) != 1 {
@@ -493,7 +493,7 @@ func (si *SignerInfo) Verify(sd *SignedData, trustedCerts *CertPool) (certChain 
 	return certChain, nil
 }
 
-func (sd *SignedData) Verify(trustedCerts *CertPool) (certChain [][]byte, err error) {
+func (sd *SignedData) Verify(trustedCerts CertPool) (certChain [][]byte, err error) {
 	slog.Debug("SignedData.Verify")
 
 	slog.Debug("Verify", "SignerInfo(cnt)", len(sd.SignerInfos))
@@ -520,7 +520,7 @@ func (sd *SignedData) Verify(trustedCerts *CertPool) (certChain [][]byte, err er
 
 // verifies that the certificate was signed by one of the certificates in 'trustedCerts'
 // NB considers all entries in 'trustedCerts' to be valid signers, so doesn't walk the chain to a root-cert
-func (cert *Certificate) Verify(trustedCerts *CertPool) (certChain [][]byte, err error) {
+func (cert *Certificate) Verify(trustedCerts CertPool) (certChain [][]byte, err error) {
 	// TODO - currently just verifies the signature... doesn't check anything else... e.g. signing-time-validity...
 	//			see 9303p10 5.1 Passive Authentication for detailed overview
 	// - for MRTD, country is indirectly validated by passive-auth as it will only provide 'trustedCerts' for the country based on the MRZ
@@ -549,7 +549,7 @@ func (cert *Certificate) Verify(trustedCerts *CertPool) (certChain [][]byte, err
 
 	// get any matching parent certificates
 	// NB often >1 due to cross-signing in master-list
-	parentCerts := trustedCerts.GetBySki(aki.KeyIdentifier) // TODO - other variants? eg issuer/serial
+	parentCerts := trustedCerts.GetBySKI(aki.KeyIdentifier) // TODO - other variants? eg issuer/serial
 
 	slog.Debug("Certificate.Verify", "parentCerts(cnt)", len(parentCerts))
 

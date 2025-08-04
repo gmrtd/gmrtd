@@ -7,6 +7,14 @@ import (
 )
 
 func TestVerifySignedData(t *testing.T) {
+	/*
+	 * get the (default) CSCA Certificate-Pool
+	 */
+	cscaCertPool, err := GetDefaultMasterList()
+	if err != nil {
+		t.Fatalf("CscaCertPool error: %s", err)
+	}
+
 	testCases := []struct {
 		signedDataBytes   []byte
 		expError          bool
@@ -82,15 +90,8 @@ func TestVerifySignedData(t *testing.T) {
 		sd, err = ParseSignedData(tc.signedDataBytes)
 		if err != nil {
 			t.Errorf("Unexpected error: %s", err)
+			// TODO - use t.Fatal then no need for 'else'
 		} else {
-			var cscaCertPool *CertPool
-
-			// get the CSCA certificate pool
-			cscaCertPool, err = CscaCertPool()
-			if err != nil {
-				t.Errorf("CscaCertPool error: %s", err)
-			}
-
 			certChain, err := sd.Verify(cscaCertPool)
 
 			if tc.expError {

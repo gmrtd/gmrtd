@@ -9,12 +9,12 @@ import (
 	"github.com/gmrtd/gmrtd/iso3166"
 )
 
-func PassiveAuth(doc *document.Document) (err error) {
+func PassiveAuth(doc *document.Document, trustedCerts cms.CertPool) (err error) {
 	// NB currently assumes that EF.SOD DG hashes have been verified earlier
 	//		- this is currently done in reader.readDGs()
 	// TODO - this will be problematic if we want to verify passiveAuth on the server using an imported Document
 
-	countryCscaCertPool, err := getCountryCscaCerts(doc)
+	countryCscaCertPool, err := getCountryCscaCerts(doc, trustedCerts)
 	if err != nil {
 		return fmt.Errorf("(PassiveAuth) error getting country CSCA certs: %w", err)
 	}
@@ -59,8 +59,14 @@ func PassiveAuth(doc *document.Document) (err error) {
 	return nil
 }
 
+// TODO - this means that passive-auth cannot be performed on just the SOD... as DG1 is required
+//   - this should be made clear and we should perform an explicit check
+//
+// OR we could just infer the country from DSC.. and get doc.verify to check mrz-country == sod.dsc.country
+//   - this actually fgets quite messy... as we want passive-auth to check hashes
 func getAlpha2CountryCode(doc *document.Document) (alpha2 string, err error) {
 	// NB use Issuing-State to derive the country-code
+	// TODO - what if DG1 is not set?
 	var mrzCountryAlpha3 string = doc.Mf.Lds1.Dg1.Mrz.IssuingState
 
 	// Note: special handling for Germany, who use 'special' country-code (D) in the MRZ
@@ -79,26 +85,14 @@ func getAlpha2CountryCode(doc *document.Document) (alpha2 string, err error) {
 
 // gets the country CSCA certificates based on the MRZ Issuing State
 // NB may return 0 certificates
-func getCountryCscaCerts(doc *document.Document) (countryCerts *cms.CertPool, err error) {
+func getCountryCscaCerts(doc *document.Document, trustedCerts cms.CertPool) (countryCerts *cms.GenericCertPool, err error) {
 	countryCode, err := getAlpha2CountryCode(doc)
 	if err != nil {
 		return nil, fmt.Errorf("(getCountryCscaCerts) unable to get Country-Code from Document: %w", err)
 	}
 
-	countryCerts = cms.NewCertPool()
-
-	{
-		var cscaCertPool *cms.CertPool
-
-		cscaCertPool, err = cms.CscaCertPool()
-		if err != nil {
-			return nil, fmt.Errorf("(getCountryCscaCerts) CscaCertPool error: %w", err)
-		}
-
-		tmpCountryCerts := cscaCertPool.GetByIssuerCountry(countryCode)
-
-		countryCerts.AddCerts(tmpCountryCerts)
-	}
+	countryCerts = &cms.GenericCertPool{}
+	countryCerts.AddCerts(trustedCerts.GetByIssuerCountry(countryCode))
 
 	slog.Debug("getCountryCscaCerts", "country", countryCode, "cert-cnt", countryCerts.Count())
 

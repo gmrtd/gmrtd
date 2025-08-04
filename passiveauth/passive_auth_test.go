@@ -3,6 +3,7 @@ package passiveauth
 import (
 	"testing"
 
+	"github.com/gmrtd/gmrtd/cms"
 	"github.com/gmrtd/gmrtd/document"
 	"github.com/gmrtd/gmrtd/tlv"
 	"github.com/gmrtd/gmrtd/utils"
@@ -20,6 +21,14 @@ func TestPassiveAuth(t *testing.T) {
 	*       e.g. "P<D<<DOE<<JOHN<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<D123456785UTO6508092M3505207<<<<<<<<<<<<<<<0"
 	*               *** (issuer country-code)
 	 */
+
+	/*
+	 * get the (default) CSCA Certificate-Pool
+	 */
+	cscaCertPool, err := cms.GetDefaultMasterList()
+	if err != nil {
+		t.Fatalf("CscaCertPool error: %s", err)
+	}
 
 	testCases := []struct {
 		dg1Mrz                string
@@ -134,7 +143,7 @@ func TestPassiveAuth(t *testing.T) {
 
 		// perform passive authentication
 		// - throws error if verification fails
-		err = PassiveAuth(&doc)
+		err = PassiveAuth(&doc, cscaCertPool)
 		if err != nil {
 			t.Errorf("Unexpected error: %s", err)
 		}
@@ -149,6 +158,14 @@ func TestPassiveAuthErrors(t *testing.T) {
 	*       e.g. "P<D<<DOE<<JOHN<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<D123456785UTO6508092M3505207<<<<<<<<<<<<<<<0"
 	*               *** (issuer country-code)
 	 */
+
+	/*
+	 * get the (default) CSCA Certificate-Pool
+	 */
+	cscaCertPool, err := cms.GetDefaultMasterList()
+	if err != nil {
+		t.Fatalf("CscaCertPool error: %s", err)
+	}
 
 	// NB we only expect errors during the final check (PassiveAuth)
 	testCases := []struct {
@@ -228,7 +245,7 @@ func TestPassiveAuthErrors(t *testing.T) {
 		}
 
 		// perform passive authentication
-		err = PassiveAuth(&doc)
+		err = PassiveAuth(&doc, cscaCertPool)
 		if err == nil {
 			t.Errorf("Expected error")
 		}

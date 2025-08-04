@@ -11,6 +11,7 @@ import (
 	"github.com/gmrtd/gmrtd/activeauth"
 	"github.com/gmrtd/gmrtd/bac"
 	"github.com/gmrtd/gmrtd/chipauth"
+	"github.com/gmrtd/gmrtd/cms"
 	"github.com/gmrtd/gmrtd/cryptoutils"
 	"github.com/gmrtd/gmrtd/document"
 	"github.com/gmrtd/gmrtd/iso7816"
@@ -299,10 +300,22 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 		return doc, err
 	}
 
+	// TODO - should setup this earlier... e.g. Reader setup?
+	var cscaCertPool *cms.CombinedCertPool
+	{
+		var err error
+
+		cscaCertPool, err = cms.GetDefaultMasterList()
+		if err != nil {
+			return doc, err
+		}
+
+	}
+
 	// TODO - don't fail just because of passive auth... or at least return the document/apdus
 	// perforn passive authentication
 	reader.status.Status(fmt.Sprintf("Passive Authentication"))
-	err = passiveauth.PassiveAuth(doc)
+	err = passiveauth.PassiveAuth(doc, cscaCertPool)
 	if err != nil {
 		slog.Error("MrtdPassiveAuth", "error", err)
 		return doc, err
