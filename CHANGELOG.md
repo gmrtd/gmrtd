@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/gmrtd/gmrtd/compare/v0.2.0...v0.3.0) (2025-08-10)
+
+
+### Features
+
+* moved DG hash checks to PassiveAuth (from Reader) ([#27](https://github.com/gmrtd/gmrtd/issues/27)) ([9d81a43](https://github.com/gmrtd/gmrtd/commit/9d81a43ec6d5d072d47c617dab79f059c2da887e))
+
 ## [0.2.0](https://github.com/gmrtd/gmrtd/compare/v0.1.1...v0.2.0) (2025-08-04)
 
 
