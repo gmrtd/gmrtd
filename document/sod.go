@@ -159,3 +159,34 @@ func (sod SOD) DgHash(dgNumber int) []byte {
 func (sod SOD) HasDgHash(dgNumber int) bool {
 	return len(sod.DgHash(dgNumber)) > 0
 }
+
+// determines the country from the certificate (DSC)
+func (sod SOD) GetCertCountryAlpha2() (string, error) {
+	var sdCerts *cms.GenericCertPool = &cms.GenericCertPool{}
+
+	err := sdCerts.Add(sod.SD.Certificates.Bytes)
+	if err != nil {
+		return "", fmt.Errorf("[GetCountryAlpha2] certPool.Add error: %w", err)
+	}
+
+	certs := sdCerts.GetAll()
+
+	countries := make(map[string]struct{})
+
+	for i := range certs {
+		tmpCountry := certs[i].TbsCertificate.GetIssuerRDN().GetByOID(oid.OidCountryName)
+		countries[string(tmpCountry)] = struct{}{}
+	}
+
+	if len(countries) != 1 {
+		return "", fmt.Errorf("[GetCertCountryAlpha2] unable to determine single country (len:%1d) (countries:%v)", len(countries), countries)
+	}
+
+	var country string
+	for tmpCountry := range countries {
+		country = tmpCountry
+		break // stop after first key
+	}
+
+	return country, nil
+}

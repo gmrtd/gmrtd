@@ -7,7 +7,9 @@ import (
 	"log"
 	"log/slog"
 
+	"github.com/gmrtd/gmrtd/cryptoutils"
 	"github.com/gmrtd/gmrtd/iso7816"
+	"github.com/gmrtd/gmrtd/utils"
 )
 
 type MasterFile struct {
@@ -139,15 +141,110 @@ func (doc *Document) NewDG(dg int, data []byte) (err error) {
 	case 16:
 		doc.Mf.Lds1.Dg16, err = NewDG16(data)
 	default:
-		err = fmt.Errorf("unsupported DG in NewDG call (DG:%d)", dg)
+		err = fmt.Errorf("[NewDG] unsupported DG (DG:%d)", dg)
 	}
 
 	return err
 }
 
+var dgHashableIds []int = []int{1, 2, 7, 11, 12, 13, 14, 15, 16}
+
+func (doc *Document) DgHashes() (map[int][]byte, error) {
+	dgHashes := make(map[int][]byte)
+
+	// evaluate for each hashable DG
+	for _, dgId := range dgHashableIds {
+		hash, err := doc.DgHash(dgId)
+		if err != nil {
+			return nil, fmt.Errorf("[DgHashes] DgHash (dg:%1d) error: %w", dgId, err)
+		}
+
+		// record if we got a hash (e.g. DG is actually present)
+		if len(hash) > 0 {
+			dgHashes[dgId] = hash
+		}
+	}
+
+	for dgId, dgHash := range dgHashes {
+		slog.Debug("doc.DgHashes", "dgId", dgId, "hash", utils.BytesToHex(dgHash))
+	}
+
+	return dgHashes, nil
+}
+
+// returns: hash for DG, or nil if not present
+// NB SoD must be defined, as it will be used to determine the hash algorithm
+func (doc *Document) DgHash(dgNumber int) ([]byte, error) {
+	var dgBytes []byte
+
+	switch dgNumber {
+	case 1:
+		if doc.Mf.Lds1.Dg1 != nil {
+			dgBytes = doc.Mf.Lds1.Dg1.RawData
+		}
+	case 2:
+		if doc.Mf.Lds1.Dg2 != nil {
+			dgBytes = doc.Mf.Lds1.Dg2.RawData
+		}
+	case 7:
+		if doc.Mf.Lds1.Dg7 != nil {
+			dgBytes = doc.Mf.Lds1.Dg7.RawData
+		}
+	case 11:
+		if doc.Mf.Lds1.Dg11 != nil {
+			dgBytes = doc.Mf.Lds1.Dg11.RawData
+		}
+	case 12:
+		if doc.Mf.Lds1.Dg12 != nil {
+			dgBytes = doc.Mf.Lds1.Dg12.RawData
+		}
+	case 13:
+		if doc.Mf.Lds1.Dg13 != nil {
+			dgBytes = doc.Mf.Lds1.Dg13.RawData
+		}
+	case 14:
+		if doc.Mf.Lds1.Dg14 != nil {
+			dgBytes = doc.Mf.Lds1.Dg14.RawData
+		}
+	case 15:
+		if doc.Mf.Lds1.Dg15 != nil {
+			dgBytes = doc.Mf.Lds1.Dg15.RawData
+		}
+	case 16:
+		if doc.Mf.Lds1.Dg16 != nil {
+			dgBytes = doc.Mf.Lds1.Dg16.RawData
+		}
+	default:
+		// NB hard error to catch cases where a new DG is added but not wired up properly
+		return nil, fmt.Errorf("[DgHash] unsupported DG (DG:%d)", dgNumber)
+	}
+
+	if len(dgBytes) < 1 {
+		return nil, nil
+	}
+
+	var dgHash []byte
+	var err error
+
+	if doc.Mf.Lds1.Sod == nil {
+		return nil, fmt.Errorf("[DgHash] SoD is required")
+	}
+
+	dgHash, err = cryptoutils.CryptoHashByOid(doc.Mf.Lds1.Sod.LdsSecurityObject.HashAlgorithm.Algorithm, dgBytes)
+	if err != nil {
+		return nil, fmt.Errorf("[DgHash] CryptoHashByOid error: %w", err)
+	}
+
+	return dgHash, nil
+
+}
+
 // verifies the files within the document (e.g. mandatory/conditional files and content)
 // does NOT perform Passive-Authentication against the document files!
 func (doc *Document) Verify() error {
+	// TODO - these are quite strict and based more on direct NFC read... may need a relaxed version for docs loaded from other sources
+
+	// TODO - not sure why we enforce presence of EF.COM
 	// verify that the mandatory files (COM,DG1,DG2,SOD) are present
 	if (doc.Mf.Lds1.Com == nil) || (doc.Mf.Lds1.Dg1 == nil) || (doc.Mf.Lds1.Dg2 == nil) || (doc.Mf.Lds1.Sod == nil) {
 		return fmt.Errorf("(doc.Verify) One or more mandatory files are missing (COM,SOD,DG1,DG2)")

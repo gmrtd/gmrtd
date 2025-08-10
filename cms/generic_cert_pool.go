@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/gmrtd/gmrtd/oid"
 	"github.com/gmrtd/gmrtd/utils"
@@ -62,8 +63,9 @@ func (certPool *GenericCertPool) GetByIssuerCountry(countryAlpha2 string) []Cert
 
 		tmpCountry := cert.TbsCertificate.GetIssuerRDN().GetByOID(oid.OidCountryName)
 
-		if bytes.Equal(tmpCountry, []byte(countryAlpha2)) {
-			slog.Debug("CertPool.GetByIssuerCountry - found matching cert", "Idx", i, "Country", countryAlpha2)
+		if strings.EqualFold(string(tmpCountry), countryAlpha2) {
+			var sub *SubjectKeyIdentifier = cert.TbsCertificate.Extensions.GetSubjectKeyIdentifier()
+			slog.Debug("CertPool.GetByIssuerCountry - found matching cert", "Idx", i, "Country", countryAlpha2, "SKI", utils.BytesToHex(*sub))
 			matchingCerts = append(matchingCerts, *cert)
 		}
 	}

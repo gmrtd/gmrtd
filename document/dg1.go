@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/gmrtd/gmrtd/iso3166"
 	"github.com/gmrtd/gmrtd/mrz"
 	"github.com/gmrtd/gmrtd/tlv"
 )
@@ -48,4 +49,26 @@ func NewDG1(data []byte) (dg1 *DG1, err error) {
 	}
 
 	return dg1, nil
+}
+
+func (dg1 DG1) GetIssuingCountryAlpha2() (string, error) {
+	if dg1.Mrz == nil {
+		return "", fmt.Errorf("[GetIssuingCountryAlpha2] MRZ is not set within DG1")
+	}
+
+	// NB use Issuing-State to derive the country-code
+	var mrzCountryAlpha3 string = dg1.Mrz.IssuingState
+
+	// Note: special handling for Germany, who use 'special' country-code (D) in the MRZ
+	//       - refer to ICAO9303p3 (5. CODES FOR NATIONALITY...)
+	if mrzCountryAlpha3 == "D" {
+		mrzCountryAlpha3 = "DEU"
+	}
+
+	country := iso3166.GetByAlpha3(mrzCountryAlpha3)
+	if country == nil {
+		return "", fmt.Errorf("(getAlpha2CountryCode) Unable to resolve alpha3 country code (%s)", mrzCountryAlpha3)
+	}
+
+	return country.Alpha2, nil
 }
