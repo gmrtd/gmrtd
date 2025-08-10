@@ -12,7 +12,6 @@ import (
 	"github.com/gmrtd/gmrtd/bac"
 	"github.com/gmrtd/gmrtd/chipauth"
 	"github.com/gmrtd/gmrtd/cms"
-	"github.com/gmrtd/gmrtd/cryptoutils"
 	"github.com/gmrtd/gmrtd/document"
 	"github.com/gmrtd/gmrtd/iso7816"
 	"github.com/gmrtd/gmrtd/pace"
@@ -97,7 +96,7 @@ func (reader *Reader) readLDS1files(nfc *iso7816.NfcSession, doc *document.Docum
 }
 
 // reads the LDS1 data-groups (DGs) based on the DG hashes present in EF.SOD
-// error if <2 DG hashes are present in SOD (as DG1/2 are always mandatory)
+// error if <2 DG hashes are present in SOD (as DG1/2 are always mandatory) // TODO - is this enforced?
 func (reader *Reader) readLDS1dgs(nfc *iso7816.NfcSession, doc *document.Document) (err error) {
 	dgHashes := doc.Mf.Lds1.Sod.LdsSecurityObject.DataGroupHashValues
 
@@ -117,20 +116,6 @@ func (reader *Reader) readLDS1dgs(nfc *iso7816.NfcSession, doc *document.Documen
 		err = doc.NewDG(dgHash.DataGroupNumber, dgBytes)
 		if err != nil {
 			return err
-		}
-
-		// validate the DG hash against the hash in the SOD
-		{
-			actHash, err := cryptoutils.CryptoHashByOid(doc.Mf.Lds1.Sod.LdsSecurityObject.HashAlgorithm.Algorithm, dgBytes)
-			if err != nil {
-				return fmt.Errorf("[readLDS1dgs] CryptoHashByOid error: %w", err)
-			}
-
-			if !bytes.Equal(actHash, dgHash.DataGroupHashValue) {
-				return fmt.Errorf("[readLDS1dgs] DG%d hash invalid (Exp:%x, Act:%x)", dgHash.DataGroupNumber, utils.BytesToHex(dgHash.DataGroupHashValue), utils.BytesToHex(actHash))
-			}
-
-			slog.Info("Valid DG hash", "DG", dgHash.DataGroupNumber, "Hash-Act", utils.BytesToHex(actHash), "Hash-Exp", utils.BytesToHex(dgHash.DataGroupHashValue))
 		}
 	}
 

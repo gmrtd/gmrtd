@@ -1,8 +1,10 @@
 package document
 
 import (
+	"strings"
 	"testing"
 
+	"github.com/gmrtd/gmrtd/tlv"
 	"github.com/gmrtd/gmrtd/utils"
 )
 
@@ -112,5 +114,130 @@ func TestNewDG1UnhappyBadMRZ(t *testing.T) {
 
 	if dg1 != nil {
 		t.Errorf("DG1 not expected for error case")
+	}
+}
+
+func TestGetIssuingCountryAlpha2(t *testing.T) {
+	// test the country-code conversion from a fake DG1(MRZ)
+	testCases := []struct {
+		dg1Mrz          string
+		expCountryCode2 string
+	}{
+		{
+			// AT
+			dg1Mrz:          "P<AUTDOE<<JOHN<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<D123456785UTO6508092M3505207<<<<<<<<<<<<<<<0",
+			expCountryCode2: "AT",
+		},
+		{
+			// DE
+			// note: this is the main test, as germany uses a historical 1-character country-code (D)
+			dg1Mrz:          "P<D<<DOE<<JOHN<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<D123456785UTO6508092M3505207<<<<<<<<<<<<<<<0",
+			expCountryCode2: "DE",
+		},
+		{
+			// FI
+			dg1Mrz:          "P<FINDOE<<JOHN<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<D123456785UTO6508092M3505207<<<<<<<<<<<<<<<0",
+			expCountryCode2: "FI",
+		},
+		{
+			// FR
+			dg1Mrz:          "P<FRADOE<<JOHN<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<D123456785UTO6508092M3505207<<<<<<<<<<<<<<<0",
+			expCountryCode2: "FR",
+		},
+		{
+			// ID
+			dg1Mrz:          "P<IDNDOE<<JOHN<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<D123456785UTO6508092M3505207<<<<<<<<<<<<<<<0",
+			expCountryCode2: "ID",
+		},
+		{
+			// MY
+			dg1Mrz:          "P<MYSDOE<<JOHN<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<D123456785UTO6508092M3505207<<<<<<<<<<<<<<<0",
+			expCountryCode2: "MY",
+		},
+		{
+			// NZ
+			dg1Mrz:          "P<NZLDOE<<JOHN<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<D123456785UTO6508092M3505207<<<<<<<<<<<<<<<0",
+			expCountryCode2: "NZ",
+		},
+		{
+			// PH
+			dg1Mrz:          "P<PHLDOE<<JOHN<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<D123456785UTO6508092M3505207<<<<<<<<<<<<<<<0",
+			expCountryCode2: "PH",
+		},
+		{
+			// RU
+			dg1Mrz:          "P<RUSDOE<<JOHN<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<D123456785UTO6508092M3505207<<<<<<<<<<<<<<<0",
+			expCountryCode2: "RU",
+		},
+		{
+			// SG
+			dg1Mrz:          "P<SGPDOE<<JOHN<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<D123456785UTO6508092M3505207<<<<<<<<<<<<<<<0",
+			expCountryCode2: "SG",
+		},
+		{
+			// UK
+			dg1Mrz:          "P<GBRDOE<<JOHN<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<D123456785UTO6508092M3505207<<<<<<<<<<<<<<<0",
+			expCountryCode2: "GB",
+		},
+		{
+			// US
+			dg1Mrz:          "P<USADOE<<JOHN<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<D123456785UTO6508092M3505207<<<<<<<<<<<<<<<0",
+			expCountryCode2: "US",
+		},
+	}
+	for _, tc := range testCases {
+		var err error
+		var dg1 *DG1
+
+		// build DG1 from MRZ
+		{
+			dg1Bytes := tlv.NewTlvConstructedNode(0x61).AddChild(tlv.NewTlvSimpleNode(0x5f1f, []byte(tc.dg1Mrz))).Encode()
+
+			dg1, err = NewDG1(dg1Bytes)
+			if err != nil {
+				t.Fatalf("Unexpected error: %s", err)
+			}
+		}
+
+		countryCode2, err := dg1.GetIssuingCountryAlpha2()
+		if err != nil {
+			t.Fatalf("GetIssuingCountryAlpha2 error: %s", err)
+		}
+
+		if !strings.EqualFold(tc.expCountryCode2, countryCode2) {
+			t.Fatalf("countryCode differs to expected (exp:%s, act:%s)", tc.expCountryCode2, countryCode2)
+		}
+	}
+
+}
+
+func TestGetIssuingCountryAlpha2ErrorNoMrz(t *testing.T) {
+	var dg1 DG1
+
+	_, err := dg1.GetIssuingCountryAlpha2()
+	if err == nil {
+		t.Fatalf("Expected error")
+	}
+}
+
+func TestGetIssuingCountryAlpha2ErrorBadCountry(t *testing.T) {
+	// MRZ country changed to a fake country (XYZ) to trigger country-code conversion (3->2 letter) error
+	var err error
+	var mrz string = "P<XYZDOE<<JOHN<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<D123456785UTO6508092M3505207<<<<<<<<<<<<<<<0"
+	var dg1 *DG1
+
+	// build DG1 from MRZ
+	{
+		dg1Bytes := tlv.NewTlvConstructedNode(0x61).AddChild(tlv.NewTlvSimpleNode(0x5f1f, []byte(mrz))).Encode()
+
+		dg1, err = NewDG1(dg1Bytes)
+		if err != nil {
+			t.Fatalf("Unexpected error: %s", err)
+		}
+	}
+
+	_, err = dg1.GetIssuingCountryAlpha2()
+	if err == nil {
+		t.Fatalf("Expected error")
 	}
 }

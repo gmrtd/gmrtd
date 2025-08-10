@@ -1,37 +1,43 @@
 package passiveauth
 
 import (
+	"bytes"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/gmrtd/gmrtd/cms"
 	"github.com/gmrtd/gmrtd/document"
-	"github.com/gmrtd/gmrtd/iso3166"
 )
 
+// performs passive-authentication
+// SoD is mandatory, CardSecurity is optional
+// country will be determined from SoD (certificate) and DG1 will be verified (if present)
+// DG hashes will be computed and must match SoD hashes
 func PassiveAuth(doc *document.Document, trustedCerts cms.CertPool) (err error) {
-	// NB currently assumes that EF.SOD DG hashes have been verified earlier
-	//		- this is currently done in reader.readDGs()
-	// TODO - this will be problematic if we want to verify passiveAuth on the server using an imported Document
-
 	countryCscaCertPool, err := getCountryCscaCerts(doc, trustedCerts)
 	if err != nil {
-		return fmt.Errorf("(PassiveAuth) error getting country CSCA certs: %w", err)
+		return fmt.Errorf("[PassiveAuth] error getting country CSCA certs: %w", err)
 	}
 	if countryCscaCertPool.Count() < 1 {
-		return fmt.Errorf("(PassiveAuth) Cannot perform Passive-Auth as unable to locate any CSCA Certificates for the MRZ Country")
+		return fmt.Errorf("[PassiveAuth] Cannot perform Passive-Auth as unable to locate any CSCA Certificates for the MRZ Country")
 	}
 
 	/*
 	* verify EF.SOD (mandatory)
 	 */
 	if doc.Mf.Lds1.Sod == nil {
-		return fmt.Errorf("(PassiveAuth) mandatory file EF.SOD is missing")
+		return fmt.Errorf("[PassiveAuth] mandatory file EF.SOD is missing")
 	} else {
+		// validate that any data-groups that are covered by SoD proection have valid hashes
+		if err = validateDgHashes(*doc); err != nil {
+			return fmt.Errorf("[PassiveAuth] validateDgHashes error: %w", err)
+		}
+
 		var certChainSOD [][]byte
 		certChainSOD, err = doc.Mf.Lds1.Sod.SD.Verify(countryCscaCertPool)
 		if err != nil {
-			return fmt.Errorf("(PassiveAuth) unable to verify SignedData (SOD): %w", err)
+			return fmt.Errorf("[PassiveAuth] unable to verify SignedData (SOD): %w", err)
 		}
 
 		doc.PassiveAuthSOD = document.NewPassiveAuth(certChainSOD)
@@ -46,7 +52,7 @@ func PassiveAuth(doc *document.Document, trustedCerts cms.CertPool) (err error) 
 		var certChainCardSecurity [][]byte
 		certChainCardSecurity, err = doc.Mf.CardSecurity.SD.Verify(countryCscaCertPool)
 		if err != nil {
-			return fmt.Errorf("(PassiveAuth) unable to verify SignedData (CardSecurity): %w", err)
+			return fmt.Errorf("[PassiveAuth] unable to verify SignedData (CardSecurity): %w", err)
 		}
 
 		doc.PassiveAuthCardSec = document.NewPassiveAuth(certChainCardSecurity)
@@ -54,36 +60,62 @@ func PassiveAuth(doc *document.Document, trustedCerts cms.CertPool) (err error) 
 		slog.Debug("PassiveAuth", "certChain(CardSecurity)-cnt", len(certChainCardSecurity))
 	}
 
-	// TODO - don't throw error just because of passive-auth.... prefer to read the document and return a status
+	return nil
+}
+
+// validates the DG hashes against the hashes in SoD
+// will throw error if the document contains a DG that isn't referenced in SoD (e.g. DG injection)
+func validateDgHashes(doc document.Document) error {
+	// pre-compute the hashes of any applicable DGs in the document
+	dgHashes, err := doc.DgHashes()
+	if err != nil {
+		return fmt.Errorf("[validateDgHashes] DgHashes error : %w", err)
+	}
+
+	// for each DG hash from the document, check it matches SoD
+	for dgId, dgHash := range dgHashes {
+		sodHash := doc.Mf.Lds1.Sod.DgHash(dgId)
+
+		if len(sodHash) <= 0 {
+			return fmt.Errorf("[validateDgHashes] DG hash is not present in SoD (dg:%1d)", dgId)
+		}
+
+		if !bytes.Equal(dgHash, sodHash) {
+			return fmt.Errorf("[validateDgHashes] DG hash mismatch (dg:%1d) (act:%x, exp:%x)", dgId, dgHash, sodHash)
+		}
+	}
 
 	return nil
 }
 
-// TODO - this means that passive-auth cannot be performed on just the SOD... as DG1 is required
-//   - this should be made clear and we should perform an explicit check
-//
-// OR we could just infer the country from DSC.. and get doc.verify to check mrz-country == sod.dsc.country
-//   - this actually fgets quite messy... as we want passive-auth to check hashes
+// determines the country-code for the document (alpha2)
+// primarily uses SoD (Certificate country), but also verifies DG1(MRZ) if DG1 is present
 func getAlpha2CountryCode(doc *document.Document) (alpha2 string, err error) {
-	// NB use Issuing-State to derive the country-code
-	// TODO - what if DG1 is not set?
-	var mrzCountryAlpha3 string = doc.Mf.Lds1.Dg1.Mrz.IssuingState
-
-	// Note: special handling for Germany, who use 'special' country-code (D) in the MRZ
-	//       - refer to ICAO9303p3 (5. CODES FOR NATIONALITY...)
-	if mrzCountryAlpha3 == "D" {
-		return "DE", nil
+	if doc.Mf.Lds1.Sod == nil {
+		return "", fmt.Errorf("[getAlpha2CountryCode] cannot infer country without SoD")
 	}
 
-	country := iso3166.GetByAlpha3(mrzCountryAlpha3)
-	if country == nil {
-		return "", fmt.Errorf("(getAlpha2CountryCode) Unable to resolve alpha3 country code (%s)", mrzCountryAlpha3)
+	sodCountryAlpha2, err := doc.Mf.Lds1.Sod.GetCertCountryAlpha2()
+	if err != nil {
+		return "", fmt.Errorf("[getAlpha2CountryCode] unable to determine country from SoD: %w", err)
 	}
 
-	return country.Alpha2, nil
+	// verify the DG1 has the same country (if present)
+	if doc.Mf.Lds1.Dg1 != nil {
+		dg1CountryAlpha2, err := doc.Mf.Lds1.Dg1.GetIssuingCountryAlpha2()
+		if err != nil {
+			return "", fmt.Errorf("[getAlpha2CountryCode] dg1.GetIssuingCountryAlpha2 error: %w", err)
+		}
+
+		if !strings.EqualFold(sodCountryAlpha2, dg1CountryAlpha2) {
+			return "", fmt.Errorf("[getAlpha2CountryCode] country mismatch between SoD and DG1 (sod:%s, dg1:%s)", sodCountryAlpha2, dg1CountryAlpha2)
+		}
+	}
+
+	return sodCountryAlpha2, nil
 }
 
-// gets the country CSCA certificates based on the MRZ Issuing State
+// gets the country CSCA certificates based on the document (SOD/DG1)
 // NB may return 0 certificates
 func getCountryCscaCerts(doc *document.Document, trustedCerts cms.CertPool) (countryCerts *cms.GenericCertPool, err error) {
 	countryCode, err := getAlpha2CountryCode(doc)
