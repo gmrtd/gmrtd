@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/gmrtd/gmrtd/compare/v0.3.0...v0.3.1) (2025-08-13)
+
+
+### Bug Fixes
+
+* don't panic in processResponse when bad data length ([#31](https://github.com/gmrtd/gmrtd/issues/31)) ([7c43eeb](https://github.com/gmrtd/gmrtd/commit/7c43eeb381ea253a50e87acf5cac6f7681a10dac))
+
 ## [0.3.0](https://github.com/gmrtd/gmrtd/compare/v0.2.0...v0.3.0) (2025-08-10)
 
 
