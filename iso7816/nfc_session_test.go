@@ -207,10 +207,9 @@ func TestExternalAuthenticateErrors(t *testing.T) {
 			t.Errorf("Error expected")
 		}
 	}
-
 }
 
-func TestGeneralAuthenticate(t *testing.T) {
+func TestGeneralAuthenticateHappy(t *testing.T) {
 	testCases := []struct {
 		cmdChaining bool
 		data        []byte
@@ -252,7 +251,37 @@ func TestGeneralAuthenticate(t *testing.T) {
 	}
 }
 
-func TestMseSetAT(t *testing.T) {
+func TestGeneralAuthenticateErrors(t *testing.T) {
+	testCases := []struct {
+		transceiver Transceiver
+		cmdChaining bool
+		data        []byte
+	}{
+		{
+			// error: no response
+			transceiver: &StaticTransceiver{nil},
+			cmdChaining: false,
+			data:        utils.HexToBytes("7c0a8508ac66310b6d0d028a"),
+		},
+		{
+			// error: bad rApdu status (6FFF: card dead)
+			transceiver: &StaticTransceiver{utils.HexToBytes("6FFF")},
+			cmdChaining: false,
+			data:        utils.HexToBytes("7c0a8508ac66310b6d0d028a"),
+		},
+	}
+	for _, tc := range testCases {
+		var nfc *NfcSession = NewNfcSession(tc.transceiver)
+
+		_, err := nfc.GeneralAuthenticate(tc.cmdChaining, tc.data)
+
+		if err == nil {
+			t.Errorf("Error expected")
+		}
+	}
+}
+
+func TestMseSetATHappy(t *testing.T) {
 	testCases := []struct {
 		p1       uint8
 		p2       uint8
@@ -279,6 +308,39 @@ func TestMseSetAT(t *testing.T) {
 
 		if err != nil {
 			t.Errorf("Unexpected error: %s", err)
+		}
+	}
+}
+
+func TestMseSetATErrors(t *testing.T) {
+	testCases := []struct {
+		transceiver Transceiver
+		p1          uint8
+		p2          uint8
+		data        []byte
+	}{
+		{
+			// error: no response
+			transceiver: &StaticTransceiver{nil},
+			p1:          0xc1,
+			p2:          0xa4,
+			data:        utils.HexToBytes("800a04007f00070202040201830101"),
+		},
+		{
+			// error: bad rApdu status (6FFF: card dead)
+			transceiver: &StaticTransceiver{utils.HexToBytes("6FFF")},
+			p1:          0xc1,
+			p2:          0xa4,
+			data:        utils.HexToBytes("800a04007f00070202040201830101"),
+		},
+	}
+	for _, tc := range testCases {
+		nfcSession := NewNfcSession(tc.transceiver)
+
+		err := nfcSession.MseSetAT(tc.p1, tc.p2, tc.data)
+
+		if err == nil {
+			t.Errorf("Error expected")
 		}
 	}
 }
