@@ -88,6 +88,10 @@ func (bac *BAC) buildRequest(rndIfd []byte, rndIcc []byte, kIfd []byte, kEnc []b
 }
 
 func (bac *BAC) processResponse(data []byte, kEnc []byte, kMac []byte, rndIfd []byte, rndIcc []byte) (kIcc []byte, err error) {
+	if len(data) != 40 {
+		return nil, fmt.Errorf("[processResponse] data is not 40 bytes (len:%1d)", len(data))
+	}
+
 	rspCiphertext := make([]byte, 32)
 	copy(rspCiphertext, data[0:32])
 

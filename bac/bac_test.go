@@ -143,6 +143,31 @@ func TestProcessResponse(t *testing.T) {
 	}
 }
 
+func TestProcessResponseRApduLenErr(t *testing.T) {
+	// as per 'TestProcessResponse', but with an invalid rApdu length (should be 40 bytes)
+
+	kEnc := utils.HexToBytes("AB94FDECF2674FDFB9B391F85D7F76F2")
+	kMac := utils.HexToBytes("7962D9ECE03D1ACD4C76089DCE131543")
+
+	rndIcc := utils.HexToBytes("4608F91988702212")
+	rndIfd := utils.HexToBytes("781723860C06C226")
+
+	// NB 1 byte shorter (39 vs 40 bytes)
+	var rApduData []byte = utils.HexToBytes("46B9342A41396CD7386BF5803104D7CEDC122B9132139BAF2EEDC94EE178534F2F2D235D074D74")
+
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.MockTransceiver{})
+	var doc *document.Document = &document.Document{}
+	var pass *password.Password = password.NewPasswordNil()
+
+	var bac *BAC = NewBAC(nfc, doc, pass)
+
+	_, err := bac.processResponse(rApduData, kEnc, kMac, rndIfd, rndIcc)
+
+	if err == nil {
+		t.Errorf("Error expected")
+	}
+}
+
 func TestProcessResponseKMacKeyLenErr(t *testing.T) {
 	// as per 'TestProcessResponse', but with an invalid kMac key length (+1 byte)
 
