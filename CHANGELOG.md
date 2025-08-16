@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/gmrtd/gmrtd/compare/v0.3.1...v0.4.0) (2025-08-16)
+
+
+### Features
+
+* add mobile package ([#35](https://github.com/gmrtd/gmrtd/issues/35)) ([4351f71](https://github.com/gmrtd/gmrtd/commit/4351f71c4cd544b5d44d066c948a2569da6a035d))
+
 ## [0.3.1](https://github.com/gmrtd/gmrtd/compare/v0.3.0...v0.3.1) (2025-08-13)
 
 
