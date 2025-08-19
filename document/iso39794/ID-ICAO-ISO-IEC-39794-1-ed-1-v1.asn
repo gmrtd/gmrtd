@@ -1,0 +1,284 @@
+[source: https://github.com/ICAO-TRIP-ISO-WG3/39794-5-AP/blob/main/ID-ICAO-ISO-IEC-39794-1-ed-1-v1.asn]
+
+ID-ICAO-ISO-IEC-39794-1-ed-1-v1 { joint-iso-itu-t(2) international-organizations(23) icao(136) mrtd(1) iso-iec-39794(39794) part-1(1) ed-1(1) v1(1) iso-iec-39794-1(0) }
+
+-- This ASN.1 module is derived from ISO-IEC-39794-1-ed-1-v1
+
+-- Use of ISO/IEC copyright in this Schema is licensed for the purpose of 
+-- developing, implementing, and using software based on this Schema, subject 
+-- to the following conditions:
+-- 
+-- * Software developed from this Schema must retain the Copyright Notice, 
+--   this list of conditions and the disclaimer below ("Disclaimer").
+-- 
+-- * Neither the name or logo of ISO or of IEC, nor the names of specific 
+--   contributors, may be used to endorse or promote software derived from 
+--   this Schema without specific prior written permission. 
+-- 
+-- * The software developer shall attribute the Schema to ISO/IEC and 
+--   identify the ISO/IEC standard from which it is taken. Such attribution 
+--   (e.g., "This software makes use of the Schema from ISO/IEC 39794-1 
+--   within modifications permitted in the relevant ISO/IEC standard. 
+--   Please reproduce this note if possible."), may be placed in the 
+--   software itself or any other reasonable location.
+-- 
+-- The Disclaimer is:
+-- THE SCHEMA ON WHICH THIS SOFTWARE IS BASED IS PROVIDED BY THE COPYRIGHT 
+-- HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
+-- INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY 
+-- AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL 
+-- THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, 
+-- INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT 
+-- NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, 
+-- DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY 
+-- THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+-- (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF 
+-- THE CODE COMPONENTS, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+DEFINITIONS IMPLICIT TAGS ::= BEGIN
+
+-- ==================================================================
+-- Common type definitions to be used in other parts of ISO/IEC 39794
+-- ==================================================================
+VersionGeneration ::= INTEGER (3..65535)
+
+VersionYear ::= INTEGER (2019..9999)
+
+VersionBlock ::= SEQUENCE {
+	generation		[0] VersionGeneration,
+	year			[1] VersionYear,
+	...
+}
+
+RegistryId ::= INTEGER (1..65535)
+
+RegistryIdBlock ::= SEQUENCE {
+	organization		[0] RegistryId,
+	id			[1] RegistryId
+}
+
+CertificationIdBlock ::= RegistryIdBlock 
+
+CertificationIdBlocks ::= SEQUENCE OF CertificationIdBlock 
+
+Year ::= INTEGER (0..9999)
+
+Month ::= INTEGER (1..12)
+
+Day ::= INTEGER (1..31)
+
+Hour ::= INTEGER (0..23)
+
+Minute ::= INTEGER (0..59)
+
+Second ::= INTEGER (0..59)
+
+Millisecond ::= INTEGER (0..999)
+
+DateTimeBlock ::= SEQUENCE {
+	year		[0] Year,
+	month		[1] Month		OPTIONAL,
+	day		[2] Day			OPTIONAL,
+	hour		[3] Hour		OPTIONAL,
+	minute		[4] Minute		OPTIONAL,
+	second		[5] Second		OPTIONAL,
+	millisecond	[6] Millisecond		OPTIONAL
+}
+
+CaptureDateTimeBlock ::= DateTimeBlock
+
+Score ::= INTEGER	(0..100)
+
+ScoringErrorCode ::= ENUMERATED {
+	failureToAssess(0)
+}
+
+ScoringErrorExtensionBlock ::= SEQUENCE {
+	fallback	[0] ScoringErrorCode,
+	...
+}
+
+ScoringError ::= CHOICE {	
+	extensionBlock			[1] ScoringErrorExtensionBlock
+}
+
+ScoreOrError ::= CHOICE {
+	score				[0] Score,
+	error				[1] ScoringError
+}
+
+QualityBlock ::= SEQUENCE {
+	algorithmIdBlock		[0] RegistryIdBlock,
+	scoreOrError			[1] ScoreOrError,
+	...
+} 
+
+QualityBlocks ::= SEQUENCE OF QualityBlock
+
+PADDecisionCode ::= ENUMERATED {
+	noAttack(0),
+	attack(1),
+	failureToAssess(2)
+}
+
+PADDecisionExtensionBlock ::= SEQUENCE {
+	fallback			[0] PADDecisionCode,
+	...
+}
+
+PADDecision ::= CHOICE {	
+	extensionBlock			[1] PADDecisionExtensionBlock
+}
+
+PADScoreBlock ::=	SEQUENCE {
+	mechanismIdBlock		[0] RegistryIdBlock, 
+	scoreOrError			[1] ScoreOrError,
+	...
+} 
+
+PADScoreBlocks ::= SEQUENCE OF PADScoreBlock
+
+ExtendedDataBlock ::= SEQUENCE {
+	dataTypeIdBlock		[0] RegistryIdBlock,
+	data			[1] OCTET STRING
+}
+
+ExtendedDataBlocks ::= SEQUENCE OF ExtendedDataBlock
+
+PADExtendedDataBlocks ::= ExtendedDataBlocks
+
+PADCaptureContextCode ::= ENUMERATED {
+	enrolment(0),
+	verification(1),
+	identification(2)
+}
+
+PADCaptureContextExtensionBlock ::= SEQUENCE {
+	fallback		[0] PADCaptureContextCode,
+	...
+}
+
+PADCaptureContext ::= CHOICE {	
+	extensionBlock			[1] PADCaptureContextExtensionBlock
+}
+
+PADSupervisionLevelCode ::= ENUMERATED {
+	unknown(0), 
+	controlled(1), 
+	assisted(2), 
+	observed(3), 
+	unattended(4)
+}
+
+PADSupervisionLevelExtensionBlock ::= SEQUENCE {
+	fallback			[0] PADSupervisionLevelCode,
+	...
+}
+
+PADSupervisionLevel ::= CHOICE {	
+	extensionBlock			[1] PADSupervisionLevelExtensionBlock
+}
+
+PADRiskLevel ::= Score
+
+PADCriteriaCategoryCode ::= ENUMERATED {
+	unknown(0), 
+	individual(1), 
+	common(2)
+}
+
+PADCriteriaCategoryExtensionBlock ::= SEQUENCE {
+	fallback			[0] PADCriteriaCategoryCode,
+	...
+}
+
+PADCriteriaCategory ::= CHOICE {	
+	extensionBlock			[1] PADCriteriaCategoryExtensionBlock
+}
+
+PADChallenge ::= OCTET STRING
+
+PADChallenges ::= SEQUENCE OF PADChallenge 
+
+PADDataBlock ::= SEQUENCE {
+	decision		[0] PADDecision			OPTIONAL,
+	scoreBlocks		[1] PADScoreBlocks		OPTIONAL,
+	extendedDataBlocks	[2] PADExtendedDataBlocks	OPTIONAL,
+	captureContext		[3] PADCaptureContext		OPTIONAL,
+	supervisionLevel	[4] PADSupervisionLevel	OPTIONAL,
+	riskLevel		[5] PADRiskLevel		OPTIONAL,
+	criteriaCategory	[6] PADCriteriaCategory	OPTIONAL,
+	parameter		[7] OCTET STRING		OPTIONAL,
+	challenges		[8] PADChallenges		OPTIONAL,
+	captureDateTimeBlock	[9] CaptureDateTimeBlock	OPTIONAL,
+	...
+}
+
+CoordinateCartesian2DUnsignedShortBlock ::= SEQUENCE {
+	x		[0] INTEGER (0..65535),
+	y		[1] INTEGER (0..65535)
+}
+
+CoordinateCartesian3DUnsignedShortBlock ::= SEQUENCE {
+	x		[0] INTEGER (0..65535),
+	y		[1] INTEGER (0..65535),
+	z		[2] INTEGER (0..65535)
+}
+
+CoordinateCartesian2DIntBlock ::= SEQUENCE {
+	x		[0] INTEGER,
+	y		[1] INTEGER
+}
+
+CoordinateCartesian3DIntBlock ::= SEQUENCE {
+	x		[0] INTEGER,
+	y		[1] INTEGER,
+	z		[2] INTEGER
+}
+
+CoordinateCartesian2DDoubleBlock ::= SEQUENCE {
+	x		[0] REAL,
+	y		[1] REAL
+}
+
+CoordinateCartesian3DDoubleBlock ::= SEQUENCE {
+	x		[0] REAL,
+	y		[1] REAL,
+	z		[2] REAL
+}
+
+CoordinatePolarIntBlock ::= SEQUENCE {
+	radius		[0] INTEGER,
+	azimuth		[1] INTEGER
+}
+
+CoordinatePolarDoubleBlock ::= SEQUENCE {
+	radius		[0] REAL,
+	azimuth		[1] REAL
+}
+
+CoordinateSphericalIntBlock ::= SEQUENCE {
+	radius		[0] INTEGER,
+	inclination	[1] INTEGER,
+	azimuth		[2] INTEGER
+}
+
+CoordinateSphericalDoubleBlock ::= SEQUENCE {
+	radius		[0] REAL,
+	inclination	[1] REAL,
+	azimuth		[2] REAL
+}
+
+CoordinateCylindricalIntBlock ::= SEQUENCE {
+	radius		[0] INTEGER,
+	azimuth		[1] INTEGER,
+	height		[2] INTEGER
+}
+
+CoordinateCylindricalDoubleBlock ::= SEQUENCE {
+	radius		[0] REAL,
+	azimuth		[1] REAL,
+	height		[2] REAL
+}
+
+END
