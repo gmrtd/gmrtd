@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/gmrtd/gmrtd/compare/v0.4.0...v0.5.0) (2025-08-19)
+
+
+### Features
+
+* add support for ISO-39794 ([#38](https://github.com/gmrtd/gmrtd/issues/38)) ([ad82044](https://github.com/gmrtd/gmrtd/commit/ad8204401fd827bd91c99eb6fb283620b18c1c1a))
+
 ## [0.4.0](https://github.com/gmrtd/gmrtd/compare/v0.3.1...v0.4.0) (2025-08-16)
 
 
