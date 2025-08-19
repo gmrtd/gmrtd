@@ -1,7 +1,6 @@
 package document
 
-// TODO - need to support ISO 39794 going forward (currently ISO 19794-1:2005)
-//			- see 'processBIT'
+// Supports both ISO-19794 and ISO-39794
 //
 // https://www.christoph-busch.de/files/Busch-ICAO-39794-NFIQ2-210419.pdf
 //
@@ -12,15 +11,15 @@ package document
 //    ISO/IEC 39794 data by 2025-01-01 (5 years preparation period).
 //	‣ Between 2025 and 2030, passport issuers can use the old version
 //    or the new version of standards (5 years transition period).
+//
+// https://www2023.icao.int/Security/FAL/TRIP/PublishingImages/Pages/Publications/ICAO%20TR%20-%2039794-5%20eMRTD%20Application%20Profile.pdf
 
 import (
-	"bytes"
-	"encoding/binary"
 	"fmt"
-	"io"
-	"log"
 	"slices"
 
+	"github.com/gmrtd/gmrtd/document/iso19794"
+	"github.com/gmrtd/gmrtd/document/iso39794"
 	"github.com/gmrtd/gmrtd/tlv"
 	"github.com/gmrtd/gmrtd/utils"
 )
@@ -29,6 +28,7 @@ const DG2Tag = 0x75
 
 type DG2 struct {
 	RawData []byte                  `json:"rawData,omitempty"`
+	Images  [][]byte                `json:"images,omitempty"`
 	BITs    []BiometricInfoTemplate `json:"bits,omitempty"`
 }
 
@@ -49,61 +49,9 @@ type BiometricHeaderTemplate struct {
 }
 
 type BiometricDataBlock struct {
-	Facial Facial
-}
-
-// the following structures are largely borrowed from:
-//	https://github.com/paultag/go-cbeff
-
-type Facial struct {
-	Header FacialHeader
-	Images []Image
-}
-
-type FacialHeader struct {
-	FormatID      [4]byte
-	VersionID     [4]byte
-	RecordLength  uint32
-	NumberOfFaces uint16
-}
-
-type Image struct {
-	FacialInformation FacialInfo
-	Features          []FacialFeature
-	ImageInformation  ImageInfo
-	Data              []byte
-}
-
-type FacialFeature struct {
-	Type       uint8
-	MajorPoint uint8
-	MinorPoint uint8
-	X          uint16
-	Y          uint16
-	Reserved   uint8
-}
-
-type FacialInfo struct {
-	Length          uint32
-	NumberOfPoints  uint16
-	Gender          uint8
-	EyeColor        uint8
-	HairColor       uint8
-	Properties      [3]byte
-	Expression      [2]byte
-	Pose            [3]byte
-	PoseUncertainty [3]byte
-}
-
-type ImageInfo struct {
-	Type       uint8
-	DataType   uint8
-	Width      uint16
-	Height     uint16
-	ColorSpace uint8
-	SourceType uint8
-	DeviceType uint16
-	Quality    uint16
+	// NB only one of the following should be present, depending on which biometric encoding is used
+	Iso19794 *iso19794.ISO19794
+	Iso39794 *iso39794.ISO39794_5_AP
 }
 
 //	75
@@ -133,27 +81,33 @@ func NewDG2(data []byte) (*DG2, error) {
 	rootNode := nodes.GetNode(DG2Tag)
 
 	if !rootNode.IsValidNode() {
-		return nil, fmt.Errorf("root node (%x) missing", DG2Tag)
+		return nil, fmt.Errorf("[NewDG2] root node (%x) missing", DG2Tag)
 	}
 
 	{
 		tag7F61 := rootNode.GetNode(0x7f61)
 		if !tag7F61.IsValidNode() {
-			return nil, fmt.Errorf("missing tag (7F61)")
+			return nil, fmt.Errorf("[NewDG2] missing tag (7F61)")
 		}
 
 		numInstances := utils.BytesToInt(tag7F61.GetNode(0x02).GetValue())
 		if (numInstances < 1) || (numInstances > 9) {
-			return nil, fmt.Errorf("numInstances (tag 7f61->02) must be 1-9 (act:%d)", numInstances)
+			return nil, fmt.Errorf("[NewDG2] numInstances (tag 7f61->02) must be 1-9 (act:%d)", numInstances)
 		}
 
 		for occur := 1; occur <= numInstances; occur++ {
 			tag7F60 := tag7F61.GetNodeByOccur(0x7f60, occur)
 			if !tag7F60.IsValidNode() {
-				return nil, fmt.Errorf("missing tag (7F60) (Occur:%d)", occur)
+				return nil, fmt.Errorf("[NewDG2] missing tag (7F60) (Occur:%d)", occur)
 			}
 
-			out.BITs = append(out.BITs, out.processBIT(tag7F60))
+			tmpBIT, tmpImages, err := out.processBIT(tag7F60)
+			if err != nil {
+				return nil, fmt.Errorf("[NewDG2] processBIT error: %w", err)
+			}
+
+			out.Images = tmpImages
+			out.BITs = append(out.BITs, *tmpBIT)
 		}
 	}
 
@@ -161,43 +115,83 @@ func NewDG2(data []byte) (*DG2, error) {
 }
 
 // processes the Biometric Information Template (Tag:7F60)
-func (dg2 *DG2) processBIT(node tlv.TlvNode) BiometricInfoTemplate {
+func (dg2 *DG2) processBIT(node tlv.TlvNode) (*BiometricInfoTemplate, [][]byte, error) {
 	if node.GetTag() != 0x7F60 {
-		log.Panicf("Incorrect BIT tag (Exp:7F60) (Act:%x)", node.GetTag())
+		return nil, nil, fmt.Errorf("[processBIT] Incorrect BIT tag (Exp:7F60) (Act:%x)", node.GetTag())
 	}
 
 	var out BiometricInfoTemplate
-
-	out.BHT = processBHT(node.GetNode(0xA1))
+	var outImages [][]byte = make([][]byte, 0)
 
 	{
-		// tag 5F2E or 7F2E
-		biometricDataBlock := node.GetNode(0x5F2E).GetValue()
-		if biometricDataBlock == nil {
-			biometricDataBlock = node.GetNode(0x7F2E).GetValue()
-		}
-		if biometricDataBlock == nil {
-			log.Panicf("DG2 must have tag 5F2E or 7F2E")
-		}
-
-		var err error
-		var facial *Facial
-
-		facial, err = processISO19794(biometricDataBlock)
-
+		tmpBHT, err := processBHT(node.GetNode(0xA1))
 		if err != nil {
-			log.Panic(err)
+			return nil, nil, fmt.Errorf("[processBIT] processBHT error: %w", err)
 		}
-		out.BDB.Facial = *facial
+
+		out.BHT = *tmpBHT
 	}
 
-	return out
+	/*
+	* Proceed based on the underlying biometric encoding
+	*
+	* Tag 5F2E: ISO-1979-4
+	* Tag 7F2E: ISO-39794-5
+	 */
+	if node.GetNode(0x5F2E).IsValidNode() {
+		/*
+		* 5F2E -> ISO-1979-4 encoding
+		 */
+		biometricDataBlock := node.GetNode(0x5F2E).GetValue()
+
+		var err error
+		var facial *iso19794.ISO19794
+
+		facial, err = iso19794.ProcessISO19794(biometricDataBlock)
+		if err != nil {
+			return nil, nil, fmt.Errorf("[processBIT] processISO19794 error: %w", err)
+		}
+
+		out.BDB.Iso19794 = facial
+		outImages = facial.GetImages()
+	} else if node.GetNode(0x7F2E).IsValidNode() {
+		/*
+		* 7F2E -> ISO-39794-5 encoding
+		 */
+		biometricDataBlock := node.GetNode(0x7F2E).GetValue()
+
+		var err error
+		var ap *iso39794.ISO39794_5_AP
+
+		ap, err = iso39794.ProcessISO39794_5_AP(biometricDataBlock)
+		if err != nil {
+			return nil, nil, fmt.Errorf("[processBIT] processISO39794 error: %w", err)
+		}
+
+		out.BDB.Iso39794 = ap
+		outImages = ap.GetImages()
+
+		// DEBUG
+		/*
+			{
+				b, err := json.MarshalIndent(ap, "", "    ")
+				if err != nil {
+					log.Panicf("MarshalIndent error: %s", err)
+				}
+				log.Printf("JSON:\n\n%s\n\n\n", string(b))
+			}
+		*/
+	} else {
+		return nil, nil, fmt.Errorf("[processBIT] DG2 must have tag 5F2E or 7F2E")
+	}
+
+	return &out, outImages, nil
 }
 
 // process the Biometric Header Template (BHT) (Tag:A1)
-func processBHT(node tlv.TlvNode) BiometricHeaderTemplate {
+func processBHT(node tlv.TlvNode) (*BiometricHeaderTemplate, error) {
 	if node.GetTag() != 0xA1 {
-		log.Panicf("Incorrect BHT tag (Exp:A1) (Act:%x)", node.GetTag())
+		return nil, fmt.Errorf("[processBHT] Incorrect BHT tag (Exp:A1) (Act:%x)", node.GetTag())
 	}
 
 	var out BiometricHeaderTemplate
@@ -217,92 +211,5 @@ func processBHT(node tlv.TlvNode) BiometricHeaderTemplate {
 	* e.g. Format Owner/Type are mandatory (2 bytes), but we don't actually use for processing
 	 */
 
-	return out
-}
-
-func processISO19794(data []byte) (*Facial, error) {
-	r := bytes.NewReader(data)
-
-	fh := FacialHeader{}
-	{
-		if err := binary.Read(r, binary.BigEndian, &fh); err != nil {
-			return nil, err
-		}
-		if !bytes.Equal(fh.FormatID[:], []byte{0x46, 0x41, 0x43, 0}) {
-			log.Panicf("Invalid FacialHeader.FormatID (Act:%x)", fh.FormatID)
-		}
-	}
-
-	if fh.RecordLength != uint32(len(data)) {
-		// NB we've seen a slightly different record-length (NZ passport).. i.e. hdr.recordLength = dataLen - 8
-		//	  - tolerate, especially given that this is a value-added check
-		if fh.RecordLength != uint32(len(data))-8 {
-			log.Panicf("FacialHeader.RecordLength does not match with data (FH.RecordLength:%d) (Data-Len:%d)", fh.RecordLength, len(data))
-		}
-	}
-
-	var facial Facial
-
-	facial.Header = fh
-
-	// read images
-	for i := 0; i < int(facial.Header.NumberOfFaces); i++ {
-		image, err := parseImageIso19794(r)
-		if err != nil {
-			log.Panic(err)
-		}
-		facial.Images = append(facial.Images, *image)
-	}
-
-	// verify that we read all of the data
-	{
-		var byte uint8
-		if err := binary.Read(r, binary.BigEndian, &byte); err != io.EOF {
-			log.Panicf("No all data consumed (EOF was expected)")
-		}
-	}
-
-	return &facial, nil
-}
-
-func parseImageIso19794(r *bytes.Reader) (*Image, error) {
-	fi := FacialInfo{}
-	if err := binary.Read(r, binary.BigEndian, &fi); err != nil {
-		return nil, err
-	}
-
-	features := []FacialFeature{}
-	for i := 0; i < int(fi.NumberOfPoints); i++ {
-		feature := FacialFeature{}
-		if err := binary.Read(r, binary.BigEndian, &feature); err != nil {
-			return nil, err
-		}
-		features = append(features, feature)
-	}
-
-	ii := ImageInfo{}
-	if err := binary.Read(r, binary.BigEndian, &ii); err != nil {
-		return nil, err
-	}
-
-	// image-size = fi.Length - FacialInfo [20 bytes] - ImageInfo [12 bytes] - FacialFeatures(s) [* 8 bytes]
-	expImageSize := fi.Length - 20 - 12 - (uint32(fi.NumberOfPoints) * 8)
-	imageBytes := make([]byte, expImageSize)
-	err := binary.Read(r, binary.BigEndian, imageBytes)
-	if err != nil {
-		return nil, err
-	}
-
-	if !utils.IsImage(imageBytes) {
-		log.Panicf("Unknown image type [prefixBytes:%x]", imageBytes[0:10])
-	}
-
-	var img Image = Image{
-		FacialInformation: fi,
-		ImageInformation:  ii,
-		Features:          features,
-		Data:              imageBytes,
-	}
-
-	return &img, nil
+	return &out, nil
 }
