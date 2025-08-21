@@ -112,10 +112,10 @@ func TestNewDG2Iso19794(t *testing.T) {
 	}
 }
 
-//go:embed iso39794/test_data/ICAO_39794_5_AP_DG2_AllFields.dat
+//go:embed test_data/ICAO_39794_5_AP_DG2_AllFields.dat
 var dg2AllFields39794 []byte
 
-//go:embed iso39794/test_data/ICAO_39794_5_AP_DG2_Face.jpg
+//go:embed test_data/ICAO_39794_5_AP_DG2_Face.jpg
 var dg2AllFields39794Face []byte
 
 func TestNewDG2AllFields39794(t *testing.T) {
@@ -132,10 +132,10 @@ func TestNewDG2AllFields39794(t *testing.T) {
 	}
 }
 
-//go:embed iso39794/test_data/ICAO_39794_5_AP_DG2_MandFields.dat
+//go:embed test_data/ICAO_39794_5_AP_DG2_MandFields.dat
 var dg2MandFields39794 []byte
 
-//go:embed iso39794/test_data/ICAO_39794_5_AP_DG2_Face.jpg
+//go:embed test_data/ICAO_39794_5_AP_DG2_Face.jpg
 var dg2MandFields39794Face []byte
 
 func TestNewDG2MandFields39794(t *testing.T) {
