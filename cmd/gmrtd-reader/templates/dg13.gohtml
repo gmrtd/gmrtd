@@ -1,0 +1,14 @@
+{{define "dg13"}}
+
+<h2>DG13 <sub>Optional Detail(s)</sub></h2>
+{{if .}}
+{{/* Only output Hex **NOT** TLV, as some passports (e.g. SG) have invalid TLV in DG13 */}}
+{{template "fileHex" .RawData}}
+
+Content:
+{{template "fileHex" .Content}}
+{{else}}
+<i>No data</i>
+{{end}}
+
+{{end}}

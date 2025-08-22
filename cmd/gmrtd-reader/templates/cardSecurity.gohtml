@@ -1,0 +1,10 @@
+{{define "cardSecurity"}}
+
+<h2>CardSecurity</h2>
+{{if .}}
+{{template "fileHexAndTlv" .RawData}}
+{{else}}
+<i>No data</i>
+{{end}}
+
+{{end}}

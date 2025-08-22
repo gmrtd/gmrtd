@@ -1,0 +1,15 @@
+{{define "dg2"}}
+
+<h2>DG2 <sub>Encoded Identification Features - Face</sub></h2>
+{{if .}}
+{{template "fileHexAndTlv" .RawData}}
+{{ range .Images }}
+    <img src="data:image/jpeg;base64, {{. | BytesToBase64}}" />
+    <br/>
+    Image size (bytes): {{len .}}
+{{ end }}
+{{else}}
+<i>No data</i>
+{{end}}
+
+{{end}}

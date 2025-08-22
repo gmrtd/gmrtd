@@ -1,0 +1,11 @@
+{{define "dg7"}}
+
+<h2>DG7 <sub>Displayed Signature or Usual Mark</sub></h2>
+{{if .}}
+{{template "fileHexAndTlv" .RawData}}
+<!-- TODO - output any image(s) -->
+{{else}}
+<i>No data</i>
+{{end}}
+
+{{end}}

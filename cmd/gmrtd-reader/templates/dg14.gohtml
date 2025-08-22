@@ -1,0 +1,10 @@
+{{define "dg14"}}
+
+<h2>DG14 <sub>Security Options</sub></h2>
+{{if .}}
+{{template "fileHexAndTlv" .RawData}}
+{{else}}
+<i>No data</i>
+{{end}}
+
+{{end}}

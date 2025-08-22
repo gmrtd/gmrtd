@@ -1,0 +1,10 @@
+{{define "com"}}
+
+<h2>COM</h2>
+{{if .}}
+{{template "fileHexAndTlv" .RawData}}
+{{else}}
+<i>No data</i>
+{{end}}
+
+{{end}}

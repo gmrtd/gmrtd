@@ -1,0 +1,60 @@
+{{define "dg12"}}
+
+<h2>DG12 <sub>Additional Document Detail(s)</sub></h2>
+{{if .}}
+{{template "fileHexAndTlv" .RawData}}
+
+<div>
+<table class="striped">
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Value</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Issuing Authority</td>
+      <td>{{.Details.IssuingAuthority}}</td>
+    </tr>
+    <tr>
+      <td>Date Of Issue</td>
+      <td>{{.Details.DateOfIssue}}</td>
+    </tr>
+    <tr>
+      <td>Other Persons</td>
+      <td>{{.Details.OtherPersons}}</td>
+    </tr>
+    <tr>
+      <td>Endorsements And Observations</td>
+      <td>{{.Details.EndorsementsAndObservations}}</td>
+    </tr>
+    <tr>
+      <td>Tax Exit Requirements</td>
+      <td>{{.Details.TaxExitRequirements}}</td>
+    </tr>
+    <tr>
+      <td>Image Front</td>
+      <td>{{.Details.ImageFront | BytesToHex}}</td>
+    </tr>
+    <tr>
+      <td>Image Rear</td>
+      <td>{{.Details.ImageRear | BytesToHex}}</td>
+    </tr>
+    <tr>
+      <td>Perso Date Time</td>
+      <td>{{.Details.PersoDateTime}}</td>
+    </tr>
+    <tr>
+      <td>Perso System Serial Number</td>
+      <td>{{.Details.PersoSystemSerialNumber}}</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+{{else}}
+<i>No data</i>
+{{end}}
+
+{{end}}
