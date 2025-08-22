@@ -1,0 +1,11 @@
+{{define "dg15"}}
+
+<h2>DG15 <sub>Active Authentication Public Key Info</sub></h2>
+{{if .}}
+{{template "fileHexAndTlv" .RawData}}
+{{/* TODO - output key */}}
+{{else}}
+<i>No data</i>
+{{end}}
+
+{{end}}

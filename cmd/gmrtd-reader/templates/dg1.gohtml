@@ -1,0 +1,64 @@
+{{define "dg1"}}
+
+<h2>DG1 <sub>Machine Readable Zone Information</sub></h2>
+{{if .}}
+{{template "fileHexAndTlv" .RawData}}
+
+<div>
+<table class="striped">
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Value</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Document Code</td>
+      <td>{{.Mrz.DocumentCode}}</td>
+    </tr>
+    <tr>
+      <td>Issuing State</td>
+      <td>{{.Mrz.IssuingState}}</td>
+    </tr>
+    <tr>
+      <td>Name Of Holder</td>
+      <td>[Primary] {{.Mrz.NameOfHolder.Primary}}<BR/>[Secondary] {{.Mrz.NameOfHolder.Secondary}}</td>
+    </tr>
+    <tr>
+      <td>Document Number</td>
+      <td>{{.Mrz.DocumentNumber}}</td>
+    </tr>
+    <tr>
+      <td>Nationality</td>
+      <td>{{.Mrz.Nationality}}</td>
+    </tr>
+    <tr>
+      <td>Date Of Birth</td>
+      <td>{{.Mrz.DateOfBirth}}</td>
+    </tr>
+    <tr>
+      <td>Sex</td>
+      <td>{{.Mrz.Sex}}</td>
+    </tr>
+    <tr>
+      <td>Date Of Expiry</td>
+      <td>{{.Mrz.DateOfExpiry}}</td>
+    </tr>
+    <tr>
+      <td>Optional Data</td>
+      <td>{{.Mrz.OptionalData}}</td>
+    </tr>
+    <tr>
+      <td>Optional Data 2</td>
+      <td>{{.Mrz.OptionalData2}}</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+{{else}}
+<i>No data</i>
+{{end}}
+
+{{end}}

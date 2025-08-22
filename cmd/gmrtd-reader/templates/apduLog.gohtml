@@ -1,0 +1,24 @@
+{{define "apduLog"}}
+
+<h1>APDU LOG</h1>
+
+<h2>Count: {{len .}}</h2>
+<h2>Duration(ms): {{. | ApduTotalDurMs}}</h2>
+
+{{ range . }}
+<div><pre>
+Desc: <b>{{ .Desc }}</b>
+Dur(ms): <b>{{ .DurMs }}</b>
+</pre></div>
+<div><pre>
+-> {{ .Tx | BytesToHex }}
+    {{if .Child}}
+--> {{ .Child.Tx | BytesToHex }}
+<-- {{ .Child.Rx | BytesToHex }}
+    {{end}}
+<- {{ .Rx | BytesToHex }}
+</pre></div>
+<hr>
+{{ end }}
+
+{{end}}

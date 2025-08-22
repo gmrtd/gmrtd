@@ -1,0 +1,10 @@
+{{define "sod"}}
+
+<h2>SOD <sub>Document Security Object</sub></h2>
+{{if .}}
+{{template "fileHexAndTlv" .RawData}}
+{{else}}
+<i>No data</i>
+{{end}}
+
+{{end}}

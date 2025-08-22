@@ -1,0 +1,11 @@
+{{define "dg16"}}
+
+<h2>DG16 <sub>Person(s) to Notify</sub></h2>
+{{if .}}
+{{template "fileHexAndTlv" .RawData}}
+{{/* TODO - output persons to notify */}}
+{{else}}
+<i>No data</i>
+{{end}}
+
+{{end}}

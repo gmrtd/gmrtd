@@ -1,4 +1,13 @@
 github.com/aead/cmac v0.0.0-20160719120800-7af84192f0b1 h1:+JkXLHME8vLJafGhOH4aoV2Iu8bR55nU6iKMVfYVLjY=
 github.com/aead/cmac v0.0.0-20160719120800-7af84192f0b1/go.mod h1:nuudZmJhzWtx2212z+pkuy7B6nkBqa+xwNXZHL1j8cg=
+github.com/dumacp/smartcard v0.1.8 h1:HKqrKrWJiBK3Sto4cymmv4VMkzcT3cHlRCc9A4XeWyg=
+github.com/dumacp/smartcard v0.1.8/go.mod h1:qLQLuYHKbY97/VydBGf/JfGkgHw9OgRdOppcd5J7UGw=
+github.com/ebfe/scard v0.0.0-20241214075232-7af069cabc25 h1:vXmXuiy1tgifTqWAAaU+ESu1goRp4B3fdhemWMMrS4g=
+github.com/ebfe/scard v0.0.0-20241214075232-7af069cabc25/go.mod h1:BkYEeWL6FbT4Ek+TcOBnPzEKnL7kOq2g19tTQXkorHY=
 github.com/osanderson/brainpool v0.0.0-20240902133831-007b606d9412 h1:tB1lzcw4iTpErf0TOKINVm+Xkwyr67BRIaeXhUm4dNQ=
 github.com/osanderson/brainpool v0.0.0-20240902133831-007b606d9412/go.mod h1:LUYLv8+wgWKKP+MZcvXJ+BkQlpakINAEAMOwG9OL66Y=
+github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c h1:+mdjkGKdHQG3305AYmdv1U2eRNDiU2ErMBj1gwrq8eQ=
+github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c/go.mod h1:7rwL4CYBLnjLxUqIJNnCWiEdr3bn6IUYi15bNlnbCCU=
+golang.org/x/sys v0.1.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
+golang.org/x/sys v0.35.0 h1:vz1N37gP5bs89s7He8XuIYXpyY0+QlsKmzipCbUtyxI=
+golang.org/x/sys v0.35.0/go.mod h1:BJP2sWEmIv4KK5OTEluFJCKSidICx8ciO85XgH3Ak8k=

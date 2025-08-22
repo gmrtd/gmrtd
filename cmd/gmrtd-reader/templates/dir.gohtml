@@ -1,0 +1,10 @@
+{{define "dir"}}
+
+<h2>DIR</h2>
+{{if .}}
+{{template "fileHexAndTlv" .RawData}}
+{{else}}
+<i>No data</i>
+{{end}}
+
+{{end}}

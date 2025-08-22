@@ -1,0 +1,164 @@
+<html>
+<head>
+<style>
+h1 {
+    background-color:SkyBlue
+}
+h2 {
+    background-color:Silver
+}
+</style>
+
+<style>
+table.striped {
+  
+  border-collapse: collapse;
+  font-family: sans-serif;
+}
+
+table.striped th, table.striped td {
+  padding: 8px 12px;
+  border: 1px solid #ccc;
+  text-align: left;
+}
+
+table.striped thead {
+  background-color: #f0f0f0;
+}
+
+table.striped tbody tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+table.striped tbody tr:nth-child(odd) {
+  background-color: #ffffff;
+}
+
+table.striped tbody tr:hover {
+  background-color: #e6f7ff;
+}
+</style>
+
+
+<title>GMRTD</title>
+</head>
+<body>
+
+{{define "fileHexAndTlv"}}
+<div><pre>
+{{. | BytesToHex}}
+</pre></div>
+
+<div><pre>
+{{. | TlvBytesToString}}
+</pre></div>
+{{end}}
+
+{{define "fileHex"}}
+<div><pre>
+{{. | BytesToHex}}
+</pre></div>
+{{end}}
+
+<h1><a href="https://github.com/gmrtd/gmrtd">GMRTD</a></h1>
+
+<div>
+<a href="#json">JSON</a>
+</div>
+
+<br/>
+
+<div>
+<table class="striped">
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Value</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>LDS version</td>
+      <td>{{.LdsVersion}}</td>
+    </tr>
+    <tr>
+      <td>Unicode version</td>
+      <td>{{.UnicodeVersion}}</td>
+    </tr>
+    <tr>
+      <td>ATR</td>
+      <td>{{.Atr | BytesToHex}}</td>
+    </tr>
+    <tr>
+      <td>ATS</td>
+      <td>{{.Ats | BytesToHex}}</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<br/>
+
+<div>
+<table class="striped">
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Value</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>ChipAuthStatus</td>
+      <td>{{.ChipAuthStatus}}</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Passive Authentication <sub>SOD</sub></h2>
+{{if .PassiveAuthSOD}}
+    {{ range .PassiveAuthSOD.CertChain }}
+        {{template "fileHexAndTlv" .}}
+    {{ end }}
+{{else}}
+<i>No data</i>
+{{end}}
+
+<h2>Passive Authentication <sub>CardSecurity</sub></h2>
+{{if .PassiveAuthCardSec}}
+    {{ range .PassiveAuthCardSec.CertChain }}
+        {{template "fileHexAndTlv" .}}
+    {{ end }}
+{{else}}
+<i>No data</i>
+{{end}}
+
+{{template "cardAccess" .Mf.CardAccess}}
+{{template "cardSecurity" .Mf.CardSecurity}}
+{{template "dir" .Mf.Dir}}
+{{template "com" .Mf.Lds1.Com}}
+{{template "sod" .Mf.Lds1.Sod}}
+
+{{template "dg1" .Mf.Lds1.Dg1}}
+{{template "dg2" .Mf.Lds1.Dg2}}
+{{template "dg7" .Mf.Lds1.Dg7}}
+{{template "dg11" .Mf.Lds1.Dg11}}
+{{template "dg12" .Mf.Lds1.Dg12}}
+{{template "dg13" .Mf.Lds1.Dg13}}
+{{template "dg14" .Mf.Lds1.Dg14}}
+{{template "dg15" .Mf.Lds1.Dg15}}
+{{template "dg16" .Mf.Lds1.Dg16}}
+
+{{template "apduLog" .Apdus}}
+
+<div id="json">
+<h1>Document JSON</h1>
+
+<div><pre>
+{{ .IndentedJson }}
+</pre></div>
+</div>
+
+</body>
+</html>

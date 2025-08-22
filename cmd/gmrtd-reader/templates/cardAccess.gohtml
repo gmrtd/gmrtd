@@ -1,0 +1,10 @@
+{{define "cardAccess"}}
+
+<h2>CardAccess</h2>
+{{if .}}
+{{template "fileHexAndTlv" .RawData}}
+{{else}}
+<i>No data</i>
+{{end}}
+
+{{end}}
