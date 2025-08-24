@@ -258,8 +258,8 @@ func (doc *Document) Verify() error {
 	// error if CardAccess SecInfos are not present within DG14
 	if (doc.Mf.CardAccess != nil) && (doc.Mf.Lds1.Dg14 != nil) {
 		slog.Info("Document.Verify: Verifying that CardAccess content is present within DG14")
-		if !doc.Mf.Lds1.Dg14.SecInfos.Contains(doc.Mf.CardAccess.SecurityInfos) {
-			return fmt.Errorf("(doc.Verify) CardAccess SecInfos are not present within DG14")
+		if err := doc.Mf.Lds1.Dg14.SecInfos.Contains(doc.Mf.CardAccess.SecurityInfos); err != nil {
+			return fmt.Errorf("[doc.Verify] CardAccess SecInfos are not present within DG14: %w", err)
 		}
 	}
 

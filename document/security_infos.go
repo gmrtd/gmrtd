@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/asn1"
 	"encoding/json"
-	"log"
+	"fmt"
 	"log/slog"
 	"math/big"
 
@@ -162,14 +162,14 @@ func handlePaceInfo(oid asn1.ObjectIdentifier, data []byte, secInfos *SecurityIn
 	var paceInfo PaceInfo
 	err = utils.ParseAsn1(data, false, &paceInfo)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("[handlePaceInfo] ParseAsn1 error: %w", err)
 	}
 
 	// validation
 	// TODO - ideally we'd log this but not throw a hard error, we should
 	//        also be consistent and do these checks for other record types
 	if paceInfo.Version != 2 {
-		log.Panicf("PaceInfo version must be 2 (Version:%d)", paceInfo.Version)
+		return false, fmt.Errorf("[handlePaceInfo] PaceInfo version must be 2 (Version:%d) (Data:%x)", paceInfo.Version, data)
 	}
 
 	secInfos.PaceInfos = append(secInfos.PaceInfos, paceInfo)
@@ -187,7 +187,7 @@ func handlePaceDomainParameterInfo(oid asn1.ObjectIdentifier, data []byte, secIn
 
 	err = utils.ParseAsn1(data, false, &paceDomainParamInfo)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("[handlePaceDomainParameterInfo] ParseAsn1 error: %w", err)
 	}
 
 	secInfos.PaceDomainParamInfos = append(secInfos.PaceDomainParamInfos, paceDomainParamInfo)
@@ -205,7 +205,7 @@ func handleActiveAuthenticationInfo(oid asn1.ObjectIdentifier, data []byte, secI
 
 	err = utils.ParseAsn1(data, false, &activeAuthInfo)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("[handleActiveAuthenticationInfo] ParseAsn1 error: %w", err)
 	}
 
 	secInfos.ActiveAuthInfos = append(secInfos.ActiveAuthInfos, activeAuthInfo)
@@ -223,7 +223,7 @@ func handleChipAuthenticationInfo(oid asn1.ObjectIdentifier, data []byte, secInf
 
 	err = utils.ParseAsn1(data, false, &chipAuthInfo)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("[handleChipAuthenticationInfo] ParseAsn1 error: %w", err)
 	}
 
 	secInfos.ChipAuthInfos = append(secInfos.ChipAuthInfos, chipAuthInfo)
@@ -241,7 +241,7 @@ func handleChipAuthenticationPublicKeyInfo(oid asn1.ObjectIdentifier, data []byt
 
 	err = utils.ParseAsn1(data, false, &chipAuthPubKeyInfo)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("[handleChipAuthenticationPublicKeyInfo] ParseAsn1 error: %w", err)
 	}
 
 	secInfos.ChipAuthPubKeyInfos = append(secInfos.ChipAuthPubKeyInfos, chipAuthPubKeyInfo)
@@ -263,7 +263,7 @@ func handleTerminalAuthenticationInfo(oid asn1.ObjectIdentifier, data []byte, se
 
 	err = utils.ParseAsn1(data, false, &termAuthInfo)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("[handleTerminalAuthenticationInfo] ParseAsn1 error: %w", err)
 	}
 
 	secInfos.TermAuthInfos = append(secInfos.TermAuthInfos, termAuthInfo)
@@ -281,7 +281,7 @@ func handleEfDirInfo(oid asn1.ObjectIdentifier, data []byte, secInfos *SecurityI
 
 	err = utils.ParseAsn1(data, false, &efDirInfo)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("[handleEfDirInfo] ParseAsn1 error: %w", err)
 	}
 
 	secInfos.EfDirInfos = append(secInfos.EfDirInfos, efDirInfo)
@@ -297,10 +297,11 @@ func handleUnsupportedInfo(oid asn1.ObjectIdentifier, data []byte, secInfos *Sec
 	// NB isPartiallyParsed=TRUE because we expect data after the Protocol(OID)
 	err = utils.ParseAsn1(data, true, &unhandledInfo)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("[handleUnsupportedInfo] ParseAsn1 error: %w", err)
 	}
 
 	secInfos.UnhandledInfos = append(secInfos.UnhandledInfos, unhandledInfo)
+
 	return true, nil
 }
 
@@ -328,7 +329,7 @@ func DecodeSecurityInfos(secInfoData []byte) (secInfos *SecurityInfos, err error
 	// we only read the OID, so we expect unparsed data to remain
 	err = utils.ParseAsn1(secInfoData, true, &secInfoOids)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("[DecodeSecurityInfos] ParseAsn1 error: %w", err)
 	}
 
 	secInfos = &SecurityInfos{}
@@ -346,7 +347,7 @@ func DecodeSecurityInfos(secInfoData []byte) (secInfos *SecurityInfos, err error
 		for _, handleFn := range securityInfoHandleFnArr {
 			handled, err = handleFn(oid, data, secInfos)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("[DecodeSecurityInfos] handleFn (oid:%s) error: %w", oid.String(), err)
 			}
 			if handled {
 				break
@@ -354,7 +355,7 @@ func DecodeSecurityInfos(secInfoData []byte) (secInfos *SecurityInfos, err error
 		}
 
 		if !handled {
-			panic("secInfo should have been handled by at least one of the handlers (e.g. handleUnsupportedInfo)")
+			return nil, fmt.Errorf("[DecodeSecurityInfos] secInfo should have been handled by at least one of the handlers")
 		}
 	}
 
@@ -363,21 +364,20 @@ func DecodeSecurityInfos(secInfoData []byte) (secInfos *SecurityInfos, err error
 
 // determines whether 'subsetSecInfos' is present within 'secInfos'
 // NB uses a generic ASN1 approach to compare against opaque objects
-func (secInfos *SecurityInfos) Contains(subsetSecInfos *SecurityInfos) bool {
+// returns: nil if okay, otherwise error
+func (secInfos *SecurityInfos) Contains(subsetSecInfos *SecurityInfos) error {
 	var err error
 
 	var tmpSecInfos SecurityInfoOidSET
 	err = utils.ParseAsn1(secInfos.RawData, true, &tmpSecInfos)
 	if err != nil {
-		slog.Error("SecInfos.Contains", "ParseAsn1 error", err)
-		return false
+		return fmt.Errorf("[SecInfos.Contains] ParseAsn1(main) error: %w", err)
 	}
 
 	var tmpSubsetSecInfos SecurityInfoOidSET
 	err = utils.ParseAsn1(subsetSecInfos.RawData, true, &tmpSubsetSecInfos)
 	if err != nil {
-		slog.Error("SecInfos.Contains", "ParseAsn1 error", err)
-		return false
+		return fmt.Errorf("[SecInfos.Contains] ParseAsn1(subset) error: %w", err)
 	}
 
 	for _, tmpSubsetSecInfo := range tmpSubsetSecInfos {
@@ -391,13 +391,12 @@ func (secInfos *SecurityInfos) Contains(subsetSecInfos *SecurityInfos) bool {
 		}
 
 		if !isPresent {
-			slog.Warn("SecInfo.Contains - does NOT contain SecInfo", "OID", tmpSubsetSecInfo.Protocol.String(), "Raw", tmpSubsetSecInfo.Raw)
-			return false
+			return fmt.Errorf("[SecInfos.Contains] does NOT contain SecInfo (oid:%s) (raw:%x)", tmpSubsetSecInfo.Protocol.String(), tmpSubsetSecInfo.Raw)
 		}
 
 	}
 
-	return true
+	return nil
 }
 
 func (secInfos *SecurityInfos) GetTotalCnt() (cnt int) {

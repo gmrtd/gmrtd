@@ -2,8 +2,10 @@ package document
 
 import (
 	"bytes"
+	"encoding/asn1"
 	"testing"
 
+	"github.com/gmrtd/gmrtd/oid"
 	"github.com/gmrtd/gmrtd/utils"
 )
 
@@ -101,7 +103,105 @@ func TestDecodeSecurityInfosCardSecFile(t *testing.T) {
 	}
 }
 
-//
+func TestHandlePaceInfoBadAsnErr(t *testing.T) {
+	// adapted from valid test data, to be invalid ASN1 (made length +1 byte higher than it should be)
+	// oid			: 0.4.0.127.0.7.2.2.4.2.2 (OidPaceEcdhGmAesCbcCmac128)
+	// data (orig)	: 3012060a04007f0007020204020202010202010d
+	// data (bad)	: 3013060a04007f0007020204020202010202010d
+
+	var oid asn1.ObjectIdentifier = oid.OidPaceEcdhGmAesCbcCmac128
+	var data []byte = utils.HexToBytes("3013060a04007f0007020204020202010202010d")
+
+	var secInfos SecurityInfos
+
+	handled, err := handlePaceInfo(oid, data, &secInfos)
+	if err == nil {
+		t.Fatalf("error expected")
+	}
+	if handled {
+		t.Fatalf("should not be handled")
+	}
+}
+
+func TestHandleChipAuthenticationInfoBadAsnErr(t *testing.T) {
+	// adapted from valid test data, to be invalid ASN1 (made length +1 byte higher than it should be)
+	// oid			:0.4.0.127.0.7.2.2.3.2.4 (OidCaEcdhAesCbcCmac256)
+	// data (orig)	:300f060a04007f00070202030204020101
+	// data (bad)	:3010060a04007f00070202030204020101
+
+	var oid asn1.ObjectIdentifier = oid.OidCaEcdhAesCbcCmac256
+	var data []byte = utils.HexToBytes("3010060a04007f00070202030204020101")
+
+	var secInfos SecurityInfos
+
+	handled, err := handleChipAuthenticationInfo(oid, data, &secInfos)
+	if err == nil {
+		t.Fatalf("error expected")
+	}
+	if handled {
+		t.Fatalf("should not be handled")
+	}
+}
+
+func TestHandleChipAuthenticationPublicKeyInfoBadAsnErr(t *testing.T) {
+	// adapted from valid test data, to be invalid ASN1 (made length +1 byte higher than it should be)
+	// oid			:0.4.0.127.0.7.2.2.1.2 (OidPkEcdh)
+	// data (orig)	:3062060904007f0007020201023052300c060704007f0007010202010d03420004614cd88b00821a887869d0060b44a9d18789353e8cf7dfbc3f29f79327de30b97b1b2dda0be77f24ad415c327c7b7ab2e9c10b0258f5bcbf90c01825fbdfdef702010d
+	// data (bad)	:3063060904007f0007020201023052300c060704007f0007010202010d03420004614cd88b00821a887869d0060b44a9d18789353e8cf7dfbc3f29f79327de30b97b1b2dda0be77f24ad415c327c7b7ab2e9c10b0258f5bcbf90c01825fbdfdef702010d
+
+	var oid asn1.ObjectIdentifier = oid.OidPkEcdh
+	var data []byte = utils.HexToBytes("3063060904007f0007020201023052300c060704007f0007010202010d03420004614cd88b00821a887869d0060b44a9d18789353e8cf7dfbc3f29f79327de30b97b1b2dda0be77f24ad415c327c7b7ab2e9c10b0258f5bcbf90c01825fbdfdef702010d")
+
+	var secInfos SecurityInfos
+
+	handled, err := handleChipAuthenticationPublicKeyInfo(oid, data, &secInfos)
+	if err == nil {
+		t.Fatalf("error expected")
+	}
+	if handled {
+		t.Fatalf("should not be handled")
+	}
+}
+
+func TestHandleEfDirInfoBadAsnErr(t *testing.T) {
+	// adapted from valid test data, to be invalid ASN1 (made length +1 byte higher than it should be)
+	// oid			:1.3.27.1.1.13 (OidEfDir)
+	// data (orig)	:303506052b1b01010d042c61094f07a000000247100161094f07a000000247200161094f07a000000247200261094f07a0000002472003
+	// data (bad)	:303606052b1b01010d042c61094f07a000000247100161094f07a000000247200161094f07a000000247200261094f07a0000002472003
+
+	var oid asn1.ObjectIdentifier = oid.OidEfDir
+	var data []byte = utils.HexToBytes("303606052b1b01010d042c61094f07a000000247100161094f07a000000247200161094f07a000000247200261094f07a0000002472003")
+
+	var secInfos SecurityInfos
+
+	handled, err := handleEfDirInfo(oid, data, &secInfos)
+	if err == nil {
+		t.Fatalf("error expected")
+	}
+	if handled {
+		t.Fatalf("should not be handled")
+	}
+}
+
+func TestHandleUnsupportedInfoBadAsnErr(t *testing.T) {
+	// adapted from valid test data, to be invalid ASN1 (made length +1 byte higher than it should be)
+	// oid			:0.4.0.127.0.7.2.2.3.2 (OidCaEcdh)
+	// data (orig)	:301c060904007f000702020302300c060704007f0007010202010d020148
+	// data (bad)	:301d060904007f000702020302300c060704007f0007010202010d020148
+
+	var oid asn1.ObjectIdentifier = oid.OidCaEcdh
+	var data []byte = utils.HexToBytes("301d060904007f000702020302300c060704007f0007010202010d020148")
+
+	var secInfos SecurityInfos
+
+	handled, err := handleUnsupportedInfo(oid, data, &secInfos)
+	if err == nil {
+		t.Fatalf("error expected")
+	}
+	if handled {
+		t.Fatalf("should not be handled")
+	}
+}
 
 func TestSecurityInfosContains(t *testing.T) {
 	// taken from DG14 file on DE passport
@@ -109,18 +209,18 @@ func TestSecurityInfosContains(t *testing.T) {
 
 	secInfos, err := DecodeSecurityInfos(secInfosBytes)
 	if err != nil {
-		t.Errorf("Unexpected error: %s", err)
+		t.Fatalf("Unexpected error: %s", err)
 	}
 
 	cardAccessSecInfosBytes := utils.HexToBytes("31283012060A04007F0007020204020202010202010D3012060A04007F0007020204060202010202010D")
 
 	cardAccessSecInfos, err := DecodeSecurityInfos(cardAccessSecInfosBytes)
 	if err != nil {
-		t.Errorf("Unexpected error: %s", err)
+		t.Fatalf("Unexpected error: %s", err)
 	}
 
-	if !secInfos.Contains(cardAccessSecInfos) {
-		t.Error("secInfos should CONTAIN cardAccessSecInfos")
+	if err := secInfos.Contains(cardAccessSecInfos); err != nil {
+		t.Fatalf("secInfos should CONTAIN cardAccessSecInfos (err:%s)", err)
 	}
 }
 
@@ -143,7 +243,35 @@ func TestSecurityInfosContainsError(t *testing.T) {
 		t.Errorf("Unexpected error: %s", err)
 	}
 
-	if secInfos.Contains(cardAccessSecInfos) {
+	if err := secInfos.Contains(cardAccessSecInfos); err == nil {
 		t.Error("secInfos should *NOT* CONTAIN cardAccessSecInfos")
+	}
+}
+
+func TestContainsBadAsnErr(t *testing.T) {
+	// adapted from valid test data, to be invalid ASN1 (made length +1 byte higher than it should be)
+	//
+	// secInfo1-raw (orig):	31820196300d060804007f00070202020201013012060a04007f0007020204020202010202010d3012060a04007f0007020204060202010202010d3013060a04007f00070202030202020101020200c330820146060904007f000702020102308201333081ec06072a8648ce3d02013081e0020101302c06072a8648ce3d0101022100a9fb57dba1eea9bc3e660a909d838d726e3bf623d52620282013481d1f6e5377304404207d5a0975fc2c3057eef67530417affe7fb8055c126dc5c6ce94a4b44f330b5d9042026dc5c6ce94a4b44f330b5d9bbd77cbf958416295cf7e1ce6bccdc18ff8c07b60441048bd2aeb9cb7e57cb2c4b482ffc81b7afb9de27e1e3bd23c23a4453bd9ace3262547ef835c3dac4fd97f8461a14611dc9c27745132ded8e545c1d54c72f046997022100a9fb57dba1eea9bc3e660a909d838d718c397aa3b561a6f7901e0e82974856a7020101034200047036bc5d0bcf31913b59103bb6f2c0c98c99ef4c19b9517340b76bfe4ee2194c76c3f3314e021d4b092db5a32ab7d6e297f2fbeae45aa28defc4da750fead54e020200c3
+	// secInfo1-raw (bad) :	31820197300d060804007f00070202020201013012060a04007f0007020204020202010202010d3012060a04007f0007020204060202010202010d3013060a04007f00070202030202020101020200c330820146060904007f000702020102308201333081ec06072a8648ce3d02013081e0020101302c06072a8648ce3d0101022100a9fb57dba1eea9bc3e660a909d838d726e3bf623d52620282013481d1f6e5377304404207d5a0975fc2c3057eef67530417affe7fb8055c126dc5c6ce94a4b44f330b5d9042026dc5c6ce94a4b44f330b5d9bbd77cbf958416295cf7e1ce6bccdc18ff8c07b60441048bd2aeb9cb7e57cb2c4b482ffc81b7afb9de27e1e3bd23c23a4453bd9ace3262547ef835c3dac4fd97f8461a14611dc9c27745132ded8e545c1d54c72f046997022100a9fb57dba1eea9bc3e660a909d838d718c397aa3b561a6f7901e0e82974856a7020101034200047036bc5d0bcf31913b59103bb6f2c0c98c99ef4c19b9517340b76bfe4ee2194c76c3f3314e021d4b092db5a32ab7d6e297f2fbeae45aa28defc4da750fead54e020200c3
+	//
+	// secInfo2-raw (orig): 31283012060a04007f0007020204020202010202010d3012060a04007f0007020204060202010202010d
+	// secInfo2-raw (bad) : 31293012060a04007f0007020204020202010202010d3012060a04007f0007020204060202010202010d
+
+	// Note: this test takes account of the fact that 'Contains' will only use the 'RawData'.
+	//		 if the behaviour changes, then the test may fail as it makes no effect to populate the structure,
+	//		 and can't properly populate anyway given that we're testing 'invalid ASN1' scenarios
+
+	var secInfo1orig SecurityInfos = SecurityInfos{RawData: utils.HexToBytes("31820196300d060804007f00070202020201013012060a04007f0007020204020202010202010d3012060a04007f0007020204060202010202010d3013060a04007f00070202030202020101020200c330820146060904007f000702020102308201333081ec06072a8648ce3d02013081e0020101302c06072a8648ce3d0101022100a9fb57dba1eea9bc3e660a909d838d726e3bf623d52620282013481d1f6e5377304404207d5a0975fc2c3057eef67530417affe7fb8055c126dc5c6ce94a4b44f330b5d9042026dc5c6ce94a4b44f330b5d9bbd77cbf958416295cf7e1ce6bccdc18ff8c07b60441048bd2aeb9cb7e57cb2c4b482ffc81b7afb9de27e1e3bd23c23a4453bd9ace3262547ef835c3dac4fd97f8461a14611dc9c27745132ded8e545c1d54c72f046997022100a9fb57dba1eea9bc3e660a909d838d718c397aa3b561a6f7901e0e82974856a7020101034200047036bc5d0bcf31913b59103bb6f2c0c98c99ef4c19b9517340b76bfe4ee2194c76c3f3314e021d4b092db5a32ab7d6e297f2fbeae45aa28defc4da750fead54e020200c3")}
+	var secInfo1bad SecurityInfos = SecurityInfos{RawData: utils.HexToBytes("31820197300d060804007f00070202020201013012060a04007f0007020204020202010202010d3012060a04007f0007020204060202010202010d3013060a04007f00070202030202020101020200c330820146060904007f000702020102308201333081ec06072a8648ce3d02013081e0020101302c06072a8648ce3d0101022100a9fb57dba1eea9bc3e660a909d838d726e3bf623d52620282013481d1f6e5377304404207d5a0975fc2c3057eef67530417affe7fb8055c126dc5c6ce94a4b44f330b5d9042026dc5c6ce94a4b44f330b5d9bbd77cbf958416295cf7e1ce6bccdc18ff8c07b60441048bd2aeb9cb7e57cb2c4b482ffc81b7afb9de27e1e3bd23c23a4453bd9ace3262547ef835c3dac4fd97f8461a14611dc9c27745132ded8e545c1d54c72f046997022100a9fb57dba1eea9bc3e660a909d838d718c397aa3b561a6f7901e0e82974856a7020101034200047036bc5d0bcf31913b59103bb6f2c0c98c99ef4c19b9517340b76bfe4ee2194c76c3f3314e021d4b092db5a32ab7d6e297f2fbeae45aa28defc4da750fead54e020200c3")}
+
+	var secInfo2orig SecurityInfos = SecurityInfos{RawData: utils.HexToBytes("31283012060a04007f0007020204020202010202010d3012060a04007f0007020204060202010202010d")}
+	var secInfo2bad SecurityInfos = SecurityInfos{RawData: utils.HexToBytes("31293012060a04007f0007020204020202010202010d3012060a04007f0007020204060202010202010d")}
+
+	if err := secInfo1bad.Contains(&secInfo2orig); err == nil {
+		t.Fatalf("error expected")
+	}
+
+	if err := secInfo1orig.Contains(&secInfo2bad); err == nil {
+		t.Fatalf("error expected")
 	}
 }
