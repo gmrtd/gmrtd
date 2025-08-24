@@ -55,10 +55,6 @@ func outputDocument(document *document.Document) {
 	if document == nil {
 		return
 	}
-	// TODO - update to include DG2/7 images.. maybe easier if we switch to a html output
-	// e.g.
-	//	gmrtd.WriteFile("DG2_image", document.Dg2.BITs[0].BDB.Facial.Images[0].Data)
-	//	gmrtd.WriteFile("DG7_image", document.Dg7.Images[0].Image)
 
 	funcMap := template.FuncMap{
 		"BytesToHex":       func(bytes []byte) string { return fmt.Sprintf("%X", bytes) },
@@ -115,10 +111,6 @@ func getParams() (pass *password.Password, debug bool, apduMaxRead uint, skipPac
 		flag.PrintDefaults()
 		return nil, false, 0, false, fmt.Errorf("usage: must specify either doc+dob+exp *OR* can")
 	}
-
-	log.Printf("Doc:%s, DOB:%s, Exp:%s, CAN:%s, Debug:%t, MaxRead:%d", *documentNo, *dateOfBirth, *expiryDate, *can, *debugFlag, *maxRead)
-
-	log.Printf("Password: %+v", pass)
 
 	return pass, *debugFlag, *maxRead, *skipPaceFlag, nil
 }
