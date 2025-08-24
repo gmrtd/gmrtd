@@ -17,16 +17,16 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
+      - name: Install libpcsclite-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install libpcsclite-dev
       - name: Set up Go
         uses: actions/setup-go@v5
-
       - name: Install dependencies
         run: go mod download
-
       - name: Run tests
         run: go test ./... -coverprofile=coverage.txt
-
       - name: Upload results to Codecov
         uses: codecov/codecov-action@v4
         with:

@@ -55,7 +55,7 @@ func outputDocument(document *document.Document) {
 	if document == nil {
 		return
 	}
-  
+
 	funcMap := template.FuncMap{
 		"BytesToHex":       func(bytes []byte) string { return fmt.Sprintf("%X", bytes) },
 		"TlvBytesToString": func(bytes []byte) string { nodes, _ := tlv.Decode(bytes); return nodes.String() },
