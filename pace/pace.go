@@ -486,15 +486,13 @@ func getIcPubKeyECForCAM(domainParams *PACEDomainParams, cardSecurity *document.
 	for i := range caPubKeyInfos {
 		var subjectPubKeyInfo *cms.SubjectPublicKeyInfo = &caPubKeyInfos[i].ChipAuthenticationPublicKey
 
-		if !subjectPubKeyInfo.Algorithm.Algorithm.Equal(oid.OidBsiDeEcKeyType) {
-			log.Panicf("(getIcPubKeyECForCAM) Wrong OID (act:%s)", subjectPubKeyInfo.Algorithm.Algorithm.String())
+		// only evaluate EC keys
+		if subjectPubKeyInfo.Algorithm.Algorithm.Equal(oid.OidBsiDeEcKeyType) {
+			if utils.BytesToInt(subjectPubKeyInfo.Algorithm.Parameters.Bytes) == domainParams.id {
+				var tmpKey []byte = subjectPubKeyInfo.SubjectPublicKey.Bytes
+				return cryptoutils.DecodeX962EcPoint(domainParams.ec, tmpKey)
+			}
 		}
-
-		if utils.BytesToInt(subjectPubKeyInfo.Algorithm.Parameters.Bytes) == domainParams.id {
-			var tmpKey []byte = subjectPubKeyInfo.SubjectPublicKey.Bytes
-			return cryptoutils.DecodeX962EcPoint(domainParams.ec, tmpKey)
-		}
-
 	}
 
 	log.Panicf("Unable to get Public-Key for CAM")
