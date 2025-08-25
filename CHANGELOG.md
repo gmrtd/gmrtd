@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1](https://github.com/gmrtd/gmrtd/compare/v0.6.0...v0.6.1) (2025-08-25)
+
+
+### Bug Fixes
+
+* only consider EC keys (getIcPubKeyECForCAM) ([#48](https://github.com/gmrtd/gmrtd/issues/48)) ([8906cca](https://github.com/gmrtd/gmrtd/commit/8906cca08c515874730cc8e8ba62594ab48bddf7))
+
 ## [0.6.0](https://github.com/gmrtd/gmrtd/compare/v0.5.0...v0.6.0) (2025-08-22)
 
 
