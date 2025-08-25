@@ -2,6 +2,7 @@
 package oid
 
 import (
+	"bytes"
 	"encoding/asn1"
 	"fmt"
 )
@@ -274,22 +275,11 @@ func OidHasPrefix(oid asn1.ObjectIdentifier, prefixOid asn1.ObjectIdentifier) bo
 func OidBytes(oid asn1.ObjectIdentifier) []byte {
 	asn1bytes, err := asn1.Marshal(oid)
 	if err != nil {
-		panic(fmt.Sprintf("Unable to encode OID []int (%s)", err.Error()))
+		panic(fmt.Sprintf("Unable to encode OID (oid:%s) (err:%s)", oid.String(), err))
 	}
 
-	if len(asn1bytes) < 3 {
-		panic("asn1 oid with tag/length must be at least 3 bytes in length")
-	}
-
-	if asn1bytes[0] != 0x06 {
-		panic("asn1 oid must have tag=0x06")
-	}
-
-	if int(asn1bytes[1]) != (len(asn1bytes) - 2) {
-		panic("unexpected length")
-	}
-
-	return asn1bytes[2:]
+	// NB skip first two(2) bytes... will panic if 'asn1.Marshal' has a major bug, but then we have bigger issues
+	return bytes.Clone(asn1bytes[2:])
 }
 
 // decodes the raw OID bytes (excluding the tag/length)
