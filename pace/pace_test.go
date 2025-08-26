@@ -607,3 +607,143 @@ func TestDecodeDynAuthDataError(t *testing.T) {
 	// Never reaches here if panic
 	t.Errorf("expected panic, but didn't get")
 }
+
+func TestDoApduMsgSetATApduErr(t *testing.T) {
+	// NB we expect an error when an APDU error occurs
+
+	var doc document.Document
+	var pass password.Password = *password.NewPasswordCan("123456")
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{}) // force APDU errors!
+	var pace *Pace = NewPace(nfc, &doc, &pass)
+
+	paceConfig, err := paceConfigGetByOID(oid.OidPaceEcdhGmAesCbcCmac256)
+	if err != nil {
+		t.Fatalf("paceConfigGetByOID error: %s", err)
+	}
+
+	err = pace.doApduMsgSetAT(paceConfig)
+	// NB we expect an error as we'll get an APDU error
+	if err == nil {
+		t.Fatalf("error expected")
+	}
+}
+
+func TestMapNonceGmEcDhApduErr(t *testing.T) {
+	// NB we expect an error when an APDU error occurs
+
+	var doc document.Document
+	var pass password.Password = *password.NewPasswordCan("123456")
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{}) // force APDU errors!
+	var pace *Pace = NewPace(nfc, &doc, &pass)
+	var domainParams *PACEDomainParams = getStandardisedDomainParams(13) // 13: Brainpool P256r1
+	var s []byte = []byte{1, 2, 3, 4}
+
+	_, _, err := pace.mapNonceGmEcDh(domainParams, s)
+	// NB we expect an error as we'll get an APDU error
+	if err == nil {
+		t.Fatalf("error expected")
+	}
+}
+
+func TestKeyAgreementGmEcDhApduErr(t *testing.T) {
+	// NB we expect an error when an APDU error occurs
+
+	var doc document.Document
+	var pass password.Password = *password.NewPasswordCan("123456")
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{}) // force APDU errors!
+	var pace *Pace = NewPace(nfc, &doc, &pass)
+	var domainParams *PACEDomainParams = getStandardisedDomainParams(13) // 13: Brainpool P256r1
+	var g *cryptoutils.EcPoint = cryptoutils.DecodeX962EcPoint(domainParams.ec, utils.HexToBytes("043d671a984bf1767209f49d46007b1566e5371ceaa1d7e0533ba3b593248bdb1798c2e316163a1be04deefe1eb6362f5ec9d59fc3b7f4cd36029b510bb924ba19"))
+
+	_, _, _, err := pace.keyAgreementGmEcDh(domainParams, g)
+	// NB we expect an error as we'll get an APDU error
+	if err == nil {
+		t.Fatalf("error expected")
+	}
+}
+
+func TestDoCamEcdhMappingNotCamErr(t *testing.T) {
+	// NB we expect an error when the pace-config mapping != CAM
+
+	var doc document.Document
+	var pass password.Password = *password.NewPasswordCan("123456")
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{}) // force APDU errors!
+	var pace *Pace = NewPace(nfc, &doc, &pass)
+	var domainParams *PACEDomainParams = getStandardisedDomainParams(13) // 13: Brainpool P256r1
+	var pubMapIC *cryptoutils.EcPoint = cryptoutils.DecodeX962EcPoint(domainParams.ec, utils.HexToBytes("043d671a984bf1767209f49d46007b1566e5371ceaa1d7e0533ba3b593248bdb1798c2e316163a1be04deefe1eb6362f5ec9d59fc3b7f4cd36029b510bb924ba19"))
+	var ecadIc []byte = []byte{1, 2, 3, 4, 5, 6, 7, 8, 9}
+
+	paceConfig, err := paceConfigGetByOID(oid.OidPaceEcdhGmAesCbcCmac256)
+	if err != nil {
+		t.Fatalf("paceConfigGetByOID error: %s", err)
+	}
+
+	err = pace.doCamEcdh(paceConfig, domainParams, pubMapIC, ecadIc)
+	// NB we expect an error
+	if err == nil {
+		t.Fatalf("error expected")
+	}
+}
+
+func TestDoCamEcdhMappingNoEcadIcErr(t *testing.T) {
+	// NB we expect an error when the ecad-IC is empty
+
+	var doc document.Document
+	var pass password.Password = *password.NewPasswordCan("123456")
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{}) // force APDU errors!
+	var pace *Pace = NewPace(nfc, &doc, &pass)
+	var domainParams *PACEDomainParams = getStandardisedDomainParams(13) // 13: Brainpool P256r1
+	var pubMapIC *cryptoutils.EcPoint = cryptoutils.DecodeX962EcPoint(domainParams.ec, utils.HexToBytes("043d671a984bf1767209f49d46007b1566e5371ceaa1d7e0533ba3b593248bdb1798c2e316163a1be04deefe1eb6362f5ec9d59fc3b7f4cd36029b510bb924ba19"))
+	var ecadIc []byte = []byte{} // NB empty ecad-IC (will trigger error)
+
+	paceConfig, err := paceConfigGetByOID(oid.OidPaceEcdhCamAesCbcCmac256)
+	if err != nil {
+		t.Fatalf("paceConfigGetByOID error: %s", err)
+	}
+
+	err = pace.doCamEcdh(paceConfig, domainParams, pubMapIC, ecadIc)
+	// NB we expect an error
+	if err == nil {
+		t.Fatalf("error expected")
+	}
+}
+
+func TestGetNonceApduErr(t *testing.T) {
+	// NB we expect an error when an APDU error occurs
+
+	// No need to check whether `recover()` is nil. Just turn off the panic.
+	defer func() { _ = recover() }()
+
+	var doc document.Document
+	var pass password.Password = *password.NewPasswordCan("123456")
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{}) // force APDU errors!
+	var pace *Pace = NewPace(nfc, &doc, &pass)
+
+	paceConfig, err := paceConfigGetByOID(oid.OidPaceEcdhGmAesCbcCmac256)
+	if err != nil {
+		t.Fatalf("paceConfigGetByOID error: %s", err)
+	}
+
+	var kKdf []byte = make([]byte, 10)
+
+	_ = pace.getNonce(paceConfig, kKdf)
+
+	// Never reaches here if panic
+	t.Errorf("expected panic, but didn't get")
+
+}
+
+func TestCardSecurityFileApduErr(t *testing.T) {
+	// NB we expect an error when an APDU error occurs
+
+	var doc document.Document
+	var pass password.Password = *password.NewPasswordCan("123456")
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{}) // force APDU errors!
+	var pace *Pace = NewPace(nfc, &doc, &pass)
+
+	err := pace.loadCardSecurityFile()
+	// NB we expect an error as we'll get an APDU error
+	if err == nil {
+		t.Fatalf("error expected")
+	}
+}
