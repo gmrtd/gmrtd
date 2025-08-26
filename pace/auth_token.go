@@ -92,6 +92,8 @@ func (paceConfig *PaceConfig) computeAuthTokens(ksMac []byte, ec elliptic.Curve,
 	tIfdData := encodePubicKeyTemplate7F49(oidBytes, cryptoutils.EncodeX962EcPoint(ec, chipPub))
 	tIcData := encodePubicKeyTemplate7F49(oidBytes, cryptoutils.EncodeX962EcPoint(ec, termPub))
 
+	// TODO - should we verify that tIdfData != tIcData?
+
 	// generate auth tokens
 	tIfd, err = paceConfig.computeAuthToken(ksMac, tIfdData)
 	if err != nil {
