@@ -7,6 +7,29 @@ import (
 	"testing"
 )
 
+func TestTrimLeadingZeroBytes(t *testing.T) {
+	testCases := []struct {
+		data []byte
+		exp  []byte
+	}{
+		{
+			data: []byte{0, 0, 0, 0, 0, 1},
+			exp:  []byte{1},
+		},
+		{
+			data: []byte{0, 0, 0, 0, 0},
+			exp:  []byte{},
+		},
+	}
+	for _, tc := range testCases {
+		act := TrimLeadingZeroBytes(tc.data)
+
+		if !bytes.Equal(act, tc.exp) {
+			t.Errorf("data mismatch (exp:%x, act:%x)", tc.exp, act)
+		}
+	}
+}
+
 func TestParseAsn1(t *testing.T) {
 	testCases := []struct {
 		data      []byte
@@ -201,6 +224,16 @@ func TestGetByteFromBuffer(t *testing.T) {
 		if actByte != expByte {
 			t.Errorf("GetByteFromBuffer data differs to expected (act:%x, exp:%x)", actByte, expByte)
 		}
+	}
+}
+
+func TestGetByteFromBufferErr(t *testing.T) {
+	var buf *bytes.Buffer = bytes.NewBuffer([]byte{})
+
+	// NB error expected as buffer contains no data
+	_, err := GetByteFromBuffer(buf)
+	if err == nil {
+		t.Errorf("error expected")
 	}
 }
 
