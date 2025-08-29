@@ -71,8 +71,8 @@ func TestEncodeValueTruncateOk(t *testing.T) {
 func TestEncodeValueRightPadOk(t *testing.T) {
 	var minLen int = 50
 	var maxLen int = -1
-	var value string = "This string is too long and will be right padded"
-	var expValue string = "This<string<is<too<long<and<will<be<right<padded<<"
+	var value string = "This string is short and will be right padded"
+	var expValue string = "This<string<is<short<and<will<be<right<padded<<<<<"
 
 	// NB bad parameters where min-len > max-len (i.e. 5 > 3)
 	actValue := encodeValue(value, minLen, maxLen)
@@ -145,22 +145,35 @@ func TestVerifyCheckdigitEmptyWithoutCheckDigitOk(t *testing.T) {
 	}
 }
 
-func TestVerifyCheckdigitAtoiErr(t *testing.T) {
-	// NB trigger Atoi error by passing non-integer value for the check-digit
-	err := verifyCheckdigit("123456789", "A")
-
-	if err == nil {
-		t.Errorf("expected error, but didn't get")
+func TestVerifyCheckdigitErrors(t *testing.T) {
+	testCases := []struct {
+		data       string
+		checkDigit string
+	}{
+		{
+			// NB trigger Atoi error by passing non-integer value for the check-digit
+			data:       "123456789",
+			checkDigit: "A",
+		},
+		{
+			// NB valid check-digit would be '7', so give '1' to trigger validation error
+			data:       "123456789",
+			checkDigit: "1",
+		},
+		{
+			// NB invalid character ('*') within data, so check-digit cannot be computed
+			data:       "1234*6789",
+			checkDigit: "1",
+		},
 	}
-}
+	for _, tc := range testCases {
+		err := verifyCheckdigit(tc.data, tc.checkDigit)
 
-func TestVerifyCheckdigitErr(t *testing.T) {
-	// NB valid check-digit would be '7', so give '1' to trigger validation error
-	err := verifyCheckdigit("123456789", "1")
-
-	if err == nil {
-		t.Errorf("expected error, but didn't get")
+		if err == nil {
+			t.Errorf("expected error, but didn't get")
+		}
 	}
+
 }
 
 func TestMrzDecode(t *testing.T) {
@@ -289,7 +302,6 @@ func TestMrzDecodeErrors(t *testing.T) {
 			// invalid composite check-digit (6->8)
 			data: "I<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<D231458907UTO7408122F1204159<<<<<<<8",
 		},
-
 		{
 			// TD2 (72 chars)
 			// *** removed last character to make length invalid!
@@ -335,6 +347,114 @@ func TestMrzDecodeErrors(t *testing.T) {
 
 		if mrz != nil {
 			t.Errorf("MRZ not expected for error case")
+		}
+	}
+}
+
+func TestDecodeTD1Errors(t *testing.T) {
+	testCases := []struct {
+		data string
+	}{
+		{
+			// TD1 (90 chars)
+			// invalid length (91 instead of 90)
+			data: "I<UTOD23145890<7349<<<<<<<<<<<3407127M9507122UTO<<<<<<<<<<<2STEVENSON<<PETER<JOHN<<<<<<<<<0",
+		},
+		{
+			// TD1 (90 chars)
+			// invalid name (3 components)
+			data: "I<UTOD23145890<7349<<<<<<<<<<<3407127M9507122UTO<<<<<<<<<<<2STEVENSON<<PETER<<JOHN<<<<<<<<",
+		},
+		{
+			// TD1 (90 chars)
+			// extended document-number not valid
+			data: "I<UTOD23145890<7<<<<<<<<<<<<<<3407127M9507122UTO<<<<<<<<<<<2STEVENSON<<PETER<JOHN<<<<<<<<<",
+		},
+	}
+	for _, tc := range testCases {
+		_, err := decodeTD1(tc.data)
+		// NB we expect an error
+		if err == nil {
+			t.Fatalf("error expected")
+		}
+	}
+}
+
+func TestDecodeTD2Errors(t *testing.T) {
+	testCases := []struct {
+		data string
+	}{
+		{
+			// TD2 (72 chars)
+			// invalid length (73 instead of 72)
+			data: "I<UTOSTEVENSON<<PETER<JOHN<<<<<<<<<<D23145890<UTO3407127M95071227349<<<80",
+		},
+		{
+			// TD2 (72 chars)
+			// invalid name (3 components)
+			data: "I<UTOSTEVENSON<<PETER<<JOHN<<<<<<<<<D23145890<UTO3407127M95071227349<<<8",
+		},
+		{
+			// TD2 (72 chars)
+			// extended document-number not valid
+			data: "I<UTOSTEVENSON<<PETER<JOHN<<<<<<<<<<D23145890<UTO3407127M95071227<<<<<<8",
+		},
+	}
+	for _, tc := range testCases {
+		_, err := decodeTD2(tc.data)
+		// NB we expect an error
+		if err == nil {
+			t.Fatalf("error expected")
+		}
+	}
+}
+
+func TestDecodeTD3Errors(t *testing.T) {
+	testCases := []struct {
+		data string
+	}{
+		{
+			// TD3 (88 chars)
+			// invalid length (89 instead of 88)
+			data: "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<L898902C36UTO7408122F1204159ZE184226B<<<<<100",
+		},
+		{
+			// TD3 (88 chars)
+			// invalid name (3 components)
+			data: "P<UTOERIKSSON<<ANNA<<MARIA<<<<<<<<<<<<<<<<<<L898902C36UTO7408122F1204159ZE184226B<<<<<10",
+		},
+	}
+	for _, tc := range testCases {
+		_, err := decodeTD3(tc.data)
+		// NB we expect an error
+		if err == nil {
+			t.Fatalf("error expected")
+		}
+	}
+}
+
+func TestEncodeMrziErrors(t *testing.T) {
+	testCases := []struct {
+		mrz MRZ
+	}{
+		{
+			// NB invalid 'DocumentNumber' due to presence of illegal character ('!')
+			mrz: MRZ{DocumentNumber: "INVALID!", DateOfBirth: "820101", DateOfExpiry: "321010"},
+		},
+		{
+			// NB invalid 'DateOfBirth' due to presence of illegal character ('!')
+			mrz: MRZ{DocumentNumber: "VALID", DateOfBirth: "82010!", DateOfExpiry: "321010"},
+		},
+		{
+			// NB invalid 'DateOfExpiry' due to presence of illegal character ('!')
+			mrz: MRZ{DocumentNumber: "VALID", DateOfBirth: "820101", DateOfExpiry: "32101!"},
+		},
+	}
+	for _, tc := range testCases {
+		_, err := tc.mrz.EncodeMrzi()
+		// NB we expect an error
+		if err == nil {
+			t.Errorf("error expected")
 		}
 	}
 }
