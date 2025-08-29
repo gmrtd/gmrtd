@@ -60,12 +60,6 @@ func XorBytes(arr1 []byte, arr2 []byte) []byte {
 	return out
 }
 
-func VerifyByteLength(data []byte, length int) {
-	if len(data) != length {
-		panic(fmt.Sprintf("Incorrect byte slice length (Exp:%d, Act:%d)", length, len(data)))
-	}
-}
-
 func HexToBytes(str string) []byte {
 	out, err := hex.DecodeString(str)
 	if err != nil {

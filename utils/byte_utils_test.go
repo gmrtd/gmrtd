@@ -80,19 +80,6 @@ func TestXorBytesErr(t *testing.T) {
 	t.Errorf("expected panic, but didn't get")
 }
 
-func TestVerifyByteLengthErr(t *testing.T) {
-	// No need to check whether `recover()` is nil. Just turn off the panic.
-	defer func() { _ = recover() }()
-
-	var bytes []byte = []byte{0x12, 0x34, 0x56}
-
-	// NB trigger panic by specifying +1 length requirement
-	VerifyByteLength(bytes, len(bytes)+1)
-
-	// Never reaches here if panic
-	t.Errorf("expected panic, but didn't get")
-}
-
 func TestHexToBytes(t *testing.T) {
 	testCases := []struct {
 		inp string

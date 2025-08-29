@@ -76,6 +76,26 @@ func TestBuildRequest(t *testing.T) {
 	}
 }
 
+func TestBuildRequestRndIdfIccKIfdLenErrs(t *testing.T) {
+	// as per 'TestBuildRequest', BUT rndIdf/rdnIcc/kIfd changed to invalid lengths (i.e. not 8/8/16)
+
+	kEnc := utils.HexToBytes("AB94FDECF2674FDFB9B391F85D7F76F2")
+	kMac := utils.HexToBytes("7962D9ECE03D1ACD4C76089DCE131543")
+
+	rndIcc := utils.HexToBytes("4608F9198870221200")
+	rndIfd := utils.HexToBytes("781723860C06C22600")
+	kIfd := utils.HexToBytes("0B795240CB7049B01C19B33E32804F0B00")
+
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.MockTransceiver{})
+	var doc *document.Document = &document.Document{}
+	var pass *password.Password = password.NewPasswordNil()
+
+	_, err := NewBAC(nfc, doc, pass).buildRequest(rndIfd, rndIcc, kIfd, kEnc, kMac)
+	if err == nil {
+		t.Errorf("Error expected")
+	}
+}
+
 func TestBuildRequestKEncKeyLenErr(t *testing.T) {
 	// as per 'TestBuildRequest', BUT kEnc is changed to have wrong length (+1 byte)
 

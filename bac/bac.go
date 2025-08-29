@@ -54,9 +54,10 @@ func (bac *BAC) calculateMac(kMac []byte, data []byte) (mac []byte, err error) {
 // rnd_icc: 8 bytes
 // kifd: 16 bytes
 func (bac *BAC) buildRequest(rndIfd []byte, rndIcc []byte, kIfd []byte, kEnc []byte, kMac []byte) (cmd []byte, err error) {
-	utils.VerifyByteLength(rndIfd, 8)
-	utils.VerifyByteLength(rndIcc, 8)
-	utils.VerifyByteLength(kIfd, 16)
+	// verify lengths of rndIfd(8) / rndIcc(8) / kIfd(16)
+	if (len(rndIfd) != 8) || (len(rndIcc) != 8) || (len(kIfd) != 16) {
+		return nil, fmt.Errorf("[buildRequest] incorrect length for rndIfd(%1d) and/or rndIcc(%1d) and/or kIfd(%1d)", len(rndIfd), len(rndIcc), len(kIfd))
+	}
 
 	s := make([]byte, 32)
 	copy(s[0:8], rndIfd[0:8])
