@@ -117,7 +117,9 @@ func (sm *SecureMessaging) cbcCrypt(data []byte, encrypt bool) []byte {
 	// special IV setup for AES
 	if sm.alg == cryptoutils.AES {
 		// IV = K(KSenc,SSC)
-		sm.encCipher.Encrypt(iv, sm.ssc)
+		// Note: suppress secure mode and padding scheme warning in sonar
+		//		 - this is required for setting up the IV for AES
+		sm.encCipher.Encrypt(iv, sm.ssc) // NOSONAR
 	}
 
 	out := cryptoutils.CryptCBC(sm.encCipher, iv, data, encrypt)
