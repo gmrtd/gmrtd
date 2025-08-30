@@ -7,6 +7,14 @@ import (
 	"github.com/gmrtd/gmrtd/utils"
 )
 
+func TestNewPasswordNil(t *testing.T) {
+	pass := NewPasswordNil()
+
+	if pass.PasswordType != PASSWORD_TYPE_NIL {
+		t.Errorf("incorrect password type")
+	}
+}
+
 func TestNewPasswordMrzTD2(t *testing.T) {
 	pass, err := NewPasswordMrz("I<UTOSTEVENSON<<PETER<JOHN<<<<<<<<<<D23145890<UTO3407127M95071227349<<<8")
 	if err != nil {
@@ -91,6 +99,19 @@ func TestGetTypeAndKey2(t *testing.T) {
 	if !bytes.Equal(actKey, expKey) {
 		t.Errorf("Password Key differs to expected (exp:%x, act:%x)", expKey, actKey)
 	}
+}
+
+func TestGetTypeBadTypeErr(t *testing.T) {
+	// No need to check whether `recover()` is nil. Just turn off the panic.
+	defer func() { _ = recover() }()
+
+	// trigger an error with an invalid password-type (99)
+	var pass *Password = &Password{PasswordType: 99, Password: "BadPasswordType"}
+
+	_ = pass.GetType()
+
+	// Never reaches here if panic
+	t.Errorf("expected panic, but didn't get")
 }
 
 func TestGetKeyBadTypeErr(t *testing.T) {

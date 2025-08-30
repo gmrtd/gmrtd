@@ -45,6 +45,11 @@ func TestGetTagAndLength(t *testing.T) {
 			inpBytes: utils.HexToBytes("018210"),
 			expErr:   true,
 		},
+		{
+			// error: bad TLV (incomplete multi-byte tag.. e.g. 5F42->5F)
+			inpBytes: utils.HexToBytes("5F"),
+			expErr:   true,
+		},
 	}
 	for _, tc := range testCases {
 		buf := bytes.NewBuffer(tc.inpBytes)
