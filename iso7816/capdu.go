@@ -2,7 +2,6 @@ package iso7816
 
 import (
 	"fmt"
-	"log"
 	"log/slog"
 
 	"github.com/gmrtd/gmrtd/utils"
@@ -68,21 +67,13 @@ func (apdu *CApdu) EncodeLc() []byte {
 
 	if apdu.IsExtended() {
 		// Lc = 3 bytes
-
-		if lc < 1 || lc > 65535 {
-			log.Panicf("LC must be between 1 and 65535 (act:%d)", lc)
-		}
-
+		// valid range: 1..65535
 		lcBytes = append(lcBytes, 0)
 		lcBytes = append(lcBytes, byte((lc/256)%0xff))
 		lcBytes = append(lcBytes, byte(lc%256))
 	} else {
 		// Lc = 1 byte
-
-		if lc < 1 || lc > 255 {
-			log.Panicf("LC must be between 1 and 255 (act:%d)", lc)
-		}
-
+		// valid range: 1..255
 		lcBytes = append(lcBytes, byte(lc))
 	}
 
@@ -111,22 +102,14 @@ func (apdu *CApdu) EncodeLe() []byte {
 
 	if apdu.IsExtended() {
 		// Lc = 2 or 3 bytes
-
-		// NB range is 1..65,635 (NOT 65,535!)
-		if apdu.le < 1 || apdu.le > 65536 {
-			log.Panicf("LE must be between 1 and 65536 (act:%d)", apdu.le)
-		}
+		// valid range: 1..65536 (note 65536->0x0000)
 
 		// NB bytes will correctly be x0000 if 65536!
 		leBytes = append(leBytes, byte((apdu.le/256)&0xff))
 		leBytes = append(leBytes, byte(apdu.le%256))
 	} else {
 		// Lc = 1 byte
-
-		// NB range is 1..256 (not 255!)
-		if apdu.le < 1 || apdu.le > 256 {
-			log.Panicf("LE must be between 1 and 256 (act:%d)", apdu.le)
-		}
+		// valid range: 1..256 (note 256->0x00)
 
 		// NB byte will correctly be x00 if 256!
 		leBytes = append(leBytes, byte(apdu.le%256))

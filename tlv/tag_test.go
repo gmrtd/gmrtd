@@ -32,7 +32,27 @@ func TestGetTags(t *testing.T) {
 			t.Errorf("TLV Tags differs to expected (Exp:%x, Act:%x)", tc.expOut, actOut)
 		}
 	}
+}
 
+func TestGetTagsErr(t *testing.T) {
+	// NB adapted from valid test, but we add an incomplete tag (5F), to force a Tag decoding error
+	//
+	// good: 5F0E5F115F425F125F13
+	// bad : 5F0E5F115F425F125F135F
+	var data []byte = utils.HexToBytes("5F0E5F115F425F125F135F")
+
+	_, err := GetTags(bytes.NewBuffer(data))
+	if err == nil {
+		t.Errorf("error expected")
+	}
+}
+
+func TestGetTagNoDataErr(t *testing.T) {
+	// NB force error by passing empty buffer
+	_, err := GetTag(bytes.NewBuffer([]byte{})) // NB empty buffer
+	if err == nil {
+		t.Errorf("error expected")
+	}
 }
 
 func TestIsConstructed(t *testing.T) {
