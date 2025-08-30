@@ -51,6 +51,16 @@ func TestNewPasswordMrzi(t *testing.T) {
 	}
 }
 
+func TestNewPasswordMrziInvalid(t *testing.T) {
+	var err error
+
+	// NB contains invalid characters
+	_, err = NewPasswordMrzi("D2314589073!", "340&12", "95*712")
+	if err == nil {
+		t.Errorf("error expected")
+	}
+}
+
 func TestNewPasswordCan(t *testing.T) {
 	var pass *Password = NewPasswordCan("123456")
 	if (pass.PasswordType != PASSWORD_TYPE_CAN) || (pass.Password != "123456") {
