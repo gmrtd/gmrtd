@@ -65,6 +65,11 @@ func TestDecodeErrors(t *testing.T) {
 			data: utils.HexToBytes("61085f1f8001234567890000"),
 			//						  		|| indefinite-length not allowed unless composite tag
 		},
+		{
+			// indefinite length, but contains a normal node with less data than expected
+			data: utils.HexToBytes("61805f1f110000"),
+			//                              || less data than expected (x11, but really x00)
+		},
 	}
 	for _, tc := range testCases {
 		_, err := Decode(tc.data)
