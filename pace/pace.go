@@ -474,13 +474,13 @@ func (pace *Pace) mutualAuthGmEcDh(paceConfig *PaceConfig, domainParams *PACEDom
 	return ecadIC, nil
 }
 
-func getIcPubKeyECForCAM(domainParams *PACEDomainParams, cardSecurity *document.CardSecurity) *cryptoutils.EcPoint {
+func getIcPubKeyECForCAM(domainParams *PACEDomainParams, cardSecurity *document.CardSecurity) (*cryptoutils.EcPoint, error) {
 	slog.Debug("getIcPubKeyECForCAM")
 
 	var caPubKeyInfos []document.ChipAuthenticationPublicKeyInfo = cardSecurity.SecurityInfos.ChipAuthPubKeyInfos
 
 	if !domainParams.isECDH {
-		log.Panicf("Cannot get EC public key for !EC crypto")
+		return nil, fmt.Errorf("[getIcPubKeyECForCAM] Cannot get EC public key for !EC crypto")
 	}
 
 	for i := range caPubKeyInfos {
@@ -490,14 +490,12 @@ func getIcPubKeyECForCAM(domainParams *PACEDomainParams, cardSecurity *document.
 		if subjectPubKeyInfo.Algorithm.Algorithm.Equal(oid.OidBsiDeEcKeyType) {
 			if utils.BytesToInt(subjectPubKeyInfo.Algorithm.Parameters.Bytes) == domainParams.id {
 				var tmpKey []byte = subjectPubKeyInfo.SubjectPublicKey.Bytes
-				return cryptoutils.DecodeX962EcPoint(domainParams.ec, tmpKey)
+				return cryptoutils.DecodeX962EcPoint(domainParams.ec, tmpKey), nil
 			}
 		}
 	}
 
-	log.Panicf("Unable to get Public-Key for CAM")
-
-	return nil
+	return nil, fmt.Errorf("[getIcPubKeyECForCAM] Unable to get Public-Key for CAM")
 }
 
 // pubMapIC: IC Public Key from earlier mapping operation
@@ -543,7 +541,11 @@ func (pace *Pace) doCamEcdh(paceConfig *PaceConfig, domainParams *PACEDomainPara
 	//    to find a key that matches the param-id
 
 	// get IC PubKey (EC) for paramId
-	var pkIC *cryptoutils.EcPoint = getIcPubKeyECForCAM(domainParams, (*pace.document).Mf.CardSecurity)
+	var pkIC *cryptoutils.EcPoint
+	pkIC, err = getIcPubKeyECForCAM(domainParams, (*pace.document).Mf.CardSecurity)
+	if err != nil {
+		return fmt.Errorf("[doCamEcdh] getIcPubKeyECForCAM error: %w", err)
+	}
 
 	var KA *cryptoutils.EcPoint = cryptoutils.DoEcDh(caIC, pkIC, domainParams.ec)
 	slog.Debug("doCamEcdh", "KA", KA.String())
