@@ -3,7 +3,6 @@ package document
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"log/slog"
 	"slices"
 	"strings"
@@ -75,13 +74,15 @@ func (details *PersonDetails) parseData(node tlv.TlvNode) error {
 	}
 
 	for _, tag := range tagList {
-		details.processTag(tag, node)
+		if err := details.processTag(tag, node); err != nil {
+			return fmt.Errorf("[parseData] processTag error: %w", err)
+		}
 	}
 
 	return nil
 }
 
-func (details *PersonDetails) processTag5F0F(parentNode tlv.TlvNode) {
+func (details *PersonDetails) processTag5F0F(parentNode tlv.TlvNode) error {
 	/*
 		Expected format as per: Table 71. Data Group 11 Tags (9303 p10)
 
@@ -101,7 +102,7 @@ func (details *PersonDetails) processTag5F0F(parentNode tlv.TlvNode) {
 		for occur := 1; occur <= numOtherNames; occur++ {
 			tmpName, err := mrz.ParseName(mrz.DecodeValue(string(parentNode.GetNode(0xA0).GetNodeByOccur(0x5F0F, occur).GetValue())))
 			if err != nil {
-				log.Panicf("[processTag5F0F] ParseName error: %s", err)
+				return fmt.Errorf("[processTag5F0F] mrz.ParseName error: %w", err)
 			}
 
 			details.OtherNames = append(details.OtherNames, *tmpName)
@@ -123,7 +124,7 @@ func (details *PersonDetails) processTag5F0F(parentNode tlv.TlvNode) {
 
 			tmpName, err := mrz.ParseName(mrz.DecodeValue(string(otherNameNode.GetValue())))
 			if err != nil {
-				log.Panicf("[processTag5F0F] ParseName error: %s", err)
+				return fmt.Errorf("[processTag5F0F] mrz.ParseName error: %w", err)
 			}
 
 			details.OtherNames = append(details.OtherNames, *tmpName)
@@ -131,19 +132,23 @@ func (details *PersonDetails) processTag5F0F(parentNode tlv.TlvNode) {
 			occur++
 		}
 	}
+
+	return nil
 }
 
 // processes the 'tag', getting the data from the TLV and populating PersonDetails
-func (details *PersonDetails) processTag(tag tlv.TlvTag, node tlv.TlvNode) {
+func (details *PersonDetails) processTag(tag tlv.TlvTag, node tlv.TlvNode) error {
 	switch tag {
 	case 0x5F0E:
 		var err error
 		details.NameOfHolder, err = mrz.ParseName(mrz.DecodeValue(string(node.GetNode(tag).GetValue())))
 		if err != nil {
-			log.Panicf("[processTag] ParseName error: %s", err)
+			return fmt.Errorf("[processTag] mrz.ParseName error: %w", err)
 		}
 	case 0x5F0F:
-		details.processTag5F0F(node)
+		if err := details.processTag5F0F(node); err != nil {
+			return fmt.Errorf("[processTag] processTag5F0F error: %w", err)
+		}
 	case 0x5F10:
 		details.PersonalNumber = string(node.GetNode(tag).GetValue())
 	case 0x5F2B:
@@ -169,6 +174,8 @@ func (details *PersonDetails) processTag(tag tlv.TlvTag, node tlv.TlvNode) {
 	case 0x5F18:
 		details.CustodyInformation = mrz.DecodeValue(string(node.GetNode(tag).GetValue()))
 	default:
-		log.Panicf("Unsupported tag:%x", tag)
+		return fmt.Errorf("[processTag] Unsupported tag:%x", tag)
 	}
+
+	return nil
 }

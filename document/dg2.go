@@ -170,17 +170,6 @@ func (dg2 *DG2) processBIT(node tlv.TlvNode) (*BiometricInfoTemplate, [][]byte, 
 
 		out.BDB.Iso39794 = ap
 		outImages = ap.GetImages()
-
-		// DEBUG
-		/*
-			{
-				b, err := json.MarshalIndent(ap, "", "    ")
-				if err != nil {
-					log.Panicf("MarshalIndent error: %s", err)
-				}
-				log.Printf("JSON:\n\n%s\n\n\n", string(b))
-			}
-		*/
 	} else {
 		return nil, nil, fmt.Errorf("[processBIT] DG2 must have tag 5F2E or 7F2E")
 	}
