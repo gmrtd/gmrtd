@@ -32,6 +32,34 @@ func TestNewDG11BadTlv(t *testing.T) {
 	}
 }
 
+func TestNewDG11BadTagsErr(t *testing.T) {
+	var dg11bytes []byte = utils.HexToBytes("6B055C035F0E5F") // invalid Tags - 5F0E followed by partial tag 5F??
+
+	dg11, err := NewDG11(dg11bytes)
+
+	if err == nil {
+		t.Errorf("Error expected")
+	}
+
+	if dg11 != nil {
+		t.Errorf("DG not expected for error case")
+	}
+}
+
+func TestNewDG11UnknownTagErr(t *testing.T) {
+	var dg11bytes []byte = utils.HexToBytes("6B045C025F00") // unknown tag 5F00
+
+	dg11, err := NewDG11(dg11bytes)
+
+	if err == nil {
+		t.Errorf("Error expected")
+	}
+
+	if dg11 != nil {
+		t.Errorf("DG not expected for error case")
+	}
+}
+
 func TestNewDG11UnhappyRootTag(t *testing.T) {
 	var dg11bytes []byte = utils.HexToBytes("01021234") // valid TLV but invalid DG11, as tag 6B is missing
 

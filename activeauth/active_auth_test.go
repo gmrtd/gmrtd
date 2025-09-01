@@ -266,5 +266,30 @@ func TestDecodeFerrors(t *testing.T) {
 			t.Errorf("Defaults expected for m1(%x),d(%x),hashAlg(%d)", m1, d, hashAlg)
 		}
 	}
+}
 
+func TestDoInternalAuthenticateNoRspErr(t *testing.T) {
+	var doc document.Document
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{})
+	var aa *ActiveAuth = NewActiveAuth(nfc, &doc)
+	var rndIfd []byte = make([]byte, 20)
+
+	_, err := aa.doInternalAuthenticate(rndIfd)
+	// NB expect error due to lack of RApdu response
+	if err == nil {
+		t.Errorf("expected error")
+	}
+}
+
+func TestDoInternalAuthenticateCardDeadErr(t *testing.T) {
+	var doc document.Document
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{RApdu: utils.HexToBytes("6FFF")}) // NB 6FFF = Card Dead
+	var aa *ActiveAuth = NewActiveAuth(nfc, &doc)
+	var rndIfd []byte = make([]byte, 20)
+
+	_, err := aa.doInternalAuthenticate(rndIfd)
+	// NB expect error due to RApdu error
+	if err == nil {
+		t.Errorf("expected error")
+	}
 }
