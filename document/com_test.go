@@ -17,20 +17,6 @@ func TestNewCOMNoData(t *testing.T) {
 	}
 }
 
-func TestNewCOMBadTlv(t *testing.T) {
-	var comBytes []byte = utils.HexToBytes("02101234") // invalid TLV encoding - insufficient bytes
-
-	com, err := NewCOM(comBytes)
-
-	if err == nil {
-		t.Errorf("Error expected")
-	}
-
-	if com != nil {
-		t.Errorf("COM not expected for error case")
-	}
-}
-
 func TestNewCOM(t *testing.T) {
 	// EF.COM test data from 9303-p10
 	data := utils.HexToBytes("60145F0104303130365F36063034303030305C026175")
@@ -57,28 +43,41 @@ func TestNewCOM(t *testing.T) {
 	}
 }
 
-func TestNewCOMError(t *testing.T) {
-	{
-		data := utils.HexToBytes("55021234")
-
-		if _, err := NewCOM(data); err == nil {
-			t.Errorf("Error expected for missing tag 60")
-		}
+func TestNewCOMErrors(t *testing.T) {
+	testCases := []struct {
+		data []byte
+	}{
+		{
+			// Error expected for missing tag 60
+			data: utils.HexToBytes("55021234"),
+		},
+		{
+			// Error expected for tag 5f01 not being 4 bytes
+			data: utils.HexToBytes("60155F010530313036305F36063034303030305C026175"),
+		},
+		{
+			// Error expected for tag 5f36 not being 6 bytes
+			data: utils.HexToBytes("60135F0104303130365F360534303030305C026175"),
+		},
+		{
+			// Error expected due to invalid tags in 5C
+			data: utils.HexToBytes("60195F0104303130375F36063034303030305C076175636B6C6D5F"),
+			//                                                                          || was 6E, changed to contain incomplete tag (5F)
+		},
+		{
+			// invalid TLV encoding - insufficient bytes
+			data: utils.HexToBytes("02101234"),
+		},
 	}
+	for _, tc := range testCases {
+		com, err := NewCOM(tc.data)
 
-	{
-		data := utils.HexToBytes("60155F010530313036305F36063034303030305C026175")
-
-		if _, err := NewCOM(data); err == nil {
-			t.Errorf("Error expected for tag 5f01 not being 4 bytes")
+		if err == nil {
+			t.Errorf("expected error")
 		}
-	}
 
-	{
-		data := utils.HexToBytes("60135F0104303130365F360534303030305C026175")
-
-		if _, err := NewCOM(data); err == nil {
-			t.Errorf("Error expected for tag 5f36 not being 6 bytes")
+		if com != nil {
+			t.Errorf("expected nil COM")
 		}
 	}
 }

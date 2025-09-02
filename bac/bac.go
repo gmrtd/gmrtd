@@ -145,8 +145,8 @@ func (bac *BAC) processResponse(data []byte, kEnc []byte, kMac []byte, rndIfd []
 	return rspKIcc, nil
 }
 
-func (bac *BAC) setupSecureMessaging(nfc *iso7816.NfcSession, kEnc []byte, kMac []byte, rndIc []byte, rndIfd []byte) (err error) {
-	nfc.SM, err = iso7816.NewSecureMessaging(cryptoutils.TDES, kEnc, kMac)
+func (bac *BAC) setupSecureMessaging(kEnc []byte, kMac []byte, rndIc []byte, rndIfd []byte) (err error) {
+	(*bac.nfcSession).SM, err = iso7816.NewSecureMessaging(cryptoutils.TDES, kEnc, kMac)
 	if err != nil {
 		return fmt.Errorf("[setupSecureMessaging] NewSecureMessaging error: %w", err)
 	}
@@ -156,7 +156,7 @@ func (bac *BAC) setupSecureMessaging(nfc *iso7816.NfcSession, kEnc []byte, kMac 
 	ssc := make([]byte, 8)
 	copy(ssc[0:4], rndIc[4:8])  // ls 4 bytes
 	copy(ssc[4:8], rndIfd[4:8]) // ls 4 bytes
-	nfc.SM.SetSSC(ssc)
+	(*bac.nfcSession).SM.SetSSC(ssc)
 
 	return nil
 }
@@ -209,7 +209,7 @@ func (bac *BAC) DoBAC() (err error) {
 	// update kEnc/kMac with the derived key
 	kEnc, kMac = bac.generateKeys(kXor)
 
-	err = bac.setupSecureMessaging((*bac.nfcSession), kEnc, kMac, rndIcc, rndIfd)
+	err = bac.setupSecureMessaging(kEnc, kMac, rndIcc, rndIfd)
 	if err != nil {
 		return fmt.Errorf("[DoBAC] setupSecureMessaging error: %w", err)
 	}
