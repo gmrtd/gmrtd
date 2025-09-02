@@ -17,22 +17,6 @@ func TestNewDG13NoData(t *testing.T) {
 	}
 }
 
-func TestNewDG13UnhappyRootTag(t *testing.T) {
-	var dg13bytes []byte = utils.HexToBytes("01021234") // valid TLV but invalid DG13, as tag 6D is missing
-
-	var doc Document
-
-	err := doc.NewDG(13, dg13bytes)
-
-	if err == nil {
-		t.Errorf("Error expected")
-	}
-
-	if doc.Mf.Lds1.Dg13 != nil {
-		t.Errorf("DG13 not expected for error case")
-	}
-}
-
 func TestNewDG13HappyNonTlv(t *testing.T) {
 	var dg13bytes []byte = utils.HexToBytes("6D0A01234567890123456789") // valid DG13, with non-TLV content
 
@@ -54,5 +38,35 @@ func TestNewDG13HappyNonTlv(t *testing.T) {
 
 	if !bytes.Equal(doc.Mf.Lds1.Dg13.Content, utils.HexToBytes("01234567890123456789")) {
 		t.Errorf("Bad 'Content'")
+	}
+}
+
+func TestNewDG13Errors(t *testing.T) {
+	testCases := []struct {
+		data []byte
+	}{
+		{
+			// valid TLV but invalid DG13, as tag 6D is missing
+			data: utils.HexToBytes("01021234"),
+		},
+		{
+			// less data than expected
+			data: utils.HexToBytes("6D025F"),
+		},
+		{
+			// tag but no length
+			data: utils.HexToBytes("6D"),
+		},
+	}
+	for _, tc := range testCases {
+		dg13, err := NewDG13(tc.data)
+
+		if err == nil {
+			t.Errorf("expected error")
+		}
+
+		if dg13 != nil {
+			t.Errorf("expected nil DG13")
+		}
 	}
 }
