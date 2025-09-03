@@ -7,6 +7,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/des"
+	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/md5"
 	"crypto/rand"
@@ -296,6 +297,21 @@ func RsaDecryptWithPublicKey(ciphertext []byte, publicKey RsaPublicKey) []byte {
 	c := new(big.Int).Exp(m, e, publicKey.N)
 
 	return c.Bytes()
+}
+
+func CryptoHashFromEcPubKey(pub *ecdsa.PublicKey) crypto.Hash {
+	nbits := pub.Params().N.BitLen()
+	switch {
+	case nbits >= 512:
+		return crypto.SHA512
+	case nbits >= 384:
+		return crypto.SHA384
+	case nbits >= 256:
+		return crypto.SHA256
+	default:
+		// 224-bit curves or smaller
+		return crypto.SHA224
+	}
 }
 
 // support for P192 (secp-192r1) which is required by some countries but not supported by the go libraries
