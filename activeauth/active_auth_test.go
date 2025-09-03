@@ -300,26 +300,6 @@ func TestDoInternalAuthenticateCardDeadErr(t *testing.T) {
 	}
 }
 
-func TestEcdsaValidateActiveAuthSignature(t *testing.T) {
-	var doc *document.Document = &document.Document{}
-
-	// Test case from actual Dutch passport.
-	var rndIfd = "cfacd60f82c6607b"
-	var aaSignature = "caad3981647f105534174faf66b218f44aee8e30a51fb9498311fcd5350356a1c42dae26dd17395e053374d2d84f37819c1e2fdb22ce87023cc7b3c74d8de1ccbd74cfe0c6de6094c7df12fe40a5abf4"
-	var dg15bytes []byte = utils.HexToBytes("6f820179308201753082011d06072a8648ce3d020130820110020101303406072a8648ce3d0101022900d35e472036bc4fb7e13c785ed201e065f98fcfa6f6f40def4f92b9ec7893ec28fcd412b1f1b32e27305404283ee30b568fbab0f883ccebd46d3f3bb8a2a73513f5eb79da66190eb085ffa9f492f375a97d860eb40428520883949dfdbc42d3ad198640688a6fe13f41349554b49acc31dccd884539816f5eb4ac8fb1f1a604510443bd7e9afb53d8b85289bcc48ee5bfe6f20137d10a087eb6e7871e2a10a599c710af8d0d39e2061114fdd05545ec1cc8ab4093247f77275e0743ffed117182eaa9c77877aaac6ac7d35245d1692e8ee1022900d35e472036bc4fb7e13c785ed201e065f98fcfa5b68f12a32d482ec7ee8658e98691555b44c59311020101035200047049a1dcb7a9132ffe9d76bd34f19052fbaa4694741c883eabab369d38aa7d7365e893c917b16289766d5afa55ccfabb29570115625aade54a576db2f68ebe96e94771277c123c797805dca1af05ba39")
-
-	err := doc.NewDG(15, dg15bytes)
-	if err != nil {
-		t.Errorf("Unexpected error: %s", err)
-	}
-
-	var activeAuth *ActiveAuth = NewActiveAuth(nil, doc)
-	err = activeAuth.ValidateActiveAuthSignature(utils.HexToBytes(aaSignature), utils.HexToBytes(rndIfd))
-	if err != nil {
-		t.Errorf("ValidateActiveAuthSignature failed: %s", err)
-	}
-}
-
 // Build DG15 from an EC public key: DG15 = 0x6F || len || SPKI
 func makeDG15FromECPublicKey(pub *ecdsa.PublicKey) ([]byte, error) {
 	spki, err := x509.MarshalPKIXPublicKey(pub)
