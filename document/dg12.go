@@ -68,14 +68,16 @@ func (details *DocumentDetails) parseData(node tlv.TlvNode) error {
 	}
 
 	for _, tag := range tagList {
-		details.processTag(tag, node)
+		if err := details.processTag(tag, node); err != nil {
+			return fmt.Errorf("[NewDG12] processTag(%x) error: %w", tag, err)
+		}
 	}
 
 	return nil
 }
 
 // processes the 'tag', getting the data from the TLV and populating PersonDetails
-func (details *DocumentDetails) processTag(tag tlv.TlvTag, node tlv.TlvNode) {
+func (details *DocumentDetails) processTag(tag tlv.TlvTag, node tlv.TlvNode) error {
 	switch tag {
 	case 0x5F19:
 		details.IssuingAuthority = string(node.GetNode(tag).GetValue())
@@ -109,6 +111,8 @@ func (details *DocumentDetails) processTag(tag tlv.TlvTag, node tlv.TlvNode) {
 	case 0x5F56:
 		details.PersoSystemSerialNumber = string(node.GetNode(tag).GetValue())
 	default:
-		log.Panicf("Unsupported tag:%x", tag)
+		return fmt.Errorf("[processTag] Unsupported Tag:%x", tag)
 	}
+
+	return nil
 }
