@@ -116,3 +116,37 @@ func TestNewDG12FR(t *testing.T) {
 		t.Errorf("DG12 DocumentDetails differs to expected\n(Act:%+v)\n(Exp:%+v)", doc.Mf.Lds1.Dg12.Details, expDetails)
 	}
 }
+
+func TestNewDG12TagsErr(t *testing.T) {
+	// NB incomplete tag (5F..)
+	var dg12bytes []byte = utils.HexToBytes("6C035C015F")
+
+	var doc Document
+
+	err := doc.NewDG(12, dg12bytes)
+
+	if err == nil {
+		t.Errorf("expected error")
+	}
+
+	if doc.Mf.Lds1.Dg12 != nil {
+		t.Errorf("DG12 NOT expected")
+	}
+}
+
+func TestNewDG12UnknownTagErr(t *testing.T) {
+	// NB unsupported tag (5F00)
+	var dg12bytes []byte = utils.HexToBytes("6C045C025F00")
+
+	var doc Document
+
+	err := doc.NewDG(12, dg12bytes)
+
+	if err == nil {
+		t.Errorf("expected error")
+	}
+
+	if doc.Mf.Lds1.Dg12 != nil {
+		t.Errorf("DG12 NOT expected")
+	}
+}
