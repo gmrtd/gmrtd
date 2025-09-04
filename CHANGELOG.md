@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/gmrtd/gmrtd/compare/v0.6.1...v0.7.0) (2025-09-04)
+
+
+### Features
+
+* (ECDSA) Active auth signature validation ([#62](https://github.com/gmrtd/gmrtd/issues/62)) ([468430c](https://github.com/gmrtd/gmrtd/commit/468430c7bd763d6e5903ccd73814b65fb20e064b))
+
 ## [0.6.1](https://github.com/gmrtd/gmrtd/compare/v0.6.0...v0.6.1) (2025-08-25)
 
 
