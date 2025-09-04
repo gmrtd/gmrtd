@@ -3,11 +3,17 @@ package activeauth
 import (
 	"bytes"
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"math/big"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
 	"github.com/gmrtd/gmrtd/document"
 	"github.com/gmrtd/gmrtd/iso7816"
+	"github.com/gmrtd/gmrtd/tlv"
 	"github.com/gmrtd/gmrtd/utils"
 )
 
@@ -291,5 +297,125 @@ func TestDoInternalAuthenticateCardDeadErr(t *testing.T) {
 	// NB expect error due to RApdu error
 	if err == nil {
 		t.Errorf("expected error")
+	}
+}
+
+// Build DG15 from an EC public key: DG15 = 0x6F || len || SPKI
+func makeDG15FromECPublicKey(pub *ecdsa.PublicKey) ([]byte, error) {
+	spki, err := x509.MarshalPKIXPublicKey(pub)
+	if err != nil {
+		return nil, err
+	}
+	node := tlv.NewTlvSimpleNode(0x6F, spki)
+	return node.Encode(), nil
+}
+
+// Fixed-width concat r||s (each padded to curve size)
+func concatRSFixed(curve elliptic.Curve, r, s *big.Int) []byte {
+	nb := (curve.Params().BitSize + 7) / 8
+	rb := leftPad(r.Bytes(), nb)
+	sb := leftPad(s.Bytes(), nb)
+	out := make([]byte, 0, nb*2)
+	out = append(out, rb...)
+	out = append(out, sb...)
+	return out
+}
+
+func leftPad(b []byte, size int) []byte {
+	if len(b) >= size {
+		return b
+	}
+	out := make([]byte, size)
+	copy(out[size-len(b):], b)
+	return out
+}
+
+func TestEcdsaValidateActiveAuthSignatureAllCurves(t *testing.T) {
+	type testCase struct {
+		name      string
+		dg15bytes []byte
+		rndIfd    []byte
+		signature []byte
+		expectErr bool
+	}
+
+	var cases []testCase
+
+	// Programmatically generated DG15s for various curves
+	curves := []struct {
+		name string
+		ec   elliptic.Curve
+	}{
+		{"P-256", elliptic.P256()},
+		{"P-384", elliptic.P384()},
+		{"P-521", elliptic.P521()},
+	}
+
+	for _, c := range curves {
+		priv, err := ecdsa.GenerateKey(c.ec, rand.Reader)
+		if err != nil {
+			t.Fatalf("keygen %s: %v", c.name, err)
+		}
+		dg15, err := makeDG15FromECPublicKey(&priv.PublicKey)
+		if err != nil {
+			t.Fatalf("DG15 build %s: %v", c.name, err)
+		}
+
+		rndIfd := cryptoutils.RandomBytes(8)
+		hashAlg := cryptoutils.CryptoHashFromEcPubKey(&priv.PublicKey) // your util: should map P-256->SHA-256, P-384->SHA-384, P-521->SHA-512 (commonly)
+		hash := cryptoutils.CryptoHash(hashAlg, rndIfd)
+
+		r, s, err := ecdsa.Sign(rand.Reader, priv, hash)
+		if err != nil {
+			t.Fatalf("sign %s: %v", c.name, err)
+		}
+		sig := concatRSFixed(c.ec, r, s)
+
+		// Positive
+		cases = append(cases, testCase{
+			name:      c.name + " valid",
+			dg15bytes: dg15,
+			rndIfd:    rndIfd,
+			signature: sig,
+			expectErr: false,
+		})
+
+		// Negative: wrong nonce (re-hash different rnd)
+		wrongRnd := cryptoutils.RandomBytes(8)
+		cases = append(cases, testCase{
+			name:      c.name + " wrong nonce",
+			dg15bytes: dg15,
+			rndIfd:    wrongRnd,
+			signature: sig,
+			expectErr: true,
+		})
+
+		// Negative: bit-flip signature (still correct length)
+		bad := make([]byte, len(sig))
+		copy(bad, sig)
+		bad[0] ^= 0xFF
+		cases = append(cases, testCase{
+			name:      c.name + " invalid signature",
+			dg15bytes: dg15,
+			rndIfd:    rndIfd,
+			signature: bad,
+			expectErr: true,
+		})
+	}
+
+	for _, tc := range cases {
+		doc := &document.Document{}
+		if err := doc.NewDG(15, tc.dg15bytes); err != nil {
+			t.Errorf("%s: NewDG(15, ...) error: %v", tc.name, err)
+			continue
+		}
+		aa := NewActiveAuth(nil, doc)
+		err := aa.ValidateActiveAuthSignature(tc.signature, tc.rndIfd)
+		if tc.expectErr && err == nil {
+			t.Errorf("%s: expected error, got nil", tc.name)
+		}
+		if !tc.expectErr && err != nil {
+			t.Errorf("%s: unexpected error: %v", tc.name, err)
+		}
 	}
 }

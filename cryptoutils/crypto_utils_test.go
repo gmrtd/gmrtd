@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"crypto/cipher"
 	"crypto/elliptic"
+	"crypto/ecdsa"
 	"encoding/asn1"
 	"math/big"
 	"testing"
@@ -674,5 +675,25 @@ func TestEllipticP192WithEcDh(t *testing.T) {
 
 	if !ecPoint1.Equal(*ecPoint2) {
 		t.Errorf("P192-with-ECDH EcPoint mismatch following ECDH (ecPoint1:%s, ecPoint2:%s)", ecPoint1.String(), ecPoint2.String())
+	}
+}
+
+func TestCryptoHashFromEcPubKey(t *testing.T) {
+	cases := []struct {
+		name   string
+		curve  elliptic.Curve
+		want   crypto.Hash
+	}{
+		{"P-224", elliptic.P224(), crypto.SHA224},
+		{"P-256", elliptic.P256(), crypto.SHA256},
+		{"P-384", elliptic.P384(), crypto.SHA384},
+		{"P-521", elliptic.P521(), crypto.SHA512},
+	}
+	for _, tc := range cases {
+		pub := &ecdsa.PublicKey{Curve: tc.curve, X: tc.curve.Params().Gx, Y: tc.curve.Params().Gy}
+		got := CryptoHashFromEcPubKey(pub)
+		if got != tc.want {
+			t.Errorf("curve %s: got %v, want %v", tc.name, got, tc.want)
+		}
 	}
 }

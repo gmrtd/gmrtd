@@ -4,8 +4,10 @@ package activeauth
 import (
 	"bytes"
 	"crypto"
+	"crypto/ecdsa"
 	"fmt"
 	"log/slog"
+	"math/big"
 
 	cms "github.com/gmrtd/gmrtd/cms"
 	"github.com/gmrtd/gmrtd/cryptoutils"
@@ -126,7 +128,6 @@ func (activeAuth *ActiveAuth) doInternalAuthenticate(rndIfd []byte) (rspBytes []
 }
 
 func (activeAuth *ActiveAuth) DoActiveAuth() (err error) {
-	var errContext string
 
 	// skip if we have already performed chip authentication
 	if (*activeAuth.document).ChipAuthStatus != document.CHIP_AUTH_STATUS_NONE {
@@ -152,40 +153,56 @@ func (activeAuth *ActiveAuth) DoActiveAuth() (err error) {
 		return err
 	}
 
-	{
-		var subPubKeyInfo cms.SubjectPublicKeyInfo = cms.Asn1decodeSubjectPublicKeyInfo((*activeAuth.document).Mf.Lds1.Dg15.SubjectPublicKeyInfoBytes)
+	err = activeAuth.ValidateActiveAuthSignature(intAuthRspBytes, rndIfd)
+	if err != nil {
+		return err
+	}
 
-		switch subPubKeyInfo.Algorithm.Algorithm.String() {
-		case oid.OidRsaEncryption.String():
-			{
-				var pubKey *cryptoutils.RsaPublicKey = subPubKeyInfo.GetRsaPubKey()
+	if (*activeAuth.nfcSession).SM != nil {
+		slog.Debug("DoActiveAuth", "SM(post)", (*activeAuth.nfcSession).SM.String())
+	}
 
-				// S = rapdu-data
-				s := intAuthRspBytes
+	return
+}
 
-				f := cryptoutils.RsaDecryptWithPublicKey(s, *pubKey)
+func (activeAuth *ActiveAuth) ValidateActiveAuthSignature(intAuthRspBytes []byte, rndIfd []byte) error {
+	var errContext string
 
-				m1, d, hashAlg, err := decodeF(f)
-				if err != nil {
-					return fmt.Errorf("(DoActiveAuth) decodeF error: %w (Context:%s)", err, errContext)
-				}
+	var subPubKeyInfo cms.SubjectPublicKeyInfo = cms.Asn1decodeSubjectPublicKeyInfo((*activeAuth.document).Mf.Lds1.Dg15.SubjectPublicKeyInfoBytes)
 
-				// m is concat of m1 and m2 (rnd-ifd)
-				var expD []byte
-				{
-					m := bytes.Clone(m1)
-					m = append(m, rndIfd...)
-					expD = cryptoutils.CryptoHash(hashAlg, m)
-				}
+	switch subPubKeyInfo.Algorithm.Algorithm.String() {
+	case oid.OidRsaEncryption.String():
+		{
+			var pubKey *cryptoutils.RsaPublicKey = subPubKeyInfo.GetRsaPubKey()
 
-				// verify the hash
-				if !bytes.Equal(d, expD) {
-					return fmt.Errorf("(DoActiveAuth) hash mismatch (exp:%x,act:%x) (Context:%s)", expD, d, errContext)
-				}
+			// S = rapdu-data
+			s := intAuthRspBytes
 
-				// update status to reflect AA was performed
-				(*activeAuth.document).ChipAuthStatus = document.CHIP_AUTH_STATUS_AA
+			f := cryptoutils.RsaDecryptWithPublicKey(s, *pubKey)
+
+			m1, d, hashAlg, err := decodeF(f)
+			if err != nil {
+				return fmt.Errorf("(DoActiveAuth) decodeF error: %w (Context:%s)", err, errContext)
 			}
+
+			// m is concat of m1 and m2 (rnd-ifd)
+			var expD []byte
+			{
+				m := bytes.Clone(m1)
+				m = append(m, rndIfd...)
+				expD = cryptoutils.CryptoHash(hashAlg, m)
+			}
+
+			// verify the hash
+			if !bytes.Equal(d, expD) {
+				return fmt.Errorf("(DoActiveAuth) hash mismatch (exp:%x,act:%x) (Context:%s)", expD, d, errContext)
+			}
+
+			// update status to reflect AA was performed
+			(*activeAuth.document).ChipAuthStatus = document.CHIP_AUTH_STATUS_AA
+		}
+	case oid.OidEcPublicKey.String():
+		{
 			/*
 				6.1.2.3 ECDSA
 				For ECDSA, the plain signature format according to [TR-03111] SHALL be used. Only prime curves with uncompressed
@@ -194,14 +211,35 @@ func (activeAuth *ActiveAuth) DoActiveAuth() (err error) {
 				RIPEMD-160 and SHA-1 SHALL NOT be used.
 				The message M to be signed is the nonce RND.IFD provided by the Inspection System.
 			*/
-		default:
-			return fmt.Errorf("(DoActiveAuth) unsupported SubjectPublicKeyInfo (OID:%s) (Context:%s)", subPubKeyInfo.Algorithm.Algorithm.String(), errContext)
+			curve, ecPoint, err := subPubKeyInfo.GetEcCurveAndPubKey()
+			if err != nil {
+				return fmt.Errorf("(ValidateActiveAuthSignature) GetEcCurveAndPubKey error: %w (Context:%s)", err, errContext)
+			}
+
+			pub := &ecdsa.PublicKey{
+				Curve: *curve,
+				X:     ecPoint.X,
+				Y:     ecPoint.Y,
+			}
+
+			var r, s big.Int
+			// Plain concatenation r||s (TR-03110 "ecdsa-plain" style)
+			if len(intAuthRspBytes)%2 != 0 {
+				return fmt.Errorf("(ValidateActiveAuthSignature) Unexpected plain signature length: %d (Context:%s)", len(intAuthRspBytes), errContext)
+			}
+			half := len(intAuthRspBytes) / 2
+			r.SetBytes(intAuthRspBytes[:half])
+			s.SetBytes(intAuthRspBytes[half:])
+
+			var alg = cryptoutils.CryptoHashFromEcPubKey(pub)
+			var hash = cryptoutils.CryptoHash(alg, rndIfd)
+			var verified = ecdsa.Verify(pub, hash, &r, &s)
+			if !verified {
+				return fmt.Errorf("(ValidateActiveAuthSignature) AA signature did not verify with hash: %s for the provided nonce", alg.String())
+			}
 		}
+	default:
+		return fmt.Errorf("(ValidateActiveAuthSignature) unsupported SubjectPublicKeyInfo (OID:%s) (Context:%s)", subPubKeyInfo.Algorithm.Algorithm.String(), errContext)
 	}
-
-	if (*activeAuth.nfcSession).SM != nil {
-		slog.Debug("DoActiveAuth", "SM(post)", (*activeAuth.nfcSession).SM.String())
-	}
-
-	return
+	return nil
 }
