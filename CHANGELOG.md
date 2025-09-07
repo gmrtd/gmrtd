@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/gmrtd/gmrtd/compare/v0.7.0...v0.8.0) (2025-09-07)
+
+
+### Features
+
+* [fixes [#67](https://github.com/gmrtd/gmrtd/issues/67)] update DE Master List to Aug 2025 version ([#68](https://github.com/gmrtd/gmrtd/issues/68)) ([7c12bb3](https://github.com/gmrtd/gmrtd/commit/7c12bb30b6fb5460afabcc5613918f1d7191136d))
+
 ## [0.7.0](https://github.com/gmrtd/gmrtd/compare/v0.6.1...v0.7.0) (2025-09-04)
 
 
