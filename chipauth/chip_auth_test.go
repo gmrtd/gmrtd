@@ -11,6 +11,40 @@ import (
 	"github.com/gmrtd/gmrtd/utils"
 )
 
+func TestChipEmptyDoc(t *testing.T) {
+	// for an empty document, we expect Chip-Auth to silently ignore without any error
+	// - this includes cases where there is insufficient data to perform CA (e.g. missing DG14)
+	var doc document.Document
+
+	nfc := iso7816.NewNfcSession(&iso7816.StaticTransceiver{})
+
+	ca := NewChipAuth(nfc, &doc)
+
+	err := ca.DoChipAuth()
+
+	if err != nil {
+		t.Errorf("unexpected error: %s", err)
+	}
+}
+
+func TestChipNotReq(t *testing.T) {
+	// silently skip if the document indicates that Chip-Auth has already been performed
+	var doc document.Document
+
+	// record that ChipAuth was performed via AA
+	doc.ChipAuthStatus = document.CHIP_AUTH_STATUS_AA
+
+	nfc := iso7816.NewNfcSession(&iso7816.StaticTransceiver{})
+
+	ca := NewChipAuth(nfc, &doc)
+
+	err := ca.DoChipAuth()
+
+	if err != nil {
+		t.Errorf("unexpected error: %s", err)
+	}
+}
+
 func TestChipAuthAT(t *testing.T) {
 	// CA test extracted from actual session with AT passport
 	// 		DG14 CA entry         : 0.4.0.127.0.7.2.2.3.2.2 (id-CA-ECDH-AES-CBC-CMAC-128)
