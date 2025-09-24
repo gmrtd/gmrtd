@@ -15,20 +15,20 @@ import (
 const DG12Tag = 0x6C
 
 type DocumentDetails struct {
-	IssuingAuthority            string
-	DateOfIssue                 string // YYYYMMDD
-	OtherPersons                []mrz.MrzName
-	EndorsementsAndObservations string
-	TaxExitRequirements         string
-	ImageFront                  []byte // Image of front of document. Image per ISO/IEC 10918.
-	ImageRear                   []byte // Image of read of document. Image per ISO/IEC 10918.
-	PersoDateTime               string // yyyymmddhhmmss
-	PersoSystemSerialNumber     string
+	IssuingAuthority            string        `json:"issuingAuthority,omitempty"`
+	DateOfIssue                 string        `json:"dateOfIssue,omitempty"` // YYYYMMDD
+	OtherPersons                []mrz.MrzName `json:"otherPersons,omitempty"`
+	EndorsementsAndObservations string        `json:"endorsementsAndObservations,omitempty"`
+	TaxExitRequirements         string        `json:"taxExitRequirements,omitempty"`
+	ImageFront                  []byte        `json:"imageFront,omitempty"`    // Image of front of document. Image per ISO/IEC 10918.
+	ImageRear                   []byte        `json:"tmageRear,omitempty"`     // Image of read of document. Image per ISO/IEC 10918.
+	PersoDateTime               string        `json:"persoDateTime,omitempty"` // yyyymmddhhmmss
+	PersoSystemSerialNumber     string        `json:"persoSystemSerialNumber,omitempty"`
 }
 
 type DG12 struct {
-	RawData []byte
-	Details DocumentDetails
+	RawData []byte          `json:"rawData,omitempty"`
+	Details DocumentDetails `json:"details,omitempty"`
 }
 
 func NewDG12(data []byte) (*DG12, error) {

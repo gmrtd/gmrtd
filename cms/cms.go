@@ -41,6 +41,16 @@ type SubjectPublicKeyInfo struct {
 	SubjectPublicKey asn1.BitString
 }
 
+func (spk SubjectPublicKeyInfo) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Algorithm        AlgorithmIdentifier `json:"algorithm,omitempty"`
+		SubjectPublicKey []byte              `json:"subjectPublicKey,omitempty"`
+	}{
+		Algorithm:        spk.Algorithm,
+		SubjectPublicKey: spk.SubjectPublicKey.Bytes,
+	})
+}
+
 type AlgorithmIdentifier struct {
 	Algorithm  asn1.ObjectIdentifier
 	Parameters asn1.RawValue `asn1:"optional"`
@@ -57,12 +67,12 @@ func (ai AlgorithmIdentifier) MarshalJSON() ([]byte, error) {
 }
 
 type ContentInfo struct {
-	Type    asn1.ObjectIdentifier ``
-	Content asn1.RawValue         `asn1:"explicit,tag:0"`
+	Type    asn1.ObjectIdentifier `json:"type"`
+	Content asn1.RawValue         `asn1:"explicit,tag:0" json:"content"`
 }
 
 type SignedData struct {
-	Raw              asn1.RawContent
+	Raw              asn1.RawContent       `json:"raw"`
 	Version          int                   `json:"version"`
 	DigestAlgorithms []AlgorithmIdentifier `asn1:"set" json:"digestAlgorithms"`
 	Content          EncapContentInfo      `json:"content"`
@@ -72,14 +82,14 @@ type SignedData struct {
 }
 
 type SignerInfo struct {
-	Raw                       asn1.RawContent
-	Version                   int `asn1:"default:1"`
-	Sid                       asn1.RawValue
-	DigestAlgorithm           AlgorithmIdentifier
-	AuthenticatedAttributes   AttributeList `asn1:"optional,tag:0"`
-	DigestEncryptionAlgorithm AlgorithmIdentifier
-	EncryptedDigest           []byte
-	UnauthenticatedAttributes AttributeList `asn1:"optional,tag:1"`
+	Raw                       asn1.RawContent     `json:"raw"`
+	Version                   int                 `asn1:"default:1" json:"version"`
+	Sid                       asn1.RawValue       `json:"sid"`
+	DigestAlgorithm           AlgorithmIdentifier `json:"digestAlgorithm"`
+	AuthenticatedAttributes   AttributeList       `asn1:"optional,tag:0" json:"authenticatedAttributes"`
+	DigestEncryptionAlgorithm AlgorithmIdentifier `json:"digestEncryptionAlgorithm"`
+	EncryptedDigest           []byte              `json:"encryptedDigest"`
+	UnauthenticatedAttributes AttributeList       `asn1:"optional,tag:1" json:"unauthenticatedAttributes"`
 }
 
 // SignerIdentifier ::= CHOICE {
@@ -101,11 +111,11 @@ type AttributeList []Attribute
 
 func (a Attribute) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Type   string        `json:"type,omitempty"`
-		Values asn1.RawValue `json:"values,omitempty"`
+		Type   string `json:"type,omitempty"`
+		Values []byte `json:"values,omitempty"`
 	}{
 		Type:   a.Type.String(),
-		Values: a.Values,
+		Values: a.Values.Bytes,
 	})
 }
 
@@ -146,9 +156,9 @@ func (attributes AttributeList) GetSetOfAsnBytes() []byte {
 }
 
 type EncapContentInfo struct {
-	Raw          asn1.RawContent
-	EContentType asn1.ObjectIdentifier ``
-	EContent     []byte                `asn1:"explicit,tag:0"` // e.g. LDSSecurityObject / SecurityInfos
+	Raw          asn1.RawContent       `json:"raw"`
+	EContentType asn1.ObjectIdentifier `json:"eContentType"`
+	EContent     []byte                `asn1:"explicit,tag:0" json:"eContent"` // e.g. LDSSecurityObject / SecurityInfos
 }
 
 func ParseSignedData(data []byte) (*SignedData, error) {
@@ -197,18 +207,18 @@ func ParseCertificates(data []byte) (certs []Certificate, err error) {
 }
 
 type Certificate struct {
-	Raw                asn1.RawContent
-	TbsCertificate     TBSCertificate
-	SignatureAlgorithm AlgorithmIdentifier
-	SignatureValue     asn1.BitString
+	Raw                asn1.RawContent     `json:"raw"`
+	TbsCertificate     TBSCertificate      `json:"tbsCertificate"`
+	SignatureAlgorithm AlgorithmIdentifier `json:"signatureAlgorithm"`
+	SignatureValue     asn1.BitString      `json:"signatureValue"`
 }
 
 type Extensions []Extension
 
 type AuthorityKeyIdentifier struct {
-	KeyIdentifier             []byte          `asn1:"optional,implicit,tag:0"`
-	AuthorityCertIssuer       asn1.RawContent `asn1:"optional,implicit,tag:1"`
-	AuthorityCertSerialNumber asn1.RawContent `asn1:"optional,implicit,tag:2"`
+	KeyIdentifier             []byte          `asn1:"optional,implicit,tag:0" json:"keyIdentifier"`
+	AuthorityCertIssuer       asn1.RawContent `asn1:"optional,implicit,tag:1" json:"authorityCertIssuer"`
+	AuthorityCertSerialNumber asn1.RawContent `asn1:"optional,implicit,tag:2" json:"authorityCertSerialNumber"`
 }
 
 type SubjectKeyIdentifier []byte
@@ -280,29 +290,29 @@ func (cert TBSCertificate) GetIssuerRDN() RDNSequence {
 }
 
 type TBSCertificate struct {
-	Raw                  asn1.RawContent
-	Version              int `asn1:"explicit,default:1,tag:0"`
-	SerialNumber         *big.Int
-	Signature            AlgorithmIdentifier
-	Issuer               asn1.RawValue
-	Validity             Validity
-	Subject              asn1.RawValue
-	SubjectPublicKeyInfo asn1.RawValue
-	IssuerUniqueId       asn1.BitString `asn1:"implicit,optional,tag:1"`
-	SubjectUniqueId      asn1.BitString `asn1:"implicit,optional,tag:2"`
-	Extensions           Extensions     `asn1:"explicit,optional,tag:3"`
+	Raw                  asn1.RawContent     `json:"raw"`
+	Version              int                 `asn1:"explicit,default:1,tag:0" json:"version"`
+	SerialNumber         *big.Int            `json:"serialNumber"`
+	Signature            AlgorithmIdentifier `json:"signature"`
+	Issuer               asn1.RawValue       `json:"issuer"`
+	Validity             Validity            `json:"validity"`
+	Subject              asn1.RawValue       `json:"subject"`
+	SubjectPublicKeyInfo asn1.RawValue       `json:"subjectPublicKeyInfo"`
+	IssuerUniqueId       asn1.BitString      `asn1:"implicit,optional,tag:1" json:"issuerUniqueId"`
+	SubjectUniqueId      asn1.BitString      `asn1:"implicit,optional,tag:2" json:"subjectUniqueId"`
+	Extensions           Extensions          `asn1:"explicit,optional,tag:3" json:"extensions"`
 }
 
 type Validity struct {
-	NotBefore asn1.RawValue
-	NotAfter  asn1.RawValue
+	NotBefore asn1.RawValue `json:"notBefore"`
+	NotAfter  asn1.RawValue `json:"notAfter"`
 }
 
 type Extension struct {
-	Raw       asn1.RawContent
-	ObjectId  asn1.ObjectIdentifier
-	Critical  asn1.Flag `asn1:"optional,default:false"`
-	ExtnValue asn1.RawValue
+	Raw       asn1.RawContent       `json:"raw"`
+	ObjectId  asn1.ObjectIdentifier `json:"objectId"`
+	Critical  asn1.Flag             `asn1:"optional,default:false" json:"critical"`
+	ExtnValue asn1.RawValue         `json:"extnValue"`
 }
 
 /*
@@ -606,8 +616,8 @@ func Asn1decodeSubjectPublicKeyInfo(data []byte) SubjectPublicKeyInfo {
 }
 
 type EcNamedCurve struct {
-	oid   asn1.ObjectIdentifier
-	curve elliptic.Curve
+	oid   asn1.ObjectIdentifier `json:"oid"`
+	curve elliptic.Curve        `json:"curve"`
 }
 
 var ecNamedCurveArr []EcNamedCurve = []EcNamedCurve{
@@ -700,14 +710,14 @@ func (subPubKeyInfo *SubjectPublicKeyInfo) GetRsaPubKey() *cryptoutils.RsaPublic
 }
 
 type ECSpecifiedDomain struct {
-	Raw      asn1.RawContent
-	Version  int
-	FieldId  cryptoutils.ECField
-	Curve    cryptoutils.ECCurve
-	Base     []byte
-	Order    *big.Int
-	Cofactor *big.Int
-	Hash     asn1.ObjectIdentifier `asn1:"optional"`
+	Raw      asn1.RawContent       `json:"raw"`
+	Version  int                   `json:"version"`
+	FieldId  cryptoutils.ECField   `json:"fieldId"`
+	Curve    cryptoutils.ECCurve   `json:"curve"`
+	Base     []byte                `json:"base"`
+	Order    *big.Int              `json:"order"`
+	Cofactor *big.Int              `json:"cofactor"`
+	Hash     asn1.ObjectIdentifier `asn1:"optional" json:"hash"`
 }
 
 // parse ecPublicKey ASN1 object (aka EC Specified Domain)
@@ -812,10 +822,10 @@ RSASSA-PSS-params ::= SEQUENCE {
 */
 
 type RsaSsaPssParams struct {
-	HashAlgorithm    AlgorithmIdentifier `asn1:"explicit,tag:0"`
-	MaskGenAlgorithm AlgorithmIdentifier `asn1:"explicit,tag:1"`
-	SaltLength       *big.Int            `asn1:"explicit,optional,tag:2"`
-	TrailerField     *big.Int            `asn1:"explicit,optional,tag:3"`
+	HashAlgorithm    AlgorithmIdentifier `asn1:"explicit,tag:0" json:"hashAlgorithm"`
+	MaskGenAlgorithm AlgorithmIdentifier `asn1:"explicit,tag:1" json:"maskGenAlgorithm"`
+	SaltLength       *big.Int            `asn1:"explicit,optional,tag:2" json:"saltLength"`
+	TrailerField     *big.Int            `asn1:"explicit,optional,tag:3" json:"trailerField"`
 }
 
 // Maps signature algorithm OIDs to digest algorithm OIDs

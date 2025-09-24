@@ -27,21 +27,21 @@ type SOD struct {
 }
 
 type LDSSecurityObject struct {
-	Version             int
-	HashAlgorithm       cms.AlgorithmIdentifier
-	DataGroupHashValues []DataGroupHash
-	LdsVersionInfo      LDSVersionInfo `asn1:"optional"`
+	Version             int                     `json:"version,omitempty"`
+	HashAlgorithm       cms.AlgorithmIdentifier `json:"hashAlgorithm,omitempty"`
+	DataGroupHashValues []DataGroupHash         `json:"dataGroupHashValues,omitempty"`
+	LdsVersionInfo      LDSVersionInfo          `asn1:"optional" json:"ldsVersionInfo"`
 }
 
 type DataGroupHash struct {
-	DataGroupNumber    int
-	DataGroupHashValue []byte
+	DataGroupNumber    int    `json:"dataGroupNumber"`
+	DataGroupHashValue []byte `json:"dataGroupHashValue"`
 }
 
 // NB present but empty strings if not present in parsed data (i.e. older version of EF.SOD)
 type LDSVersionInfo struct {
-	LdsVersion     string
-	UnicodeVersion string
+	LdsVersion     string `json:"ldsVersion,omitempty"`
+	UnicodeVersion string `json:"unicodeVersion,omitempty"`
 }
 
 func isValidEContentType(eContentOid asn1.ObjectIdentifier) bool {

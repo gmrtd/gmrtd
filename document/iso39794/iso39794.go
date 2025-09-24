@@ -66,8 +66,8 @@ func (ap ISO39794_5_AP) GetImages() [][]byte {
 	}
 */
 type VersionBlockType struct {
-	Generation int `asn1:"tag:0"`
-	Year       int `asn1:"tag:1"`
+	Generation int `asn1:"tag:0" json:"generation,omitempty"`
+	Year       int `asn1:"tag:1" json:"year,omitempty"`
 }
 
 /*
@@ -87,17 +87,17 @@ type CaptureDateTimeBlockType DateTimeBlockType
 	}
 */
 type DateTimeBlockType struct {
-	Year        int `asn1:"tag:0"`
-	Month       int `asn1:"tag:1,optional"`
-	Day         int `asn1:"tag:2,optional"`
-	Hour        int `asn1:"tag:3,optional"`
-	Minute      int `asn1:"tag:4,optional"`
-	Second      int `asn1:"tag:5,optional"`
-	Millisecond int `asn1:"tag:6,optional"`
+	Year        int `asn1:"tag:0" json:"year"`
+	Month       int `asn1:"tag:1,optional" json:"month"`
+	Day         int `asn1:"tag:2,optional" json:"day"`
+	Hour        int `asn1:"tag:3,optional" json:"hour"`
+	Minute      int `asn1:"tag:4,optional" json:"minute"`
+	Second      int `asn1:"tag:5,optional" json:"second"`
+	Millisecond int `asn1:"tag:6,optional" json:"millisecond"`
 }
 
 type ISO39794_5_AP struct {
-	FaceImageDataBlock FaceImageDataBlockType `asn1:"application,tag:5"`
+	FaceImageDataBlock FaceImageDataBlockType `asn1:"application,tag:5" json:"faceImageDataBlock"`
 }
 
 /*
@@ -108,8 +108,8 @@ type ISO39794_5_AP struct {
 	}
 */
 type FaceImageDataBlockType struct {
-	VersionBlock         VersionBlockType         `asn1:"tag:0"`
-	RepresentationBlocks RepresentationBlocksType `asn1:"tag:1"`
+	VersionBlock         VersionBlockType         `asn1:"tag:0" json:"versionBlock"`
+	RepresentationBlocks RepresentationBlocksType `asn1:"tag:1" json:"representationBlocks"`
 }
 
 /*
@@ -133,16 +133,16 @@ type RepresentationBlocksType []RepresentationBlockType
 	}
 */
 type RepresentationBlockType struct {
-	RepresentationId      int                      `asn1:"tag:0"`
-	ImageRepresentation   ImageRepresentationType  `asn1:"tag:1"`
-	CaptureDateTimeBlock  CaptureDateTimeBlockType `asn1:"tag:2,optional"`
-	QualityBlocks         GenericBlockType         `asn1:"tag:3,optional"`
-	PadDataBlock          GenericBlockType         `asn1:"tag:4,optional"`
-	SessionId             int                      `asn1:"tag:5,optional"`
-	DerivedFrom           int                      `asn1:"tag:6,optional"`
-	CaptureDeviceBlock    CaptureDeviceBlockType   `asn1:"tag:7,optional"`
-	IdentityMetadataBlock GenericBlockType         `asn1:"tag:8,optional"`
-	LandmarkBlocks        GenericBlockType         `asn1:"tag:9,optional"`
+	RepresentationId      int                      `asn1:"tag:0" json:"representationId"`
+	ImageRepresentation   ImageRepresentationType  `asn1:"tag:1" json:"imageRepresentation"`
+	CaptureDateTimeBlock  CaptureDateTimeBlockType `asn1:"tag:2,optional" json:"captureDateTimeBlock"`
+	QualityBlocks         GenericBlockType         `asn1:"tag:3,optional" json:"qualityBlocks"`
+	PadDataBlock          GenericBlockType         `asn1:"tag:4,optional" json:"padDataBlock"`
+	SessionId             int                      `asn1:"tag:5,optional" json:"sessionId"`
+	DerivedFrom           int                      `asn1:"tag:6,optional" json:"derivedFrom"`
+	CaptureDeviceBlock    CaptureDeviceBlockType   `asn1:"tag:7,optional" json:"captureDeviceBlock"`
+	IdentityMetadataBlock GenericBlockType         `asn1:"tag:8,optional" json:"identityMetadataBlock"`
+	LandmarkBlocks        GenericBlockType         `asn1:"tag:9,optional" json:"landmarkBlocks"`
 }
 
 /*
@@ -154,9 +154,9 @@ type RepresentationBlockType struct {
 	}
 */
 type ImageRepresentation2DBlockType struct {
-	RepresentationData2D    []byte                      `asn1:"tag:0"` // this is the image!
-	ImageInformation2DBlock ImageInformation2DBlockType `asn1:"tag:1"`
-	CaptureDevice2DBlock    GenericBlockType            `asn1:"tag:2,optional"`
+	RepresentationData2D    []byte                      `asn1:"tag:0" json:"representationData2D"` // this is the image!
+	ImageInformation2DBlock ImageInformation2DBlockType `asn1:"tag:1" json:"imageInformation2DBlock"`
+	CaptureDevice2DBlock    GenericBlockType            `asn1:"tag:2,optional" json:"captureDevice2DBlock"`
 }
 
 /*
@@ -165,7 +165,7 @@ type ImageRepresentation2DBlockType struct {
 	}
 */
 type ImageRepresentationBaseType struct {
-	ImageRepresentation2DBlock ImageRepresentation2DBlockType `asn1:"tag:0"`
+	ImageRepresentation2DBlock ImageRepresentation2DBlockType `asn1:"tag:0" json:"imageRepresentation2DBlock"`
 }
 
 /*
@@ -174,7 +174,7 @@ type ImageRepresentationBaseType struct {
 	}
 */
 type ImageRepresentationExtensionBlockType struct {
-	Raw asn1.RawContent
+	Raw asn1.RawContent `json:"raw"`
 }
 
 /*
@@ -184,8 +184,8 @@ type ImageRepresentationExtensionBlockType struct {
 		}
 */
 type ImageRepresentationType struct {
-	Base           ImageRepresentationBaseType           `asn1:"tag:0,optional"`
-	ExtensionBlock ImageRepresentationExtensionBlockType `asn1:"tag:1,optional"`
+	Base           ImageRepresentationBaseType           `asn1:"tag:0,optional" json:"base"`
+	ExtensionBlock ImageRepresentationExtensionBlockType `asn1:"tag:1,optional" json:"extensionBlock"`
 }
 
 /*
@@ -205,17 +205,17 @@ type ImageRepresentationType struct {
 	}
 */
 type ImageInformation2DBlockType struct {
-	ImageDataFormat                GenericBlockType   `asn1:"tag:0"`
-	FaceImageKind2D                GenericBlockType   `asn1:"tag:1,optional"`
-	PostAcquisitionProcessingBlock GenericBlockType   `asn1:"tag:2,optional"`
-	LossyTransformationAttempts    GenericBlockType   `asn1:"tag:3,optional"`
-	CameraToSubjectDistance        int                `asn1:"tag:4,optional"`
-	SensorDiagonal                 int                `asn1:"tag:5,optional"`
-	LensFocalLength                int                `asn1:"tag:6,optional"`
-	ImageSizeBlock                 ImageSizeBlockType `asn1:"tag:7,optional"`
-	ImageFaceMeasurementsBlock     GenericBlockType   `asn1:"tag:8,optional"`
-	ImageColourSpace               GenericBlockType   `asn1:"tag:9,optional"`
-	ReferenceColourMappingBlock    GenericBlockType   `asn1:"tag:10,optional"`
+	ImageDataFormat                GenericBlockType   `asn1:"tag:0" json:"imageDataFormat"`
+	FaceImageKind2D                GenericBlockType   `asn1:"tag:1,optional" json:"faceImageKind2D"`
+	PostAcquisitionProcessingBlock GenericBlockType   `asn1:"tag:2,optional" json:"postAcquisitionProcessingBlock"`
+	LossyTransformationAttempts    GenericBlockType   `asn1:"tag:3,optional" json:"lossyTransformationAttempts"`
+	CameraToSubjectDistance        int                `asn1:"tag:4,optional" json:"cameraToSubjectDistance"`
+	SensorDiagonal                 int                `asn1:"tag:5,optional" json:"sensorDiagonal"`
+	LensFocalLength                int                `asn1:"tag:6,optional" json:"lensFocalLength"`
+	ImageSizeBlock                 ImageSizeBlockType `asn1:"tag:7,optional" json:"imageSizeBlock"`
+	ImageFaceMeasurementsBlock     GenericBlockType   `asn1:"tag:8,optional" json:"imageFaceMeasurementsBlock"`
+	ImageColourSpace               GenericBlockType   `asn1:"tag:9,optional" json:"imageColourSpace"`
+	ReferenceColourMappingBlock    GenericBlockType   `asn1:"tag:10,optional" json:"referenceColourMappingBlock"`
 }
 
 /*
@@ -227,8 +227,8 @@ type ImageInformation2DBlockType struct {
 ImageSize ::= INTEGER (0..65535)
 */
 type ImageSizeBlockType struct {
-	Width  int `asn1:"tag:0"`
-	Height int `asn1:"tag:1"`
+	Width  int `asn1:"tag:0" json:"width"`
+	Height int `asn1:"tag:1" json:"height"`
 }
 
 /*
@@ -240,8 +240,8 @@ RegistryId ::= INTEGER (1..65535)
 	}
 */
 type RegistryIdBlockType struct {
-	Organisation int `asn1:"tag:0"`
-	Id           int `asn1:"tag:1"`
+	Organisation int `asn1:"tag:0" json:"organisation"`
+	Id           int `asn1:"tag:1" json:"id"`
 }
 
 /*
@@ -252,7 +252,7 @@ CertificationIdBlocks ::= SEQUENCE OF CertificationIdBlock
 type CertificationIdBlockType RegistryIdBlockType
 
 type CertificationIdBlocksType struct {
-	CertificationIdBlock CertificationIdBlockType
+	CertificationIdBlock CertificationIdBlockType `json:"certificationIdBlock"`
 }
 
 /*
@@ -263,10 +263,10 @@ type CertificationIdBlocksType struct {
 	}
 */
 type CaptureDeviceBlockType struct {
-	ModelIdBlock          RegistryIdBlockType       `asn1:"tag:0,optional"`
-	CertificationIdBlocks CertificationIdBlocksType `asn1:"tag:1,optional"`
+	ModelIdBlock          RegistryIdBlockType       `asn1:"tag:0,optional" json:"modelIdBlock"`
+	CertificationIdBlocks CertificationIdBlocksType `asn1:"tag:1,optional" json:"certificationIdBlocks"`
 }
 
 type GenericBlockType struct {
-	Raw asn1.RawContent
+	Raw asn1.RawContent `json:"raw"`
 }
