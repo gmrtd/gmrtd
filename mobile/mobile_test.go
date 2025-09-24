@@ -70,7 +70,7 @@ func TestReadDocument(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 
-	_, err = reader.ReadDocument(&iso7816.StaticTransceiver{}, pass, nil, nil)
+	err = reader.ReadDocument(&iso7816.StaticTransceiver{}, pass, nil, nil)
 	if err == nil {
 		t.Fatalf("expected error")
 	}

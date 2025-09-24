@@ -3,6 +3,7 @@ package mobile
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"runtime/debug"
 
 	"github.com/gmrtd/gmrtd/document"
@@ -72,7 +73,7 @@ func (reader *Reader) SetApduMaxLe(maxRead int) error {
 }
 
 // reads the document (and performs passive authentication)
-func (reader *Reader) ReadDocument(transceiver Transceiver, password *Password, atr []byte, ats []byte) (jsonData []byte, err error) {
+func (reader *Reader) ReadDocument(transceiver Transceiver, password *Password, atr []byte, ats []byte) (err error) {
 	defer func() {
 		if e := recover(); e != nil {
 			switch x := e.(type) {
@@ -92,13 +93,16 @@ func (reader *Reader) ReadDocument(transceiver Transceiver, password *Password, 
 
 	// read (and verify) the document (inc passive-authentication)
 	reader.document, err = reader.gmrtdReader.ReadDocument(transceiver, password.password, atr, ats)
-	// NB proceed even if error, as we still want to return the document
 
-	// generate JSON
-	if reader.document != nil {
-		// NB skip error check to avoid over-writing any earlier error
-		jsonData, _ = json.Marshal(reader.document)
+	return err
+}
+
+func (reader *Reader) GetDocumentJson() (jsonData []byte, err error) {
+	if reader.document == nil {
+		return nil, fmt.Errorf("[GetDocumentJson] No document available")
 	}
+
+	jsonData, err = json.Marshal(reader.document)
 
 	return jsonData, err
 }
