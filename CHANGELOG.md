@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/gmrtd/gmrtd/compare/v0.8.1...v0.9.0) (2025-09-24)
+
+
+### Features
+
+* moved JSON document retrieval to GetDocumentJson ([#72](https://github.com/gmrtd/gmrtd/issues/72)) ([938f412](https://github.com/gmrtd/gmrtd/commit/938f41224636e56c0714fa3e1477f975484d91e3))
+
 ## [0.8.1](https://github.com/gmrtd/gmrtd/compare/v0.8.0...v0.8.1) (2025-09-24)
 
 
