@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1](https://github.com/gmrtd/gmrtd/compare/v0.8.0...v0.8.1) (2025-09-24)
+
+
+### Bug Fixes
+
+* update to make JSON field name consistent ([#70](https://github.com/gmrtd/gmrtd/issues/70)) ([a459bc4](https://github.com/gmrtd/gmrtd/commit/a459bc4d1f3d0e3595db203deca2a767a2bc74d1))
+
 ## [0.8.0](https://github.com/gmrtd/gmrtd/compare/v0.7.0...v0.8.0) (2025-09-07)
 
 
