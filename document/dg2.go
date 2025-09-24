@@ -33,25 +33,25 @@ type DG2 struct {
 }
 
 type BiometricInfoTemplate struct {
-	BHT BiometricHeaderTemplate
-	BDB BiometricDataBlock
+	BHT BiometricHeaderTemplate `json:"bht"`
+	BDB BiometricDataBlock      `json:"bdb"`
 }
 
 type BiometricHeaderTemplate struct {
-	IcaoHeaderVersion []byte // optional
-	BiometricType     []byte // optional
-	BiometricSubType  []byte // optional (for DG2)
-	CreationDateTime  []byte // optional
-	ValidityPeriod    []byte // optional
-	PID               []byte // optional
-	FormatOwner       []byte // required
-	FormatType        []byte // required
+	IcaoHeaderVersion []byte `json:"icaoHeaderVersion"` // optional
+	BiometricType     []byte `json:"biometricType"`     // optional
+	BiometricSubType  []byte `json:"biometricSubType"`  // optional (for DG2)
+	CreationDateTime  []byte `json:"creationDateTime"`  // optional
+	ValidityPeriod    []byte `json:"validityPeriod"`    // optional
+	PID               []byte `json:"pid"`               // optional
+	FormatOwner       []byte `json:"formatOwner"`       // required
+	FormatType        []byte `json:"formatType"`        // required
 }
 
 type BiometricDataBlock struct {
 	// NB only one of the following should be present, depending on which biometric encoding is used
-	Iso19794 *iso19794.ISO19794
-	Iso39794 *iso39794.ISO39794_5_AP
+	Iso19794 *iso19794.ISO19794      `json:"iso19794,omitempty"`
+	Iso39794 *iso39794.ISO39794_5_AP `json:"iso39794,omitempty"`
 }
 
 //	75

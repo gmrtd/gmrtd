@@ -91,6 +91,7 @@ func (p PaceInfo) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// TODO - add JSON marshal (PaceDomainParameterInfo)
 type PaceDomainParameterInfo struct {
 	Raw             asn1.RawContent
 	Protocol        asn1.ObjectIdentifier
@@ -106,11 +107,35 @@ type ActiveAuthenticationInfo struct {
 	SignatureAlgorithm asn1.ObjectIdentifier
 }
 
+func (aa ActiveAuthenticationInfo) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Protocol           string `json:"protocol,omitempty"`
+		Version            int    `json:"version,omitempty"`
+		SignatureAlgorithm string `json:"signatureAlgorithm,omitempty"`
+	}{
+		Protocol:           aa.Protocol.String(),
+		Version:            aa.Version,
+		SignatureAlgorithm: aa.SignatureAlgorithm.String(),
+	})
+}
+
 type ChipAuthenticationInfo struct {
 	Raw      asn1.RawContent
 	Protocol asn1.ObjectIdentifier
 	Version  int
 	KeyId    *big.Int `asn1:"optional"`
+}
+
+func (ca ChipAuthenticationInfo) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Protocol string   `json:"protocol,omitempty"`
+		Version  int      `json:"version,omitempty"`
+		KeyId    *big.Int `json:"keyId,omitempty"`
+	}{
+		Protocol: ca.Protocol.String(),
+		Version:  ca.Version,
+		KeyId:    ca.KeyId,
+	})
 }
 
 type ChipAuthenticationPublicKeyInfo struct {
@@ -120,16 +145,63 @@ type ChipAuthenticationPublicKeyInfo struct {
 	KeyId                       *big.Int `asn1:"optional"` // nil if not present
 }
 
+func (capk ChipAuthenticationPublicKeyInfo) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Protocol                    string                   `json:"protocol,omitempty"`
+		ChipAuthenticationPublicKey cms.SubjectPublicKeyInfo `json:"chipAuthenticationPublicKey,omitempty"`
+		KeyId                       *big.Int                 `json:"keyId,omitempty"`
+	}{
+		Protocol:                    capk.Protocol.String(),
+		ChipAuthenticationPublicKey: capk.ChipAuthenticationPublicKey,
+		KeyId:                       capk.KeyId,
+	})
+}
+
 type TerminalAuthenticationInfo struct {
 	Raw      asn1.RawContent
 	Protocol asn1.ObjectIdentifier
 	Version  int
 }
 
+func (ta TerminalAuthenticationInfo) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Protocol string `json:"protocol,omitempty"`
+		Version  int    `json:"version,omitempty"`
+	}{
+		Protocol: ta.Protocol.String(),
+		Version:  ta.Version,
+	})
+}
+
 type EFDirInfo struct {
 	Raw      asn1.RawContent
 	Protocol asn1.ObjectIdentifier
 	EFDir    []byte
+}
+
+func (ef EFDirInfo) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Protocol string `json:"protocol,omitempty"`
+		EFDir    []byte `json:"efDir,omitempty"`
+	}{
+		Protocol: ef.Protocol.String(),
+		EFDir:    ef.EFDir,
+	})
+}
+
+type UnhandledInfo struct {
+	Raw      asn1.RawContent       `json:"rawData,omitempty"`
+	Protocol asn1.ObjectIdentifier `json:"protocol,omitempty"`
+}
+
+func (u UnhandledInfo) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Protocol string `json:"protocol,omitempty"`
+		Raw      []byte `json:"raw,omitempty"`
+	}{
+		Protocol: u.Protocol.String(),
+		Raw:      u.Raw,
+	})
 }
 
 type SecurityInfos struct {
@@ -142,11 +214,6 @@ type SecurityInfos struct {
 	TermAuthInfos        []TerminalAuthenticationInfo      `json:"termAuthInfos,omitempty"`
 	EfDirInfos           []EFDirInfo                       `json:"efDirInfos,omitempty"`
 	UnhandledInfos       []UnhandledInfo                   `json:"unhandledInfos,omitempty"`
-}
-
-type UnhandledInfo struct {
-	Raw      asn1.RawContent
-	Protocol asn1.ObjectIdentifier
 }
 
 /*

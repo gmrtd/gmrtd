@@ -13,58 +13,58 @@ import (
 //	https://github.com/paultag/go-cbeff
 
 type ISO19794 struct {
-	Facial FacialType
+	Facial FacialType `json:"facial,omitempty"`
 }
 
 type FacialType struct {
-	Header FacialHeader
-	Images []Image
+	Header FacialHeader `json:"header"`
+	Images []Image      `json:"images,omitempty"`
 }
 
 type FacialHeader struct {
-	FormatID      [4]byte
-	VersionID     [4]byte
-	RecordLength  uint32
-	NumberOfFaces uint16
+	FormatID      [4]byte `json:"formatID,omitempty"`
+	VersionID     [4]byte `json:"versionID,omitempty"`
+	RecordLength  uint32  `json:"recordLength,omitempty"`
+	NumberOfFaces uint16  `json:"numberOfFaces,omitempty"`
 }
 
 type Image struct {
-	FacialInformation FacialInfo
-	Features          []FacialFeature
-	ImageInformation  ImageInfo
-	Data              []byte
+	FacialInformation FacialInfo      `json:"facialInformation"`
+	Features          []FacialFeature `json:"features,omitempty"`
+	ImageInformation  ImageInfo       `json:"imageInformation"`
+	Data              []byte          `json:"data,omitempty"`
 }
 
 type FacialFeature struct {
-	Type       uint8
-	MajorPoint uint8
-	MinorPoint uint8
-	X          uint16
-	Y          uint16
-	Reserved   uint8
+	Type       uint8  `json:"type"`
+	MajorPoint uint8  `json:"majorPoint"`
+	MinorPoint uint8  `json:"minorPoint"`
+	X          uint16 `json:"x"`
+	Y          uint16 `json:"y"`
+	Reserved   uint8  `json:"reserved"`
 }
 
 type FacialInfo struct {
-	Length          uint32
-	NumberOfPoints  uint16
-	Gender          uint8
-	EyeColor        uint8
-	HairColor       uint8
-	Properties      [3]byte
-	Expression      [2]byte
-	Pose            [3]byte
-	PoseUncertainty [3]byte
+	Length          uint32  `json:"length"`
+	NumberOfPoints  uint16  `json:"numberOfPoints"`
+	Gender          uint8   `json:"gender"`
+	EyeColor        uint8   `json:"eyeColor"`
+	HairColor       uint8   `json:"hairColor"`
+	Properties      [3]byte `json:"properties"`
+	Expression      [2]byte `json:"expression"`
+	Pose            [3]byte `json:"pose"`
+	PoseUncertainty [3]byte `json:"poseUncertainty"`
 }
 
 type ImageInfo struct {
-	Type       uint8
-	DataType   uint8
-	Width      uint16
-	Height     uint16
-	ColorSpace uint8
-	SourceType uint8
-	DeviceType uint16
-	Quality    uint16
+	Type       uint8  `json:"type"`
+	DataType   uint8  `json:"dataType"`
+	Width      uint16 `json:"width"`
+	Height     uint16 `json:"height"`
+	ColorSpace uint8  `json:"colorSpace"`
+	SourceType uint8  `json:"sourceType"`
+	DeviceType uint16 `json:"deviceType"`
+	Quality    uint16 `json:"quality"`
 }
 
 func ProcessISO19794(data []byte) (*ISO19794, error) {
