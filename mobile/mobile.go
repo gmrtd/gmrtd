@@ -23,11 +23,11 @@ type ReaderStatus interface {
 	Status(msg string)
 }
 
-type Password struct {
+type MrtdPassword struct {
 	password *password.Password
 }
 
-func NewPasswordMrz(mrz string) (*Password, error) {
+func NewPasswordMrz(mrz string) (*MrtdPassword, error) {
 	var err error
 	var pass *password.Password
 
@@ -36,10 +36,10 @@ func NewPasswordMrz(mrz string) (*Password, error) {
 		return nil, err
 	}
 
-	return &Password{password: pass}, nil
+	return &MrtdPassword{password: pass}, nil
 }
 
-func NewPasswordMrzi(documentNo string, dateOfBirth string, dateOfExpiry string) (*Password, error) {
+func NewPasswordMrzi(documentNo string, dateOfBirth string, dateOfExpiry string) (*MrtdPassword, error) {
 	var err error
 	var pass *password.Password
 
@@ -48,11 +48,11 @@ func NewPasswordMrzi(documentNo string, dateOfBirth string, dateOfExpiry string)
 		return nil, err
 	}
 
-	return &Password{password: pass}, nil
+	return &MrtdPassword{password: pass}, nil
 }
 
-func NewPasswordCan(can string) (*Password, error) {
-	return &Password{password: password.NewPasswordCan(can)}, nil
+func NewPasswordCan(can string) (*MrtdPassword, error) {
+	return &MrtdPassword{password: password.NewPasswordCan(can)}, nil
 }
 
 type Reader struct {
@@ -73,7 +73,7 @@ func (reader *Reader) SetApduMaxLe(maxRead int) error {
 }
 
 // reads the document (and performs passive authentication)
-func (reader *Reader) ReadDocument(transceiver Transceiver, password *Password, atr []byte, ats []byte) (err error) {
+func (reader *Reader) ReadDocument(transceiver Transceiver, password *MrtdPassword, atr []byte, ats []byte) (err error) {
 	defer func() {
 		if e := recover(); e != nil {
 			switch x := e.(type) {
