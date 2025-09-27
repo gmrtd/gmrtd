@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"crypto"
 	"crypto/cipher"
-	"crypto/elliptic"
 	"crypto/ecdsa"
+	"crypto/elliptic"
 	"encoding/asn1"
 	"math/big"
 	"testing"
@@ -680,9 +680,9 @@ func TestEllipticP192WithEcDh(t *testing.T) {
 
 func TestCryptoHashFromEcPubKey(t *testing.T) {
 	cases := []struct {
-		name   string
-		curve  elliptic.Curve
-		want   crypto.Hash
+		name  string
+		curve elliptic.Curve
+		want  crypto.Hash
 	}{
 		{"P-224", elliptic.P224(), crypto.SHA224},
 		{"P-256", elliptic.P256(), crypto.SHA256},
