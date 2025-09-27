@@ -74,14 +74,14 @@ var dgToFileId = map[int]uint16{
 // reads the LDS1 files (EF.SOD,EF.COM,EF.DGxx)
 func (reader *Reader) readLDS1files(nfc *iso7816.NfcSession, doc *document.Document) (err error) {
 	slog.Info("Read EF.SOD")
-	reader.status.Status(fmt.Sprintf("Reading EF.SOD"))
+	reader.status.Status("Reading EF.SOD")
 	doc.Mf.Lds1.Sod, err = document.NewSOD(nfc.ReadFileOrPanic(MRTDFileIdEFSOD))
 	if err != nil {
 		return fmt.Errorf("(readLDS1files) error reading EF.SOD: %w", err)
 	}
 
 	slog.Info("Read EF.COM")
-	reader.status.Status(fmt.Sprintf("Reading EF.COM"))
+	reader.status.Status("Reading EF.COM")
 	doc.Mf.Lds1.Com, err = document.NewCOM(nfc.ReadFileOrPanic(MRTDFileIdEFCOM))
 	if err != nil {
 		return fmt.Errorf("(readLDS1files) error reading EF.COM: %w", err)
@@ -220,7 +220,7 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 	 * PACE
 	 */
 	if !reader.skipPace {
-		reader.status.Status(fmt.Sprintf("PACE"))
+		reader.status.Status("PACE")
 		err = pace.NewPace(nfc, doc, password).DoPACE()
 		if err != nil {
 			return doc, err
@@ -249,7 +249,7 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 
 	// NB we only attempt BAC if we don't already have SecureMessaging (i.e. via PACE)
 	if nfc.SM == nil {
-		reader.status.Status(fmt.Sprintf("BAC"))
+		reader.status.Status("BAC")
 		err = bac.NewBAC(nfc, doc, password).DoBAC()
 		if err != nil {
 			return doc, err
@@ -271,14 +271,14 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 	 *
 	 * NB requires DG data, so performed after DG read
 	 */
-	reader.status.Status(fmt.Sprintf("Active Authentication"))
+	reader.status.Status("Active Authentication")
 	err = performChipAuthentication(nfc, doc)
 	if err != nil {
 		return doc, err
 	}
 
 	// verify the document
-	reader.status.Status(fmt.Sprintf("Verifying Document"))
+	reader.status.Status("Verifying Document")
 	err = doc.Verify()
 	if err != nil {
 		slog.Error("Document.Verify", "error", err)
@@ -299,14 +299,14 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 
 	// TODO - don't fail just because of passive auth... or at least return the document/apdus
 	// perforn passive authentication
-	reader.status.Status(fmt.Sprintf("Passive Authentication"))
+	reader.status.Status("Passive Authentication")
 	err = passiveauth.PassiveAuth(doc, cscaCertPool)
 	if err != nil {
 		slog.Error("MrtdPassiveAuth", "error", err)
 		return doc, err
 	}
 
-	reader.status.Status(fmt.Sprintf("Valid Document!"))
+	reader.status.Status("Valid Document!")
 
 	// copy apdu-log over to document
 	doc.Apdus = nfc.ApduLog
