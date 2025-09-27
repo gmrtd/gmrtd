@@ -616,8 +616,8 @@ func Asn1decodeSubjectPublicKeyInfo(data []byte) SubjectPublicKeyInfo {
 }
 
 type EcNamedCurve struct {
-	oid   asn1.ObjectIdentifier `json:"oid"`
-	curve elliptic.Curve        `json:"curve"`
+	oid   asn1.ObjectIdentifier
+	curve elliptic.Curve
 }
 
 var ecNamedCurveArr []EcNamedCurve = []EcNamedCurve{
