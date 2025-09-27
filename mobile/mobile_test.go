@@ -55,7 +55,6 @@ type testReaderStatus struct {
 }
 
 func (status *testReaderStatus) Status(msg string) {
-	return
 }
 
 // TODO -  basic test that will fail quickly due to static transceiver

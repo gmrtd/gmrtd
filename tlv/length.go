@@ -8,7 +8,7 @@ import (
 	"github.com/gmrtd/gmrtd/utils"
 )
 
-type TlvLength int
+type TlvLength int64
 
 // decodes and returns the length
 // NB returns -1 when 'indefinite-length' is indicated
