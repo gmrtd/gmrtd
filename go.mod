@@ -9,11 +9,11 @@ require (
 	github.com/dumacp/smartcard v0.1.8
 	github.com/osanderson/brainpool v0.0.0-20240902133831-007b606d9412
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
+	golang.org/x/mobile v0.0.0-20250911085028-6912353760cf
 )
 
 require (
 	github.com/ebfe/scard v0.0.0-20241214075232-7af069cabc25 // indirect
-	golang.org/x/mobile v0.0.0-20250911085028-6912353760cf // indirect
 	golang.org/x/mod v0.28.0 // indirect
 	golang.org/x/sync v0.17.0 // indirect
 	golang.org/x/sys v0.36.0 // indirect
