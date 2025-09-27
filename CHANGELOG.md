@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.1](https://github.com/gmrtd/gmrtd/compare/v0.9.0...v0.9.1) (2025-09-27)
+
+
+### Bug Fixes
+
+* android library issues ([#77](https://github.com/gmrtd/gmrtd/issues/77)) ([5253e64](https://github.com/gmrtd/gmrtd/commit/5253e64ad29dbe74cb4693427026a3ea197452ac))
+
 ## [0.9.0](https://github.com/gmrtd/gmrtd/compare/v0.8.1...v0.9.0) (2025-09-24)
 
 
