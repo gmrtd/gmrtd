@@ -11,6 +11,10 @@ func TestGetByAlpha2(t *testing.T) {
 			alpha2:    "SG",
 			expAlpha3: "SGP",
 		},
+		{
+			alpha2:    "sg",
+			expAlpha3: "SGP",
+		},
 	}
 	for _, tc := range testCases {
 		country := GetByAlpha2(tc.alpha2)
@@ -52,6 +56,10 @@ func TestGetByAlpha3(t *testing.T) {
 	}{
 		{
 			alpha3:    "GBR",
+			expAlpha2: "GB",
+		},
+		{
+			alpha3:    "gbr",
 			expAlpha2: "GB",
 		},
 	}

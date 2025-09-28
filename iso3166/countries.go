@@ -1,6 +1,8 @@
 // Package iso3166 provides basic country lookup functionality.
 package iso3166
 
+import "strings"
+
 /*
 * adapted from: https://djangocas.dev/blog/posts/ios-3166-country-codes-json/
  */
@@ -230,7 +232,7 @@ var Countries = []Country{
 // returns: nil if country not found
 func GetByAlpha2(alpha2 string) *Country {
 	for i := range Countries {
-		if Countries[i].Alpha2 == alpha2 {
+		if strings.EqualFold(Countries[i].Alpha2, alpha2) {
 			return &Countries[i]
 		}
 	}
@@ -242,7 +244,7 @@ func GetByAlpha2(alpha2 string) *Country {
 // returns: nil if country not found
 func GetByAlpha3(alpha3 string) *Country {
 	for i := range Countries {
-		if Countries[i].Alpha3 == alpha3 {
+		if strings.EqualFold(Countries[i].Alpha3, alpha3) {
 			return &Countries[i]
 		}
 	}
