@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/gmrtd/gmrtd/compare/v0.9.1...v0.10.0) (2025-09-28)
+
+
+### Features
+
+* align DG2 images with DG7 ([#82](https://github.com/gmrtd/gmrtd/issues/82)) ([73cb65b](https://github.com/gmrtd/gmrtd/commit/73cb65ba014cd8c1ec5b07472ac92e034fb18a43))
+
 ## [0.9.1](https://github.com/gmrtd/gmrtd/compare/v0.9.0...v0.9.1) (2025-09-27)
 
 
