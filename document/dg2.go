@@ -15,6 +15,7 @@ package document
 // https://www2023.icao.int/Security/FAL/TRIP/PublishingImages/Pages/Publications/ICAO%20TR%20-%2039794-5%20eMRTD%20Application%20Profile.pdf
 
 import (
+	"bytes"
 	"fmt"
 	"slices"
 
@@ -28,8 +29,12 @@ const DG2Tag = 0x75
 
 type DG2 struct {
 	RawData []byte                  `json:"rawData,omitempty"`
-	Images  [][]byte                `json:"images,omitempty"`
+	Images  []DG2Image              `json:"images,omitempty"`
 	BITs    []BiometricInfoTemplate `json:"bits,omitempty"`
+}
+
+type DG2Image struct {
+	Image []byte `json:"image,omitempty"`
 }
 
 type BiometricInfoTemplate struct {
@@ -115,13 +120,13 @@ func NewDG2(data []byte) (*DG2, error) {
 }
 
 // processes the Biometric Information Template (Tag:7F60)
-func (dg2 *DG2) processBIT(node tlv.TlvNode) (*BiometricInfoTemplate, [][]byte, error) {
+func (dg2 *DG2) processBIT(node tlv.TlvNode) (*BiometricInfoTemplate, []DG2Image, error) {
 	if node.GetTag() != 0x7F60 {
 		return nil, nil, fmt.Errorf("[processBIT] Incorrect BIT tag (Exp:7F60) (Act:%x)", node.GetTag())
 	}
 
 	var out BiometricInfoTemplate
-	var outImages [][]byte = make([][]byte, 0)
+	var outImages []DG2Image = make([]DG2Image, 0)
 
 	{
 		tmpBHT, err := processBHT(node.GetNode(0xA1))
@@ -153,7 +158,7 @@ func (dg2 *DG2) processBIT(node tlv.TlvNode) (*BiometricInfoTemplate, [][]byte, 
 		}
 
 		out.BDB.Iso19794 = facial
-		outImages = facial.GetImages()
+		outImages = imageByteArrToDg2ImageArr(facial.GetImages())
 	} else if node.GetNode(0x7F2E).IsValidNode() {
 		/*
 		* 7F2E -> ISO-39794-5 encoding
@@ -169,7 +174,7 @@ func (dg2 *DG2) processBIT(node tlv.TlvNode) (*BiometricInfoTemplate, [][]byte, 
 		}
 
 		out.BDB.Iso39794 = ap
-		outImages = ap.GetImages()
+		outImages = imageByteArrToDg2ImageArr(ap.GetImages())
 	} else {
 		return nil, nil, fmt.Errorf("[processBIT] DG2 must have tag 5F2E or 7F2E")
 	}
@@ -201,4 +206,14 @@ func processBHT(node tlv.TlvNode) (*BiometricHeaderTemplate, error) {
 	 */
 
 	return &out, nil
+}
+
+func imageByteArrToDg2ImageArr(images [][]byte) []DG2Image {
+	var out []DG2Image = make([]DG2Image, 0)
+
+	for i := 0; i < len(images); i++ {
+		out = append(out, DG2Image{Image: bytes.Clone(images[i])})
+	}
+
+	return out
 }
