@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.1](https://github.com/gmrtd/gmrtd/compare/v0.10.0...v0.10.1) (2025-09-28)
+
+
+### Bug Fixes
+
+* case insensitive country lookup ([#84](https://github.com/gmrtd/gmrtd/issues/84)) ([2b0abcc](https://github.com/gmrtd/gmrtd/commit/2b0abcc354a31f650a7ad9d8881c9cb16bbcbf50))
+
 ## [0.10.0](https://github.com/gmrtd/gmrtd/compare/v0.9.1...v0.10.0) (2025-09-28)
 
 
