@@ -23,7 +23,7 @@ MIN_ANDROID_SDK     ?= 24
 
 # Namespacing for bindings
 OBJC_PREFIX         ?= Gmrtd
-ANDROID_JAVAPKG     ?= com.github.gmrtd.gmrtd
+ANDROID_JAVAPKG     ?= io.github.gmrtd
 
 # Optional build tags for the mobile facade (leave blank if unused)
 GO_TAGS             ?= mobile
