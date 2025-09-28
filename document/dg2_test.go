@@ -127,7 +127,7 @@ func TestNewDG2AllFields39794(t *testing.T) {
 	}
 
 	// verify that the photo matches the reference data
-	if !bytes.Equal(doc.Mf.Lds1.Dg2.Images[0], dg2AllFields39794Face) {
+	if !bytes.Equal(doc.Mf.Lds1.Dg2.Images[0].Image, dg2AllFields39794Face) {
 		t.Fatalf("DG2 photo differs to expected")
 	}
 }
@@ -147,7 +147,7 @@ func TestNewDG2MandFields39794(t *testing.T) {
 	}
 
 	// verify that the photo matches the reference data
-	if !bytes.Equal(doc.Mf.Lds1.Dg2.Images[0], dg2MandFields39794Face) {
+	if !bytes.Equal(doc.Mf.Lds1.Dg2.Images[0].Image, dg2MandFields39794Face) {
 		t.Fatalf("DG2 photo differs to expected")
 	}
 }

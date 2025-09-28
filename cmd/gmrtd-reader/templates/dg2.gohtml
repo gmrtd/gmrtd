@@ -4,9 +4,9 @@
 {{if .}}
 {{template "fileHexAndTlv" .RawData}}
 {{ range .Images }}
-    <img src="data:image/jpeg;base64, {{. | BytesToBase64}}" />
+    <img src="data:image/jpeg;base64, {{.Image | BytesToBase64}}" />
     <br/>
-    Image size (bytes): {{len .}}
+    Image size (bytes): {{len .Image}}
 {{ end }}
 {{else}}
 <i>No data</i>
