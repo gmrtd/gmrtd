@@ -58,11 +58,12 @@ type Document struct {
 
 type ChipAuthStatus int
 
+// intentionally use explicit values instead of iota
 const (
-	CHIP_AUTH_STATUS_NONE ChipAuthStatus = iota
-	CHIP_AUTH_STATUS_PACE_CAM
-	CHIP_AUTH_STATUS_CA
-	CHIP_AUTH_STATUS_AA
+	CHIP_AUTH_STATUS_NONE     = 0
+	CHIP_AUTH_STATUS_PACE_CAM = 1
+	CHIP_AUTH_STATUS_CA       = 2
+	CHIP_AUTH_STATUS_AA       = 3
 )
 
 func (cas ChipAuthStatus) String() string {
