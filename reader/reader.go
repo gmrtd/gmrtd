@@ -96,7 +96,6 @@ func (reader *Reader) readLDS1files(nfc *iso7816.NfcSession, doc *document.Docum
 }
 
 // reads the LDS1 data-groups (DGs) based on the DG hashes present in EF.SOD
-// error if <2 DG hashes are present in SOD (as DG1/2 are always mandatory) // TODO - is this enforced?
 func (reader *Reader) readLDS1dgs(nfc *iso7816.NfcSession, doc *document.Document) (err error) {
 	dgHashes := doc.Mf.Lds1.Sod.LdsSecurityObject.DataGroupHashValues
 
@@ -298,7 +297,7 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 	}
 
 	// TODO - don't fail just because of passive auth... or at least return the document/apdus
-	// perforn passive authentication
+	// perform passive authentication
 	reader.status.Status("Passive Authentication")
 	err = passiveauth.PassiveAuth(doc, cscaCertPool)
 	if err != nil {
