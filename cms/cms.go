@@ -5,7 +5,7 @@
 // This package provides basic support for CMS/X509 to support MRTD use-cases.
 //
 // Notes:
-// - Revocation checks not supported
+// - Certificate Revocation List (CRL) checks are supported when configured
 package cms
 
 /*
@@ -206,6 +206,70 @@ func ParseCertificates(data []byte) (certs []Certificate, err error) {
 	return certs, nil
 }
 
+func ParseCertificateRevocationList(data []byte) (*CertificateList, error) {
+	var out CertificateList
+
+	err := utils.ParseAsn1(data, false, &out)
+	if err != nil {
+		return nil, fmt.Errorf("[ParseCertificateList] asn1 parsing error: %w", err)
+	}
+
+	return &out, nil
+}
+
+/*
+https://datatracker.ietf.org/doc/html/rfc5280#section-5.1
+
+	CertificateList  ::=  SEQUENCE  {
+	     tbsCertList          TBSCertList,
+	     signatureAlgorithm   AlgorithmIdentifier,
+	     signatureValue       BIT STRING  }
+
+	TBSCertList  ::=  SEQUENCE  {
+	     version                 Version OPTIONAL,
+	                                  -- if present, MUST be v2
+	     signature               AlgorithmIdentifier,
+	     issuer                  Name,
+	     thisUpdate              Time,
+	     nextUpdate              Time OPTIONAL,
+	     revokedCertificates     SEQUENCE OF SEQUENCE  {
+	          userCertificate         CertificateSerialNumber,
+	          revocationDate          Time,
+	          crlEntryExtensions      Extensions OPTIONAL
+	                                   -- if present, version MUST be v2
+	                               }  OPTIONAL,
+	     crlExtensions           [0]  EXPLICIT Extensions OPTIONAL
+	                                   -- if present, version MUST be v2
+	                               }
+*/
+type CertificateList struct {
+	Raw                asn1.RawContent     `json:"raw"`
+	TBSCertList        TBSCertList         `json:"tbsCertList"`
+	SignatureAlgorithm AlgorithmIdentifier `json:"signatureAlgorithm"`
+	SignatureValue     asn1.BitString      `json:"signatureValue"`
+}
+
+type TBSCertList struct {
+	Raw                 asn1.RawContent      `json:"raw"`
+	Version             int                  `asn1:"optional,default:0" json:"version"`
+	Signature           AlgorithmIdentifier  `json:"signature"`
+	Issuer              asn1.RawValue        `json:"issuer"`
+	ThisUpdate          asn1.RawValue        `json:"thisUpdate"`
+	NextUpdate          asn1.RawValue        `asn1:"optional" json:"nextUpdate"`
+	RevokedCertificates []RevokedCertificate `asn1:"optional" json:"revokedCertificates"`
+	Extensions          Extensions           `asn1:"explicit,optional,tag:0" json:"extensions"`
+}
+
+func (tbs TBSCertList) GetIssuerRDN() RDNSequence {
+	return ParseRDNSequence(tbs.Issuer.FullBytes)
+}
+
+type RevokedCertificate struct {
+	UserCertificate *big.Int      `json:"userCertificate"`
+	RevocationDate  asn1.RawValue `json:"revocationDate"`
+	Extensions      Extensions    `asn1:"optional" json:"extensions"`
+}
+
 type Certificate struct {
 	Raw                asn1.RawContent     `json:"raw"`
 	TbsCertificate     TBSCertificate      `json:"tbsCertificate"`
@@ -251,6 +315,27 @@ func (extensions Extensions) GetSubjectKeyIdentifier() *SubjectKeyIdentifier {
 			}
 
 			return &out
+		}
+	}
+
+	return nil
+}
+
+func (extensions Extensions) GetCRLNumber() *big.Int {
+	for i := range extensions {
+		if extensions[i].ObjectId.Equal(oid.OidCeCRLNumber) {
+			var raw asn1.RawValue
+			_, err := asn1.Unmarshal(extensions[i].ExtnValue.Bytes, &raw)
+			if err != nil {
+				log.Panicf("error: %s", err)
+			}
+
+			if raw.Tag != asn1.TagInteger {
+				log.Panicf("unexpected tag for CRL number: %d", raw.Tag)
+			}
+
+			out := new(big.Int).SetBytes(raw.Bytes)
+			return out
 		}
 	}
 
@@ -476,6 +561,14 @@ func (si *SignerInfo) Verify(sd *SignedData, trustedCerts CertPool) (certChain [
 	}
 
 	/*
+	* Check if the signing certificate is revoked (if CRL is configured)
+	 */
+	crl := trustedCerts.GetCRL()
+	if crl != nil && cert.IsRevoked(crl) {
+		return nil, fmt.Errorf("[Verify] signing certificate is revoked (serial:%s)", cert.TbsCertificate.SerialNumber.String())
+	}
+
+	/*
 	* Verify the SignedInfo signature (against the PublicKey in the Certificate)
 	 */
 	err = VerifySignature(cert.TbsCertificate.SubjectPublicKeyInfo.FullBytes, *digestAlg, digest, *signatureAlg, signature)
@@ -528,6 +621,23 @@ func (sd *SignedData) Verify(trustedCerts CertPool) (certChain [][]byte, err err
 	return certChain, nil
 }
 
+// checks if a certificate is revoked according to the provided CRL
+func (cert *Certificate) IsRevoked(crl *CertificateList) bool {
+	if crl == nil {
+		return false
+	}
+
+	certSerial := cert.TbsCertificate.SerialNumber
+	for i := range crl.TBSCertList.RevokedCertificates {
+		if crl.TBSCertList.RevokedCertificates[i].UserCertificate.Cmp(certSerial) == 0 {
+			slog.Debug("Certificate.IsRevoked", "serial", certSerial.String(), "revoked", true)
+			return true
+		}
+	}
+
+	return false
+}
+
 // verifies that the certificate was signed by one of the certificates in 'trustedCerts'
 // NB considers all entries in 'trustedCerts' to be valid signers, so doesn't walk the chain to a root-cert
 func (cert *Certificate) Verify(trustedCerts CertPool) (certChain [][]byte, err error) {
@@ -536,6 +646,12 @@ func (cert *Certificate) Verify(trustedCerts CertPool) (certChain [][]byte, err 
 	// - for MRTD, country is indirectly validated by passive-auth as it will only provide 'trustedCerts' for the country based on the MRZ
 
 	slog.Debug("CERT.Verify", "Cert(hex)", utils.BytesToHex(cert.Raw))
+
+	// check if certificate is revoked (if CRL is configured)
+	crl := trustedCerts.GetCRL()
+	if crl != nil && cert.IsRevoked(crl) {
+		return certChain, fmt.Errorf("[Certificate.Verify] certificate is revoked (serial:%s)", cert.TbsCertificate.SerialNumber.String())
+	}
 
 	// get the parent certificate (authority) key identifier
 	var aki *AuthorityKeyIdentifier = cert.TbsCertificate.Extensions.GetAuthorityKeyIdentifier()

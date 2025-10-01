@@ -8,4 +8,7 @@ type CertPool interface {
 	GetByIssuerCountry(countryAlpha2 string) []Certificate
 
 	GetAll() []Certificate
+
+	// Get Certificate Revocation List (CRL) for passive authentication
+	GetCRL() *CertificateList
 }

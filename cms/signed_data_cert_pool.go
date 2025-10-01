@@ -79,3 +79,13 @@ func CreateCertPoolFromSignedData(signedDataBytes []byte, rootCertBytes []byte) 
 
 	return &out, nil
 }
+
+// GetCRL returns the Certificate Revocation List (delegates to embedded GenericCertPool)
+func (certPool *SignedDataCertPool) GetCRL() *CertificateList {
+	return certPool.GenericCertPool.GetCRL()
+}
+
+// SetCRL sets the Certificate Revocation List (delegates to embedded GenericCertPool)
+func (certPool *SignedDataCertPool) SetCRL(crl *CertificateList) {
+	certPool.GenericCertPool.SetCRL(crl)
+}
