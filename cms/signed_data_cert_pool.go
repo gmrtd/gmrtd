@@ -45,7 +45,7 @@ func CreateCertPoolFromSignedData(signedDataBytes []byte, rootCertBytes []byte) 
 	 * verify the signed data object
 	 */
 	var certChain [][]byte
-	certChain, err = signedData.Verify(rootCertPool, nil)
+	certChain, err = signedData.Verify(rootCertPool)
 	if err != nil {
 		return nil, fmt.Errorf("[CreateCertPoolFromSignedData] signedData.Verify error: %w", err)
 	}

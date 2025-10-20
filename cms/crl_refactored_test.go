@@ -230,7 +230,7 @@ func TestCRLReasonCodes(t *testing.T) {
 	// Create a mock revoked certificate with a reason code extension
 	mockExtensions := Extensions{
 		{
-			ObjectId:  asn1.ObjectIdentifier{2, 5, 29, 21}, // id-ce-cRLReasons
+			ObjectId: asn1.ObjectIdentifier{2, 5, 29, 21}, // id-ce-cRLReasons
 			ExtnValue: asn1.RawValue{
 				Bytes: []byte{0x0A, 0x01, 0x01}, // ENUMERATED { 1 } = keyCompromise
 			},
@@ -271,8 +271,8 @@ func TestVerifyOptionsDisabled(t *testing.T) {
 		t.Fatalf("GetGermanMasterList error: %v", err)
 	}
 
-	// Test with CRL checking disabled (nil options)
-	_, err = sd.Verify(germanCertPool, nil)
+	// Test with CRL checking disabled
+	_, err = sd.Verify(germanCertPool)
 	if err != nil {
 		t.Fatalf("Verify with nil options should succeed: %v", err)
 	}
@@ -281,7 +281,7 @@ func TestVerifyOptionsDisabled(t *testing.T) {
 	opts := &VerifyOptions{
 		CheckRevocation: false,
 	}
-	_, err = sd.Verify(germanCertPool, opts)
+	_, err = sd.VerifyWithOptions(germanCertPool, opts)
 	if err != nil {
 		t.Fatalf("Verify with CheckRevocation=false should succeed: %v", err)
 	}

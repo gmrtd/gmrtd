@@ -758,7 +758,11 @@ func (si *SignerInfo) Verify(sd *SignedData, trustedCerts CertPool, opts *Verify
 	return certChain, nil
 }
 
-func (sd *SignedData) Verify(trustedCerts CertPool, opts *VerifyOptions) (certChain [][]byte, err error) {
+func (sd *SignedData) Verify(trustedCerts CertPool) (certChain [][]byte, err error) {
+	return sd.VerifyWithOptions(trustedCerts, nil)
+}
+
+func (sd *SignedData) VerifyWithOptions(trustedCerts CertPool, opts *VerifyOptions) (certChain [][]byte, err error) {
 	slog.Debug("SignedData.Verify")
 
 	slog.Debug("Verify", "SignerInfo(cnt)", len(sd.SignerInfos))

@@ -104,7 +104,7 @@ func TestCertificateVerifyWithRevokedCertInChain(t *testing.T) {
 	// Try to verify the certificate - should fail due to revocation when CRL checking is enabled
 	opts := &VerifyOptions{
 		CheckRevocation: true,
-		CRLFetcher:     crlFetcher,
+		CRLFetcher:      crlFetcher,
 	}
 	_, err = testCert.Verify(certPoolWithCRL, opts)
 	if err == nil {
@@ -214,9 +214,9 @@ func TestSignerInfoVerifyWithRevokedSigningCert(t *testing.T) {
 	// Try to verify - should fail due to signing certificate being revoked when CRL checking is enabled
 	opts := &VerifyOptions{
 		CheckRevocation: true,
-		CRLFetcher:     crlFetcher,
+		CRLFetcher:      crlFetcher,
 	}
-	_, err = sd.Verify(germanCertPool, opts)
+	_, err = sd.VerifyWithOptions(germanCertPool, opts)
 	if err == nil {
 		t.Fatal("expected SignedData.Verify to fail when signing certificate is revoked")
 	}
@@ -249,7 +249,7 @@ func TestSignedDataVerifySucceedsWithoutCRL(t *testing.T) {
 	}
 
 	// Verify should succeed when CRL checking is disabled (default behavior)
-	_, err = sd.Verify(germanCertPool, nil)
+	_, err = sd.Verify(germanCertPool)
 	if err != nil {
 		t.Fatalf("SignedData.Verify should succeed when no CRL checking is configured: %v", err)
 	}
