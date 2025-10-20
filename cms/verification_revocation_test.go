@@ -1,6 +1,7 @@
 package cms
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/utils"
@@ -21,28 +22,33 @@ func TestCertificateVerifyWithRevokedCertInChain(t *testing.T) {
 		t.Skip("Need at least 2 certificates for this test")
 	}
 
-	// Find a certificate that has a parent (not self-signed)
-	var testCert *Certificate
-	for i := range allCerts {
-		aki := allCerts[i].TbsCertificate.Extensions.GetAuthorityKeyIdentifier()
-		if aki != nil {
-			// This cert has a parent, good for testing
-			testCert = &allCerts[i]
-			break
-		}
-	}
-
-	if testCert == nil {
-		t.Skip("No suitable certificate found with parent for testing")
-	}
-
-	testSerial := testCert.TbsCertificate.SerialNumber
-
-	// Parse base CRL
+	// Parse base CRL first to get its AKI
 	baseCRL, err := ParseCertificateRevocationList(de_clr)
 	if err != nil {
 		t.Fatalf("ParseCertificateRevocationList error: %v", err)
 	}
+
+	// Get the CRL's Authority Key Identifier to find matching certificates
+	crlAKI := baseCRL.TBSCertList.Extensions.GetAuthorityKeyIdentifier()
+
+	// Find a certificate whose AKI matches the CRL's AKI
+	// This ensures the certificate and CRL have the same issuer
+	var testCert *Certificate
+	if crlAKI != nil {
+		for i := range allCerts {
+			certAKI := allCerts[i].TbsCertificate.Extensions.GetAuthorityKeyIdentifier()
+			if certAKI != nil && bytes.Equal(certAKI.KeyIdentifier, crlAKI.KeyIdentifier) {
+				testCert = &allCerts[i]
+				break
+			}
+		}
+	}
+
+	if testCert == nil {
+		t.Skip("No suitable certificate found with matching issuer to CRL")
+	}
+
+	testSerial := testCert.TbsCertificate.SerialNumber
 
 	// Create a revoked CRL with this certificate
 	revokedCRL := &CertificateList{
@@ -114,6 +120,12 @@ func TestSignerInfoVerifyWithRevokedSigningCert(t *testing.T) {
 	baseCRL, err := ParseCertificateRevocationList(de_clr)
 	if err != nil {
 		t.Fatalf("ParseCertificateRevocationList error: %v", err)
+	}
+
+	// Check if the signing certificate's issuer matches the CRL's issuer
+	// If not, skip the test as we can't properly test revocation
+	if !signingCert.IsCRLIssuerMatch(baseCRL) {
+		t.Skip("Signing certificate issuer doesn't match CRL issuer - cannot test revocation")
 	}
 
 	revokedCRL := &CertificateList{

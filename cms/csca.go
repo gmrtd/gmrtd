@@ -34,6 +34,7 @@ var (
 )
 
 // getCRLFetcher returns a singleton CRL fetcher instance
+// Deprecated: CRL fetching should now be done via VerifyOptions with distribution points from certificates
 func getCRLFetcher() *CRLFetcher {
 	crlFetcherOnce.Do(func() {
 		crlFetcher = NewCRLFetcher()

@@ -159,8 +159,26 @@ func TestCertificateVerificationWithRevokedCert(t *testing.T) {
 		t.Skip("No certificates in German master list to test with")
 	}
 
-	// Pick the first certificate and mark it as revoked
-	testCert := &allCerts[0]
+	// Get the CRL's Authority Key Identifier to find matching certificates
+	crlAKI := crl.TBSCertList.Extensions.GetAuthorityKeyIdentifier()
+
+	// Find a certificate whose AKI matches the CRL's AKI
+	// This ensures the certificate and CRL have the same issuer
+	var testCert *Certificate
+	if crlAKI != nil {
+		for i := range allCerts {
+			certAKI := allCerts[i].TbsCertificate.Extensions.GetAuthorityKeyIdentifier()
+			if certAKI != nil && bytes.Equal(certAKI.KeyIdentifier, crlAKI.KeyIdentifier) {
+				testCert = &allCerts[i]
+				break
+			}
+		}
+	}
+
+	if testCert == nil {
+		t.Skip("No certificate found with matching issuer to the CRL")
+	}
+
 	testSerial := testCert.TbsCertificate.SerialNumber
 
 	// Create a modified CRL with this certificate revoked
@@ -218,12 +236,36 @@ func TestSignedDataVerificationFailsWithRevokedCert(t *testing.T) {
 		t.Fatalf("ParseCertificateRevocationList error: %v", err)
 	}
 
-	// Create a mock certificate with a known serial number
+	// Create a mock certificate with a known serial number and matching issuer
 	mockSerial := big.NewInt(123456789)
+
+	// Get the CRL's issuer and AKI to create a matching certificate
+	crlAKI := baseCRL.TBSCertList.Extensions.GetAuthorityKeyIdentifier()
+
 	mockCert := &Certificate{
 		TbsCertificate: TBSCertificate{
 			SerialNumber: mockSerial,
+			Issuer:       baseCRL.TBSCertList.Issuer, // Match the CRL issuer
+			Extensions:   Extensions{},
 		},
+	}
+
+	// If CRL has AKI, add matching AKI to the certificate
+	if crlAKI != nil {
+		// Properly encode the Authority Key Identifier extension
+		// The extension value should contain the ASN.1 DER encoding of AuthorityKeyIdentifier
+		akiEncoded, err := asn1.Marshal(*crlAKI)
+		if err != nil {
+			t.Fatalf("Failed to marshal AKI: %v", err)
+		}
+
+		mockCert.TbsCertificate.Extensions = append(mockCert.TbsCertificate.Extensions, Extension{
+			ObjectId: oid.OidAuthorityKeyIdentifier,
+			ExtnValue: asn1.RawValue{
+				Bytes:    akiEncoded,
+				FullBytes: akiEncoded,
+			},
+		})
 	}
 
 	// Test 1: Certificate should not be revoked initially

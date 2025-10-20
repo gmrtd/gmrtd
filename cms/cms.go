@@ -1,11 +1,11 @@
 // Package cms implements the 'Cryptographic Message Syntax' (CMS) as described in RFC-5652.
 //
-// Support is also provided for X509 (RFC-5652)
+// Support is also provided for X509 (RFC-5280)
 //
 // This package provides basic support for CMS/X509 to support MRTD use-cases.
 //
 // Notes:
-// - Certificate Revocation List (CRL) checks are supported when configured
+// - Certificate Revocation List (CRL) checks are supported when configured via VerifyOptions
 package cms
 
 /*
@@ -342,6 +342,99 @@ func (extensions Extensions) GetCRLNumber() *big.Int {
 	return nil
 }
 
+// GetCRLDistributionPoints extracts the CRL Distribution Points extension from a certificate
+// Returns nil if the extension is not present
+func (extensions Extensions) GetCRLDistributionPoints() *CRLDistributionPoints {
+	for i := range extensions {
+		if extensions[i].ObjectId.Equal(oid.OidCeCRLDistributionPoints) {
+			var out CRLDistributionPoints
+
+			err := utils.ParseAsn1(extensions[i].ExtnValue.Bytes, false, &out)
+			if err != nil {
+				slog.Debug("GetCRLDistributionPoints", "error", err)
+				return nil
+			}
+
+			return &out
+		}
+	}
+
+	return nil
+}
+
+// GetURLs extracts HTTP/HTTPS URLs from CRL Distribution Points
+func (cdp *CRLDistributionPoints) GetURLs() []string {
+	if cdp == nil {
+		return nil
+	}
+
+	var urls []string
+	for _, dp := range *cdp {
+		if len(dp.DistributionPoint.FullName.Bytes) == 0 {
+			continue
+		}
+
+		// FullName is a GeneralNames sequence
+		// GeneralName ::= CHOICE { ... uniformResourceIdentifier [6] IA5String, ... }
+		var generalNames []asn1.RawValue
+		_, err := asn1.Unmarshal(dp.DistributionPoint.FullName.Bytes, &generalNames)
+		if err != nil {
+			continue
+		}
+
+		for _, gn := range generalNames {
+			// Tag 6 = uniformResourceIdentifier (context-specific implicit)
+			if gn.Tag == 6 && gn.Class == asn1.ClassContextSpecific {
+				url := string(gn.Bytes)
+				if len(url) > 0 {
+					urls = append(urls, url)
+				}
+			}
+		}
+	}
+
+	return urls
+}
+
+// GetReasonCode extracts the reason code from a revoked certificate entry extension
+func (extensions Extensions) GetReasonCode() *CRLReason {
+	for i := range extensions {
+		if extensions[i].ObjectId.Equal(asn1.ObjectIdentifier{2, 5, 29, 21}) { // id-ce-cRLReasons
+			// The extension value is wrapped in an OCTET STRING, then contains an ENUMERATED
+			var raw asn1.RawValue
+			_, err := asn1.Unmarshal(extensions[i].ExtnValue.Bytes, &raw)
+			if err != nil {
+				slog.Debug("GetReasonCode", "unmarshalError", err)
+				return nil
+			}
+
+			// Parse the ENUMERATED value
+			if raw.Tag == asn1.TagEnum {
+				if len(raw.Bytes) > 0 {
+					r := CRLReason(int(raw.Bytes[0]))
+					return &r
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// GetInvalidityDate extracts the invalidity date from a revoked certificate entry extension
+func (extensions Extensions) GetInvalidityDate() *asn1.RawValue {
+	for i := range extensions {
+		if extensions[i].ObjectId.Equal(asn1.ObjectIdentifier{2, 5, 29, 24}) { // id-ce-invalidityDate
+			var date asn1.RawValue
+			_, err := asn1.Unmarshal(extensions[i].ExtnValue.Bytes, &date)
+			if err != nil {
+				return nil
+			}
+			return &date
+		}
+	}
+	return nil
+}
+
 // TODO - handlers for other extensions... key-usage (sign,..)... CSCA: privateKeyUsagePeriod, id-ce-keyUsage (for CA detection?)
 
 type RDNSequence []RelativeDistinguishedNameSET
@@ -399,6 +492,49 @@ type Extension struct {
 	Critical  asn1.Flag             `asn1:"optional,default:false" json:"critical"`
 	ExtnValue asn1.RawValue         `json:"extnValue"`
 }
+
+// VerifyOptions contains options for certificate verification
+type VerifyOptions struct {
+	// CheckRevocation enables CRL checking when set to true
+	CheckRevocation bool
+	// CRLFetcher is used to fetch CRLs from distribution points
+	// If nil and CheckRevocation is true, a default fetcher will be used
+	CRLFetcher *CRLFetcher
+}
+
+// CRLDistributionPoints represents the id-ce-cRLDistributionPoints extension (RFC 5280 Section 4.2.1.13)
+// CRLDistributionPoints ::= SEQUENCE SIZE (1..MAX) OF DistributionPoint
+type CRLDistributionPoints []DistributionPoint
+
+// DistributionPoint represents a single distribution point
+type DistributionPoint struct {
+	DistributionPoint DistributionPointName `asn1:"optional,tag:0"`
+	Reasons           asn1.BitString        `asn1:"optional,implicit,tag:1"`
+	CRLIssuer         asn1.RawValue         `asn1:"optional,implicit,tag:2"`
+}
+
+// DistributionPointName represents the distributionPoint field
+type DistributionPointName struct {
+	FullName                asn1.RawValue `asn1:"optional,implicit,tag:0"`
+	NameRelativeToCRLIssuer asn1.RawValue `asn1:"optional,implicit,tag:1"`
+}
+
+// CRLReason represents the reason code for certificate revocation (RFC 5280 Section 5.3.1)
+type CRLReason int
+
+const (
+	Unspecified          CRLReason = 0
+	KeyCompromise        CRLReason = 1
+	CACompromise         CRLReason = 2
+	AffiliationChanged   CRLReason = 3
+	Superseded           CRLReason = 4
+	CessationOfOperation CRLReason = 5
+	CertificateHold      CRLReason = 6
+	// value 7 is not used
+	RemoveFromCRL      CRLReason = 8
+	PrivilegeWithdrawn CRLReason = 9
+	AACompromise       CRLReason = 10
+)
 
 /*
 
@@ -460,7 +596,12 @@ RFC 5280            PKIX Certificate and CRL Profile            May 2008
 			}
 */
 
+// Deprecated: Use VerifyWithOptions instead
 func (si *SignerInfo) Verify(sd *SignedData, trustedCerts CertPool) (certChain [][]byte, err error) {
+	return si.VerifyWithOptions(sd, trustedCerts, nil)
+}
+
+func (si *SignerInfo) VerifyWithOptions(sd *SignedData, trustedCerts CertPool, opts *VerifyOptions) (certChain [][]byte, err error) {
 	var dataToHash []byte
 	var digestAlg *asn1.ObjectIdentifier
 	var signatureAlg *asn1.ObjectIdentifier
@@ -561,8 +702,41 @@ func (si *SignerInfo) Verify(sd *SignedData, trustedCerts CertPool) (certChain [
 	}
 
 	/*
-	* Check if the signing certificate is revoked (if CRL is configured)
+	* Check if the signing certificate is revoked
 	 */
+	// First check via the new VerifyOptions approach (CRL Distribution Points)
+	if opts != nil && opts.CheckRevocation {
+		// Get CRL Distribution Points from the signing certificate
+		crlDPs := cert.TbsCertificate.Extensions.GetCRLDistributionPoints()
+		urls := crlDPs.GetURLs()
+
+		if len(urls) > 0 {
+			// Get or create CRL fetcher
+			fetcher := opts.CRLFetcher
+			if fetcher == nil {
+				fetcher = NewCRLFetcher()
+			}
+
+			// Try to fetch CRL from distribution points
+			for _, url := range urls {
+				crl, fetchErr := fetcher.FetchCRL(url)
+				if fetchErr != nil {
+					slog.Debug("SignerInfo.Verify", "crlFetchError", fetchErr, "url", url)
+					continue
+				}
+
+				// Check if signing certificate is revoked
+				if cert.IsRevoked(crl) {
+					return nil, fmt.Errorf("[Verify] signing certificate is revoked (serial:%s)", cert.TbsCertificate.SerialNumber.String())
+				}
+
+				// Successfully checked CRL
+				break
+			}
+		}
+	}
+
+	// Also check via the deprecated GetCRL() method for backward compatibility
 	crl := trustedCerts.GetCRL()
 	if crl != nil && cert.IsRevoked(crl) {
 		return nil, fmt.Errorf("[Verify] signing certificate is revoked (serial:%s)", cert.TbsCertificate.SerialNumber.String())
@@ -584,7 +758,7 @@ func (si *SignerInfo) Verify(sd *SignedData, trustedCerts CertPool) (certChain [
 	* so far we've just verified the signedData and enveloped-data we haven't actually verified that the certificate is signed by someone we trust
 	 */
 	{
-		tmpCertChain, err := cert.Verify(trustedCerts)
+		tmpCertChain, err := cert.VerifyWithOptions(trustedCerts, opts)
 		if err != nil {
 			return nil, fmt.Errorf("[Verify] cert.Verify error: %w", err)
 		}
@@ -596,7 +770,12 @@ func (si *SignerInfo) Verify(sd *SignedData, trustedCerts CertPool) (certChain [
 	return certChain, nil
 }
 
+// Deprecated: Use VerifyWithOptions instead
 func (sd *SignedData) Verify(trustedCerts CertPool) (certChain [][]byte, err error) {
+	return sd.VerifyWithOptions(trustedCerts, nil)
+}
+
+func (sd *SignedData) VerifyWithOptions(trustedCerts CertPool, opts *VerifyOptions) (certChain [][]byte, err error) {
 	slog.Debug("SignedData.Verify")
 
 	slog.Debug("Verify", "SignerInfo(cnt)", len(sd.SignerInfos))
@@ -610,7 +789,7 @@ func (sd *SignedData) Verify(trustedCerts CertPool) (certChain [][]byte, err err
 	for siIdx := range sd.SignerInfos {
 		var tmpCertChain [][]byte
 
-		tmpCertChain, err = sd.SignerInfos[siIdx].Verify(sd, trustedCerts)
+		tmpCertChain, err = sd.SignerInfos[siIdx].VerifyWithOptions(sd, trustedCerts, opts)
 		if err != nil {
 			return nil, fmt.Errorf("[Verify] si.Verify(idx:%d) error: %w", siIdx, err)
 		}
@@ -622,8 +801,18 @@ func (sd *SignedData) Verify(trustedCerts CertPool) (certChain [][]byte, err err
 }
 
 // checks if a certificate is revoked according to the provided CRL
+// Returns true if the certificate is revoked AND the CRL issuer matches the certificate issuer
+// According to RFC 5280, serial numbers are only unique per issuer, so issuer matching is critical
 func (cert *Certificate) IsRevoked(crl *CertificateList) bool {
 	if crl == nil {
+		return false
+	}
+
+	// First, verify that the CRL is from the correct issuer
+	// Per RFC 5280: certificate serial numbers must be unique for each certificate issued by a given CA
+	// Therefore, we must match the certificate issuer to the CRL issuer
+	if !cert.IsCRLIssuerMatch(crl) {
+		slog.Debug("Certificate.IsRevoked", "serial", cert.TbsCertificate.SerialNumber.String(), "issuerMatch", false)
 		return false
 	}
 
@@ -638,16 +827,89 @@ func (cert *Certificate) IsRevoked(crl *CertificateList) bool {
 	return false
 }
 
+// IsCRLIssuerMatch checks if the CRL issuer matches the certificate's issuer
+// Per RFC 5280, this can be determined by comparing:
+// 1. The certificate's issuer DN with the CRL issuer DN, OR
+// 2. The certificate's Authority Key Identifier with the CRL's Authority Key Identifier
+func (cert *Certificate) IsCRLIssuerMatch(crl *CertificateList) bool {
+	if crl == nil {
+		return false
+	}
+
+	// Method 1: Compare Authority Key Identifiers (preferred method)
+	certAKI := cert.TbsCertificate.Extensions.GetAuthorityKeyIdentifier()
+	crlAKI := crl.TBSCertList.Extensions.GetAuthorityKeyIdentifier()
+
+	if certAKI != nil && crlAKI != nil {
+		if len(certAKI.KeyIdentifier) > 0 && len(crlAKI.KeyIdentifier) > 0 {
+			match := bytes.Equal(certAKI.KeyIdentifier, crlAKI.KeyIdentifier)
+			slog.Debug("Certificate.IsCRLIssuerMatch", "method", "AKI", "match", match)
+			return match
+		}
+	}
+
+	// Method 2: Compare issuer DNs (fallback)
+	certIssuer := cert.TbsCertificate.Issuer.FullBytes
+	crlIssuer := crl.TBSCertList.Issuer.FullBytes
+
+	match := bytes.Equal(certIssuer, crlIssuer)
+	slog.Debug("Certificate.IsCRLIssuerMatch", "method", "DN", "match", match)
+	return match
+}
+
 // verifies that the certificate was signed by one of the certificates in 'trustedCerts'
 // NB considers all entries in 'trustedCerts' to be valid signers, so doesn't walk the chain to a root-cert
+// Deprecated: Use VerifyWithOptions instead
 func (cert *Certificate) Verify(trustedCerts CertPool) (certChain [][]byte, err error) {
+	return cert.VerifyWithOptions(trustedCerts, nil)
+}
+
+// VerifyWithOptions verifies that the certificate was signed by one of the certificates in 'trustedCerts'
+// and optionally checks revocation status based on the provided options
+func (cert *Certificate) VerifyWithOptions(trustedCerts CertPool, opts *VerifyOptions) (certChain [][]byte, err error) {
 	// TODO - currently just verifies the signature... doesn't check anything else... e.g. signing-time-validity...
 	//			see 9303p10 5.1 Passive Authentication for detailed overview
 	// - for MRTD, country is indirectly validated by passive-auth as it will only provide 'trustedCerts' for the country based on the MRZ
 
 	slog.Debug("CERT.Verify", "Cert(hex)", utils.BytesToHex(cert.Raw))
 
-	// check if certificate is revoked (if CRL is configured)
+	// Check if certificate is revoked
+	// First check via the new VerifyOptions approach (CRL Distribution Points)
+	if opts != nil && opts.CheckRevocation {
+		// Get CRL Distribution Points from the certificate
+		crlDPs := cert.TbsCertificate.Extensions.GetCRLDistributionPoints()
+		urls := crlDPs.GetURLs()
+
+		if len(urls) > 0 {
+			// Get or create CRL fetcher
+			fetcher := opts.CRLFetcher
+			if fetcher == nil {
+				fetcher = NewCRLFetcher()
+			}
+
+			// Try to fetch CRL from distribution points
+			for _, url := range urls {
+				crl, fetchErr := fetcher.FetchCRL(url)
+				if fetchErr != nil {
+					slog.Debug("Certificate.Verify", "crlFetchError", fetchErr, "url", url)
+					continue
+				}
+
+				// Check if certificate is revoked
+				if cert.IsRevoked(crl) {
+					return certChain, fmt.Errorf("[Certificate.Verify] certificate is revoked (serial:%s)", cert.TbsCertificate.SerialNumber.String())
+				}
+
+				// Successfully checked CRL
+				break
+			}
+		} else {
+			slog.Debug("Certificate.Verify", "noCRLDistributionPoints", true)
+		}
+	}
+
+	// Also check via the deprecated GetCRL() method for backward compatibility
+	// This maintains the old behavior for existing code
 	crl := trustedCerts.GetCRL()
 	if crl != nil && cert.IsRevoked(crl) {
 		return certChain, fmt.Errorf("[Certificate.Verify] certificate is revoked (serial:%s)", cert.TbsCertificate.SerialNumber.String())
