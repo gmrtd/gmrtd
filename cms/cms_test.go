@@ -92,7 +92,7 @@ func TestVerifySignedData(t *testing.T) {
 			t.Errorf("Unexpected error: %s", err)
 			// TODO - use t.Fatal then no need for 'else'
 		} else {
-			certChain, err := sd.Verify(cscaCertPool)
+			certChain, err := sd.Verify(cscaCertPool, nil)
 
 			if tc.expError {
 				if err == nil {

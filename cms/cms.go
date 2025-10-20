@@ -596,12 +596,7 @@ RFC 5280            PKIX Certificate and CRL Profile            May 2008
 			}
 */
 
-// Deprecated: Use VerifyWithOptions instead
-func (si *SignerInfo) Verify(sd *SignedData, trustedCerts CertPool) (certChain [][]byte, err error) {
-	return si.VerifyWithOptions(sd, trustedCerts, nil)
-}
-
-func (si *SignerInfo) VerifyWithOptions(sd *SignedData, trustedCerts CertPool, opts *VerifyOptions) (certChain [][]byte, err error) {
+func (si *SignerInfo) Verify(sd *SignedData, trustedCerts CertPool, opts *VerifyOptions) (certChain [][]byte, err error) {
 	var dataToHash []byte
 	var digestAlg *asn1.ObjectIdentifier
 	var signatureAlg *asn1.ObjectIdentifier
@@ -702,9 +697,8 @@ func (si *SignerInfo) VerifyWithOptions(sd *SignedData, trustedCerts CertPool, o
 	}
 
 	/*
-	* Check if the signing certificate is revoked
+	* Check if the signing certificate is revoked (if CRL checking is enabled)
 	 */
-	// First check via the new VerifyOptions approach (CRL Distribution Points)
 	if opts != nil && opts.CheckRevocation {
 		// Get CRL Distribution Points from the signing certificate
 		crlDPs := cert.TbsCertificate.Extensions.GetCRLDistributionPoints()
@@ -736,12 +730,6 @@ func (si *SignerInfo) VerifyWithOptions(sd *SignedData, trustedCerts CertPool, o
 		}
 	}
 
-	// Also check via the deprecated GetCRL() method for backward compatibility
-	crl := trustedCerts.GetCRL()
-	if crl != nil && cert.IsRevoked(crl) {
-		return nil, fmt.Errorf("[Verify] signing certificate is revoked (serial:%s)", cert.TbsCertificate.SerialNumber.String())
-	}
-
 	/*
 	* Verify the SignedInfo signature (against the PublicKey in the Certificate)
 	 */
@@ -758,7 +746,7 @@ func (si *SignerInfo) VerifyWithOptions(sd *SignedData, trustedCerts CertPool, o
 	* so far we've just verified the signedData and enveloped-data we haven't actually verified that the certificate is signed by someone we trust
 	 */
 	{
-		tmpCertChain, err := cert.VerifyWithOptions(trustedCerts, opts)
+		tmpCertChain, err := cert.Verify(trustedCerts, opts)
 		if err != nil {
 			return nil, fmt.Errorf("[Verify] cert.Verify error: %w", err)
 		}
@@ -770,12 +758,7 @@ func (si *SignerInfo) VerifyWithOptions(sd *SignedData, trustedCerts CertPool, o
 	return certChain, nil
 }
 
-// Deprecated: Use VerifyWithOptions instead
-func (sd *SignedData) Verify(trustedCerts CertPool) (certChain [][]byte, err error) {
-	return sd.VerifyWithOptions(trustedCerts, nil)
-}
-
-func (sd *SignedData) VerifyWithOptions(trustedCerts CertPool, opts *VerifyOptions) (certChain [][]byte, err error) {
+func (sd *SignedData) Verify(trustedCerts CertPool, opts *VerifyOptions) (certChain [][]byte, err error) {
 	slog.Debug("SignedData.Verify")
 
 	slog.Debug("Verify", "SignerInfo(cnt)", len(sd.SignerInfos))
@@ -789,7 +772,7 @@ func (sd *SignedData) VerifyWithOptions(trustedCerts CertPool, opts *VerifyOptio
 	for siIdx := range sd.SignerInfos {
 		var tmpCertChain [][]byte
 
-		tmpCertChain, err = sd.SignerInfos[siIdx].VerifyWithOptions(sd, trustedCerts, opts)
+		tmpCertChain, err = sd.SignerInfos[siIdx].Verify(sd, trustedCerts, opts)
 		if err != nil {
 			return nil, fmt.Errorf("[Verify] si.Verify(idx:%d) error: %w", siIdx, err)
 		}
@@ -857,24 +840,17 @@ func (cert *Certificate) IsCRLIssuerMatch(crl *CertificateList) bool {
 	return match
 }
 
-// verifies that the certificate was signed by one of the certificates in 'trustedCerts'
-// NB considers all entries in 'trustedCerts' to be valid signers, so doesn't walk the chain to a root-cert
-// Deprecated: Use VerifyWithOptions instead
-func (cert *Certificate) Verify(trustedCerts CertPool) (certChain [][]byte, err error) {
-	return cert.VerifyWithOptions(trustedCerts, nil)
-}
-
-// VerifyWithOptions verifies that the certificate was signed by one of the certificates in 'trustedCerts'
+// Verify verifies that the certificate was signed by one of the certificates in 'trustedCerts'
 // and optionally checks revocation status based on the provided options
-func (cert *Certificate) VerifyWithOptions(trustedCerts CertPool, opts *VerifyOptions) (certChain [][]byte, err error) {
+// NB considers all entries in 'trustedCerts' to be valid signers, so doesn't walk the chain to a root-cert
+func (cert *Certificate) Verify(trustedCerts CertPool, opts *VerifyOptions) (certChain [][]byte, err error) {
 	// TODO - currently just verifies the signature... doesn't check anything else... e.g. signing-time-validity...
 	//			see 9303p10 5.1 Passive Authentication for detailed overview
 	// - for MRTD, country is indirectly validated by passive-auth as it will only provide 'trustedCerts' for the country based on the MRZ
 
 	slog.Debug("CERT.Verify", "Cert(hex)", utils.BytesToHex(cert.Raw))
 
-	// Check if certificate is revoked
-	// First check via the new VerifyOptions approach (CRL Distribution Points)
+	// Check if certificate is revoked (if revocation checking is enabled)
 	if opts != nil && opts.CheckRevocation {
 		// Get CRL Distribution Points from the certificate
 		crlDPs := cert.TbsCertificate.Extensions.GetCRLDistributionPoints()
@@ -906,13 +882,6 @@ func (cert *Certificate) VerifyWithOptions(trustedCerts CertPool, opts *VerifyOp
 		} else {
 			slog.Debug("Certificate.Verify", "noCRLDistributionPoints", true)
 		}
-	}
-
-	// Also check via the deprecated GetCRL() method for backward compatibility
-	// This maintains the old behavior for existing code
-	crl := trustedCerts.GetCRL()
-	if crl != nil && cert.IsRevoked(crl) {
-		return certChain, fmt.Errorf("[Certificate.Verify] certificate is revoked (serial:%s)", cert.TbsCertificate.SerialNumber.String())
 	}
 
 	// get the parent certificate (authority) key identifier

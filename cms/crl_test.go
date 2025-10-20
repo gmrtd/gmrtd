@@ -116,29 +116,8 @@ func TestCertificateIsRevoked(t *testing.T) {
 	}
 }
 
-func TestCertPoolWithCRL(t *testing.T) {
-	// parse the CRL
-	crl, err := ParseCertificateRevocationList(de_clr)
-	if err != nil {
-		t.Fatalf("ParseCertificateList error: %v", err)
-	}
-
-	// create a GenericCertPool and set the CRL
-	certPool := &GenericCertPool{}
-	certPool.SetCRL(crl)
-
-	// verify GetCRL returns the same CRL
-	retrievedCRL := certPool.GetCRL()
-	if retrievedCRL != crl {
-		t.Fatalf("expected GetCRL to return the same CRL that was set")
-	}
-
-	// test with nil CRL
-	certPool2 := &GenericCertPool{}
-	if certPool2.GetCRL() != nil {
-		t.Fatalf("expected GetCRL to return nil when no CRL is set")
-	}
-}
+// TestCertPoolWithCRL removed - SetCRL/GetCRL methods no longer exist
+// CRL checking is now done via VerifyOptions passed to Verify methods
 
 func TestCertificateVerificationWithRevokedCert(t *testing.T) {
 	// Parse the base German CRL
@@ -206,21 +185,6 @@ func TestCertificateVerificationWithRevokedCert(t *testing.T) {
 	// Test 2: Verify certificate is not revoked with original CRL (without revocations)
 	if testCert.IsRevoked(crl) {
 		t.Fatalf("expected certificate with serial %s NOT to be revoked in original CRL", testSerial.String())
-	}
-
-	// Test 3: Create a cert pool with the revoked CRL and verify it gets detected
-	certPoolWithRevocations := &GenericCertPool{}
-	certPoolWithRevocations.SetCRL(revokedCRL)
-
-	// Try to verify the certificate against itself (should fail due to revocation)
-	// Note: Verify would normally require a parent cert, but we're testing the revocation check
-	crlFromPool := certPoolWithRevocations.GetCRL()
-	if crlFromPool == nil {
-		t.Fatal("expected CRL to be set in cert pool")
-	}
-
-	if !testCert.IsRevoked(crlFromPool) {
-		t.Fatalf("expected certificate to be detected as revoked from cert pool CRL")
 	}
 
 	t.Logf("Successfully detected revoked certificate with serial: %s", testSerial.String())
@@ -291,20 +255,6 @@ func TestSignedDataVerificationFailsWithRevokedCert(t *testing.T) {
 	// Test 2: Certificate should now be revoked
 	if !mockCert.IsRevoked(revokedCRL) {
 		t.Fatalf("mock certificate should be revoked in modified CRL")
-	}
-
-	// Test 3: Create a cert pool with the revoked CRL
-	certPool := &GenericCertPool{}
-	certPool.SetCRL(revokedCRL)
-
-	// Verify the CRL is properly stored and can detect revocations
-	retrievedCRL := certPool.GetCRL()
-	if retrievedCRL == nil {
-		t.Fatal("expected non-nil CRL from cert pool")
-	}
-
-	if !mockCert.IsRevoked(retrievedCRL) {
-		t.Fatal("certificate should be detected as revoked through cert pool")
 	}
 
 	t.Logf("Successfully verified revocation checking flow with mock certificate serial: %s", mockSerial.String())

@@ -45,7 +45,7 @@ func CreateCertPoolFromSignedData(signedDataBytes []byte, rootCertBytes []byte) 
 	 * verify the signed data object
 	 */
 	var certChain [][]byte
-	certChain, err = signedData.Verify(rootCertPool)
+	certChain, err = signedData.Verify(rootCertPool, nil)
 	if err != nil {
 		return nil, fmt.Errorf("[CreateCertPoolFromSignedData] signedData.Verify error: %w", err)
 	}
@@ -78,14 +78,4 @@ func CreateCertPoolFromSignedData(signedDataBytes []byte, rootCertBytes []byte) 
 	}
 
 	return &out, nil
-}
-
-// GetCRL returns the Certificate Revocation List (delegates to embedded GenericCertPool)
-func (certPool *SignedDataCertPool) GetCRL() *CertificateList {
-	return certPool.GenericCertPool.GetCRL()
-}
-
-// SetCRL sets the Certificate Revocation List (delegates to embedded GenericCertPool)
-func (certPool *SignedDataCertPool) SetCRL(crl *CertificateList) {
-	certPool.GenericCertPool.SetCRL(crl)
 }

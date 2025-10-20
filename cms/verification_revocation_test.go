@@ -2,7 +2,9 @@ package cms
 
 import (
 	"bytes"
+	"encoding/asn1"
 	"testing"
+	"time"
 
 	"github.com/gmrtd/gmrtd/utils"
 )
@@ -65,14 +67,46 @@ func TestCertificateVerifyWithRevokedCertInChain(t *testing.T) {
 		},
 	}
 
-	// Create a cert pool with the revoked CRL
+	// Create a cert pool
 	certPoolWithCRL := &GenericCertPool{}
 	certPoolWithCRL.AddCerts(allCerts)
-	certPoolWithCRL.SetCRL(revokedCRL)
 
-	// Try to verify the certificate - should fail due to revocation
-	// This triggers the check at cms.go:652
-	_, err = testCert.Verify(certPoolWithCRL)
+	// Create a CRLFetcher and inject the revoked CRL
+	crlFetcher := NewCRLFetcher()
+
+	// Get CRL Distribution Points from the certificate
+	crlDPs := testCert.TbsCertificate.Extensions.GetCRLDistributionPoints()
+	var nextUpdate asn1.RawValue
+	if len(baseCRL.TBSCertList.NextUpdate.FullBytes) > 0 {
+		nextUpdate = baseCRL.TBSCertList.NextUpdate
+	}
+	var nextUpdateTime time.Time
+	if len(nextUpdate.FullBytes) > 0 {
+		asn1.Unmarshal(nextUpdate.FullBytes, &nextUpdateTime)
+	} else {
+		nextUpdateTime = time.Now().Add(24 * time.Hour)
+	}
+
+	// Inject the revoked CRL for each CRL DP URL
+	if crlDPs != nil {
+		urls := crlDPs.GetURLs()
+		for _, url := range urls {
+			crlFetcher.SetCRL(url, revokedCRL, nextUpdateTime)
+		}
+	}
+
+	// If no CRL DPs, we can't test revocation with the new API
+	// The new architecture requires certificates to have CRL Distribution Points
+	if crlDPs == nil || len(crlDPs.GetURLs()) == 0 {
+		t.Skip("Certificate has no CRL Distribution Points - cannot test revocation with new API")
+	}
+
+	// Try to verify the certificate - should fail due to revocation when CRL checking is enabled
+	opts := &VerifyOptions{
+		CheckRevocation: true,
+		CRLFetcher:     crlFetcher,
+	}
+	_, err = testCert.Verify(certPoolWithCRL, opts)
 	if err == nil {
 		t.Fatal("expected Certificate.Verify to fail when certificate is revoked")
 	}
@@ -142,18 +176,47 @@ func TestSignerInfoVerifyWithRevokedSigningCert(t *testing.T) {
 		},
 	}
 
-	// Get the default master list and add the revoked CRL
+	// Get the default master list
 	germanCertPool, err := GetGermanMasterList()
 	if err != nil {
 		t.Fatalf("GetGermanMasterList error: %v", err)
 	}
 
-	// Set the CRL with the revoked signing certificate
-	germanCertPool.SetCRL(revokedCRL)
+	// Create a CRLFetcher and inject the revoked CRL
+	crlFetcher := NewCRLFetcher()
 
-	// Try to verify - should fail due to signing certificate being revoked
-	// This triggers the check at cms.go:567
-	_, err = sd.Verify(germanCertPool)
+	// Get CRL Distribution Points from the signing certificate
+	crlDPs := signingCert.TbsCertificate.Extensions.GetCRLDistributionPoints()
+	var nextUpdate asn1.RawValue
+	if len(baseCRL.TBSCertList.NextUpdate.FullBytes) > 0 {
+		nextUpdate = baseCRL.TBSCertList.NextUpdate
+	}
+	var nextUpdateTime time.Time
+	if len(nextUpdate.FullBytes) > 0 {
+		asn1.Unmarshal(nextUpdate.FullBytes, &nextUpdateTime)
+	} else {
+		nextUpdateTime = time.Now().Add(24 * time.Hour)
+	}
+
+	// Inject the revoked CRL for each CRL DP URL
+	if crlDPs != nil {
+		urls := crlDPs.GetURLs()
+		for _, url := range urls {
+			crlFetcher.SetCRL(url, revokedCRL, nextUpdateTime)
+		}
+	}
+
+	// If no CRL DPs, skip test
+	if crlDPs == nil || len(crlDPs.GetURLs()) == 0 {
+		t.Skip("Signing certificate has no CRL Distribution Points - cannot test revocation with new API")
+	}
+
+	// Try to verify - should fail due to signing certificate being revoked when CRL checking is enabled
+	opts := &VerifyOptions{
+		CheckRevocation: true,
+		CRLFetcher:     crlFetcher,
+	}
+	_, err = sd.Verify(germanCertPool, opts)
 	if err == nil {
 		t.Fatal("expected SignedData.Verify to fail when signing certificate is revoked")
 	}
@@ -179,19 +242,16 @@ func TestSignedDataVerifySucceedsWithoutCRL(t *testing.T) {
 		t.Fatalf("ParseSignedData error: %v", err)
 	}
 
-	// Get master list WITHOUT CRL
+	// Get master list
 	germanCertPool, err := GetGermanMasterList()
 	if err != nil {
 		t.Fatalf("GetGermanMasterList error: %v", err)
 	}
 
-	// Clear any CRL that might have been fetched
-	germanCertPool.SetCRL(nil)
-
-	// Verify should succeed when no CRL is configured
-	_, err = sd.Verify(germanCertPool)
+	// Verify should succeed when CRL checking is disabled (default behavior)
+	_, err = sd.Verify(germanCertPool, nil)
 	if err != nil {
-		t.Fatalf("SignedData.Verify should succeed when no CRL is configured: %v", err)
+		t.Fatalf("SignedData.Verify should succeed when no CRL checking is configured: %v", err)
 	}
 
 	t.Log("Verification succeeded without CRL as expected")

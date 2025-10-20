@@ -108,3 +108,13 @@ func (f *CRLFetcher) ClearExpiredCache() {
 		}
 	}
 }
+
+// SetCRL sets a CRL in the cache for a given URL (primarily for testing)
+func (f *CRLFetcher) SetCRL(url string, crl *CertificateList, nextUpdate time.Time) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.cache[url] = &CRLCache{
+		CRL:        crl,
+		NextUpdate: nextUpdate,
+	}
+}

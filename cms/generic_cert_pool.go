@@ -12,7 +12,6 @@ import (
 
 type GenericCertPool struct {
 	certificates []Certificate
-	crl          *CertificateList
 }
 
 // adds one or more certificates to the CertPool
@@ -86,14 +85,4 @@ func (certPool *GenericCertPool) GetAll() []Certificate {
 
 func (certPool GenericCertPool) Count() int {
 	return len(certPool.certificates)
-}
-
-// SetCRL sets the Certificate Revocation List for this cert pool
-func (certPool *GenericCertPool) SetCRL(crl *CertificateList) {
-	certPool.crl = crl
-}
-
-// GetCRL returns the Certificate Revocation List (if configured)
-func (certPool *GenericCertPool) GetCRL() *CertificateList {
-	return certPool.crl
 }

@@ -3,7 +3,6 @@ package cms
 import (
 	_ "embed"
 	"fmt"
-	"sync"
 )
 
 /*
@@ -27,20 +26,6 @@ var nl_masterListRootCA []byte
 
 //go:embed master_list/NL_ML_2025-07-29.ml
 var nl_masterList []byte
-
-var (
-	crlFetcher     *CRLFetcher
-	crlFetcherOnce sync.Once
-)
-
-// getCRLFetcher returns a singleton CRL fetcher instance
-// Deprecated: CRL fetching should now be done via VerifyOptions with distribution points from certificates
-func getCRLFetcher() *CRLFetcher {
-	crlFetcherOnce.Do(func() {
-		crlFetcher = NewCRLFetcher()
-	})
-	return crlFetcher
-}
 
 func GetDefaultMasterList() (*CombinedCertPool, error) {
 	var out CombinedCertPool
@@ -67,39 +52,9 @@ func GetDefaultMasterList() (*CombinedCertPool, error) {
 }
 
 func GetGermanMasterList() (*SignedDataCertPool, error) {
-	certPool, err := CreateCertPoolFromSignedData(de_masterList, de_masterListRootCA)
-	if err != nil {
-		return nil, err
-	}
-
-	// Fetch and set the German CRL
-	fetcher := getCRLFetcher()
-	crl, err := fetcher.FetchCRL("http://bsi.bund.de/csca_crl")
-	if err != nil {
-		// Log error but don't fail - CRL is optional
-		fmt.Printf("Warning: failed to fetch German CRL: %v\n", err)
-	} else {
-		certPool.SetCRL(crl)
-	}
-
-	return certPool, nil
+	return CreateCertPoolFromSignedData(de_masterList, de_masterListRootCA)
 }
 
 func GetDutchMasterList() (*SignedDataCertPool, error) {
-	certPool, err := CreateCertPoolFromSignedData(nl_masterList, nl_masterListRootCA)
-	if err != nil {
-		return nil, err
-	}
-
-	// Fetch and set the Dutch CRL
-	fetcher := getCRLFetcher()
-	crl, err := fetcher.FetchCRL("http://crl.npkd.nl/crls/NLD.crl")
-	if err != nil {
-		// Log error but don't fail - CRL is optional
-		fmt.Printf("Warning: failed to fetch Dutch CRL: %v\n", err)
-	} else {
-		certPool.SetCRL(crl)
-	}
-
-	return certPool, nil
+	return CreateCertPoolFromSignedData(nl_masterList, nl_masterListRootCA)
 }

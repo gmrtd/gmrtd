@@ -3,7 +3,6 @@ package cms
 import (
 	"bytes"
 	"encoding/asn1"
-	"sync"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
@@ -163,66 +162,11 @@ func verifySignatureAgainstCerts(parentCerts []Certificate, digestAlg asn1.Objec
 	return false
 }
 
-func TestGetGermanMasterListWithFailingCRL(t *testing.T) {
-	// Clear any cached CRL fetcher to ensure we get a fresh one
-	crlFetcherOnce = sync.Once{}
+// TestGetGermanMasterListWithFailingCRL removed - hardcoded CRL fetching no longer exists
+// CRL checking is now done via VerifyOptions with user-provided CRLFetcher
 
-	// Create a new fetcher that will fail (by using invalid URL stored in cache)
-	fetcher := NewCRLFetcher()
-	// Pre-populate with a cached entry that's expired and will need refetch
-	// This ensures the fetch will be attempted and fail
-	crlFetcherOnce.Do(func() {
-		crlFetcher = fetcher
-	})
-
-	// Call GetGermanMasterList - should succeed even if CRL fetch fails
-	certPool, err := GetGermanMasterList()
-	if err != nil {
-		t.Fatalf("GetGermanMasterList should succeed even if CRL fetch fails: %v", err)
-	}
-
-	if certPool == nil {
-		t.Fatal("expected non-nil cert pool even with CRL fetch failure")
-	}
-
-	// Verify we have certificates
-	certs := certPool.GetAll()
-	if len(certs) == 0 {
-		t.Fatal("expected certificates in pool even with CRL fetch failure")
-	}
-
-	// Note: CRL may or may not be set depending on network availability
-	// The important thing is that the function didn't fail
-	t.Logf("Successfully loaded German master list with %d certificates (CRL fetch may have failed gracefully)", len(certs))
-}
-
-func TestGetDutchMasterListWithFailingCRL(t *testing.T) {
-	// Reset CRL fetcher
-	crlFetcherOnce = sync.Once{}
-
-	fetcher := NewCRLFetcher()
-	crlFetcherOnce.Do(func() {
-		crlFetcher = fetcher
-	})
-
-	// Call GetDutchMasterList - should succeed even if CRL fetch fails
-	certPool, err := GetDutchMasterList()
-	if err != nil {
-		t.Fatalf("GetDutchMasterList should succeed even if CRL fetch fails: %v", err)
-	}
-
-	if certPool == nil {
-		t.Fatal("expected non-nil cert pool even with CRL fetch failure")
-	}
-
-	// Verify we have certificates
-	certs := certPool.GetAll()
-	if len(certs) == 0 {
-		t.Fatal("expected certificates in pool even with CRL fetch failure")
-	}
-
-	t.Logf("Successfully loaded Dutch master list with %d certificates (CRL fetch may have failed gracefully)", len(certs))
-}
+// TestGetDutchMasterListWithFailingCRL removed - hardcoded CRL fetching no longer exists
+// CRL checking is now done via VerifyOptions with user-provided CRLFetcher
 
 func TestCreateCertPoolFromSignedDataWithInvalidData(t *testing.T) {
 	// Test with invalid master list data
@@ -251,9 +195,6 @@ func TestCreateCertPoolFromSignedDataWithInvalidRootCA(t *testing.T) {
 }
 
 func TestGetDefaultMasterListWithBothCountries(t *testing.T) {
-	// Reset CRL fetcher
-	crlFetcherOnce = sync.Once{}
-
 	certPool, err := GetDefaultMasterList()
 	if err != nil {
 		t.Fatalf("GetDefaultMasterList error: %v", err)
