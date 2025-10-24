@@ -24,8 +24,8 @@ func TestCRLFetcherBasic(t *testing.T) {
 }
 
 func TestFetchCRLWithMockServer(t *testing.T) {
-	// Create a test CRL (using the German CRL data from crl_test.go)
-	crlData := de_clr
+	// Create a test CRL (using the NLD CRL data from crl_test.go)
+	crlData := nld_clr
 
 	// Create a mock HTTP server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -97,7 +97,7 @@ func TestFetchCRLInvalidData(t *testing.T) {
 
 func TestCRLCacheExpiration(t *testing.T) {
 	// Create a test CRL with a very short NextUpdate time
-	crlData := de_clr
+	crlData := nld_clr
 
 	callCount := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -160,7 +160,7 @@ func TestCRLCacheExpiration(t *testing.T) {
 }
 
 func TestClearCache(t *testing.T) {
-	crlData := de_clr
+	crlData := nld_clr
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -189,7 +189,7 @@ func TestClearCache(t *testing.T) {
 }
 
 func TestClearExpiredCache(t *testing.T) {
-	crlData := de_clr
+	crlData := nld_clr
 
 	server1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
