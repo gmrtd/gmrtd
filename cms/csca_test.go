@@ -162,12 +162,6 @@ func verifySignatureAgainstCerts(parentCerts []Certificate, digestAlg asn1.Objec
 	return false
 }
 
-// TestGetGermanMasterListWithFailingCRL removed - hardcoded CRL fetching no longer exists
-// CRL checking is now done via VerifyOptions with user-provided CRLFetcher
-
-// TestGetDutchMasterListWithFailingCRL removed - hardcoded CRL fetching no longer exists
-// CRL checking is now done via VerifyOptions with user-provided CRLFetcher
-
 func TestCreateCertPoolFromSignedDataWithInvalidData(t *testing.T) {
 	// Test with invalid master list data
 	invalidData := []byte("invalid master list data")
