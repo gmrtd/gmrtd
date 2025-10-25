@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.0](https://github.com/gmrtd/gmrtd/compare/v0.10.1...v0.11.0) (2025-10-25)
+
+
+### Features
+
+* update DE CSCA master list (fixes [#90](https://github.com/gmrtd/gmrtd/issues/90)) ([#91](https://github.com/gmrtd/gmrtd/issues/91)) ([f08ef19](https://github.com/gmrtd/gmrtd/commit/f08ef19902c291ee02308c4d73e0f7ce711f5d6e))
+
 ## [0.10.1](https://github.com/gmrtd/gmrtd/compare/v0.10.0...v0.10.1) (2025-09-28)
 
 
