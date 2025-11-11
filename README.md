@@ -31,7 +31,7 @@ The following are sample documents that have been read:
 |🇫🇷 France<br/>(P,2017)|<sub>PACE-ECDH-GM-AES-CBC-CMAC-256<br/>secp256r1</sub>|<sub>CA-ECDH-3DES-CBC-CBC<br/>secp256r1</sub>|Yes|0107|
 |🇫🇷 France<br/>(ID,2024)|<sub>PACE-ECDH-GM-AES-CBC-CMAC-256<br/>brainpoolP256r1<br/>PACE-ECDH-IM-AES-CBC-CMAC-256<br/>brainpoolP256r1<br/>_(PACE-IM not supported)_</sub>|<sub>CA-ECDH-AES-CBC-CMAC-256<br/>brainpoolP256r1</sub>|Yes|0108|
 |🇩🇪 Germany<br/>(P,2023)|<sub>PACE-ECDH-GM-AES-CBC-CMAC-128<br/>brainpoolP256r1</sub>|<sub>PACE-ECDH-CAM-AES-CBC-CMAC-128<br/>brainpoolP256r1<br/>CA-ECDH-AES-CBC-CMAC-128<br/>brainpoolP256r1</sub>|Yes|0108|
-|🇮🇩 Indonesia<br/>(P,2025)<br/>⚠️ CSCA Missing|<sub>PACE-ECDH-GM-AES-CBC-CMAC-256<br/>brainpoolP256r1</sub>|<sub>CA-ECDH-AES-CBC-CMAC-256<br/>brainpoolP256r1</sub>|Yes|0107|
+|🇮🇩 Indonesia<br/>(P,2025)<br/><sub>ℹ️ 2010 CSCA Series</sub>|<sub>PACE-ECDH-GM-AES-CBC-CMAC-256<br/>brainpoolP256r1</sub>|<sub>CA-ECDH-AES-CBC-CMAC-256<br/>brainpoolP256r1</sub>|Yes|0107|
 |🇲🇾 Malaysia<br/>(P,2023)|n/a (BAC)|<sub>CA-ECDH-3DES-CBC-CBC<br/>brainpoolP256r1</sub>|Yes|0107|
 |🇳🇱 Netherlands<br/>(PP,2025)|<sub>PACE-ECDH-GM-AES-CBC-CMAC-256<br/>brainpoolP320r1</sub>|<sub>CA-ECDH-AES-CBC-CMAC-256<br/>brainpoolP512r1</sub>|Yes|0108|
 |🇳🇿 New Zealand<br/>(P,2017)|<sub>PACE-ECDH-GM-3DES-CBC-CBC<br/>brainpoolP256r1</sub>|<sub>AA-rsaEncryption</sub>|No|0107|
