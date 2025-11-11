@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0](https://github.com/gmrtd/gmrtd/compare/v0.11.1...v0.12.0) (2025-11-11)
+
+
+### Features
+
+* add support for Indonesia 2010 CSCA Series certificates ([#14](https://github.com/gmrtd/gmrtd/issues/14)) ([#97](https://github.com/gmrtd/gmrtd/issues/97)) ([defbabc](https://github.com/gmrtd/gmrtd/commit/defbabc30ec1b2426fe14f1a29f611387a20225c))
+
 ## [0.11.1](https://github.com/gmrtd/gmrtd/compare/v0.11.0...v0.11.1) (2025-11-11)
 
 
