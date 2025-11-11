@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.1](https://github.com/gmrtd/gmrtd/compare/v0.11.0...v0.11.1) (2025-11-11)
+
+
+### Bug Fixes
+
+* incomplete image detection ([#94](https://github.com/gmrtd/gmrtd/issues/94)) ([#95](https://github.com/gmrtd/gmrtd/issues/95)) ([2e6844d](https://github.com/gmrtd/gmrtd/commit/2e6844d6f0ce81f625d96aa6100517a6f40a7b72))
+
 ## [0.11.0](https://github.com/gmrtd/gmrtd/compare/v0.10.1...v0.11.0) (2025-10-25)
 
 
