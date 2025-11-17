@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"io"
 
 	"github.com/gmrtd/gmrtd/utils"
 )
@@ -81,9 +80,12 @@ func ProcessISO19794(data []byte) (*ISO19794, error) {
 	}
 
 	if fh.RecordLength != uint32(len(data)) {
-		// NB we've seen a slightly different record-length (NZ passport).. i.e. hdr.recordLength = dataLen - 8
-		//	  - tolerate, especially given that this is a value-added check
-		if fh.RecordLength != uint32(len(data))-8 {
+		// NB we've seen slightly different record-lengths in various passports:
+		//    - NZ passport: hdr.recordLength = dataLen - 8
+		//    - UK passport: hdr.recordLength = dataLen - 1
+		// Tolerate small discrepancies (up to 8 bytes), especially given that this is a value-added check
+		diff := int(uint32(len(data))) - int(fh.RecordLength)
+		if diff < 0 || diff > 8 {
 			return nil, fmt.Errorf("[processISO19794] FacialHeader.RecordLength does not match with data (FH.RecordLength:%d) (Data-Len:%d)", fh.RecordLength, len(data))
 		}
 	}
@@ -101,11 +103,12 @@ func ProcessISO19794(data []byte) (*ISO19794, error) {
 		out.Facial.Images = append(out.Facial.Images, *image)
 	}
 
-	// verify that we read all of the data
+	// verify that we read all of the data (or close to it)
+	// Note: Some passports have small discrepancies in RecordLength (1-8 bytes), so we tolerate up to 8 bytes remaining
 	{
-		var byte uint8
-		if err := binary.Read(r, binary.BigEndian, &byte); err != io.EOF {
-			return nil, fmt.Errorf("[processISO19794] binary.Read: Not all data was consumed (EOF was expected)")
+		remaining := r.Len()
+		if remaining > 8 {
+			return nil, fmt.Errorf("[processISO19794] Too much data remaining: expected at most 8 bytes, got %d", remaining)
 		}
 	}
 
