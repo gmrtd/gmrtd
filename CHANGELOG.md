@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.1](https://github.com/gmrtd/gmrtd/compare/v0.12.0...v0.12.1) (2025-11-17)
+
+
+### Bug Fixes
+
+* [BUG] Fix for DG2 for GBR passports ([#102](https://github.com/gmrtd/gmrtd/issues/102)) ([83583bd](https://github.com/gmrtd/gmrtd/commit/83583bd6644f31e76c6a433000f61aea6943aeca))
+
 ## [0.12.0](https://github.com/gmrtd/gmrtd/compare/v0.11.1...v0.12.0) (2025-11-11)
 
 
