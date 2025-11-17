@@ -146,3 +146,32 @@ func TestProcessISO19794RecordLengthValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestProcessISO19794TooMuchDataRemaining(t *testing.T) {
+	// Create test data with 10 extra bytes appended
+	testData := bytes.Clone(test1data)
+	extraData := make([]byte, 10)
+	for i := range extraData {
+		extraData[i] = 0xFF
+	}
+	testData = append(testData, extraData...)
+
+	// Update the recordLength in the header to match the new data length
+	// This ensures we pass the initial recordLength check and reach the
+	// "too much data remaining" validation
+	dataLen := uint32(len(testData))
+	testData[8] = byte(dataLen >> 24)
+	testData[9] = byte(dataLen >> 16)
+	testData[10] = byte(dataLen >> 8)
+	testData[11] = byte(dataLen)
+
+	_, err := ProcessISO19794(testData)
+
+	if err == nil {
+		t.Errorf("Expected error but got nil")
+	}
+
+	if !bytes.Contains([]byte(err.Error()), []byte("Too much data remaining")) {
+		t.Errorf("Expected error to contain 'Too much data remaining', got: %s", err.Error())
+	}
+}
