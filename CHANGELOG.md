@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.2](https://github.com/gmrtd/gmrtd/compare/v0.12.1...v0.12.2) (2025-11-20)
+
+
+### Bug Fixes
+
+* **cryptoutils:** preserve leading zeros in RSA public key decryption ([#104](https://github.com/gmrtd/gmrtd/issues/104)) ([e2e435d](https://github.com/gmrtd/gmrtd/commit/e2e435d3e7a5893638d3d29e2fca08dd53675f94))
+
 ## [0.12.1](https://github.com/gmrtd/gmrtd/compare/v0.12.0...v0.12.1) (2025-11-17)
 
 
