@@ -296,7 +296,19 @@ func RsaDecryptWithPublicKey(ciphertext []byte, publicKey RsaPublicKey) []byte {
 	e := big.NewInt(int64(publicKey.E))
 	c := new(big.Int).Exp(m, e, publicKey.N)
 
-	return c.Bytes()
+	// Calculate the expected byte width from the RSA modulus
+	// This preserves leading zeros which are required for PKCS#1 v1.5 padding
+	keyWidth := (publicKey.N.BitLen() + 7) / 8
+	result := c.Bytes()
+
+	// Pad with leading zeros if necessary to match the RSA key width
+	if len(result) < keyWidth {
+		padded := make([]byte, keyWidth)
+		copy(padded[keyWidth-len(result):], result)
+		return padded
+	}
+
+	return result
 }
 
 func CryptoHashFromEcPubKey(pub *ecdsa.PublicKey) crypto.Hash {
