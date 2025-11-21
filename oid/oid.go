@@ -127,6 +127,7 @@ var (
 	OidSubjectAltName                   = asn1.ObjectIdentifier{2, 5, 29, 17}
 	OidCeIssuerAltName                  = asn1.ObjectIdentifier{2, 5, 29, 18}
 	OidCeBasicConstraints               = asn1.ObjectIdentifier{2, 5, 29, 19}
+	OidCeCRLNumber                      = asn1.ObjectIdentifier{2, 5, 29, 20}
 	OidCeCRLDistributionPoints          = asn1.ObjectIdentifier{2, 5, 29, 31}
 	OidCertificatePolicies              = asn1.ObjectIdentifier{2, 5, 29, 32}
 	OidAuthorityKeyIdentifier           = asn1.ObjectIdentifier{2, 5, 29, 35}
@@ -245,6 +246,7 @@ var oidLookup = map[string]string{
 	OidSubjectAltName.String():                   "subjectAltName",
 	OidCeIssuerAltName.String():                  "id-ce-issuerAltName",
 	OidCeBasicConstraints.String():               "id-ce-basicConstraints",
+	OidCeCRLNumber.String():                      "id-ce-cRLNumber",
 	OidCeCRLDistributionPoints.String():          "id-ce-cRLDistributionPoints",
 	OidCertificatePolicies.String():              "certificatePolicies",
 	OidAuthorityKeyIdentifier.String():           "authorityKeyIdentifier",

@@ -156,3 +156,61 @@ func verifySignatureAgainstCerts(parentCerts []Certificate, digestAlg asn1.Objec
 
 	return false
 }
+
+func TestCreateCertPoolFromSignedDataWithInvalidData(t *testing.T) {
+	// Test with invalid master list data
+	invalidData := []byte("invalid master list data")
+	validRootCA := de_masterListRootCA
+
+	_, err := CreateCertPoolFromSignedData(invalidData, validRootCA)
+	if err == nil {
+		t.Fatal("expected CreateCertPoolFromSignedData to fail with invalid master list data")
+	}
+
+	t.Logf("Got expected error with invalid master list: %v", err)
+}
+
+func TestCreateCertPoolFromSignedDataWithInvalidRootCA(t *testing.T) {
+	// Test with invalid root CA data
+	validData := de_masterList
+	invalidRootCA := []byte("invalid root ca data")
+
+	_, err := CreateCertPoolFromSignedData(validData, invalidRootCA)
+	if err == nil {
+		t.Fatal("expected CreateCertPoolFromSignedData to fail with invalid root CA data")
+	}
+
+	t.Logf("Got expected error with invalid root CA: %v", err)
+}
+
+func TestGetDefaultMasterListWithBothCountries(t *testing.T) {
+	certPool, err := GetDefaultMasterList()
+	if err != nil {
+		t.Fatalf("GetDefaultMasterList error: %v", err)
+	}
+
+	if certPool == nil {
+		t.Fatal("expected non-nil combined cert pool")
+	}
+
+	// Verify we have certificates from both countries
+	allCerts := certPool.GetAll()
+	if len(allCerts) == 0 {
+		t.Fatal("expected certificates in combined pool")
+	}
+
+	// Check for German certificates
+	germanCerts := certPool.GetByIssuerCountry("DE")
+	if len(germanCerts) == 0 {
+		t.Error("expected German certificates in combined pool")
+	}
+
+	// Check for Dutch certificates
+	dutchCerts := certPool.GetByIssuerCountry("NL")
+	if len(dutchCerts) == 0 {
+		t.Error("expected Dutch certificates in combined pool")
+	}
+
+	t.Logf("Combined pool contains %d total certs (%d German, %d Dutch)",
+		len(allCerts), len(germanCerts), len(dutchCerts))
+}
