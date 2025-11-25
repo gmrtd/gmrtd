@@ -274,6 +274,46 @@ func TestDecodeFerrors(t *testing.T) {
 	}
 }
 
+// TestDecodeFWithLeadingZeros tests that decodeF correctly handles data with leading zeros
+// This simulates the scenario where RsaDecryptWithPublicKey preserves leading zeros
+// but those zeros are not part of the ISO/IEC 9796-2 format
+func TestDecodeFWithLeadingZeros(t *testing.T) {
+	// Create valid ISO/IEC 9796-2 formatted data (SHA-256)
+	validData := utils.HexToBytes("6A1234567890ABCDEF1234567890ABCDEF11223344783980d44fd3a80f0e4210eb9c73ea399932062d465438f8e1ff13377de8308934CC")
+
+	// Add leading zeros (simulating what RsaDecryptWithPublicKey might return after the fix)
+	dataWithLeadingZeros := append([]byte{0x00, 0x00}, validData...)
+
+	// The current implementation should fail without trimming
+	_, _, _, err := decodeF(dataWithLeadingZeros)
+	if err == nil {
+		t.Error("Expected error when decodeF receives data with leading zeros")
+	}
+
+	// But after trimming, it should work
+	trimmed := utils.TrimLeadingZeroBytes(dataWithLeadingZeros)
+	m1, d, hashAlg, err := decodeF(trimmed)
+	if err != nil {
+		t.Errorf("Unexpected error after trimming: %s", err)
+	}
+
+	// Verify the decoded values
+	expM1 := utils.HexToBytes("1234567890ABCDEF1234567890ABCDEF11223344")
+	expD := utils.HexToBytes("783980d44fd3a80f0e4210eb9c73ea399932062d465438f8e1ff13377de83089")
+
+	if !bytes.Equal(m1, expM1) {
+		t.Errorf("Incorrect m1 (Exp:%x) (Act:%x)", expM1, m1)
+	}
+
+	if !bytes.Equal(d, expD) {
+		t.Errorf("Incorrect d (Exp:%x) (Act:%x)", expD, d)
+	}
+
+	if hashAlg != crypto.SHA256 {
+		t.Errorf("Incorrect hashAlg (Exp:%d) (Act:%d)", crypto.SHA256, hashAlg)
+	}
+}
+
 func TestDoInternalAuthenticateNoRspErr(t *testing.T) {
 	var doc document.Document
 	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{})

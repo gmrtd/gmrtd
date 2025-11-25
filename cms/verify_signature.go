@@ -1,7 +1,6 @@
 package cms
 
 import (
-	"bytes"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -55,7 +54,7 @@ func VerifySignature(pubKeyInfo []byte, digestAlg asn1.ObjectIdentifier, digest 
 			return nil
 		}
 	/*
-	* RSA-Encryption
+	* RSA-Encryption (PKCS#1 v1.5)
 	 */
 	case
 		oid.OidRsaEncryption.String(),
@@ -71,15 +70,22 @@ func VerifySignature(pubKeyInfo []byte, digestAlg asn1.ObjectIdentifier, digest 
 				pubKey = subPubKeyInfo.GetRsaPubKey()
 			}
 
-			sigPlaintext := cryptoutils.RsaDecryptWithPublicKey(sig, *pubKey)
+			// Convert to crypto/rsa format
+			rsaPubKey := &rsa.PublicKey{N: pubKey.N, E: pubKey.E}
 
-			slog.Debug("VerifySignature", "sig", utils.BytesToHex(sig), "sigPlaintext", utils.BytesToHex(sigPlaintext))
+			// Get the hash algorithm
+			var hashAlg crypto.Hash
+			hashAlg, err = cryptoutils.CryptoHashOidToAlg(digestAlg)
+			if err != nil {
+				return fmt.Errorf("[VerifySignature] CryptoHashOidToAlg error: %w", err)
+			}
 
-			// verify the 'RSA Encryption' signature (i.e. the decrypted signature ends with the digest)
-			// https://cryptobook.nakov.com/digital-signatures/rsa-signatures
-			if !bytes.HasSuffix(sigPlaintext, digest) {
-				slog.Debug("VerifySignature - RSA Signature verification FAILED", "digestAlg", digestAlg.String(), "digest", utils.BytesToHex(digest), "sigAlg", sigAlg.String())
-				return fmt.Errorf("[VerifySignature] Invalid RSA signature (sig:%x, digest:%x)", sigPlaintext, digest)
+			// Use proper PKCS#1 v1.5 verification
+			// This correctly validates the DigestInfo structure and padding format
+			err = rsa.VerifyPKCS1v15(rsaPubKey, hashAlg, digest, sig)
+			if err != nil {
+				slog.Debug("VerifySignature - RSA PKCS#1 v1.5 signature verification FAILED", "digestAlg", digestAlg.String(), "digest", utils.BytesToHex(digest), "sigAlg", sigAlg.String(), "error", err)
+				return fmt.Errorf("[VerifySignature] Invalid RSA PKCS#1 v1.5 signature: %w", err)
 			}
 
 			return nil

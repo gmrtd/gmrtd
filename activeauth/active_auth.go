@@ -178,7 +178,18 @@ func (activeAuth *ActiveAuth) ValidateActiveAuthSignature(intAuthRspBytes []byte
 			// S = rapdu-data
 			s := intAuthRspBytes
 
+			// Add context before decryption for debugging
+			keyWidth := (pubKey.N.BitLen() + 7) / 8
+			errContext = fmt.Sprintf("sigLen:%d,keyWidth:%d,sig:%x", len(s), keyWidth, s)
+
 			f := cryptoutils.RsaDecryptWithPublicKey(s, *pubKey)
+
+			// Log decrypted data for debugging
+			slog.Debug("ValidateActiveAuthSignature", "f_len", len(f), "f", utils.BytesToHex(f))
+
+			// ISO/IEC 9796-2: Strip leading zero bytes before decoding
+			// The meaningful signature data starts at 0x6A, any leading zeros are padding
+			f = utils.TrimLeadingZeroBytes(f)
 
 			m1, d, hashAlg, err := decodeF(f)
 			if err != nil {
