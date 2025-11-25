@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.3](https://github.com/gmrtd/gmrtd/compare/v0.12.2...v0.12.3) (2025-11-25)
+
+
+### Bug Fixes
+
+* correct RSA signature verification for authentication ([#106](https://github.com/gmrtd/gmrtd/issues/106)) ([7694080](https://github.com/gmrtd/gmrtd/commit/7694080a08716f31b3a91333dc0f211098f110c3))
+
 ## [0.12.2](https://github.com/gmrtd/gmrtd/compare/v0.12.1...v0.12.2) (2025-11-20)
 
 
