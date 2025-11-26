@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.4](https://github.com/gmrtd/gmrtd/compare/v0.12.3...v0.12.4) (2025-11-26)
+
+
+### Bug Fixes
+
+* **pace:** PACE error on older Ukrainian passports [fixes [#108](https://github.com/gmrtd/gmrtd/issues/108)] ([#109](https://github.com/gmrtd/gmrtd/issues/109)) ([9a73dcf](https://github.com/gmrtd/gmrtd/commit/9a73dcffb02940e547a6209a9b24aa7bd5109b06))
+
 ## [0.12.3](https://github.com/gmrtd/gmrtd/compare/v0.12.2...v0.12.3) (2025-11-25)
 
 
