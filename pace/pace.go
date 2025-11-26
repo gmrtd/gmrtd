@@ -314,19 +314,22 @@ func encodePubicKeyTemplate7F49(paceOid []byte, tag86data []byte) []byte {
 	return node.Encode()
 }
 
-func (pace *Pace) doApduMsgSetAT(paceConfig *PaceConfig) (err error) {
-	slog.Debug("doApduMsgSetAT")
+func (pace *Pace) doApduMseSetAT(paceConfig *PaceConfig, domainParams *PACEDomainParams) (err error) {
+	slog.Debug("doApduMseSetAT")
 
 	paceOidBytes := oid.OidBytes(paceConfig.oid)
 
 	nodes := tlv.NewTlvNodes()
 	nodes.AddNode(tlv.NewTlvSimpleNode(0x80, paceOidBytes))
 	nodes.AddNode(tlv.NewTlvSimpleNode(0x83, []byte{pace.password.GetType()}))
+	// this should be CONDITIONAL and only provided where there is ambiguity, but
+	// we've seen some passports that always expect this to be provided
+	nodes.AddNode(tlv.NewTlvSimpleNode(0x84, []byte{byte(domainParams.id)}))
 
 	// MSE:Set AT (0xC1A4: Set Authentication Template for mutual authentication)
 	err = (*pace.nfcSession).MseSetAT(0xC1, 0xA4, nodes.Encode())
 	if err != nil {
-		return fmt.Errorf("[doApduMsgSetAT] MseSetAT error: %w", err)
+		return fmt.Errorf("[doApduMseSetAT] MseSetAT error: %w", err)
 	}
 
 	return nil
@@ -669,8 +672,7 @@ func (pace *Pace) DoPACE() (err error) {
 	var kKdf []byte = getKeyForPassword(paceConfig, pace.password)
 
 	// init PACE (via 'MSE:Set AT' command)
-	// TODO - aren't there some cases where we need to specify the domain params? (i.e. multiple entries)
-	if err = pace.doApduMsgSetAT(paceConfig); err != nil {
+	if err = pace.doApduMseSetAT(paceConfig, domainParams); err != nil {
 		return fmt.Errorf("[DoPACE] doApduMsgSetAT error: %w", err)
 	}
 
