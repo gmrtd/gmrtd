@@ -82,7 +82,9 @@ func VerifySignature(pubKeyInfo []byte, digestAlg asn1.ObjectIdentifier, digest 
 
 			// Use proper PKCS#1 v1.5 verification
 			// This correctly validates the DigestInfo structure and padding format
-			err = rsa.VerifyPKCS1v15(rsaPubKey, hashAlg, digest, sig)
+			// Note: suppress secure mode and padding scheme warning in sonar
+			//		 - this is required for RSA
+			err = rsa.VerifyPKCS1v15(rsaPubKey, hashAlg, digest, sig) // NOSONAR
 			if err != nil {
 				slog.Debug("VerifySignature - RSA PKCS#1 v1.5 signature verification FAILED", "digestAlg", digestAlg.String(), "digest", utils.BytesToHex(digest), "sigAlg", sigAlg.String(), "error", err)
 				return fmt.Errorf("[VerifySignature] Invalid RSA PKCS#1 v1.5 signature: %w", err)
