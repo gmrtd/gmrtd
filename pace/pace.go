@@ -260,8 +260,8 @@ func (paceConfig *PaceConfig) decryptNonce(key []byte, encryptedNonce []byte) []
 	var err error
 	var bcipher cipher.Block
 
-	if bcipher, err = cryptoutils.GetCipherForKey(paceConfig.cipher, key); err != nil {
-		panic(fmt.Sprintf("[decryptNonce] Unexpected error: %s", err))
+	if bcipher, err = cryptoutils.CipherForKey(paceConfig.cipher, key); err != nil {
+		panic(fmt.Sprintf("[decryptNonce] CipherForKey error: %s", err))
 	}
 
 	iv := make([]byte, bcipher.BlockSize()) // 0'd IV
@@ -321,7 +321,7 @@ func (pace *Pace) doApduMseSetAT(paceConfig *PaceConfig, domainParams *PACEDomai
 
 	nodes := tlv.NewTlvNodes()
 	nodes.AddNode(tlv.NewTlvSimpleNode(0x80, paceOidBytes))
-	nodes.AddNode(tlv.NewTlvSimpleNode(0x83, []byte{pace.password.GetType()}))
+	nodes.AddNode(tlv.NewTlvSimpleNode(0x83, []byte{pace.password.Type()}))
 	// this should be CONDITIONAL and only provided where there is ambiguity, but
 	// we've seen some passports that always expect this to be provided
 	nodes.AddNode(tlv.NewTlvSimpleNode(0x84, []byte{byte(domainParams.id)}))
@@ -516,9 +516,9 @@ func (pace *Pace) doCamEcdh(paceConfig *PaceConfig, domainParams *PACEDomainPara
 	// ICAO9303 p11... 4.4.3.3.3 Chip Authentication Mapping
 
 	var blockCipher cipher.Block
-	blockCipher, err = cryptoutils.GetCipherForKey(paceConfig.cipher, (*pace.nfcSession).SM.GetKsEnc())
+	blockCipher, err = cryptoutils.CipherForKey(paceConfig.cipher, (*pace.nfcSession).SM.KsEnc())
 	if err != nil {
-		return fmt.Errorf("[doCamEcdh] GetCipherForKey error: %w", err)
+		return fmt.Errorf("[doCamEcdh] CipherForKey error: %w", err)
 	}
 
 	// IV = K(KSenc,-1)
@@ -564,8 +564,8 @@ func (pace *Pace) doCamEcdh(paceConfig *PaceConfig, domainParams *PACEDomainPara
 	return nil
 }
 
-func getKeyForPassword(paceConfig *PaceConfig, pass *password.Password) []byte {
-	return cryptoutils.KDF(pass.GetKey(), cryptoutils.KDF_COUNTER_PACE, paceConfig.cipher, paceConfig.keyLengthBits)
+func keyForPassword(paceConfig *PaceConfig, pass *password.Password) []byte {
+	return cryptoutils.KDF(pass.Key(), cryptoutils.KDF_COUNTER_PACE, paceConfig.cipher, paceConfig.keyLengthBits)
 }
 
 func (pace *Pace) getNonce(paceConfig *PaceConfig, kKdf []byte) []byte {
@@ -669,7 +669,7 @@ func (pace *Pace) DoPACE() (err error) {
 
 	slog.Debug("DoPace", "selected paceConfig", paceConfig.String())
 
-	var kKdf []byte = getKeyForPassword(paceConfig, pace.password)
+	var kKdf []byte = keyForPassword(paceConfig, pace.password)
 
 	// init PACE (via 'MSE:Set AT' command)
 	if err = pace.doApduMseSetAT(paceConfig, domainParams); err != nil {

@@ -7,7 +7,7 @@ import (
 	"github.com/gmrtd/gmrtd/utils"
 )
 
-func TestGetTagAndLength(t *testing.T) {
+func TestTagAndLength(t *testing.T) {
 	testCases := []struct {
 		inpBytes  []byte
 		expErr    bool
@@ -54,7 +54,7 @@ func TestGetTagAndLength(t *testing.T) {
 	for _, tc := range testCases {
 		buf := bytes.NewBuffer(tc.inpBytes)
 
-		tag, length, err := GetTagAndLength(buf)
+		tag, length, err := TagAndLength(buf)
 
 		if tc.expErr {
 			/*

@@ -34,9 +34,9 @@ func VerifySignature(pubKeyInfo []byte, digestAlg asn1.ObjectIdentifier, digest 
 
 				var ecCurve *elliptic.Curve
 				var ecPoint *cryptoutils.EcPoint
-				ecCurve, ecPoint, err = subPubKeyInfo.GetEcCurveAndPubKey()
+				ecCurve, ecPoint, err = subPubKeyInfo.EcCurveAndPubKey()
 				if err != nil {
-					return fmt.Errorf("[VerifySignature] GetEcCurveAndPubKey error: %w", err)
+					return fmt.Errorf("[VerifySignature] EcCurveAndPubKey error: %w", err)
 				}
 
 				pub = &ecdsa.PublicKey{Curve: *ecCurve, X: ecPoint.X, Y: ecPoint.Y}
@@ -67,7 +67,7 @@ func VerifySignature(pubKeyInfo []byte, digestAlg asn1.ObjectIdentifier, digest 
 			var pubKey *cryptoutils.RsaPublicKey
 			{
 				var subPubKeyInfo SubjectPublicKeyInfo = Asn1decodeSubjectPublicKeyInfo(pubKeyInfo)
-				pubKey = subPubKeyInfo.GetRsaPubKey()
+				pubKey = subPubKeyInfo.RsaPubKey()
 			}
 
 			// Convert to crypto/rsa format
@@ -100,7 +100,7 @@ func VerifySignature(pubKeyInfo []byte, digestAlg asn1.ObjectIdentifier, digest 
 			var rsaPubKey *rsa.PublicKey
 			{
 				var subPubKeyInfo SubjectPublicKeyInfo = Asn1decodeSubjectPublicKeyInfo(pubKeyInfo)
-				var pubKey *cryptoutils.RsaPublicKey = subPubKeyInfo.GetRsaPubKey()
+				var pubKey *cryptoutils.RsaPublicKey = subPubKeyInfo.RsaPubKey()
 				rsaPubKey = &rsa.PublicKey{N: pubKey.N, E: pubKey.E}
 			}
 

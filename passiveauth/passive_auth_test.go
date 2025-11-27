@@ -16,7 +16,7 @@ func TestPassiveAuth(t *testing.T) {
 	/*
 	 * get the (default) CSCA Certificate-Pool
 	 */
-	cscaCertPool, err := cms.GetDefaultMasterList()
+	cscaCertPool, err := cms.DefaultMasterList()
 	if err != nil {
 		t.Fatalf("CscaCertPool error: %s", err)
 	}
@@ -128,7 +128,7 @@ func TestPassiveAuthErrors(t *testing.T) {
 	/*
 	 * get the (default) CSCA Certificate-Pool
 	 */
-	cscaCertPool, err := cms.GetDefaultMasterList()
+	cscaCertPool, err := cms.DefaultMasterList()
 	if err != nil {
 		t.Fatalf("CscaCertPool error: %s", err)
 	}
@@ -351,7 +351,7 @@ func TestPassiveAuthImportedDocBadDG2(t *testing.T) {
 	}
 }
 
-func TestGetAlpha2CountryCodeMismatchError(t *testing.T) {
+func TestAlpha2CountryCodeMismatchError(t *testing.T) {
 	// NB SOD is for DE, and DG1 is for UK, so error is expected due to mismatch
 
 	// UK
@@ -372,7 +372,7 @@ func TestGetAlpha2CountryCodeMismatchError(t *testing.T) {
 		t.Fatalf("unexpected error (NewSOD): %s", err)
 	}
 
-	_, err = getAlpha2CountryCode(&doc)
+	_, err = alpha2CountryCode(&doc)
 	if err == nil {
 		t.Fatalf("Error expected")
 	}

@@ -230,7 +230,7 @@ var Countries = []Country{
 
 // gets the country using the specified 'alpha-2' identifier
 // returns: nil if country not found
-func GetByAlpha2(alpha2 string) *Country {
+func ByAlpha2(alpha2 string) *Country {
 	for i := range Countries {
 		if strings.EqualFold(Countries[i].Alpha2, alpha2) {
 			return &Countries[i]
@@ -242,7 +242,7 @@ func GetByAlpha2(alpha2 string) *Country {
 
 // gets the country using the specified 'alpha-3' identifier
 // returns: nil if country not found
-func GetByAlpha3(alpha3 string) *Country {
+func ByAlpha3(alpha3 string) *Country {
 	for i := range Countries {
 		if strings.EqualFold(Countries[i].Alpha3, alpha3) {
 			return &Countries[i]

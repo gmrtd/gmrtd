@@ -18,9 +18,9 @@ func decode(data []byte) (nodes *TlvNodes, remainingData []byte, err error) {
 			break
 		}
 
-		tag, length, err := GetTagAndLength(buf)
+		tag, length, err := TagAndLength(buf)
 		if err != nil {
-			return nil, nil, fmt.Errorf("[decode] GetTagAndLength error: %w", err)
+			return nil, nil, fmt.Errorf("[decode] TagAndLength error: %w", err)
 		}
 
 		// special handling for indefinite-length mode end sentinel (i.e. 0x0000)
@@ -53,7 +53,7 @@ func decode(data []byte) (nodes *TlvNodes, remainingData []byte, err error) {
 					remainingData = nil
 				}
 			} else {
-				childData, err := utils.GetBytesFromBuffer(buf, int(length))
+				childData, err := utils.BytesFromBuffer(buf, int(length))
 				if err != nil {
 					return nil, nil, fmt.Errorf("[decode] ByteBuffer error: %w", err)
 				}
@@ -73,7 +73,7 @@ func decode(data []byte) (nodes *TlvNodes, remainingData []byte, err error) {
 			if length == -1 { // indefinite-length
 				return nil, nil, fmt.Errorf("[decode] Indefinite-length mode is only supported for constructed tags")
 			} else {
-				value, err := utils.GetBytesFromBuffer(buf, int(length))
+				value, err := utils.BytesFromBuffer(buf, int(length))
 				if err != nil {
 					return nil, nil, fmt.Errorf("[decode] ByteBuffer error: %w", err)
 				}

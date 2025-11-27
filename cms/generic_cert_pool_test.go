@@ -34,17 +34,17 @@ func TestEmptyGenericCertPool(t *testing.T) {
 	{
 		var certPool GenericCertPool
 
-		countryCerts := certPool.GetByIssuerCountry("SG")
+		countryCerts := certPool.ByIssuerCountry("SG")
 		if len(countryCerts) != 0 {
 			t.Errorf("0 country certs expected for empty cert-pool")
 		}
 
-		skiCerts := certPool.GetBySKI(utils.HexToBytes("264d30fe7de3c25ca4bd99daabb36b458d29df06"))
+		skiCerts := certPool.BySKI(utils.HexToBytes("264d30fe7de3c25ca4bd99daabb36b458d29df06"))
 		if len(skiCerts) != 0 {
 			t.Errorf("0 ski certs expected for empty cert-pool")
 		}
 
-		allCerts := certPool.GetAll()
+		allCerts := certPool.All()
 		if len(allCerts) != 0 {
 			t.Errorf("0 certs expected for empty cert-pool")
 		}
@@ -93,13 +93,13 @@ func TestGenericCertPool(t *testing.T) {
 	}
 
 	// expect 3 SG certs
-	sgCerts := certPool.GetByIssuerCountry("SG")
+	sgCerts := certPool.ByIssuerCountry("SG")
 	if len(sgCerts) != 3 {
 		t.Errorf("expected 3 certs for SG")
 	}
 
 	// expect 1 cert to match ski
-	sgSkiCert := certPool.GetBySKI(utils.HexToBytes("84cd5d8a477755058d4ec97e0d4992322be1c545"))
+	sgSkiCert := certPool.BySKI(utils.HexToBytes("84cd5d8a477755058d4ec97e0d4992322be1c545"))
 	if len(sgSkiCert) != 1 {
 		t.Errorf("expected 1 cert for ski")
 	}

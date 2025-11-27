@@ -2,7 +2,7 @@ package iso3166
 
 import "testing"
 
-func TestGetByAlpha2(t *testing.T) {
+func TestByAlpha2(t *testing.T) {
 	testCases := []struct {
 		alpha2    string
 		expAlpha3 string
@@ -17,7 +17,7 @@ func TestGetByAlpha2(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		country := GetByAlpha2(tc.alpha2)
+		country := ByAlpha2(tc.alpha2)
 
 		if country == nil {
 			t.Errorf("Unable to locate country (alpha2:%s)", tc.alpha2)
@@ -27,7 +27,7 @@ func TestGetByAlpha2(t *testing.T) {
 	}
 }
 
-func TestGetByAlpha2Errors(t *testing.T) {
+func TestByAlpha2Errors(t *testing.T) {
 	testCases := []struct {
 		alpha2 string
 	}{
@@ -41,7 +41,7 @@ func TestGetByAlpha2Errors(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		country := GetByAlpha2(tc.alpha2)
+		country := ByAlpha2(tc.alpha2)
 
 		if country != nil {
 			t.Errorf("Error expected (alpha2:%s)", tc.alpha2)
@@ -49,7 +49,7 @@ func TestGetByAlpha2Errors(t *testing.T) {
 	}
 }
 
-func TestGetByAlpha3(t *testing.T) {
+func TesrByAlpha3(t *testing.T) {
 	testCases := []struct {
 		alpha3    string
 		expAlpha2 string
@@ -64,7 +64,7 @@ func TestGetByAlpha3(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		country := GetByAlpha3(tc.alpha3)
+		country := ByAlpha3(tc.alpha3)
 
 		if country == nil {
 			t.Errorf("Unable to locate country (alpha3:%s)", tc.alpha3)
@@ -74,7 +74,7 @@ func TestGetByAlpha3(t *testing.T) {
 	}
 }
 
-func TestGetByAlpha3Errors(t *testing.T) {
+func TestByAlpha3Errors(t *testing.T) {
 	testCases := []struct {
 		alpha3 string
 	}{
@@ -88,7 +88,7 @@ func TestGetByAlpha3Errors(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		country := GetByAlpha3(tc.alpha3)
+		country := ByAlpha3(tc.alpha3)
 
 		if country != nil {
 			t.Errorf("Error expected (alpha3:%s)", tc.alpha3)

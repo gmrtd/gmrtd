@@ -83,7 +83,7 @@ func (ec EcPoint) Equal(ec2 EcPoint) bool {
 }
 
 // NB supports 8/16/24 byte key lengths for DES
-func GetCipherForKey(alg BlockCipherAlg, key []byte) (cipher.Block, error) {
+func CipherForKey(alg BlockCipherAlg, key []byte) (cipher.Block, error) {
 	var out cipher.Block
 	var err error
 

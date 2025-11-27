@@ -15,7 +15,7 @@ import (
 // country will be determined from SoD (certificate) and DG1 will be verified (if present)
 // DG hashes will be computed and must match SoD hashes
 func PassiveAuth(doc *document.Document, trustedCerts cms.CertPool) (err error) {
-	countryCscaCertPool, err := getCountryCscaCerts(doc, trustedCerts)
+	countryCscaCertPool, err := countryCscaCerts(doc, trustedCerts)
 	if err != nil {
 		return fmt.Errorf("[PassiveAuth] error getting country CSCA certs: %w", err)
 	}
@@ -90,25 +90,25 @@ func validateDgHashes(doc document.Document) error {
 
 // determines the country-code for the document (alpha2)
 // primarily uses SoD (Certificate country), but also verifies DG1(MRZ) if DG1 is present
-func getAlpha2CountryCode(doc *document.Document) (alpha2 string, err error) {
+func alpha2CountryCode(doc *document.Document) (alpha2 string, err error) {
 	if doc.Mf.Lds1.Sod == nil {
-		return "", fmt.Errorf("[getAlpha2CountryCode] cannot infer country without SoD")
+		return "", fmt.Errorf("[Alpha2CountryCode] cannot infer country without SoD")
 	}
 
-	sodCountryAlpha2, err := doc.Mf.Lds1.Sod.GetCertCountryAlpha2()
+	sodCountryAlpha2, err := doc.Mf.Lds1.Sod.CertCountryAlpha2()
 	if err != nil {
-		return "", fmt.Errorf("[getAlpha2CountryCode] unable to determine country from SoD: %w", err)
+		return "", fmt.Errorf("[Alpha2CountryCode] unable to determine country from SoD: %w", err)
 	}
 
 	// verify the DG1 has the same country (if present)
 	if doc.Mf.Lds1.Dg1 != nil {
-		dg1CountryAlpha2, err := doc.Mf.Lds1.Dg1.GetIssuingCountryAlpha2()
+		dg1CountryAlpha2, err := doc.Mf.Lds1.Dg1.IssuingCountryAlpha2()
 		if err != nil {
-			return "", fmt.Errorf("[getAlpha2CountryCode] dg1.GetIssuingCountryAlpha2 error: %w", err)
+			return "", fmt.Errorf("[Alpha2CountryCode] dg1.GetIssuingCountryAlpha2 error: %w", err)
 		}
 
 		if !strings.EqualFold(sodCountryAlpha2, dg1CountryAlpha2) {
-			return "", fmt.Errorf("[getAlpha2CountryCode] country mismatch between SoD and DG1 (sod:%s, dg1:%s)", sodCountryAlpha2, dg1CountryAlpha2)
+			return "", fmt.Errorf("[Alpha2CountryCode] country mismatch between SoD and DG1 (sod:%s, dg1:%s)", sodCountryAlpha2, dg1CountryAlpha2)
 		}
 	}
 
@@ -117,16 +117,16 @@ func getAlpha2CountryCode(doc *document.Document) (alpha2 string, err error) {
 
 // gets the country CSCA certificates based on the document (SOD/DG1)
 // NB may return 0 certificates
-func getCountryCscaCerts(doc *document.Document, trustedCerts cms.CertPool) (countryCerts *cms.GenericCertPool, err error) {
-	countryCode, err := getAlpha2CountryCode(doc)
+func countryCscaCerts(doc *document.Document, trustedCerts cms.CertPool) (countryCerts *cms.GenericCertPool, err error) {
+	countryCode, err := alpha2CountryCode(doc)
 	if err != nil {
-		return nil, fmt.Errorf("(getCountryCscaCerts) unable to get Country-Code from Document: %w", err)
+		return nil, fmt.Errorf("(countryCscaCerts) unable to get Country-Code from Document: %w", err)
 	}
 
 	countryCerts = &cms.GenericCertPool{}
-	countryCerts.AddCerts(trustedCerts.GetByIssuerCountry(countryCode))
+	countryCerts.AddCerts(trustedCerts.ByIssuerCountry(countryCode))
 
-	slog.Debug("getCountryCscaCerts", "country", countryCode, "cert-cnt", countryCerts.Count())
+	slog.Debug("countryCscaCerts", "country", countryCode, "cert-cnt", countryCerts.Count())
 
 	return countryCerts, nil
 }

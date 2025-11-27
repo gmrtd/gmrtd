@@ -112,7 +112,7 @@ func selectCAInfo(doc *document.Document) (caInfo *document.ChipAuthenticationIn
 
 		curCaInfo = &(doc.Mf.Lds1.Dg14.SecInfos.ChipAuthInfos[i])
 
-		curCaAlgInfo, err = getAlgInfo(curCaInfo.Protocol)
+		curCaAlgInfo, err = algInfo(curCaInfo.Protocol)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -155,7 +155,7 @@ func inferCAInfoFromKey(doc *document.Document) (caInfo *document.ChipAuthentica
 			return nil, nil, fmt.Errorf("(inferCAInfoFromKey) unsupported key type (OID:%s)", keyInfo.Protocol.String())
 		}
 
-		caAlgInfo, err = getAlgInfo(caInfo.Protocol)
+		caAlgInfo, err = algInfo(caInfo.Protocol)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -204,11 +204,11 @@ var caAlgInfo = map[string]CaAlgorithmInfo{
 	oid.OidCaEcdhAesCbcCmac256.String(): {oid.OidPkEcdh, cryptoutils.AES, 256, 2256},
 }
 
-func getAlgInfo(oid asn1.ObjectIdentifier) (*CaAlgorithmInfo, error) {
+func algInfo(oid asn1.ObjectIdentifier) (*CaAlgorithmInfo, error) {
 	out, ok := caAlgInfo[oid.String()]
 
 	if !ok {
-		return nil, fmt.Errorf("getAlgInfo: OID not found (%s)", oid.String())
+		return nil, fmt.Errorf("algInfo: OID not found (%s)", oid.String())
 	}
 
 	return &out, nil
@@ -343,9 +343,9 @@ func (chipAuth *ChipAuth) doCaEcdh(caInfo *document.ChipAuthenticationInfo, caAl
 
 	var curve *elliptic.Curve
 	var chipPubKey *cryptoutils.EcPoint
-	curve, chipPubKey, err = caPubKeyInfo.ChipAuthenticationPublicKey.GetEcCurveAndPubKey()
+	curve, chipPubKey, err = caPubKeyInfo.ChipAuthenticationPublicKey.EcCurveAndPubKey()
 	if err != nil {
-		return fmt.Errorf("[doCaEcdh] GetEcCurveAndPubKey error: %w", err)
+		return fmt.Errorf("[doCaEcdh] EcCurveAndPubKey error: %w", err)
 	}
 
 	slog.Debug("doCaEcdh", "chipPubKey", chipPubKey.String())

@@ -289,7 +289,7 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 	{
 		var err error
 
-		cscaCertPool, err = cms.GetDefaultMasterList()
+		cscaCertPool, err = cms.DefaultMasterList()
 		if err != nil {
 			return doc, err
 		}

@@ -10,9 +10,9 @@ import (
 type TlvTag int
 
 func GetTag(buf *bytes.Buffer) (TlvTag, error) {
-	b1, err := utils.GetByteFromBuffer(buf)
+	b1, err := utils.ByteFromBuffer(buf)
 	if err != nil {
-		return TlvTag(0), fmt.Errorf("[GetTag] GetByteFromBuffer error: %w", err)
+		return TlvTag(0), fmt.Errorf("[GetTag] ByteFromBuffer error: %w", err)
 	}
 
 	var tag int = int(b1)
@@ -20,9 +20,9 @@ func GetTag(buf *bytes.Buffer) (TlvTag, error) {
 	// special handling for multi-byte tags
 	if (tag & 0x1f) == 0x1f {
 		for {
-			tmp, err := utils.GetByteFromBuffer(buf)
+			tmp, err := utils.ByteFromBuffer(buf)
 			if err != nil {
-				return TlvTag(0), fmt.Errorf("[GetTag] GetByteFromBuffer error: %w", err)
+				return TlvTag(0), fmt.Errorf("[GetTag] ByteFromBuffer error: %w", err)
 			}
 
 			tag <<= 8

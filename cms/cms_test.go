@@ -10,7 +10,7 @@ func TestVerifySignedData(t *testing.T) {
 	/*
 	 * get the (default) CSCA Certificate-Pool
 	 */
-	cscaCertPool, err := GetDefaultMasterList()
+	cscaCertPool, err := DefaultMasterList()
 	if err != nil {
 		t.Fatalf("CscaCertPool error: %s", err)
 	}

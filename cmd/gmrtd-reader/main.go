@@ -89,7 +89,7 @@ func outputDocument(document *document.Document) {
 	}
 }
 
-func getParams() (pass *password.Password, debug bool, apduMaxRead uint, skipPace bool, err error) {
+func cmdParams() (pass *password.Password, debug bool, apduMaxRead uint, skipPace bool, err error) {
 	documentNo := flag.String("doc", "", "Document Number")
 	dateOfBirth := flag.String("dob", "", "Date of Birth (YYMMDD)")
 	expiryDate := flag.String("exp", "", "Expiry Date (YYMMDD)")
@@ -134,7 +134,7 @@ func main() {
 	var skipPace bool = false
 	var err error
 
-	pass, debug, maxRead, skipPace, err = getParams()
+	pass, debug, maxRead, skipPace, err = cmdParams()
 	if err != nil {
 		log.Printf("%s", err)
 		os.Exit(1)

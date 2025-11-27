@@ -32,7 +32,7 @@ func NewBAC(nfc *iso7816.NfcSession, doc *document.Document, pass *password.Pass
 }
 
 func (bac *BAC) generateKseed(password *password.Password) []byte {
-	tmpKey := password.GetKey()
+	tmpKey := password.Key()
 	// NB only use first 16 bytes
 	return tmpKey[0:16]
 }
@@ -66,9 +66,9 @@ func (bac *BAC) buildRequest(rndIfd []byte, rndIcc []byte, kIfd []byte, kEnc []b
 
 	// eifd = encrypt with TDES key 'kenc'
 	var cipher cipher.Block
-	cipher, err = cryptoutils.GetCipherForKey(cryptoutils.TDES, kEnc)
+	cipher, err = cryptoutils.CipherForKey(cryptoutils.TDES, kEnc)
 	if err != nil {
-		return nil, fmt.Errorf("[buildRequest] GetCipherForKey error: %w", err)
+		return nil, fmt.Errorf("[buildRequest] CipherForKey error: %w", err)
 	}
 
 	eIfd := cryptoutils.CryptCBC(cipher, make([]byte, cryptoutils.DES_BLOCK_SIZE_BYTES), s, true)
@@ -115,9 +115,9 @@ func (bac *BAC) processResponse(data []byte, kEnc []byte, kMac []byte, rndIfd []
 
 	// decrypt the cryptogram EIC
 	var cipher cipher.Block
-	cipher, err = cryptoutils.GetCipherForKey(cryptoutils.TDES, kEnc)
+	cipher, err = cryptoutils.CipherForKey(cryptoutils.TDES, kEnc)
 	if err != nil {
-		return nil, fmt.Errorf("[processResponse] GetCipherForKey error: %w", err)
+		return nil, fmt.Errorf("[processResponse] CipherForKey error: %w", err)
 	}
 
 	rspPlaintext := cryptoutils.CryptCBC(cipher, make([]byte, 8), rspCiphertext, false)
