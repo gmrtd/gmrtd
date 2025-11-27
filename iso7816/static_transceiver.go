@@ -4,6 +4,6 @@ type StaticTransceiver struct {
 	RApdu []byte
 }
 
-func (transceiver *StaticTransceiver) Transceive(cla int, ins int, p1 int, p2 int, data []byte, le int, encodedData []byte) []byte {
+func (transceiver *StaticTransceiver) Transceive(_ int, _ int, _ int, _ int, _ []byte, _ int, encodedData []byte) []byte {
 	return transceiver.RApdu
 }

@@ -14,11 +14,11 @@ func (node TlvNilNode) GetValue() []byte {
 	return nil
 }
 
-func (node TlvNilNode) GetNode(tag TlvTag) TlvNode {
+func (node TlvNilNode) GetNode(_ TlvTag) TlvNode {
 	return NewTlvNilNode()
 }
 
-func (node TlvNilNode) GetNodeByOccur(tag TlvTag, occurrence int) TlvNode {
+func (node TlvNilNode) GetNodeByOccur(_ TlvTag, _ int) TlvNode {
 	return NewTlvNilNode()
 }
 
@@ -26,7 +26,7 @@ func (node TlvNilNode) Encode() []byte {
 	return nil
 }
 
-func (node TlvNilNode) stringWithIndent(indent int) string {
+func (node TlvNilNode) stringWithIndent(_ int) string {
 	return ""
 }
 

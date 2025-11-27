@@ -54,7 +54,7 @@ func TestNewPasswordCan(t *testing.T) {
 type testReaderStatus struct {
 }
 
-func (status *testReaderStatus) Status(msg string) {
+func (status *testReaderStatus) Status(_ string) {
 }
 
 // TODO -  basic test that will fail quickly due to static transceiver
