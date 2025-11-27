@@ -28,7 +28,7 @@ type PCSCTransceiver struct {
 	card pcsc.Card
 }
 
-func (transceiver *PCSCTransceiver) Transceive(cla int, ins int, p1 int, p2 int, data []byte, le int, encodedData []byte) (rApduBytes []byte) {
+func (transceiver *PCSCTransceiver) Transceive(_ int, _ int, _ int, _ int, _ []byte, _ int, encodedData []byte) (rApduBytes []byte) {
 	rApduBytes, err := transceiver.card.Apdu(encodedData)
 	if err != nil {
 		slog.Error("Transceive", "error", err)

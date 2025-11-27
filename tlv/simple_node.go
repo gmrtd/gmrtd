@@ -26,12 +26,12 @@ func (node TlvSimpleNode) GetValue() []byte {
 	return node.Value
 }
 
-func (node TlvSimpleNode) GetNode(tag TlvTag) TlvNode {
+func (node TlvSimpleNode) GetNode(_ TlvTag) TlvNode {
 	// NB this node type cannot have children
 	return NewTlvNilNode()
 }
 
-func (node TlvSimpleNode) GetNodeByOccur(tag TlvTag, occurrence int) TlvNode {
+func (node TlvSimpleNode) GetNodeByOccur(_ TlvTag, _ int) TlvNode {
 	// NB this node type cannot have children
 	return NewTlvNilNode()
 }

@@ -23,7 +23,7 @@ func (transceiver *MockTransceiver) AddReqRsp(reqHexStr string, rspHexStr string
 	transceiver.reqRspArr = append(transceiver.reqRspArr, item)
 }
 
-func (transceiver *MockTransceiver) Transceive(cla int, ins int, p1 int, p2 int, data []byte, le int, encodedData []byte) []byte {
+func (transceiver *MockTransceiver) Transceive(_ int, _ int, _ int, _ int, _ []byte, _ int, encodedData []byte) []byte {
 	// NB we ignore the raw cApdu fields (cla,ins,p1,p2,data,l2) and just use encodedData (which is the same)
 	for i := range transceiver.reqRspArr {
 		if bytes.Equal(transceiver.reqRspArr[i].req, encodedData) {
