@@ -358,7 +358,7 @@ func handleEfDirInfo(oid asn1.ObjectIdentifier, data []byte, secInfos *SecurityI
 
 // returns true (as will always handle the data)
 // NB should be called after all other handlers
-func handleUnsupportedInfo(oid asn1.ObjectIdentifier, data []byte, secInfos *SecurityInfos) (handled bool, err error) {
+func handleUnsupportedInfo(_ asn1.ObjectIdentifier, data []byte, secInfos *SecurityInfos) (handled bool, err error) {
 	var unhandledInfo UnhandledInfo
 
 	// NB isPartiallyParsed=TRUE because we expect data after the Protocol(OID)
