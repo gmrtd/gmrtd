@@ -2,7 +2,6 @@ package chipauth
 
 import (
 	"crypto/elliptic"
-	"math/big"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
@@ -84,25 +83,20 @@ func TestChipAuthAT(t *testing.T) {
 	nfc.SM.SetSSC(utils.HexToBytes("000000000000000000000000000000F0"))
 
 	// setup static EC keys for test
-	getTestKeyGenEc := func() func(ec elliptic.Curve) cryptoutils.EcKeypair {
+	getTestKeyGenEc := func() func(ec elliptic.Curve) (keypair cryptoutils.EcKeypair) {
 		var idx int
-
-		return func(ec elliptic.Curve) cryptoutils.EcKeypair {
-			var tmpPri *big.Int
-			var tmpPub *cryptoutils.EcPoint = new(cryptoutils.EcPoint)
-
+		return func(ec elliptic.Curve) (keypair cryptoutils.EcKeypair) {
 			switch idx {
 			case 0:
-				tmpPri, _ = new(big.Int).SetString("80EBAFC8A51BECD4D90BB640EE38C9FD5C12748D28AAA37096B98C4533C4F5F5", 16)
-				tmpPub.X, _ = new(big.Int).SetString("4827C781BE1AC7A00B351214FD783AC76D99E831A6316C8FD6DE7BD96CFA31DA", 16)
-				tmpPub.Y, _ = new(big.Int).SetString("06B6B57BA380789729F4A028212A768C49BF5F97D98B1DB12BEEC1A1CD324FB2", 16)
+				keypair = cryptoutils.NewEcKeypair(
+					utils.HexToBytes("80EBAFC8A51BECD4D90BB640EE38C9FD5C12748D28AAA37096B98C4533C4F5F5"),
+					utils.HexToBytes("4827C781BE1AC7A00B351214FD783AC76D99E831A6316C8FD6DE7BD96CFA31DA"),
+					utils.HexToBytes("06B6B57BA380789729F4A028212A768C49BF5F97D98B1DB12BEEC1A1CD324FB2"))
 			default:
-				t.Errorf("Invalid key-gen index (idx:%1d)", idx)
+				t.Fatalf("Invalid key-gen index (idx:%1d)", idx)
 			}
-
 			idx++
-
-			return cryptoutils.EcKeypair{Pri: tmpPri.Bytes(), Pub: tmpPub}
+			return keypair
 		}
 	}
 
@@ -174,25 +168,20 @@ func TestChipAuthDE(t *testing.T) {
 	nfc.SM.SetSSC(utils.HexToBytes("000000000000000000000000000000BA"))
 
 	// setup static EC keys for test
-	getTestKeyGenEc := func() func(ec elliptic.Curve) cryptoutils.EcKeypair {
+	getTestKeyGenEc := func() func(ec elliptic.Curve) (keypair cryptoutils.EcKeypair) {
 		var idx int
-
-		return func(ec elliptic.Curve) cryptoutils.EcKeypair {
-			var tmpPri *big.Int
-			var tmpPub *cryptoutils.EcPoint = new(cryptoutils.EcPoint)
-
+		return func(ec elliptic.Curve) (keypair cryptoutils.EcKeypair) {
 			switch idx {
 			case 0:
-				tmpPri, _ = new(big.Int).SetString("84A5145885678EE9307C28C52736896267511203B7B8009C5FE27ABCBAECDCAA", 16)
-				tmpPub.X, _ = new(big.Int).SetString("897FA47C895D35949A8DB8F776A62D775BDF764A1AA1BDC2D8FC96CD5C2E80E3", 16)
-				tmpPub.Y, _ = new(big.Int).SetString("9F631C67E84364DCF85F5C9F8CE79A752071896819A0D510CF9701652486817C", 16)
+				keypair = cryptoutils.NewEcKeypair(
+					utils.HexToBytes("84A5145885678EE9307C28C52736896267511203B7B8009C5FE27ABCBAECDCAA"),
+					utils.HexToBytes("897FA47C895D35949A8DB8F776A62D775BDF764A1AA1BDC2D8FC96CD5C2E80E3"),
+					utils.HexToBytes("9F631C67E84364DCF85F5C9F8CE79A752071896819A0D510CF9701652486817C"))
 			default:
-				t.Errorf("Invalid key-gen index (idx:%1d)", idx)
+				t.Fatalf("Invalid key-gen index (idx:%1d)", idx)
 			}
-
 			idx++
-
-			return cryptoutils.EcKeypair{Pri: tmpPri.Bytes(), Pub: tmpPub}
+			return keypair
 		}
 	}
 
@@ -264,25 +253,20 @@ func TestChipAuthMY(t *testing.T) {
 	nfc.SM.SetSSC(utils.HexToBytes("9646c154bfb7be79"))
 
 	// setup static EC keys for test
-	getTestKeyGenEc := func() func(ec elliptic.Curve) cryptoutils.EcKeypair {
+	getTestKeyGenEc := func() func(ec elliptic.Curve) (keypair cryptoutils.EcKeypair) {
 		var idx int
-
-		return func(ec elliptic.Curve) cryptoutils.EcKeypair {
-			var tmpPri *big.Int
-			var tmpPub *cryptoutils.EcPoint = new(cryptoutils.EcPoint)
-
+		return func(ec elliptic.Curve) (keypair cryptoutils.EcKeypair) {
 			switch idx {
 			case 0:
-				tmpPri, _ = new(big.Int).SetString("3a31f4e18418312fcb40f3efbe719182c046a9719e1ed8c376197aa9e8ed7465", 16)
-				tmpPub.X, _ = new(big.Int).SetString("3da6d3b923689b96aa65d744f1bd1537fcf1f8a5dd9bc6b01d7b30fc1812645b", 16)
-				tmpPub.Y, _ = new(big.Int).SetString("510cb66bed899c67a802a7881313e4bca87055cde3cf615efdbadbb64bc32462", 16)
+				keypair = cryptoutils.NewEcKeypair(
+					utils.HexToBytes("3a31f4e18418312fcb40f3efbe719182c046a9719e1ed8c376197aa9e8ed7465"),
+					utils.HexToBytes("3da6d3b923689b96aa65d744f1bd1537fcf1f8a5dd9bc6b01d7b30fc1812645b"),
+					utils.HexToBytes("510cb66bed899c67a802a7881313e4bca87055cde3cf615efdbadbb64bc32462"))
 			default:
-				t.Errorf("Invalid key-gen index (idx:%1d)", idx)
+				t.Fatalf("Invalid key-gen index (idx:%1d)", idx)
 			}
-
 			idx++
-
-			return cryptoutils.EcKeypair{Pri: tmpPri.Bytes(), Pub: tmpPub}
+			return keypair
 		}
 	}
 
@@ -352,25 +336,20 @@ func TestChipAuthFR(t *testing.T) {
 	nfc.SM.SetSSC(utils.HexToBytes("000000000000000000000000000000c6"))
 
 	// setup static EC keys for test
-	getTestKeyGenEc := func() func(ec elliptic.Curve) cryptoutils.EcKeypair {
+	getTestKeyGenEc := func() func(ec elliptic.Curve) (keypair cryptoutils.EcKeypair) {
 		var idx int
-
-		return func(ec elliptic.Curve) cryptoutils.EcKeypair {
-			var tmpPri *big.Int
-			var tmpPub *cryptoutils.EcPoint = new(cryptoutils.EcPoint)
-
+		return func(ec elliptic.Curve) (keypair cryptoutils.EcKeypair) {
 			switch idx {
 			case 0:
-				tmpPri, _ = new(big.Int).SetString("d9c3b06a4dcb735351429403fcb56db520dc882512d775971f724d6112f96586", 16)
-				tmpPub.X, _ = new(big.Int).SetString("334f809c8842a4c9316c19e52a0d6ea0285996c40ff6db303cef72099198c8ad", 16)
-				tmpPub.Y, _ = new(big.Int).SetString("5d6b46e93482de899533d06eac54c289df5aa1436a846fb9154100c5322439ea", 16)
+				keypair = cryptoutils.NewEcKeypair(
+					utils.HexToBytes("d9c3b06a4dcb735351429403fcb56db520dc882512d775971f724d6112f96586"),
+					utils.HexToBytes("334f809c8842a4c9316c19e52a0d6ea0285996c40ff6db303cef72099198c8ad"),
+					utils.HexToBytes("5d6b46e93482de899533d06eac54c289df5aa1436a846fb9154100c5322439ea"))
 			default:
-				t.Errorf("Invalid key-gen index (idx:%1d)", idx)
+				t.Fatalf("Invalid key-gen index (idx:%1d)", idx)
 			}
-
 			idx++
-
-			return cryptoutils.EcKeypair{Pri: tmpPri.Bytes(), Pub: tmpPub}
+			return keypair
 		}
 	}
 

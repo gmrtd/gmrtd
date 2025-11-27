@@ -45,9 +45,27 @@ type EcKeypair struct {
 	Pub *EcPoint
 }
 
+func NewEcKeypair(pri, x, y []byte) EcKeypair {
+	var keypair EcKeypair
+
+	keypair.Pri = bytes.Clone(pri)
+	keypair.Pub = NewEcPoint(x, y)
+
+	return keypair
+}
+
 type EcPoint struct {
 	X *big.Int
 	Y *big.Int
+}
+
+func NewEcPoint(x, y []byte) *EcPoint {
+	var point EcPoint
+
+	point.X = new(big.Int).SetBytes(x)
+	point.Y = new(big.Int).SetBytes(y)
+
+	return &point
 }
 
 type ECCurve struct {

@@ -5,7 +5,6 @@ import (
 	"crypto/elliptic"
 	"encoding/asn1"
 	"math"
-	"math/big"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
@@ -152,16 +151,15 @@ func TestDoGenericMappingEC(t *testing.T) {
 
 	s := utils.HexToBytes("3F00C4D39D153F2B2A214A078D899B22")
 
-	var termShared cryptoutils.EcPoint
+	var termShared *cryptoutils.EcPoint = cryptoutils.NewEcPoint(
+		utils.HexToBytes("60332EF2450B5D247EF6D3868397D398852ED6E8CAF6FFEEF6BF85CA57057FD5"),
+		utils.HexToBytes("0840CA7415BAF3E43BD414D35AA4608B93A2CAF3A4E3EA4E82C9C13D03EB7181"))
 
-	termShared.X, _ = new(big.Int).SetString("60332EF2450B5D247EF6D3868397D398852ED6E8CAF6FFEEF6BF85CA57057FD5", 16)
-	termShared.Y, _ = new(big.Int).SetString("0840CA7415BAF3E43BD414D35AA4608B93A2CAF3A4E3EA4E82C9C13D03EB7181", 16)
+	var mappedG *cryptoutils.EcPoint = doGenericMappingEC(s, termShared, domainParams.ec)
 
-	var mappedG *cryptoutils.EcPoint = doGenericMappingEC(s, &termShared, domainParams.ec)
-
-	var expMappedG cryptoutils.EcPoint
-	expMappedG.X, _ = new(big.Int).SetString("8CED63C91426D4F0EB1435E7CB1D74A46723A0AF21C89634F65A9AE87A9265E2", 16)
-	expMappedG.Y, _ = new(big.Int).SetString("8C879506743F8611AC33645C5B985C80B5F09A0B83407C1B6A4D857AE76FE522", 16)
+	var expMappedG *cryptoutils.EcPoint = cryptoutils.NewEcPoint(
+		utils.HexToBytes("8CED63C91426D4F0EB1435E7CB1D74A46723A0AF21C89634F65A9AE87A9265E2"),
+		utils.HexToBytes("8C879506743F8611AC33645C5B985C80B5F09A0B83407C1B6A4D857AE76FE522"))
 
 	if !expMappedG.Equal(*mappedG) {
 		t.Errorf("Generic Mapping (EC) error")
@@ -171,20 +169,18 @@ func TestDoGenericMappingEC(t *testing.T) {
 func TestBuild7F49(t *testing.T) {
 	domainParams := getStandardisedDomainParams(13) // 0x0D
 
-	var termPub cryptoutils.EcPoint
+	var termPub *cryptoutils.EcPoint = cryptoutils.NewEcPoint(
+		utils.HexToBytes("2DB7A64C0355044EC9DF190514C625CBA2CEA48754887122F3A5EF0D5EDD301C"),
+		utils.HexToBytes("3556F3B3B186DF10B857B58F6A7EB80F20BA5DC7BE1D43D9BF850149FBB36462"))
 
-	termPub.X, _ = new(big.Int).SetString("2DB7A64C0355044EC9DF190514C625CBA2CEA48754887122F3A5EF0D5EDD301C", 16)
-	termPub.Y, _ = new(big.Int).SetString("3556F3B3B186DF10B857B58F6A7EB80F20BA5DC7BE1D43D9BF850149FBB36462", 16)
-
-	var chipPub cryptoutils.EcPoint
-
-	chipPub.X, _ = new(big.Int).SetString("9E880F842905B8B3181F7AF7CAA9F0EFB743847F44A306D2D28C1D9EC65DF6DB", 16)
-	chipPub.Y, _ = new(big.Int).SetString("7764B22277A2EDDC3C265A9F018F9CB852E111B768B326904B59A0193776F094", 16)
+	var chipPub *cryptoutils.EcPoint = cryptoutils.NewEcPoint(
+		utils.HexToBytes("9E880F842905B8B3181F7AF7CAA9F0EFB743847F44A306D2D28C1D9EC65DF6DB"),
+		utils.HexToBytes("7764B22277A2EDDC3C265A9F018F9CB852E111B768B326904B59A0193776F094"))
 
 	rawOID := []byte{0x04, 0x00, 0x7F, 0x00, 0x07, 0x02, 0x02, 0x04, 0x02, 0x02}
 
-	tifdData := encodePubicKeyTemplate7F49(rawOID, cryptoutils.EncodeX962EcPoint(domainParams.ec, &chipPub))
-	ticData := encodePubicKeyTemplate7F49(rawOID, cryptoutils.EncodeX962EcPoint(domainParams.ec, &termPub))
+	tifdData := encodePubicKeyTemplate7F49(rawOID, cryptoutils.EncodeX962EcPoint(domainParams.ec, chipPub))
+	ticData := encodePubicKeyTemplate7F49(rawOID, cryptoutils.EncodeX962EcPoint(domainParams.ec, termPub))
 
 	expTifdData := utils.HexToBytes("7F494F060A04007F000702020402028641049E880F842905B8B3181F7AF7CAA9F0EFB743847F44A306D2D28C1D9EC65DF6DB7764B22277A2EDDC3C265A9F018F9CB852E111B768B326904B59A0193776F094")
 	if !bytes.Equal(expTifdData, tifdData) {
@@ -323,32 +319,27 @@ func TestDoPace_GM_ECDH(t *testing.T) {
 		nfc = iso7816.NewNfcSession(transceiver)
 	}
 
-	// setup static EC keys for test
-	getTestKeyGenEc := func() func(ec elliptic.Curve) cryptoutils.EcKeypair {
+	getTestKeyGenEc := func() func(ec elliptic.Curve) (keypair cryptoutils.EcKeypair) {
 		var idx int
-
-		return func(ec elliptic.Curve) cryptoutils.EcKeypair {
-			var tmpPri *big.Int
-			var tmpPub *cryptoutils.EcPoint = new(cryptoutils.EcPoint)
-
+		return func(ec elliptic.Curve) (keypair cryptoutils.EcKeypair) {
 			switch idx {
 			case 0:
-				tmpPri, _ = new(big.Int).SetString("7F4EF07B9EA82FD78AD689B38D0BC78CF21F249D953BC46F4C6E19259C010F99", 16)
-				tmpPub.X, _ = new(big.Int).SetString("7ACF3EFC982EC45565A4B155129EFBC74650DCBFA6362D896FC70262E0C2CC5E", 16)
-				tmpPub.Y, _ = new(big.Int).SetString("544552DCB6725218799115B55C9BAA6D9F6BC3A9618E70C25AF71777A9C4922D", 16)
+				keypair = cryptoutils.NewEcKeypair(
+					utils.HexToBytes("7F4EF07B9EA82FD78AD689B38D0BC78CF21F249D953BC46F4C6E19259C010F99"),
+					utils.HexToBytes("7ACF3EFC982EC45565A4B155129EFBC74650DCBFA6362D896FC70262E0C2CC5E"),
+					utils.HexToBytes("544552DCB6725218799115B55C9BAA6D9F6BC3A9618E70C25AF71777A9C4922D"))
 			case 1:
-				tmpPri, _ = new(big.Int).SetString("A73FB703AC1436A18E0CFA5ABB3F7BEC7A070E7A6788486BEE230C4A22762595", 16)
 				// NB set public-key to dummy value as it should be manually calculated using the mapped generator (Gx/y)
 				//    - this way we can test that Gxy is getting propagated from earlier step and flow is working correcvtly
-				tmpPub.X = big.NewInt(0)
-				tmpPub.Y = big.NewInt(0)
+				keypair = cryptoutils.NewEcKeypair(
+					utils.HexToBytes("A73FB703AC1436A18E0CFA5ABB3F7BEC7A070E7A6788486BEE230C4A22762595"),
+					[]byte{0},
+					[]byte{0})
 			default:
-				t.Errorf("Invalid key-gen index (idx:%1d)", idx)
+				t.Fatalf("Invalid key-gen index (idx:%1d)", idx)
 			}
-
 			idx++
-
-			return cryptoutils.EcKeypair{Pri: tmpPri.Bytes(), Pub: tmpPub}
+			return keypair
 		}
 	}
 
@@ -417,32 +408,27 @@ func TestDoPace_GM_ECDH_TDES_CBC_NZ(t *testing.T) {
 		nfc = iso7816.NewNfcSession(transceiver)
 	}
 
-	// setup static EC keys for test
-	getTestKeyGenEc := func() func(ec elliptic.Curve) cryptoutils.EcKeypair {
+	getTestKeyGenEc := func() func(ec elliptic.Curve) (keypair cryptoutils.EcKeypair) {
 		var idx int
-
-		return func(ec elliptic.Curve) cryptoutils.EcKeypair {
-			var tmpPri *big.Int
-			var tmpPub *cryptoutils.EcPoint = new(cryptoutils.EcPoint)
-
+		return func(ec elliptic.Curve) (keypair cryptoutils.EcKeypair) {
 			switch idx {
 			case 0:
-				tmpPri, _ = new(big.Int).SetString("2808272c0ec20e01a3450030ef32855e9feb5cb17719e985389b1cf47609e69f", 16)
-				tmpPub.X, _ = new(big.Int).SetString("7706b2b6246ab4612229b8a11212ddba7fea0568c9c0975dee22c0e3dd3a3f03", 16)
-				tmpPub.Y, _ = new(big.Int).SetString("21e8afee836e373b570d24000d56fb195104d486e63321ff8c819dd5ee018dcb", 16)
+				keypair = cryptoutils.NewEcKeypair(
+					utils.HexToBytes("2808272c0ec20e01a3450030ef32855e9feb5cb17719e985389b1cf47609e69f"),
+					utils.HexToBytes("7706b2b6246ab4612229b8a11212ddba7fea0568c9c0975dee22c0e3dd3a3f03"),
+					utils.HexToBytes("21e8afee836e373b570d24000d56fb195104d486e63321ff8c819dd5ee018dcb"))
 			case 1:
-				tmpPri, _ = new(big.Int).SetString("8f89449052df6c7983750c7b042c3cea12b36819174424c7cd28153f7b70b402", 16)
 				// NB set public-key to dummy value as it should be manually calculated using the mapped generator (Gx/y)
 				//    - this way we can test that Gxy is getting propagated from earlier step and flow is working correcvtly
-				tmpPub.X = big.NewInt(0)
-				tmpPub.Y = big.NewInt(0)
+				keypair = cryptoutils.NewEcKeypair(
+					utils.HexToBytes("8f89449052df6c7983750c7b042c3cea12b36819174424c7cd28153f7b70b402"),
+					[]byte{0},
+					[]byte{0})
 			default:
-				t.Errorf("Invalid key-gen index (idx:%1d)", idx)
+				t.Fatalf("Invalid key-gen index (idx:%1d)", idx)
 			}
-
 			idx++
-
-			return cryptoutils.EcKeypair{Pri: tmpPri.Bytes(), Pub: tmpPub}
+			return keypair
 		}
 	}
 
@@ -519,32 +505,27 @@ func TestDoPace_CAM_ECDH_DE(t *testing.T) {
 		nfc = iso7816.NewNfcSession(transceiver)
 	}
 
-	// setup static EC keys for test
-	getTestKeyGenEc := func() func(ec elliptic.Curve) cryptoutils.EcKeypair {
+	getTestKeyGenEc := func() func(ec elliptic.Curve) (keypair cryptoutils.EcKeypair) {
 		var idx int
-
-		return func(ec elliptic.Curve) cryptoutils.EcKeypair {
-			var tmpPri *big.Int
-			var tmpPub *cryptoutils.EcPoint = new(cryptoutils.EcPoint)
-
+		return func(ec elliptic.Curve) (keypair cryptoutils.EcKeypair) {
 			switch idx {
 			case 0:
-				tmpPri, _ = new(big.Int).SetString("01fd26013f5bc41fad8bb09811e435f16fbe2eb3c2e1d999b0f63da8c3d58bb5", 16)
-				tmpPub.X, _ = new(big.Int).SetString("303f340815eea501772393e299a4a6f6694600189c249c63a8513ff3fefa66e3", 16)
-				tmpPub.Y, _ = new(big.Int).SetString("46d11970b5f76fb564c3b0e54b215528f647ec5a9ab209cdbe262e763d6119a1", 16)
+				keypair = cryptoutils.NewEcKeypair(
+					utils.HexToBytes("01fd26013f5bc41fad8bb09811e435f16fbe2eb3c2e1d999b0f63da8c3d58bb5"),
+					utils.HexToBytes("303f340815eea501772393e299a4a6f6694600189c249c63a8513ff3fefa66e3"),
+					utils.HexToBytes("46d11970b5f76fb564c3b0e54b215528f647ec5a9ab209cdbe262e763d6119a1"))
 			case 1:
-				tmpPri, _ = new(big.Int).SetString("1fcd3d8ac4fae3960a14fea2925d75add335f13b248eba192358dded93a89552", 16)
 				// NB set public-key to dummy value as it should be manually calculated using the mapped generator (Gx/y)
 				//    - this way we can test that Gxy is getting propagated from earlier step and flow is working correcvtly
-				tmpPub.X = big.NewInt(0)
-				tmpPub.Y = big.NewInt(0)
+				keypair = cryptoutils.NewEcKeypair(
+					utils.HexToBytes("1fcd3d8ac4fae3960a14fea2925d75add335f13b248eba192358dded93a89552"),
+					[]byte{0},
+					[]byte{0})
 			default:
-				t.Errorf("Invalid key-gen index (idx:%1d)", idx)
+				t.Fatalf("Invalid key-gen index (idx:%1d)", idx)
 			}
-
 			idx++
-
-			return cryptoutils.EcKeypair{Pri: tmpPri.Bytes(), Pub: tmpPub}
+			return keypair
 		}
 	}
 
