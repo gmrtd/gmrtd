@@ -47,10 +47,10 @@ func ISO9797RetailMacDes(key []byte, data []byte) (mac []byte, err error) {
 	var cipherK1 cipher.Block
 	var cipherK2 cipher.Block
 
-	if cipherK1, err = GetCipherForKey(DES, k1); err != nil {
+	if cipherK1, err = CipherForKey(DES, k1); err != nil {
 		return nil, err
 	}
-	if cipherK2, err = GetCipherForKey(DES, k2); err != nil {
+	if cipherK2, err = CipherForKey(DES, k2); err != nil {
 		return nil, err
 	}
 

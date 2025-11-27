@@ -117,7 +117,7 @@ func TestNewDG1UnhappyBadMRZ(t *testing.T) {
 	}
 }
 
-func TestGetIssuingCountryAlpha2(t *testing.T) {
+func TestIssuingCountryAlpha2(t *testing.T) {
 	// test the country-code conversion from a fake DG1(MRZ)
 	testCases := []struct {
 		dg1Mrz          string
@@ -199,9 +199,9 @@ func TestGetIssuingCountryAlpha2(t *testing.T) {
 			}
 		}
 
-		countryCode2, err := dg1.GetIssuingCountryAlpha2()
+		countryCode2, err := dg1.IssuingCountryAlpha2()
 		if err != nil {
-			t.Fatalf("GetIssuingCountryAlpha2 error: %s", err)
+			t.Fatalf("IssuingCountryAlpha2 error: %s", err)
 		}
 
 		if !strings.EqualFold(tc.expCountryCode2, countryCode2) {
@@ -211,16 +211,16 @@ func TestGetIssuingCountryAlpha2(t *testing.T) {
 
 }
 
-func TestGetIssuingCountryAlpha2ErrorNoMrz(t *testing.T) {
+func TestIssuingCountryAlpha2ErrorNoMrz(t *testing.T) {
 	var dg1 DG1
 
-	_, err := dg1.GetIssuingCountryAlpha2()
+	_, err := dg1.IssuingCountryAlpha2()
 	if err == nil {
 		t.Fatalf("Expected error")
 	}
 }
 
-func TestGetIssuingCountryAlpha2ErrorBadCountry(t *testing.T) {
+func TestIssuingCountryAlpha2ErrorBadCountry(t *testing.T) {
 	// MRZ country changed to a fake country (XYZ) to trigger country-code conversion (3->2 letter) error
 	var err error
 	var mrz string = "P<XYZDOE<<JOHN<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<D123456785UTO6508092M3505207<<<<<<<<<<<<<<<0"
@@ -236,7 +236,7 @@ func TestGetIssuingCountryAlpha2ErrorBadCountry(t *testing.T) {
 		}
 	}
 
-	_, err = dg1.GetIssuingCountryAlpha2()
+	_, err = dg1.IssuingCountryAlpha2()
 	if err == nil {
 		t.Fatalf("Expected error")
 	}

@@ -68,9 +68,9 @@ func (paceConfig *PaceConfig) computeAuthToken(key []byte, data []byte) ([]byte,
 		var err error
 		var cipher cipher.Block
 
-		cipher, err = cryptoutils.GetCipherForKey(paceConfig.cipher, key)
+		cipher, err = cryptoutils.CipherForKey(paceConfig.cipher, key)
 		if err != nil {
-			return nil, fmt.Errorf("[computeAuthToken] GetCipherForKey error: %w", err)
+			return nil, fmt.Errorf("[computeAuthToken] CipherForKey error: %w", err)
 		}
 
 		authToken, err := cmac.Sum(data, cipher, 8)

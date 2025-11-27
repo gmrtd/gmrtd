@@ -51,9 +51,9 @@ func NewDG1(data []byte) (dg1 *DG1, err error) {
 	return dg1, nil
 }
 
-func (dg1 DG1) GetIssuingCountryAlpha2() (string, error) {
+func (dg1 DG1) IssuingCountryAlpha2() (string, error) {
 	if dg1.Mrz == nil {
-		return "", fmt.Errorf("[GetIssuingCountryAlpha2] MRZ is not set within DG1")
+		return "", fmt.Errorf("[IssuingCountryAlpha2] MRZ is not set within DG1")
 	}
 
 	// NB use Issuing-State to derive the country-code
@@ -65,9 +65,9 @@ func (dg1 DG1) GetIssuingCountryAlpha2() (string, error) {
 		mrzCountryAlpha3 = "DEU"
 	}
 
-	country := iso3166.GetByAlpha3(mrzCountryAlpha3)
+	country := iso3166.ByAlpha3(mrzCountryAlpha3)
 	if country == nil {
-		return "", fmt.Errorf("(getAlpha2CountryCode) Unable to resolve alpha3 country code (%s)", mrzCountryAlpha3)
+		return "", fmt.Errorf("(IssuingCountryAlpha2) Unable to resolve alpha3 country code (%s)", mrzCountryAlpha3)
 	}
 
 	return country.Alpha2, nil

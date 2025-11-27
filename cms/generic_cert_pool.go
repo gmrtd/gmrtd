@@ -34,50 +34,50 @@ func (certPool *GenericCertPool) AddCerts(certificates []Certificate) {
 }
 
 // gets matching certificates by 'subject' key identifier (ski)
-func (certPool *GenericCertPool) GetBySKI(ski []byte) []Certificate {
+func (certPool *GenericCertPool) BySKI(ski []byte) []Certificate {
 	var matchingCerts []Certificate
 
 	for i := range certPool.certificates {
 		var cert *Certificate = &certPool.certificates[i]
-		tmpSki := cert.TbsCertificate.Extensions.GetSubjectKeyIdentifier()
+		tmpSki := cert.TbsCertificate.Extensions.SubjectKeyIdentifier()
 
 		if bytes.Equal(*tmpSki, ski) {
-			slog.Debug("CertPool.GetBySki - found matching cert", "Idx", i, "SKI", utils.BytesToHex(ski))
+			slog.Debug("CertPool.BySki - found matching cert", "Idx", i, "SKI", utils.BytesToHex(ski))
 			matchingCerts = append(matchingCerts, *cert)
 		}
 	}
 
 	if len(matchingCerts) < 1 {
-		slog.Debug("CertPool.GetBySki - NO matching certs found", "SKI", utils.BytesToHex(ski))
+		slog.Debug("CertPool.BySki - NO matching certs found", "SKI", utils.BytesToHex(ski))
 	}
 
 	return matchingCerts
 }
 
 // gets matching certificates by 'issuer' country
-func (certPool *GenericCertPool) GetByIssuerCountry(countryAlpha2 string) []Certificate {
+func (certPool *GenericCertPool) ByIssuerCountry(countryAlpha2 string) []Certificate {
 	var matchingCerts []Certificate
 
 	for i := range certPool.certificates {
 		var cert *Certificate = &certPool.certificates[i]
 
-		tmpCountry := cert.TbsCertificate.GetIssuerRDN().GetByOID(oid.OidCountryName)
+		tmpCountry := cert.TbsCertificate.IssuerRDN().ByOID(oid.OidCountryName)
 
 		if strings.EqualFold(string(tmpCountry), countryAlpha2) {
-			var sub *SubjectKeyIdentifier = cert.TbsCertificate.Extensions.GetSubjectKeyIdentifier()
-			slog.Debug("CertPool.GetByIssuerCountry - found matching cert", "Idx", i, "Country", countryAlpha2, "SKI", utils.BytesToHex(*sub))
+			var sub *SubjectKeyIdentifier = cert.TbsCertificate.Extensions.SubjectKeyIdentifier()
+			slog.Debug("CertPool.ByIssuerCountry - found matching cert", "Idx", i, "Country", countryAlpha2, "SKI", utils.BytesToHex(*sub))
 			matchingCerts = append(matchingCerts, *cert)
 		}
 	}
 
 	if len(matchingCerts) < 1 {
-		slog.Debug("CertPool.GetByIssuerCountry - NO matching certs found", "Country", countryAlpha2)
+		slog.Debug("CertPool.ByIssuerCountry - NO matching certs found", "Country", countryAlpha2)
 	}
 
 	return matchingCerts
 }
 
-func (certPool *GenericCertPool) GetAll() []Certificate {
+func (certPool *GenericCertPool) All() []Certificate {
 	var out []Certificate
 	out = append(out, certPool.certificates...)
 	return out

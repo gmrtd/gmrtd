@@ -8,7 +8,7 @@ import (
 
 const indentString = "  "
 
-func GetTagAndLength(buf *bytes.Buffer) (tag TlvTag, length TlvLength, err error) {
+func TagAndLength(buf *bytes.Buffer) (tag TlvTag, length TlvLength, err error) {
 	tag, err = GetTag(buf)
 	if err != nil {
 		return TlvTag(0), TlvLength(0), fmt.Errorf("[GetTagAndLength] GetTag error: %w", err)

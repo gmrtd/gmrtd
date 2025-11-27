@@ -36,23 +36,23 @@ var id_2010series_2016 []byte
 //go:embed master_list/IDN_2010_SERIES_CSCA_CERT/2020-10_CSCA.cer
 var id_2010series_2020 []byte
 
-func GetDefaultMasterList() (*CombinedCertPool, error) {
+func DefaultMasterList() (*CombinedCertPool, error) {
 	var out CombinedCertPool
 
 	// German
 	{
-		tmpCertPool, err := GetGermanMasterList()
+		tmpCertPool, err := GermanMasterList()
 		if err != nil {
-			return nil, fmt.Errorf("[GetDefaultMasterList] GetGermanMasterList error: %w", err)
+			return nil, fmt.Errorf("[DefaultMasterList] GermanMasterList error: %w", err)
 		}
 		out.AddCertPool(tmpCertPool)
 	}
 
 	// Dutch
 	{
-		tmpCertPool, err := GetDutchMasterList()
+		tmpCertPool, err := DutchMasterList()
 		if err != nil {
-			return nil, fmt.Errorf("[GetDefaultMasterList] GetDutchMasterList error: %w", err)
+			return nil, fmt.Errorf("[DefaultMasterList] DutchMasterList error: %w", err)
 		}
 		out.AddCertPool(tmpCertPool)
 	}
@@ -60,9 +60,9 @@ func GetDefaultMasterList() (*CombinedCertPool, error) {
 	// Indonesia: 2010 CSCA Series Certificate(s)
 	// - these are not part of ICAO PKD as Indonesia manages two separate CSCAs (see https://www.imigrasi.go.id/csca)
 	{
-		tmpCertPool, err := GetIndonesian2010SeriesCerts()
+		tmpCertPool, err := Indonesian2010SeriesCerts()
 		if err != nil {
-			return nil, fmt.Errorf("[GetDefaultMasterList] GetIndonesian2010SeriesCerts error: %w", err)
+			return nil, fmt.Errorf("[DefaultMasterList] Indonesian2010SeriesCerts error: %w", err)
 		}
 		out.AddCertPool(tmpCertPool)
 	}
@@ -70,15 +70,15 @@ func GetDefaultMasterList() (*CombinedCertPool, error) {
 	return &out, nil
 }
 
-func GetGermanMasterList() (*SignedDataCertPool, error) {
+func GermanMasterList() (*SignedDataCertPool, error) {
 	return CreateCertPoolFromSignedData(de_masterList, de_masterListRootCA)
 }
 
-func GetDutchMasterList() (*SignedDataCertPool, error) {
+func DutchMasterList() (*SignedDataCertPool, error) {
 	return CreateCertPoolFromSignedData(nl_masterList, nl_masterListRootCA)
 }
 
-func GetIndonesian2010SeriesCerts() (*GenericCertPool, error) {
+func Indonesian2010SeriesCerts() (*GenericCertPool, error) {
 	// Note: Indonesia manages two seperate CSCAs (2010/2018 series)!
 	//
 	// Only the 2018 series is published via ICAO PKD (and NL Master-List).

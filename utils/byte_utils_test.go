@@ -177,7 +177,7 @@ func TestPrintableBytes(t *testing.T) {
 	}
 }
 
-func TestGetBytesFromBuffer(t *testing.T) {
+func TestBytesFromBuffer(t *testing.T) {
 	var buf *bytes.Buffer = bytes.NewBuffer([]byte{0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef})
 
 	expBytes := [][]byte{
@@ -190,7 +190,7 @@ func TestGetBytesFromBuffer(t *testing.T) {
 	for i := range expBytes {
 		expBytes := expBytes[i]
 
-		actBytes, err := GetBytesFromBuffer(buf, len(expBytes))
+		actBytes, err := BytesFromBuffer(buf, len(expBytes))
 		if err != nil {
 			t.Errorf("unexpected error: %s", err)
 		}
@@ -200,24 +200,24 @@ func TestGetBytesFromBuffer(t *testing.T) {
 	}
 }
 
-func TestGetBytesFromBufferErr(t *testing.T) {
+func TestBytesFromBufferErr(t *testing.T) {
 	var buf *bytes.Buffer = bytes.NewBuffer([]byte{0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef})
 
 	// NB error expected as we request more bytes than are available
-	_, err := GetBytesFromBuffer(buf, 9)
+	_, err := BytesFromBuffer(buf, 9)
 
 	if err == nil {
 		t.Errorf("error expected")
 	}
 }
 
-func TestGetByteFromBuffer(t *testing.T) {
+func TestByteFromBuffer(t *testing.T) {
 	var expBytes []byte = []byte{0x12, 0x34, 0x56, 0x78}
 	var buf *bytes.Buffer = bytes.NewBuffer(expBytes)
 
 	for i := range expBytes {
 		expByte := expBytes[i]
-		actByte, err := GetByteFromBuffer(buf)
+		actByte, err := ByteFromBuffer(buf)
 		if err != nil {
 			t.Errorf("unexpected error: %s", err)
 		}
@@ -227,11 +227,11 @@ func TestGetByteFromBuffer(t *testing.T) {
 	}
 }
 
-func TestGetByteFromBufferErr(t *testing.T) {
+func TestByteFromBufferErr(t *testing.T) {
 	var buf *bytes.Buffer = bytes.NewBuffer([]byte{})
 
 	// NB error expected as buffer contains no data
-	_, err := GetByteFromBuffer(buf)
+	_, err := ByteFromBuffer(buf)
 	if err == nil {
 		t.Errorf("error expected")
 	}

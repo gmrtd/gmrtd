@@ -75,7 +75,7 @@ func NewPasswordCan(can string) *Password {
 	return &out
 }
 
-func (password *Password) GetType() byte {
+func (password *Password) Type() byte {
 	// manually convert value to reduce reliance on iota values!
 	var passwordTypeValue byte
 
@@ -91,7 +91,7 @@ func (password *Password) GetType() byte {
 	return passwordTypeValue
 }
 
-func (password *Password) GetKey() []byte {
+func (password *Password) Key() []byte {
 	// generate K
 	var key []byte
 
@@ -105,7 +105,7 @@ func (password *Password) GetKey() []byte {
 		//    - we're ignoring this as we don't expect extended characters
 		key = bytes.Clone([]byte(password.Password))
 	default:
-		panic(fmt.Sprintf("[GetKey] Unsupported password-type (type:%d)", password.PasswordType))
+		panic(fmt.Sprintf("[Key] Unsupported password-type (type:%d)", password.PasswordType))
 	}
 
 	return key

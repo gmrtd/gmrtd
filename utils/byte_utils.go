@@ -82,20 +82,20 @@ func PrintableBytes(data []byte) bool {
 	return true
 }
 
-func GetBytesFromBuffer(buf *bytes.Buffer, length int) ([]byte, error) {
+func BytesFromBuffer(buf *bytes.Buffer, length int) ([]byte, error) {
 	tmp := buf.Next(length)
 
 	if len(tmp) != length {
-		return nil, fmt.Errorf("[GetBytesFromBuffer] Req:%d, Act:%d", length, len(tmp))
+		return nil, fmt.Errorf("[BytesFromBuffer] Req:%d, Act:%d", length, len(tmp))
 	}
 
 	return bytes.Clone(tmp), nil
 }
 
-func GetByteFromBuffer(buf *bytes.Buffer) (byte, error) {
-	tmp, err := GetBytesFromBuffer(buf, 1)
+func ByteFromBuffer(buf *bytes.Buffer) (byte, error) {
+	tmp, err := BytesFromBuffer(buf, 1)
 	if err != nil {
-		return 0, fmt.Errorf("[GetByteFromBuffer] GetBytesFromBuffer error: %w", err)
+		return 0, fmt.Errorf("[ByteFromBuffer] GetBytesFromBuffer error: %w", err)
 	}
 
 	return tmp[0], err

@@ -120,7 +120,7 @@ func (a Attribute) MarshalJSON() ([]byte, error) {
 }
 
 // returns: nil if no matching attribute found
-func (attributes AttributeList) GetByOID(oid asn1.ObjectIdentifier) *Attribute {
+func (attributes AttributeList) ByOID(oid asn1.ObjectIdentifier) *Attribute {
 	for i := 0; i < len(attributes); i++ {
 		if oid.Equal(attributes[i].Type) {
 			return &(attributes[i])
@@ -132,7 +132,7 @@ func (attributes AttributeList) GetByOID(oid asn1.ObjectIdentifier) *Attribute {
 
 // gets the ASN1 encoded attribute data wrapped in a parent 'SET OF' (0x31) tag
 // NB builds using the 'Raw' field, so any changes to the low-level fields will not be reflected
-func (attributes AttributeList) GetSetOfAsnBytes() []byte {
+func (attributes AttributeList) SetOfAsnBytes() []byte {
 	// A separate encoding
 	// of the signedAttrs field is performed for message digest calculation.
 	// The IMPLICIT [0] tag in the signedAttrs is not used for the DER
@@ -223,7 +223,7 @@ type AuthorityKeyIdentifier struct {
 
 type SubjectKeyIdentifier []byte
 
-func (extensions Extensions) GetAuthorityKeyIdentifier() *AuthorityKeyIdentifier {
+func (extensions Extensions) AuthorityKeyIdentifier() *AuthorityKeyIdentifier {
 	for i := range extensions {
 		if extensions[i].ObjectId.Equal(oid.OidAuthorityKeyIdentifier) {
 			var out AuthorityKeyIdentifier
@@ -240,7 +240,7 @@ func (extensions Extensions) GetAuthorityKeyIdentifier() *AuthorityKeyIdentifier
 	return nil
 }
 
-func (extensions Extensions) GetSubjectKeyIdentifier() *SubjectKeyIdentifier {
+func (extensions Extensions) SubjectKeyIdentifier() *SubjectKeyIdentifier {
 	for i := range extensions {
 		if extensions[i].ObjectId.Equal(oid.OidSubjectKeyIdentifier) {
 			var out SubjectKeyIdentifier
@@ -273,7 +273,7 @@ func ParseRDNSequence(rdnSeq []byte) RDNSequence {
 	return out
 }
 
-func (rdnSet RDNSequence) GetByOID(oid asn1.ObjectIdentifier) []byte {
+func (rdnSet RDNSequence) ByOID(oid asn1.ObjectIdentifier) []byte {
 	for _, set := range rdnSet {
 		for _, atv := range set {
 			if atv.Type.Equal(oid) {
@@ -285,7 +285,7 @@ func (rdnSet RDNSequence) GetByOID(oid asn1.ObjectIdentifier) []byte {
 	return []byte{}
 }
 
-func (cert TBSCertificate) GetIssuerRDN() RDNSequence {
+func (cert TBSCertificate) IssuerRDN() RDNSequence {
 	return ParseRDNSequence(cert.Issuer.FullBytes)
 }
 
@@ -397,8 +397,8 @@ func (si *SignerInfo) Verify(sd *SignedData, trustedCerts CertPool) (certChain [
 	if len(si.AuthenticatedAttributes) < 1 {
 		return nil, fmt.Errorf("[Verify] SignedInfo without AuthenticatedAttributes is NOT supported")
 	} else {
-		aaContentType := si.AuthenticatedAttributes.GetByOID(oid.OidContentType)
-		aaMessageDigest := si.AuthenticatedAttributes.GetByOID(oid.OidMessageDigest)
+		aaContentType := si.AuthenticatedAttributes.ByOID(oid.OidContentType)
+		aaMessageDigest := si.AuthenticatedAttributes.ByOID(oid.OidMessageDigest)
 		if aaContentType == nil || aaMessageDigest == nil {
 			return nil, fmt.Errorf("[Verify] Expected Authenticated-Attribute(s) missing (Content-Type, Message-Digest) %v", si)
 		}
@@ -429,7 +429,7 @@ func (si *SignerInfo) Verify(sd *SignedData, trustedCerts CertPool) (certChain [
 			return nil, fmt.Errorf("[Verify] Invalid content hash (contentHash:%x, aaMessageDigestHash:%x)", contentHash, aaMessageDigestHash)
 		}
 
-		dataToHash = si.AuthenticatedAttributes.GetSetOfAsnBytes()
+		dataToHash = si.AuthenticatedAttributes.SetOfAsnBytes()
 
 		digestAlg = &(si.DigestAlgorithm.Algorithm)
 
@@ -465,7 +465,7 @@ func (si *SignerInfo) Verify(sd *SignedData, trustedCerts CertPool) (certChain [
 		} else if sdCerts.Count() > 1 {
 			// pick the certificate(s) if multiple exist
 			// TODO - should support other variants also (e.g. issuer+serialNumber).. sid is not always aki
-			tmpCerts = sdCerts.GetBySKI(si.Sid.Bytes)
+			tmpCerts = sdCerts.BySKI(si.Sid.Bytes)
 		}
 
 		if len(tmpCerts) != 1 {
@@ -538,7 +538,7 @@ func (cert *Certificate) Verify(trustedCerts CertPool) (certChain [][]byte, err 
 	slog.Debug("CERT.Verify", "Cert(hex)", utils.BytesToHex(cert.Raw))
 
 	// get the parent certificate (authority) key identifier
-	var aki *AuthorityKeyIdentifier = cert.TbsCertificate.Extensions.GetAuthorityKeyIdentifier()
+	var aki *AuthorityKeyIdentifier = cert.TbsCertificate.Extensions.AuthorityKeyIdentifier()
 	if aki == nil {
 		return certChain, fmt.Errorf("[Certificate.Verify] AKI missing from cert (%x)", cert.Raw)
 	}
@@ -559,7 +559,7 @@ func (cert *Certificate) Verify(trustedCerts CertPool) (certChain [][]byte, err 
 
 	// get any matching parent certificates
 	// NB often >1 due to cross-signing in master-list
-	parentCerts := trustedCerts.GetBySKI(aki.KeyIdentifier) // TODO - other variants? eg issuer/serial
+	parentCerts := trustedCerts.BySKI(aki.KeyIdentifier) // TODO - other variants? eg issuer/serial
 
 	slog.Debug("Certificate.Verify", "parentCerts(cnt)", len(parentCerts))
 
@@ -634,7 +634,7 @@ var ecNamedCurveArr []EcNamedCurve = []EcNamedCurve{
 	{oid: oid.OidBrainpoolP512r1, curve: brainpool.P512r1()},
 }
 
-func (subPubKeyInfo *SubjectPublicKeyInfo) GetEcCurveAndPubKey() (curve *elliptic.Curve, pubKey *cryptoutils.EcPoint, err error) {
+func (subPubKeyInfo *SubjectPublicKeyInfo) EcCurveAndPubKey() (curve *elliptic.Curve, pubKey *cryptoutils.EcPoint, err error) {
 	/*
 	* Note: We avoid using 'ParsePKIXPublicKey' as it follows PKIX standard and only allows names curves,
 	*       but passports tend to use specified curves (i.e. curve parameters, even if corresponding to well-known curves)
@@ -644,16 +644,16 @@ func (subPubKeyInfo *SubjectPublicKeyInfo) GetEcCurveAndPubKey() (curve *ellipti
 	{
 		var expOid asn1.ObjectIdentifier = oid.OidEcPublicKey
 		if !subPubKeyInfo.Algorithm.Algorithm.Equal(expOid) {
-			return nil, nil, fmt.Errorf("[GetEcCurveAndPubKey] Algorithm differs to expected (exp:%s) (act:%s)", expOid.String(), subPubKeyInfo.Algorithm.Algorithm.String())
+			return nil, nil, fmt.Errorf("[EcCurveAndPubKey] Algorithm differs to expected (exp:%s) (act:%s)", expOid.String(), subPubKeyInfo.Algorithm.Algorithm.String())
 		}
 	}
 
 	var specDomain *ECSpecifiedDomain
 	specDomain, err = ParseECSpecifiedDomain(&subPubKeyInfo.Algorithm)
 	if err == nil {
-		curve, err = specDomain.GetEcCurve()
+		curve, err = specDomain.EcCurve()
 		if err != nil {
-			return nil, nil, fmt.Errorf("[GetEcCurveAndPubKey] GetEcCurve error: %w", err)
+			return nil, nil, fmt.Errorf("[EcCurveAndPubKey] EcCurve error: %w", err)
 		}
 	} else {
 		/*
@@ -663,7 +663,7 @@ func (subPubKeyInfo *SubjectPublicKeyInfo) GetEcCurveAndPubKey() (curve *ellipti
 
 		err = utils.ParseAsn1(subPubKeyInfo.Algorithm.Parameters.FullBytes, false, &tmpOid)
 		if err != nil {
-			return nil, nil, fmt.Errorf("[GetEcCurveAndPubKey] ParseAsn1 error: %w", err)
+			return nil, nil, fmt.Errorf("[EcCurveAndPubKey] ParseAsn1 error: %w", err)
 		}
 
 		for i := range ecNamedCurveArr {
@@ -676,7 +676,7 @@ func (subPubKeyInfo *SubjectPublicKeyInfo) GetEcCurveAndPubKey() (curve *ellipti
 
 		if curve == nil {
 			// unsupported named curve
-			return nil, nil, fmt.Errorf("[GetEcCurveAndPubKey] Unsupported EC Named Curve (OID:%s)", tmpOid.String())
+			return nil, nil, fmt.Errorf("[EcCurveAndPubKey] Unsupported EC Named Curve (OID:%s)", tmpOid.String())
 		}
 	}
 
@@ -689,7 +689,7 @@ func (subPubKeyInfo *SubjectPublicKeyInfo) GetEcCurveAndPubKey() (curve *ellipti
 	return curve, pubKey, nil
 }
 
-func (subPubKeyInfo *SubjectPublicKeyInfo) GetRsaPubKey() *cryptoutils.RsaPublicKey {
+func (subPubKeyInfo *SubjectPublicKeyInfo) RsaPubKey() *cryptoutils.RsaPublicKey {
 	var err error
 	var out cryptoutils.RsaPublicKey
 
@@ -697,13 +697,13 @@ func (subPubKeyInfo *SubjectPublicKeyInfo) GetRsaPubKey() *cryptoutils.RsaPublic
 	{
 		var expOid asn1.ObjectIdentifier = oid.OidRsaEncryption
 		if !subPubKeyInfo.Algorithm.Algorithm.Equal(expOid) {
-			log.Panicf("(SubjectPublicKeyInfo.GetRsaPubKey) Algorithm differs to expected (exp:%s) (act:%s)", expOid.String(), subPubKeyInfo.Algorithm.Algorithm.String())
+			log.Panicf("(SubjectPublicKeyInfoGetRsaPubKey) Algorithm differs to expected (exp:%s) (act:%s)", expOid.String(), subPubKeyInfo.Algorithm.Algorithm.String())
 		}
 	}
 
 	err = utils.ParseAsn1(subPubKeyInfo.SubjectPublicKey.Bytes, false, &out)
 	if err != nil {
-		log.Panicf("(SubjectPublicKeyInfo.GetRsaPubKey) Unexpected ASN1 parsing error: %s", err)
+		log.Panicf("(SubjectPublicKeyInfo.RsaPubKey) Unexpected ASN1 parsing error: %s", err)
 	}
 
 	return &out
@@ -789,8 +789,8 @@ var ecLookupArr []elliptic.Curve = []elliptic.Curve{
 //	SubjectPublicKeyInfo  ::=  SEQUENCE  {
 //	   algorithm            AlgorithmIdentifier,
 //	   subjectPublicKey     BIT STRING  }
-func (specDomain ECSpecifiedDomain) GetEcCurve() (*elliptic.Curve, error) {
-	slog.Debug("GetEcCurve", "Params", utils.BytesToHex(specDomain.FieldId.Parameters.Bytes))
+func (specDomain ECSpecifiedDomain) EcCurve() (*elliptic.Curve, error) {
+	slog.Debug("EcCurve", "Params", utils.BytesToHex(specDomain.FieldId.Parameters.Bytes))
 
 	// NB sometimes there can be leading zero
 	specDomainPBytes := utils.TrimLeadingZeroBytes(specDomain.FieldId.Parameters.Bytes)
@@ -802,12 +802,12 @@ func (specDomain ECSpecifiedDomain) GetEcCurve() (*elliptic.Curve, error) {
 
 		// match using the 'prime field' (P)
 		if slices.Equal(ec.Params().P.Bytes(), specDomainPBytes) {
-			slog.Debug("GetEcCurve", "curveIdx", i, "specDomain", specDomain)
+			slog.Debug("EcCurve", "curveIdx", i, "specDomain", specDomain)
 			return &ec, nil
 		}
 	}
 
-	return nil, fmt.Errorf("(ECSpecifiedDomain.GetEcCurve) unsupported CA EC (Params:%x) (Raw:%x)", specDomain.FieldId.Parameters.Bytes, specDomain.Raw)
+	return nil, fmt.Errorf("(ECSpecifiedDomain.EcCurve) unsupported CA EC (Params:%x) (Raw:%x)", specDomain.FieldId.Parameters.Bytes, specDomain.Raw)
 }
 
 /*

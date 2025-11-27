@@ -89,7 +89,7 @@ func TestTDesKey(t *testing.T) {
 // - DES: 8 bytes
 // - TDES: 8/16/24 bytes
 // - AES: 16/24/32 bytes
-func TestGetCipherForKey(t *testing.T) {
+func TestCipherForKey(t *testing.T) {
 	testCases := []struct {
 		alg BlockCipherAlg
 		key []byte
@@ -133,7 +133,7 @@ func TestGetCipherForKey(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		cipher, err := GetCipherForKey(tc.alg, tc.key)
+		cipher, err := CipherForKey(tc.alg, tc.key)
 
 		if err != nil {
 			t.Errorf("Unexpected error: %s", err)
@@ -143,7 +143,7 @@ func TestGetCipherForKey(t *testing.T) {
 	}
 }
 
-func TestGetCipherForKeyError(t *testing.T) {
+func TestCipherForKeyError(t *testing.T) {
 	testCases := []struct {
 		alg BlockCipherAlg
 		key []byte
@@ -180,7 +180,7 @@ func TestGetCipherForKeyError(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		cipher, err := GetCipherForKey(tc.alg, tc.key)
+		cipher, err := CipherForKey(tc.alg, tc.key)
 
 		if err == nil {
 			t.Errorf("Error expected")
@@ -244,7 +244,7 @@ func TestCryptCBC(t *testing.T) {
 		var err error
 		var cipher cipher.Block
 
-		cipher, err = GetCipherForKey(tc.alg, tc.key)
+		cipher, err = CipherForKey(tc.alg, tc.key)
 		if err != nil {
 			t.Errorf("Unexpected error: %s", err)
 		}
@@ -270,7 +270,7 @@ func TestCryptCBCIVLengthErr(t *testing.T) {
 	var err error
 	var cipher cipher.Block
 
-	cipher, err = GetCipherForKey(TDES, tdesKey)
+	cipher, err = CipherForKey(TDES, tdesKey)
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
@@ -296,7 +296,7 @@ func TestCryptCBCDataLengthErr(t *testing.T) {
 	var err error
 	var cipher cipher.Block
 
-	cipher, err = GetCipherForKey(TDES, tdesKey)
+	cipher, err = CipherForKey(TDES, tdesKey)
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}

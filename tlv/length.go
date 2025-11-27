@@ -13,9 +13,9 @@ type TlvLength int64
 // decodes and returns the length
 // NB returns -1 when 'indefinite-length' is indicated
 func GetLength(buf *bytes.Buffer) (length TlvLength, err error) {
-	b1, err := utils.GetByteFromBuffer(buf)
+	b1, err := utils.ByteFromBuffer(buf)
 	if err != nil {
-		return 0, fmt.Errorf("[GetLength] GetByteFromBuffer error: %w", err)
+		return 0, fmt.Errorf("[GetLength] ByteFromBuffer error: %w", err)
 	}
 
 	if b1 <= 0x7f {
@@ -32,7 +32,7 @@ func GetLength(buf *bytes.Buffer) (length TlvLength, err error) {
 		// 4 bytes: 10000011 xxxxxxxx xxxxxxxx xxxxxxxx (24 bit length)
 		// 5 bytes: 10000100 xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx (32 bit length)
 		byteLen := b1 - 0x80
-		bytes, err := utils.GetBytesFromBuffer(buf, int(byteLen))
+		bytes, err := utils.BytesFromBuffer(buf, int(byteLen))
 		if err != nil {
 			return 0, fmt.Errorf("[GetLength] ByteBuffer error: %w", err)
 		}

@@ -55,7 +55,7 @@ func TestNewCardSecurityDE(t *testing.T) {
 	/*
 	 * get the (default) CSCA Certificate-Pool
 	 */
-	cscaCertPool, err := cms.GetDefaultMasterList()
+	cscaCertPool, err := cms.DefaultMasterList()
 	if err != nil {
 		t.Fatalf("CscaCertPool error: %s", err)
 	}

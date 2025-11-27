@@ -94,9 +94,9 @@ func decodeF(f []byte) (m1 []byte, d []byte, hashAlg crypto.Hash, err error) {
 	return
 }
 
-func (activeAuth *ActiveAuth) doGetRandomIfd() []byte {
+func (activeAuth *ActiveAuth) randomIfd() []byte {
 	var rndIfd []byte = activeAuth.randomBytesFn(8) // RND.IFD
-	slog.Debug("doGetRandomIfd", "rndIfd", utils.BytesToHex(rndIfd))
+	slog.Debug("randomIfd", "rndIfd", utils.BytesToHex(rndIfd))
 	return rndIfd
 }
 
@@ -144,7 +144,7 @@ func (activeAuth *ActiveAuth) DoActiveAuth() (err error) {
 		slog.Debug("DoActiveAuth", "SM(pre)", (*activeAuth.nfcSession).SM.String())
 	}
 
-	var rndIfd []byte = activeAuth.doGetRandomIfd()
+	var rndIfd []byte = activeAuth.randomIfd()
 
 	var intAuthRspBytes []byte
 
@@ -173,7 +173,7 @@ func (activeAuth *ActiveAuth) ValidateActiveAuthSignature(intAuthRspBytes []byte
 	switch subPubKeyInfo.Algorithm.Algorithm.String() {
 	case oid.OidRsaEncryption.String():
 		{
-			var pubKey *cryptoutils.RsaPublicKey = subPubKeyInfo.GetRsaPubKey()
+			var pubKey *cryptoutils.RsaPublicKey = subPubKeyInfo.RsaPubKey()
 
 			// S = rapdu-data
 			s := intAuthRspBytes
@@ -222,9 +222,9 @@ func (activeAuth *ActiveAuth) ValidateActiveAuthSignature(intAuthRspBytes []byte
 				RIPEMD-160 and SHA-1 SHALL NOT be used.
 				The message M to be signed is the nonce RND.IFD provided by the Inspection System.
 			*/
-			curve, ecPoint, err := subPubKeyInfo.GetEcCurveAndPubKey()
+			curve, ecPoint, err := subPubKeyInfo.EcCurveAndPubKey()
 			if err != nil {
-				return fmt.Errorf("(ValidateActiveAuthSignature) GetEcCurveAndPubKey error: %w (Context:%s)", err, errContext)
+				return fmt.Errorf("(ValidateActiveAuthSignature) EcCurveAndPubKey error: %w (Context:%s)", err, errContext)
 			}
 
 			pub := &ecdsa.PublicKey{

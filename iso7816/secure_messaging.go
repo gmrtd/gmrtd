@@ -55,7 +55,7 @@ func (sm1 SecureMessaging) Equal(sm2 SecureMessaging) bool {
 	return false
 }
 
-func (sm SecureMessaging) GetKsEnc() []byte {
+func (sm SecureMessaging) KsEnc() []byte {
 	return bytes.Clone(sm.ksEnc)
 }
 
@@ -66,12 +66,12 @@ func NewSecureMessaging(alg cryptoutils.BlockCipherAlg, ksEnc []byte, ksMac []by
 	sm.ksEnc = ksEnc
 	sm.ksMac = ksMac
 
-	if sm.encCipher, err = cryptoutils.GetCipherForKey(sm.alg, ksEnc); err != nil {
-		return nil, fmt.Errorf("(NewSecureMessaging) GetCipherForKey:ksEnc: %w", err)
+	if sm.encCipher, err = cryptoutils.CipherForKey(sm.alg, ksEnc); err != nil {
+		return nil, fmt.Errorf("(NewSecureMessaging) CipherForKey:ksEnc: %w", err)
 	}
 
-	if sm.macCipher, err = cryptoutils.GetCipherForKey(sm.alg, ksMac); err != nil {
-		return nil, fmt.Errorf("(NewSecureMessaging) GetCipherForKey:ksMac: %w", err)
+	if sm.macCipher, err = cryptoutils.CipherForKey(sm.alg, ksMac); err != nil {
+		return nil, fmt.Errorf("(NewSecureMessaging) CipherForKey:ksMac: %w", err)
 	}
 
 	// init SSC (based on block size)

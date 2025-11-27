@@ -9,8 +9,8 @@ import (
 	"github.com/gmrtd/gmrtd/utils"
 )
 
-func TestCscaCertPoolGetByCountry(t *testing.T) {
-	certPool, err := GetDefaultMasterList()
+func TestCscaCertPoolByCountry(t *testing.T) {
+	certPool, err := DefaultMasterList()
 	if err != nil {
 		t.Errorf("CscaCertPool error: %s", err)
 	}
@@ -19,7 +19,7 @@ func TestCscaCertPoolGetByCountry(t *testing.T) {
 		return
 	}
 
-	sgCerts := certPool.GetByIssuerCountry("SG")
+	sgCerts := certPool.ByIssuerCountry("SG")
 	if len(sgCerts) < 1 {
 		t.Errorf("expected some certs for SG")
 	}
@@ -27,7 +27,7 @@ func TestCscaCertPoolGetByCountry(t *testing.T) {
 
 func TestCscaCertPool(t *testing.T) {
 
-	certPool, err := GetDefaultMasterList()
+	certPool, err := DefaultMasterList()
 	if err != nil {
 		t.Errorf("CscaCertPool error: %s", err)
 	}
@@ -36,7 +36,7 @@ func TestCscaCertPool(t *testing.T) {
 		return
 	}
 
-	var certificates []Certificate = certPool.GetAll()
+	var certificates []Certificate = certPool.All()
 
 	// for each cert in the master list
 	// NB no need to recursively verify up the cert chain as we're verifying
@@ -44,11 +44,11 @@ func TestCscaCertPool(t *testing.T) {
 	for i := 0; i < len(certificates); i++ {
 		cert := certificates[i]
 
-		ski := cert.TbsCertificate.Extensions.GetSubjectKeyIdentifier()
+		ski := cert.TbsCertificate.Extensions.SubjectKeyIdentifier()
 
 		// NB 'aki' is missing for some certs
 		// - this typically indicates that it is a self-signed cert
-		aki := cert.TbsCertificate.Extensions.GetAuthorityKeyIdentifier()
+		aki := cert.TbsCertificate.Extensions.AuthorityKeyIdentifier()
 
 		{
 			digestAlg, err := cert.SignatureAlgorithm.DetermineDigestAlgFromSigAlg()
@@ -106,7 +106,7 @@ func TestCscaCertPool(t *testing.T) {
 					t.Fatalf("'aki' is missing for !self-signed certificate")
 				}
 
-				var parentCerts []Certificate = certPool.GetBySKI(aki.KeyIdentifier)
+				var parentCerts []Certificate = certPool.BySKI(aki.KeyIdentifier)
 
 				/*
 				* Note: we have some certificates that reference a parent (aki) which is not found in

@@ -9,11 +9,11 @@ func (cp *CombinedCertPool) AddCertPool(certPool CertPool) {
 }
 
 // gets matching certificates by 'subject' key identifier (ski)
-func (cp *CombinedCertPool) GetBySKI(ski []byte) []Certificate {
+func (cp *CombinedCertPool) BySKI(ski []byte) []Certificate {
 	var out []Certificate
 
 	for i := range cp.certPools {
-		tmpCerts := cp.certPools[i].GetBySKI(ski)
+		tmpCerts := cp.certPools[i].BySKI(ski)
 		out = append(out, tmpCerts...)
 	}
 
@@ -21,22 +21,22 @@ func (cp *CombinedCertPool) GetBySKI(ski []byte) []Certificate {
 }
 
 // gets matching certificates by 'issuer' country
-func (cp *CombinedCertPool) GetByIssuerCountry(countryAlpha2 string) []Certificate {
+func (cp *CombinedCertPool) ByIssuerCountry(countryAlpha2 string) []Certificate {
 	var out []Certificate
 
 	for i := range cp.certPools {
-		tmpCerts := cp.certPools[i].GetByIssuerCountry(countryAlpha2)
+		tmpCerts := cp.certPools[i].ByIssuerCountry(countryAlpha2)
 		out = append(out, tmpCerts...)
 	}
 
 	return out
 }
 
-func (cp *CombinedCertPool) GetAll() []Certificate {
+func (cp *CombinedCertPool) All() []Certificate {
 	var out []Certificate
 
 	for i := range cp.certPools {
-		tmpCerts := cp.certPools[i].GetAll()
+		tmpCerts := cp.certPools[i].All()
 		out = append(out, tmpCerts...)
 	}
 

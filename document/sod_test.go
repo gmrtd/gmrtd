@@ -51,7 +51,7 @@ func TestNewSod(t *testing.T) {
 	/*
 	 * get the (default) CSCA Certificate-Pool
 	 */
-	cscaCertPool, err := cms.GetDefaultMasterList()
+	cscaCertPool, err := cms.DefaultMasterList()
 	if err != nil {
 		t.Fatalf("CscaCertPool error: %s", err)
 	}
@@ -287,7 +287,7 @@ func TestNewSod(t *testing.T) {
 
 		// verify country-code matches expected
 		{
-			sodCountryAlpha2, err := sod.GetCertCountryAlpha2()
+			sodCountryAlpha2, err := sod.CertCountryAlpha2()
 			if err != nil {
 				t.Fatalf("Unexpected error")
 			}
