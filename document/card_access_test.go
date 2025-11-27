@@ -9,13 +9,27 @@ import (
 	"github.com/gmrtd/gmrtd/utils"
 )
 
-func TestNewCardAccessHappyNoData(t *testing.T) {
-	if cardAccess, err := NewCardAccess(nil); cardAccess != nil || err != nil {
-		t.Errorf("Should be nil when no input data provided")
+func TestNewCardAccessHappyNil(t *testing.T) {
+	cardAccess, err := NewCardAccess(nil)
+
+	if err != nil {
+		t.Errorf("Unexpected Error")
 	}
 
-	if cardAccess, err := NewCardAccess([]byte{}); cardAccess != nil || err != nil {
-		t.Errorf("Should be nil when no input data provided")
+	if cardAccess != nil {
+		t.Errorf("Unexpected CardAccess")
+	}
+}
+
+func TestNewCardAccessHappyNoData(t *testing.T) {
+	cardAccess, err := NewCardAccess([]byte{})
+
+	if err != nil {
+		t.Errorf("Unexpected Error")
+	}
+
+	if cardAccess != nil {
+		t.Errorf("Unexpected CardAccess")
 	}
 }
 
