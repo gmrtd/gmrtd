@@ -25,7 +25,7 @@ type CscaMasterListCert struct {
 
 // creates a cert-pool from the signed-data, and validates it against the root-cert
 // returns: error
-func CreateCertPoolFromSignedData(signedDataBytes []byte, rootCertBytes []byte) (*SignedDataCertPool, error) {
+func CreateCertPoolFromSignedData(signedDataBytes, rootCertBytes []byte) (*SignedDataCertPool, error) {
 	var out SignedDataCertPool
 	var err error
 

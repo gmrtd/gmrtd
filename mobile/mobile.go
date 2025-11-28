@@ -39,7 +39,7 @@ func NewPasswordMrz(mrz string) (*MrtdPassword, error) {
 	return &MrtdPassword{password: pass}, nil
 }
 
-func NewPasswordMrzi(documentNo string, dateOfBirth string, dateOfExpiry string) (*MrtdPassword, error) {
+func NewPasswordMrzi(documentNo, dateOfBirth, dateOfExpiry string) (*MrtdPassword, error) {
 	var err error
 	var pass *password.Password
 

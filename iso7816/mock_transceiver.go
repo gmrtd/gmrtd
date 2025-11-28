@@ -15,7 +15,7 @@ type MockTransceiver struct {
 	reqRspArr []MockTransceiverReqRsp
 }
 
-func (transceiver *MockTransceiver) AddReqRsp(reqHexStr string, rspHexStr string) {
+func (transceiver *MockTransceiver) AddReqRsp(reqHexStr, rspHexStr string) {
 	item := MockTransceiverReqRsp{}
 	item.req = utils.HexToBytes(reqHexStr)
 	item.rsp = utils.HexToBytes(rspHexStr)

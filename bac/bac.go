@@ -44,7 +44,7 @@ func (bac *BAC) generateKeys(seed []byte) (kEnc []byte, kMac []byte) {
 	return
 }
 
-func (bac *BAC) calculateMac(kMac []byte, data []byte) (mac []byte, err error) {
+func (bac *BAC) calculateMac(kMac, data []byte) (mac []byte, err error) {
 	mac, err = cryptoutils.ISO9797RetailMacDes(kMac, cryptoutils.ISO9797Method2Pad(data, cryptoutils.DES_BLOCK_SIZE_BYTES))
 	return mac, err
 }
@@ -53,7 +53,7 @@ func (bac *BAC) calculateMac(kMac []byte, data []byte) (mac []byte, err error) {
 // rnd_ifd: 8 bytes
 // rnd_icc: 8 bytes
 // kifd: 16 bytes
-func (bac *BAC) buildRequest(rndIfd []byte, rndIcc []byte, kIfd []byte, kEnc []byte, kMac []byte) (cmd []byte, err error) {
+func (bac *BAC) buildRequest(rndIfd, rndIcc, kIfd, kEnc, kMac []byte) (cmd []byte, err error) {
 	// verify lengths of rndIfd(8) / rndIcc(8) / kIfd(16)
 	if (len(rndIfd) != 8) || (len(rndIcc) != 8) || (len(kIfd) != 16) {
 		return nil, fmt.Errorf("[buildRequest] incorrect length for rndIfd(%1d) and/or rndIcc(%1d) and/or kIfd(%1d)", len(rndIfd), len(rndIcc), len(kIfd))

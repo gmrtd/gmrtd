@@ -206,7 +206,7 @@ func (nfc *NfcSession) SelectAid(aid []byte) (selected bool, err error) {
 }
 
 // NB may not return requested length
-func (nfc *NfcSession) ReadBinaryFromOffset(offset int, length int) []byte {
+func (nfc *NfcSession) ReadBinaryFromOffset(offset, length int) []byte {
 	slog.Debug("ReadBinaryFromOffset", "offset", offset, "length", length)
 
 	var capdu *CApdu = NewCApdu(0x00, INS_READ_BINARY, byte(offset/256), byte(offset%256), nil, length)

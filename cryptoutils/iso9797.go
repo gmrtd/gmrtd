@@ -30,7 +30,7 @@ func ISO9797Method2Unpad(data []byte) ([]byte, error) {
 // ISO-9797 Retail MAC (DES)
 // key: 16 bytes (double) DES key
 // error: if invalid key length (not 16 bytes) or data not aligned to block boundary (8 bytes)
-func ISO9797RetailMacDes(key []byte, data []byte) (mac []byte, err error) {
+func ISO9797RetailMacDes(key, data []byte) (mac []byte, err error) {
 	if len(key) != 16 {
 		return nil, fmt.Errorf("key must be 16 bytes (act:%d)", len(key))
 	}
