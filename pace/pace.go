@@ -256,7 +256,7 @@ func getStandardisedDomainParams(paramId int) *PACEDomainParams {
 	return ret
 }
 
-func (paceConfig *PaceConfig) decryptNonce(key []byte, encryptedNonce []byte) []byte {
+func (paceConfig *PaceConfig) decryptNonce(key, encryptedNonce []byte) []byte {
 	var err error
 	var bcipher cipher.Block
 
@@ -302,7 +302,7 @@ func decodeDynAuthData(tag byte, data []byte) []byte {
 
 // encodes a public-key template (7F49) containing the OID and the public-key (86)
 // NB caller should ensure that tag86data is encoded correctly for the underlying key type (DH/ECDH)
-func encodePubicKeyTemplate7F49(paceOid []byte, tag86data []byte) []byte {
+func encodePubicKeyTemplate7F49(paceOid, tag86data []byte) []byte {
 	// 7F49
 	//		06 - OID
 	//		86 - Uncompressed EC point (x/y)

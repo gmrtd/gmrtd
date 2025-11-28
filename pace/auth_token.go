@@ -86,7 +86,7 @@ func (paceConfig *PaceConfig) computeAuthToken(key []byte, data []byte) ([]byte,
 	return nil, fmt.Errorf("[computeAuthToken] Unsupported auth-token alg (%x)", paceConfig.authToken)
 }
 
-func (paceConfig *PaceConfig) computeAuthTokens(ksMac []byte, ec elliptic.Curve, termPub *cryptoutils.EcPoint, chipPub *cryptoutils.EcPoint) (tIfd []byte, tIc []byte, err error) {
+func (paceConfig *PaceConfig) computeAuthTokens(ksMac []byte, ec elliptic.Curve, termPub, chipPub *cryptoutils.EcPoint) (tIfd []byte, tIc []byte, err error) {
 	oidBytes := oid.OidBytes(paceConfig.oid)
 
 	tIfdData := encodePubicKeyTemplate7F49(oidBytes, cryptoutils.EncodeX962EcPoint(ec, chipPub))

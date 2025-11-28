@@ -128,7 +128,7 @@ func calcCheckdigit(data string) (string, error) {
 	return strconv.Itoa(value), nil
 }
 
-func verifyCheckdigit(data string, checkDigit string) error {
+func verifyCheckdigit(data, checkDigit string) error {
 	// check for empty field with unset checkdigit
 	if (checkDigit == "<") && (len(strings.Trim(data, "<")) == 0) {
 		return nil

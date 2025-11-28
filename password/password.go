@@ -50,7 +50,7 @@ func NewPasswordMrz(mrzStr string) (pass *Password, err error) {
 	return pass, err
 }
 
-func NewPasswordMrzi(documentNo string, dateOfBirth string, dateOfExpiry string) (pass *Password, err error) {
+func NewPasswordMrzi(documentNo, dateOfBirth, dateOfExpiry string) (pass *Password, err error) {
 	pass = new(Password)
 	pass.PasswordType = PASSWORD_TYPE_MRZi
 

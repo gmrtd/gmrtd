@@ -165,7 +165,7 @@ func (activeAuth *ActiveAuth) DoActiveAuth() (err error) {
 	return
 }
 
-func (activeAuth *ActiveAuth) ValidateActiveAuthSignature(intAuthRspBytes []byte, rndIfd []byte) error {
+func (activeAuth *ActiveAuth) ValidateActiveAuthSignature(intAuthRspBytes, rndIfd []byte) error {
 	var errContext string
 
 	var subPubKeyInfo cms.SubjectPublicKeyInfo = cms.Asn1decodeSubjectPublicKeyInfo((*activeAuth.document).Mf.Lds1.Dg15.SubjectPublicKeyInfoBytes)

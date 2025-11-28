@@ -262,7 +262,7 @@ func OidDesc(oid asn1.ObjectIdentifier) string {
 }
 
 // determines if 'Oid' starts with 'prefix' (but not equal to - i.e. Oid != prefix)
-func OidHasPrefix(oid asn1.ObjectIdentifier, prefixOid asn1.ObjectIdentifier) bool {
+func OidHasPrefix(oid, prefixOid asn1.ObjectIdentifier) bool {
 	// oid must be longer than prefix
 	if len(oid) <= len(prefixOid) {
 		return false
