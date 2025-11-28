@@ -100,3 +100,14 @@ func Decode(data []byte) (nodes *TlvNodes, err error) {
 
 	return nodes, nil
 }
+
+func MustDecode(data []byte) (nodes *TlvNodes) {
+	var err error
+
+	nodes, err = Decode(data)
+	if err != nil {
+		panic(fmt.Sprintf("[MustDecode] Decode error: %s", err))
+	}
+
+	return nodes
+}

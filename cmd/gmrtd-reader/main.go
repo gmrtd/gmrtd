@@ -58,7 +58,7 @@ func outputDocument(document *document.Document) {
 
 	funcMap := template.FuncMap{
 		"BytesToHex":       func(bytes []byte) string { return fmt.Sprintf("%X", bytes) },
-		"TlvBytesToString": func(bytes []byte) string { nodes, _ := tlv.Decode(bytes); return nodes.String() },
+		"TlvBytesToString": func(bytes []byte) string { nodes := tlv.MustDecode(bytes); return nodes.String() },
 		"BytesToBase64":    func(bytes []byte) string { return base64.StdEncoding.EncodeToString(bytes) },
 		"ApduTotalDurMs": func(apdus []iso7816.ApduLog) int {
 			var totalMs int
@@ -171,8 +171,15 @@ func main() {
 	}
 	defer card.DisconnectCard()
 
-	atr, _ := card.ATR()
-	ats, _ := card.ATS()
+	atr, err := card.ATR()
+	if err != nil {
+		slog.Warn("ATR error", "error", err)
+	}
+
+	ats, err := card.ATS()
+	if err != nil {
+		slog.Warn("ATS error", "error", err)
+	}
 
 	var transceiver *PCSCTransceiver = new(PCSCTransceiver)
 
