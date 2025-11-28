@@ -78,3 +78,14 @@ func TestDecodeErrors(t *testing.T) {
 		}
 	}
 }
+
+func TestMustDecodeErrors(t *testing.T) {
+	// No need to check whether `recover()` is nil. Just turn off the panic.
+	defer func() { _ = recover() }()
+
+	// less data than expected
+	_ = MustDecode(utils.HexToBytes("61095f1f050123456789"))
+	//						           || should be 08
+
+	t.Errorf("should have panicked")
+}

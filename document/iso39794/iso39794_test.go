@@ -6,17 +6,17 @@ import (
 	"testing"
 )
 
-func TestProcessISO39794_5_AP_BadData(t *testing.T) {
+func TestProcessISO39794p5badData(t *testing.T) {
 	var badData []byte = []byte{0xA1, 0x12, 0x12, 0x34}
 
-	_, err := ProcessISO39794_5_AP(badData)
+	_, err := ProcessISO39794p5(badData)
 	if err == nil {
 		t.Fatalf("Error Expected")
 	}
 }
 
-func TestProcessISO39794_5_AP_NilData(t *testing.T) {
-	_, err := ProcessISO39794_5_AP(nil)
+func TestProcessISO39794p5nilData(t *testing.T) {
+	_, err := ProcessISO39794p5(nil)
 	if err == nil {
 		t.Fatalf("Error Expected")
 	}
@@ -29,7 +29,7 @@ var allFields39794 []byte
 var allFields39794Face []byte
 
 func TestNewDG2AllFields39794(t *testing.T) {
-	ap, err := ProcessISO39794_5_AP(allFields39794)
+	ap, err := ProcessISO39794p5(allFields39794)
 	if err != nil {
 		t.Fatalf("Unexpected error: %s", err)
 	}
@@ -53,7 +53,7 @@ var mandFields39794 []byte
 var mandFields39794Face []byte
 
 func TestNewDG2MandFields39794(t *testing.T) {
-	ap, err := ProcessISO39794_5_AP(mandFields39794)
+	ap, err := ProcessISO39794p5(mandFields39794)
 	if err != nil {
 		t.Fatalf("Unexpected error: %s", err)
 	}

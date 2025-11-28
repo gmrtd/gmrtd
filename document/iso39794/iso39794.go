@@ -14,7 +14,7 @@ import (
 
 // TODO - review use of GenericBlockType(placeholder) / asn1.RawValue / asn1.RawContent
 
-func ProcessISO39794_5_AP(data []byte) (*ISO39794_5_AP, error) {
+func ProcessISO39794p5(data []byte) (*ISO39794_5_AP, error) {
 	var ap ISO39794_5_AP
 
 	/*

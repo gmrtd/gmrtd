@@ -168,7 +168,7 @@ func (dg2 *DG2) processBIT(node tlv.TlvNode) (*BiometricInfoTemplate, []DG2Image
 		var err error
 		var ap *iso39794.ISO39794_5_AP
 
-		ap, err = iso39794.ProcessISO39794_5_AP(biometricDataBlock)
+		ap, err = iso39794.ProcessISO39794p5(biometricDataBlock)
 		if err != nil {
 			return nil, nil, fmt.Errorf("[processBIT] processISO39794 error: %w", err)
 		}
