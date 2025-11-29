@@ -466,7 +466,7 @@ func (secInfos *SecurityInfos) Contains(subsetSecInfos *SecurityInfos) error {
 	return nil
 }
 
-func (secInfos *SecurityInfos) GetTotalCnt() (cnt int) {
+func (secInfos *SecurityInfos) TotalCnt() (cnt int) {
 	cnt = 0
 	cnt += len(secInfos.PaceInfos)
 	cnt += len(secInfos.PaceDomainParamInfos)

@@ -158,7 +158,7 @@ func (dg2 *DG2) processBIT(node tlv.TlvNode) (*BiometricInfoTemplate, []DG2Image
 		}
 
 		out.BDB.Iso19794 = facial
-		outImages = imageByteArrToDg2ImageArr(facial.GetImages())
+		outImages = imageByteArrToDg2ImageArr(facial.Images())
 	} else if node.GetNode(0x7F2E).IsValidNode() {
 		/*
 		* 7F2E -> ISO-39794-5 encoding
@@ -174,7 +174,7 @@ func (dg2 *DG2) processBIT(node tlv.TlvNode) (*BiometricInfoTemplate, []DG2Image
 		}
 
 		out.BDB.Iso39794 = ap
-		outImages = imageByteArrToDg2ImageArr(ap.GetImages())
+		outImages = imageByteArrToDg2ImageArr(ap.Images())
 	} else {
 		return nil, nil, fmt.Errorf("[processBIT] DG2 must have tag 5F2E or 7F2E")
 	}

@@ -44,7 +44,7 @@ func (node TlvConstructedNode) Encode() []byte {
 
 func (node TlvConstructedNode) stringWithIndent(indent int) string {
 	var sb strings.Builder
-	sb.WriteString(getIndentString(indent))
+	sb.WriteString(indentString(indent))
 	sb.WriteString(fmt.Sprintf("%02x\n", node.Tag))
 	sb.WriteString(node.Children.stringWithIndent(indent + 1))
 	return sb.String()

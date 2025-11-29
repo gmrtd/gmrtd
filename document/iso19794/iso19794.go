@@ -115,7 +115,7 @@ func ProcessISO19794(data []byte) (*ISO19794, error) {
 	return &out, nil
 }
 
-func (ap ISO19794) GetImages() [][]byte {
+func (ap ISO19794) Images() [][]byte {
 	var out [][]byte = make([][]byte, 0)
 
 	for i := range ap.Facial.Images {

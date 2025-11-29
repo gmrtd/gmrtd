@@ -196,13 +196,13 @@ func selectPaceConfig(cardAccess *document.CardAccess) (*PaceConfig, *PACEDomain
 		return nil, nil, fmt.Errorf("[selectPaceConfig] missing ParameterId in selected PACE info")
 	}
 
-	domainParams := getStandardisedDomainParams(int(selectedPaceInfo.ParameterId.Int64()))
+	domainParams := standardisedDomainParams(int(selectedPaceInfo.ParameterId.Int64()))
 
 	return selectedConfig, domainParams, nil
 }
 
 // ICAO9303 part 11... s9.5.1 Standardized Domain Parameters
-func getStandardisedDomainParams(paramId int) *PACEDomainParams {
+func standardisedDomainParams(paramId int) *PACEDomainParams {
 	var ret *PACEDomainParams
 
 	// NB 3-7 and 19-31 are RFU
@@ -250,7 +250,7 @@ func getStandardisedDomainParams(paramId int) *PACEDomainParams {
 		// NIST P-521 (secp521r1)
 		ret = &PACEDomainParams{id: paramId, isECDH: true, ec: elliptic.P521()}
 	default:
-		panic(fmt.Sprintf("[getStandardisedDomainParams] Unsupported paramId (%1d)", paramId))
+		panic(fmt.Sprintf("[standardisedDomainParams] Unsupported paramId (%1d)", paramId))
 	}
 
 	return ret
@@ -477,13 +477,13 @@ func (pace *Pace) mutualAuthGmEcDh(paceConfig *PaceConfig, domainParams *PACEDom
 	return ecadIC, nil
 }
 
-func getIcPubKeyECForCAM(domainParams *PACEDomainParams, cardSecurity *document.CardSecurity) (*cryptoutils.EcPoint, error) {
-	slog.Debug("getIcPubKeyECForCAM")
+func icPubKeyECForCAM(domainParams *PACEDomainParams, cardSecurity *document.CardSecurity) (*cryptoutils.EcPoint, error) {
+	slog.Debug("icPubKeyECForCAM")
 
 	var caPubKeyInfos []document.ChipAuthenticationPublicKeyInfo = cardSecurity.SecurityInfos.ChipAuthPubKeyInfos
 
 	if !domainParams.isECDH {
-		return nil, fmt.Errorf("[getIcPubKeyECForCAM] Cannot get EC public key for !EC crypto")
+		return nil, fmt.Errorf("[icPubKeyECForCAM] Cannot get EC public key for !EC crypto")
 	}
 
 	for i := range caPubKeyInfos {
@@ -498,7 +498,7 @@ func getIcPubKeyECForCAM(domainParams *PACEDomainParams, cardSecurity *document.
 		}
 	}
 
-	return nil, fmt.Errorf("[getIcPubKeyECForCAM] Unable to get Public-Key for CAM")
+	return nil, fmt.Errorf("[icPubKeyECForCAM] Unable to get Public-Key for CAM")
 }
 
 // pubMapIC: IC Public Key from earlier mapping operation
@@ -545,9 +545,9 @@ func (pace *Pace) doCamEcdh(paceConfig *PaceConfig, domainParams *PACEDomainPara
 
 	// get IC PubKey (EC) for paramId
 	var pkIC *cryptoutils.EcPoint
-	pkIC, err = getIcPubKeyECForCAM(domainParams, (*pace.document).Mf.CardSecurity)
+	pkIC, err = icPubKeyECForCAM(domainParams, (*pace.document).Mf.CardSecurity)
 	if err != nil {
-		return fmt.Errorf("[doCamEcdh] getIcPubKeyECForCAM error: %w", err)
+		return fmt.Errorf("[doCamEcdh] icPubKeyECForCAM error: %w", err)
 	}
 
 	var KA *cryptoutils.EcPoint = cryptoutils.DoEcDh(caIC, pkIC, domainParams.ec)

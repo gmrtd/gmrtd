@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-const indentString = "  "
+const indentStringValue = "  "
 
 func TagAndLength(buf *bytes.Buffer) (tag TlvTag, length TlvLength, err error) {
 	tag, err = GetTag(buf)
@@ -22,10 +22,10 @@ func TagAndLength(buf *bytes.Buffer) (tag TlvTag, length TlvLength, err error) {
 	return tag, length, nil
 }
 
-func getIndentString(indent int) string {
+func indentString(indent int) string {
 	var sb strings.Builder
 	for i := 0; i < indent; i++ {
-		sb.WriteString(indentString)
+		sb.WriteString(indentStringValue)
 	}
 	return sb.String()
 }

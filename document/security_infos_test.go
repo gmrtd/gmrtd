@@ -31,7 +31,7 @@ func TestDecodeSecurityInfos(t *testing.T) {
 		}
 	}
 
-	if (secInfos.GetTotalCnt() != 1) || (len(secInfos.PaceInfos) != 1) {
+	if (secInfos.TotalCnt() != 1) || (len(secInfos.PaceInfos) != 1) {
 		t.Errorf("Security-Info error")
 	}
 }
@@ -62,7 +62,7 @@ func TestDecodeSecurityInfos2(t *testing.T) {
 		}
 	}
 
-	if (secInfos.GetTotalCnt() != 1) || (len(secInfos.ChipAuthPubKeyInfos) != 1) {
+	if (secInfos.TotalCnt() != 1) || (len(secInfos.ChipAuthPubKeyInfos) != 1) {
 		t.Errorf("Security-Info error")
 	}
 }
@@ -77,7 +77,7 @@ func TestDecodeSecurityInfosEfDir(t *testing.T) {
 		t.Errorf("Unexpected error: %s", err)
 	}
 
-	if (secInfos.GetTotalCnt() != 1) || (len(secInfos.EfDirInfos) != 1) {
+	if (secInfos.TotalCnt() != 1) || (len(secInfos.EfDirInfos) != 1) {
 		t.Errorf("Security-Info error")
 	}
 
@@ -93,7 +93,7 @@ func TestDecodeSecurityInfosCardSecFile(t *testing.T) {
 	}
 
 	// NB test data includes an unhandled sec-info, where id-CA-ECDH (0.4.0.127.0.7.2.2.3.2) is incorrectly specified (from DE passport)
-	if (secInfos.GetTotalCnt() != 7) ||
+	if (secInfos.TotalCnt() != 7) ||
 		(len(secInfos.PaceInfos) != 2) ||
 		(len(secInfos.ChipAuthInfos) != 1) ||
 		(len(secInfos.ChipAuthPubKeyInfos) != 2) ||
