@@ -34,7 +34,7 @@ import (
 * 	AES [FIPS 197] SHALL be used in CMAC-mode [SP 800-38B] with a MAC length of 8 bytes.
  */
 
-func (paceConfig *PaceConfig) computeAuthToken(key []byte, data []byte) ([]byte, error) {
+func (paceConfig *PaceConfig) computeAuthToken(key, data []byte) ([]byte, error) {
 	slog.Debug("computeAuthToken", "key", utils.BytesToHex(key), "data", utils.BytesToHex(data))
 
 	switch paceConfig.authToken {
