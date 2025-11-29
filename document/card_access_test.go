@@ -61,7 +61,7 @@ func TestNewCardAccessHappyAT(t *testing.T) {
 		t.Errorf("Error not expected")
 	}
 
-	if cardAccess.SecurityInfos.GetTotalCnt() != 1 {
+	if cardAccess.SecurityInfos.TotalCnt() != 1 {
 		t.Errorf("1 SecInfo expected")
 	}
 
@@ -86,7 +86,7 @@ func TestNewCardAccessHappyDE(t *testing.T) {
 		t.Errorf("Error not expected")
 	}
 
-	if cardAccess.SecurityInfos.GetTotalCnt() != 2 {
+	if cardAccess.SecurityInfos.TotalCnt() != 2 {
 		t.Errorf("2 SecInfos expected")
 	}
 

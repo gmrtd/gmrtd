@@ -106,7 +106,7 @@ func TestNewCardSecurityDE(t *testing.T) {
 	// verify security-infos
 	if cardSecurity != nil {
 		// NB test data includes an unhandled sec-info, where id-CA-ECDH is incorrectly specified (from DE passport)
-		if (cardSecurity.SecurityInfos.GetTotalCnt() != 7) ||
+		if (cardSecurity.SecurityInfos.TotalCnt() != 7) ||
 			(len(cardSecurity.SecurityInfos.PaceInfos) != 2) ||
 			(len(cardSecurity.SecurityInfos.ChipAuthInfos) != 1) ||
 			(len(cardSecurity.SecurityInfos.ChipAuthPubKeyInfos) != 2) ||

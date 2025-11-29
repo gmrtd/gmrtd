@@ -97,9 +97,9 @@ func (reader *Reader) ReadDocument(transceiver Transceiver, password *MrtdPasswo
 	return err
 }
 
-func (reader *Reader) GetDocumentJson() (jsonData []byte, err error) {
+func (reader *Reader) DocumentJson() (jsonData []byte, err error) {
 	if reader.document == nil {
-		return nil, fmt.Errorf("[GetDocumentJson] No document available")
+		return nil, fmt.Errorf("[DocumentJson] No document available")
 	}
 
 	jsonData, err = json.Marshal(reader.document)

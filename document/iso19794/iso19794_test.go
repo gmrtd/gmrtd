@@ -18,7 +18,7 @@ func TestProcessISO19794(t *testing.T) {
 		t.Fatalf("Unexpected error: %s", err)
 	}
 
-	images := data.GetImages()
+	images := data.Images()
 
 	if len(images) != 1 {
 		t.Fatalf("1 image expected")

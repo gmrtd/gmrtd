@@ -46,7 +46,7 @@ func (node TlvSimpleNode) Encode() []byte {
 
 func (node TlvSimpleNode) stringWithIndent(indent int) string {
 	var sb strings.Builder
-	sb.WriteString(getIndentString(indent))
+	sb.WriteString(indentString(indent))
 	sb.WriteString(fmt.Sprintf("%02x: %x", node.Tag, node.Value))
 	if node.Tag == 0x06 {
 		// special handling for ASN1 OIDs

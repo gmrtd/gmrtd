@@ -34,7 +34,7 @@ func TestNewDG2AllFields39794(t *testing.T) {
 		t.Fatalf("Unexpected error: %s", err)
 	}
 
-	images := ap.GetImages()
+	images := ap.Images()
 
 	if len(images) != 1 {
 		t.Fatalf("1 image expected")
@@ -58,7 +58,7 @@ func TestNewDG2MandFields39794(t *testing.T) {
 		t.Fatalf("Unexpected error: %s", err)
 	}
 
-	images := ap.GetImages()
+	images := ap.Images()
 
 	if len(images) != 1 {
 		t.Fatalf("1 image expected")

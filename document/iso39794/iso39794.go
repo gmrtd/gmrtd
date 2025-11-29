@@ -48,7 +48,7 @@ func ProcessISO39794p5(data []byte) (*ISO39794_5_AP, error) {
 	return &ap, nil
 }
 
-func (ap ISO39794_5_AP) GetImages() [][]byte {
+func (ap ISO39794_5_AP) Images() [][]byte {
 	var out [][]byte = make([][]byte, 0)
 
 	for i := range ap.FaceImageDataBlock.RepresentationBlocks {
