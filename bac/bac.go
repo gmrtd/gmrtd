@@ -88,7 +88,7 @@ func (bac *BAC) buildRequest(rndIfd, rndIcc, kIfd, kEnc, kMac []byte) (cmd []byt
 	return cmd, nil
 }
 
-func (bac *BAC) processResponse(data []byte, kEnc []byte, kMac []byte, rndIfd []byte, rndIcc []byte) (kIcc []byte, err error) {
+func (bac *BAC) processResponse(data, kEnc, kMac, rndIfd, rndIcc []byte) (kIcc []byte, err error) {
 	if len(data) != 40 {
 		return nil, fmt.Errorf("[processResponse] data is not 40 bytes (len:%1d)", len(data))
 	}
@@ -145,7 +145,7 @@ func (bac *BAC) processResponse(data []byte, kEnc []byte, kMac []byte, rndIfd []
 	return rspKIcc, nil
 }
 
-func (bac *BAC) setupSecureMessaging(kEnc []byte, kMac []byte, rndIc []byte, rndIfd []byte) (err error) {
+func (bac *BAC) setupSecureMessaging(kEnc, kMac, rndIc, rndIfd []byte) (err error) {
 	(*bac.nfcSession).SM, err = iso7816.NewSecureMessaging(cryptoutils.TDES, kEnc, kMac)
 	if err != nil {
 		return fmt.Errorf("[setupSecureMessaging] NewSecureMessaging error: %w", err)
