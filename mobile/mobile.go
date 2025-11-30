@@ -57,7 +57,7 @@ func NewPasswordCan(can string) (*MrtdPassword, error) {
 
 type Reader struct {
 	gmrtdReader *reader.Reader
-	document    *document.Document
+	documentEx  *document.DocumentEx
 }
 
 func NewReader(status ReaderStatus) *Reader {
@@ -89,20 +89,20 @@ func (reader *Reader) ReadDocument(transceiver Transceiver, password *MrtdPasswo
 	}()
 
 	// reset document (if already set)
-	reader.document = nil
+	reader.documentEx = nil
 
 	// read (and verify) the document (inc passive-authentication)
-	reader.document, err = reader.gmrtdReader.ReadDocument(transceiver, password.password, atr, ats)
+	reader.documentEx, err = reader.gmrtdReader.ReadDocument(transceiver, password.password, atr, ats)
 
 	return err
 }
 
 func (reader *Reader) DocumentJson() (jsonData []byte, err error) {
-	if reader.document == nil {
+	if reader.documentEx == nil {
 		return nil, fmt.Errorf("[DocumentJson] No document available")
 	}
 
-	jsonData, err = json.Marshal(reader.document)
+	jsonData, err = json.Marshal(reader.documentEx.Document)
 
 	return jsonData, err
 }

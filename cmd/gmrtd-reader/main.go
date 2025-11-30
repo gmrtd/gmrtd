@@ -49,10 +49,10 @@ func (status *PCSCReaderStatus) Status(msg string) {
 
 var tmpl *template.Template
 
-func outputDocument(document *document.Document) {
+func outputDocument(documentEx *document.DocumentEx) {
 	var err error
 
-	if document == nil {
+	if documentEx == nil {
 		return
 	}
 
@@ -77,7 +77,7 @@ func outputDocument(document *document.Document) {
 	byteBuf := bytes.NewBuffer(nil)
 
 	// convert to HTML using template
-	err = tmpl.ExecuteTemplate(byteBuf, "output.gohtml", document)
+	err = tmpl.ExecuteTemplate(byteBuf, "output.gohtml", documentEx)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -200,13 +200,13 @@ func main() {
 	}
 
 	// read (and verify) the document (inc passive-authentication)
-	document, err := reader.ReadDocument(transceiver, pass, atr, ats)
+	documentEx, err := reader.ReadDocument(transceiver, pass, atr, ats)
 	if err != nil {
 		// output whatever we have from the document
-		outputDocument(document)
+		outputDocument(documentEx)
 		slog.Error("ReadDocument", "error", err)
 		os.Exit(1)
 	}
 
-	outputDocument(document)
+	outputDocument(documentEx)
 }

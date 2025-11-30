@@ -8,7 +8,6 @@ import (
 	"log/slog"
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
-	"github.com/gmrtd/gmrtd/iso7816"
 	"github.com/gmrtd/gmrtd/utils"
 )
 
@@ -16,7 +15,7 @@ type MasterFile struct {
 	CardAccess   *CardAccess   `json:"cardAccess,omitempty"`
 	CardSecurity *CardSecurity `json:"cardSecurity,omitempty"` // NB only read for PACE-CAM - read during PACE flow
 	Dir          *EFDIR        `json:"dir,omitempty"`          // indicates which applications are present - generally not available
-	Lds1         LDS1          `json:"lds1,omitempty"`
+	Lds1         LDS1          `json:"lds1"`
 }
 
 type LDS1 struct {
@@ -33,52 +32,8 @@ type LDS1 struct {
 	Dg16 *DG16 `json:"dg16,omitempty"` // DATA GROUP 16 — Person(s) to Notify (OPTIONAL)
 }
 
-type PassiveAuth struct {
-	CertChain [][]byte `json:"certChain,omitempty"`
-}
-
-func NewPassiveAuth(certChain [][]byte) *PassiveAuth {
-	return &PassiveAuth{CertChain: certChain}
-}
-
 type Document struct {
-	Atr []byte `json:"atr,omitempty"`
-	Ats []byte `json:"ats,omitempty"`
-
-	Mf MasterFile `json:"mf,omitempty"`
-
-	ChipAuthStatus ChipAuthStatus `json:"chipAuthStatus"`
-
-	// passive auth
-	PassiveAuthSOD     *PassiveAuth `json:"passiveAuthSod,omitempty"`
-	PassiveAuthCardSec *PassiveAuth `json:"passiveAuthCardSecurity,omitempty"`
-
-	Apdus []iso7816.ApduLog `json:"apdus,omitempty"`
-}
-
-type ChipAuthStatus int
-
-// intentionally use explicit values instead of iota
-const (
-	CHIP_AUTH_STATUS_NONE     = 0
-	CHIP_AUTH_STATUS_PACE_CAM = 1
-	CHIP_AUTH_STATUS_CA       = 2
-	CHIP_AUTH_STATUS_AA       = 3
-)
-
-func (cas ChipAuthStatus) String() string {
-	switch cas {
-	case CHIP_AUTH_STATUS_NONE:
-		return "n/a"
-	case CHIP_AUTH_STATUS_PACE_CAM:
-		return "PACE-CAM"
-	case CHIP_AUTH_STATUS_CA:
-		return "Chip Authentication"
-	case CHIP_AUTH_STATUS_AA:
-		return "Active Authentication"
-	}
-
-	return fmt.Sprintf("*UnsupportedValue* (cas:%d)", int(cas))
+	Mf MasterFile `json:"mf"`
 }
 
 // gets the LDS Version (e.g. '0108') from EF.SOD or EF.COM
@@ -285,7 +240,6 @@ func (doc *Document) Verify() error {
 }
 
 func (doc *Document) IndentedJson() string {
-
 	b, err := json.MarshalIndent(doc, "", "    ")
 	if err != nil {
 		log.Panicf("MarshalIndent error: %s", err)

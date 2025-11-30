@@ -79,19 +79,11 @@ table.striped tbody tr:hover {
   <tbody>
     <tr>
       <td>LDS version</td>
-      <td>{{.LdsVersion}}</td>
+      <td>{{.Document.LdsVersion}}</td>
     </tr>
     <tr>
       <td>Unicode version</td>
-      <td>{{.UnicodeVersion}}</td>
-    </tr>
-    <tr>
-      <td>ATR</td>
-      <td>{{.Atr | BytesToHex}}</td>
-    </tr>
-    <tr>
-      <td>ATS</td>
-      <td>{{.Ats | BytesToHex}}</td>
+      <td>{{.Document.UnicodeVersion}}</td>
     </tr>
   </tbody>
 </table>
@@ -99,6 +91,10 @@ table.striped tbody tr:hover {
 
 <br/>
 
+<h1>Session</H1>
+
+<h2>Chip Activation Response</h2>
+{{if .Session.ChipActivationRsp}}
 <div>
 <table class="striped">
   <thead>
@@ -109,48 +105,217 @@ table.striped tbody tr:hover {
   </thead>
   <tbody>
     <tr>
-      <td>ChipAuthStatus</td>
-      <td>{{.ChipAuthStatus}}</td>
+      <td>ATR</td>
+      <td>{{.Session.ChipActivationRsp.Atr | BytesToHex}}</td>
+    </tr>
+    <tr>
+      <td>ATS</td>
+      <td>{{.Session.ChipActivationRsp.Ats | BytesToHex}}</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+{{else}}
+<i>No data</i>
+{{end}}
+
+<h2>BAC <sub>Basic Access Control</sub></h2>
+{{if or .Session.BacErr .Session.BacResult}}
+{{if .Session.BacErr}}
+<h3>Error: {{.Session.BacErr}}</h3>
+{{end}}
+{{if .Session.BacResult}}
+<div>
+<table class="striped">
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Value</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Success</td>
+      <td>{{.Session.BacResult.Success}}</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+{{end}}
+{{else}}
+<i>No data</i>
+{{end}}
+
+<h2>PACE <sub>Password Authenticated Connection Establishment</sub></h2>
+{{if or .Session.PaceErr .Session.PaceResult}}
+{{if .Session.PaceErr}}
+<h3>Error: {{.Session.PaceErr}}</h3>
+{{end}}
+{{if .Session.PaceResult}}
+<div>
+<table class="striped">
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Value</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Success</td>
+      <td>{{.Session.PaceResult.Success}}</td>
+    </tr>
+    <tr>
+      <td>OID</td>
+      <td>{{.Session.PaceResult.Oid}}</td>
+    </tr>
+    <tr>
+      <td>ParameterId</td>
+      <td>{{.Session.PaceResult.ParameterId}}</td>
+    </tr>
+    <tr>
+      <td>ChipAuthenticated (PACE-CAM)</td>
+      <td>{{.Session.PaceResult.ChipAuthenticated}}</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+{{end}}
+{{else}}
+<i>No data</i>
+{{end}}
+
+<h2>CA <sub>Chip Authentication</sub></h2>
+{{if or .Session.ChipAuthErr .Session.ChipAuthResult}}
+{{if .Session.ChipAuthErr}}
+<h3>Error: {{.Session.ChipAuthErr}}</h3>
+{{end}}
+{{if .Session.ChipAuthResult}}
+<div>
+<table class="striped">
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Value</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Success</td>
+      <td>{{.Session.ChipAuthResult.Success}}</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+{{end}}
+{{else}}
+<i>No data</i>
+{{end}}
+
+<h2>AA <sub>Active Authentication</sub></h2>
+{{if or .Session.ActiveAuthErr .Session.ActiveAuthResult}}
+{{if .Session.ActiveAuthErr}}
+<h3>Error: {{.Session.ActiveAuthErr}}</h3>
+{{end}}
+{{if .Session.ActiveAuthResult}}
+<div>
+<table class="striped">
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Value</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Success</td>
+      <td>{{.Session.ActiveAuthResult.Success}}</td>
+    </tr>
+    <tr>
+      <td>Algorithm</td>
+      <td>{{.Session.ActiveAuthResult.Algorithm}}</td>
+    </tr>
+    <tr>
+      <td>Nonce</td>
+      <td>{{.Session.ActiveAuthResult.Nonce | BytesToHex}}</td>
+    </tr>
+    <tr>
+      <td>Signature</td>
+      <td>{{.Session.ActiveAuthResult.Signature | BytesToHex}}</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+{{end}}
+{{else}}
+<i>No data</i>
+{{end}}
+
+<h2>PA <sub>Passive Authentication</sub></h2>
+{{if or .Session.PassiveAuthErr .Session.PassiveAuthResult}}
+{{if .Session.PassiveAuthErr}}
+<h3>Error: {{.Session.PassiveAuthErr}}</h3>
+{{end}}
+{{if .Session.PassiveAuthResult}}
+<div>
+<table class="striped">
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Value</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Success</td>
+      <td>{{.Session.PassiveAuthResult.Success}}</td>
     </tr>
   </tbody>
 </table>
 </div>
 
-<h2>Passive Authentication <sub>SOD</sub></h2>
-{{if .PassiveAuthSOD}}
-    {{ range .PassiveAuthSOD.CertChain }}
+<h3>SOD</h3>
+{{if .Session.PassiveAuthResult.Sod}}
+    {{ range .Session.PassiveAuthResult.Sod.CertChain }}
         {{template "fileHexAndTlv" .}}
     {{ end }}
 {{else}}
 <i>No data</i>
 {{end}}
 
-<h2>Passive Authentication <sub>CardSecurity</sub></h2>
-{{if .PassiveAuthCardSec}}
-    {{ range .PassiveAuthCardSec.CertChain }}
+<h3>CardSecurity</h3>
+{{if .Session.PassiveAuthResult.CardSec}}
+    {{ range .Session.PassiveAuthResult.CardSec.CertChain }}
         {{template "fileHexAndTlv" .}}
     {{ end }}
 {{else}}
 <i>No data</i>
 {{end}}
 
-{{template "cardAccess" .Mf.CardAccess}}
-{{template "cardSecurity" .Mf.CardSecurity}}
-{{template "dir" .Mf.Dir}}
-{{template "com" .Mf.Lds1.Com}}
-{{template "sod" .Mf.Lds1.Sod}}
+{{end}}
+{{else}}
+<i>No data</i>
+{{end}}
 
-{{template "dg1" .Mf.Lds1.Dg1}}
-{{template "dg2" .Mf.Lds1.Dg2}}
-{{template "dg7" .Mf.Lds1.Dg7}}
-{{template "dg11" .Mf.Lds1.Dg11}}
-{{template "dg12" .Mf.Lds1.Dg12}}
-{{template "dg13" .Mf.Lds1.Dg13}}
-{{template "dg14" .Mf.Lds1.Dg14}}
-{{template "dg15" .Mf.Lds1.Dg15}}
-{{template "dg16" .Mf.Lds1.Dg16}}
+<h1>Document</h1>
 
-{{template "apduLog" .Apdus}}
+{{template "cardAccess" .Document.Mf.CardAccess}}
+{{template "cardSecurity" .Document.Mf.CardSecurity}}
+{{template "dir" .Document.Mf.Dir}}
+{{template "com" .Document.Mf.Lds1.Com}}
+{{template "sod" .Document.Mf.Lds1.Sod}}
+
+{{template "dg1" .Document.Mf.Lds1.Dg1}}
+{{template "dg2" .Document.Mf.Lds1.Dg2}}
+{{template "dg7" .Document.Mf.Lds1.Dg7}}
+{{template "dg11" .Document.Mf.Lds1.Dg11}}
+{{template "dg12" .Document.Mf.Lds1.Dg12}}
+{{template "dg13" .Document.Mf.Lds1.Dg13}}
+{{template "dg14" .Document.Mf.Lds1.Dg14}}
+{{template "dg15" .Document.Mf.Lds1.Dg15}}
+{{template "dg16" .Document.Mf.Lds1.Dg16}}
+
+{{template "apduLog" .Session.Apdus}}
 
 <div id="json">
 <h1>Document JSON</h1>

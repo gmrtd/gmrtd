@@ -127,17 +127,26 @@ func (activeAuth *ActiveAuth) doInternalAuthenticate(rndIfd []byte) (rspBytes []
 	return rspBytes, nil
 }
 
-func (activeAuth *ActiveAuth) DoActiveAuth() (err error) {
-
-	// skip if we have already performed chip authentication
-	if (*activeAuth.document).ChipAuthStatus != document.CHIP_AUTH_STATUS_NONE {
-		return nil
-	}
-
+// DoActiveAuth performs ICAO 9303 Active Authentication (AA) against the
+// eMRTD chip to confirm possession of the private key associated with DG15.
+//
+// Flow:
+//  1. Checks presence of DG15 (AA public key). If missing, returns (nil, nil)
+//     to indicate AA is skipped without error.
+//  2. Generates a random challenge (RndIFD) and sends it to the chip using the
+//     INTERNAL AUTHENTICATE command.
+//  3. Validates the returned signature using the public key from DG15.
+//  4. Emits debug logs for secure messaging (pre/post) when enabled.
+//
+// Returns:
+//   - ActiveAuthResult on successful AA verification.
+//   - A wrapped error if INTERNAL AUTHENTICATE or signature verification fails.
+//   - (nil, nil) if AA cannot be performed due to missing DG15.
+func (activeAuth *ActiveAuth) DoActiveAuth() (result *document.ActiveAuthResult, err error) {
 	// skip if DG15 is missing
 	if (*activeAuth.document).Mf.Lds1.Dg15 == nil {
 		slog.Debug("DoActiveAuth - skipping AA as DG15 is not present")
-		return nil
+		return nil, nil
 	}
 
 	if (*activeAuth.nfcSession).SM != nil {
@@ -150,25 +159,29 @@ func (activeAuth *ActiveAuth) DoActiveAuth() (err error) {
 
 	intAuthRspBytes, err = activeAuth.doInternalAuthenticate(rndIfd)
 	if err != nil {
-		return err
+		return &document.ActiveAuthResult{Success: false}, fmt.Errorf("[DoActiveAuth] doInternalAuthenticate error: %w", err)
 	}
 
-	err = activeAuth.ValidateActiveAuthSignature(intAuthRspBytes, rndIfd)
+	result, err = ValidateActiveAuthSignature((*activeAuth.document).Mf.Lds1.Dg15, intAuthRspBytes, rndIfd)
 	if err != nil {
-		return err
+		return result, fmt.Errorf("[DoActiveAuth] ValidateActiveAuthSignature error: %w", err)
 	}
 
 	if (*activeAuth.nfcSession).SM != nil {
 		slog.Debug("DoActiveAuth", "SM(post)", (*activeAuth.nfcSession).SM.String())
 	}
 
-	return
+	return result, err
 }
 
-func (activeAuth *ActiveAuth) ValidateActiveAuthSignature(intAuthRspBytes, rndIfd []byte) error {
+// - reduces dependency on 'activeAuth', which is not always be setup fully by caller
+func ValidateActiveAuthSignature(dg15 *document.DG15, intAuthRspBytes, rndIfd []byte) (result *document.ActiveAuthResult, err error) {
 	var errContext string
 
-	var subPubKeyInfo cms.SubjectPublicKeyInfo = cms.Asn1decodeSubjectPublicKeyInfo((*activeAuth.document).Mf.Lds1.Dg15.SubjectPublicKeyInfoBytes)
+	var subPubKeyInfo cms.SubjectPublicKeyInfo = cms.Asn1decodeSubjectPublicKeyInfo(dg15.SubjectPublicKeyInfoBytes)
+
+	// setup result - but set success to FALSE (initially)
+	result = &document.ActiveAuthResult{Success: false, Algorithm: subPubKeyInfo.Algorithm.Algorithm, Nonce: bytes.Clone(rndIfd), Signature: bytes.Clone(intAuthRspBytes)}
 
 	switch subPubKeyInfo.Algorithm.Algorithm.String() {
 	case oid.OidRsaEncryption.String():
@@ -193,7 +206,7 @@ func (activeAuth *ActiveAuth) ValidateActiveAuthSignature(intAuthRspBytes, rndIf
 
 			m1, d, hashAlg, err := decodeF(f)
 			if err != nil {
-				return fmt.Errorf("(DoActiveAuth) decodeF error: %w (Context:%s)", err, errContext)
+				return result, fmt.Errorf("(ValidateActiveAuthSignature) decodeF error: %w (Context:%s)", err, errContext)
 			}
 
 			// m is concat of m1 and m2 (rnd-ifd)
@@ -206,11 +219,8 @@ func (activeAuth *ActiveAuth) ValidateActiveAuthSignature(intAuthRspBytes, rndIf
 
 			// verify the hash
 			if !bytes.Equal(d, expD) {
-				return fmt.Errorf("(DoActiveAuth) hash mismatch (exp:%x,act:%x) (Context:%s)", expD, d, errContext)
+				return result, fmt.Errorf("(ValidateActiveAuthSignature) hash mismatch (exp:%x,act:%x) (Context:%s)", expD, d, errContext)
 			}
-
-			// update status to reflect AA was performed
-			(*activeAuth.document).ChipAuthStatus = document.CHIP_AUTH_STATUS_AA
 		}
 	case oid.OidEcPublicKey.String():
 		{
@@ -224,7 +234,7 @@ func (activeAuth *ActiveAuth) ValidateActiveAuthSignature(intAuthRspBytes, rndIf
 			*/
 			curve, ecPoint, err := subPubKeyInfo.EcCurveAndPubKey()
 			if err != nil {
-				return fmt.Errorf("(ValidateActiveAuthSignature) EcCurveAndPubKey error: %w (Context:%s)", err, errContext)
+				return result, fmt.Errorf("(ValidateActiveAuthSignature) EcCurveAndPubKey error: %w (Context:%s)", err, errContext)
 			}
 
 			pub := &ecdsa.PublicKey{
@@ -236,7 +246,7 @@ func (activeAuth *ActiveAuth) ValidateActiveAuthSignature(intAuthRspBytes, rndIf
 			var r, s big.Int
 			// Plain concatenation r||s (TR-03110 "ecdsa-plain" style)
 			if len(intAuthRspBytes)%2 != 0 {
-				return fmt.Errorf("(ValidateActiveAuthSignature) Unexpected plain signature length: %d (Context:%s)", len(intAuthRspBytes), errContext)
+				return result, fmt.Errorf("(ValidateActiveAuthSignature) Unexpected plain signature length: %d (Context:%s)", len(intAuthRspBytes), errContext)
 			}
 			half := len(intAuthRspBytes) / 2
 			r.SetBytes(intAuthRspBytes[:half])
@@ -246,11 +256,15 @@ func (activeAuth *ActiveAuth) ValidateActiveAuthSignature(intAuthRspBytes, rndIf
 			var hash = cryptoutils.CryptoHash(alg, rndIfd)
 			var verified = ecdsa.Verify(pub, hash, &r, &s)
 			if !verified {
-				return fmt.Errorf("(ValidateActiveAuthSignature) AA signature did not verify with hash: %s for the provided nonce", alg.String())
+				return result, fmt.Errorf("(ValidateActiveAuthSignature) AA signature did not verify with hash: %s for the provided nonce", alg.String())
 			}
 		}
 	default:
-		return fmt.Errorf("(ValidateActiveAuthSignature) unsupported SubjectPublicKeyInfo (OID:%s) (Context:%s)", subPubKeyInfo.Algorithm.Algorithm.String(), errContext)
+		return result, fmt.Errorf("(ValidateActiveAuthSignature) unsupported SubjectPublicKeyInfo (OID:%s) (Context:%s)", subPubKeyInfo.Algorithm.Algorithm.String(), errContext)
 	}
-	return nil
+
+	// update result to indicate SUCCESS
+	result.Success = true
+
+	return result, err
 }

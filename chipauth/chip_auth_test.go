@@ -2,6 +2,7 @@ package chipauth
 
 import (
 	"crypto/elliptic"
+	"reflect"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
@@ -19,28 +20,14 @@ func TestChipEmptyDoc(t *testing.T) {
 
 	ca := NewChipAuth(nfc, &doc)
 
-	err := ca.DoChipAuth()
+	result, err := ca.DoChipAuth()
 
 	if err != nil {
 		t.Errorf("unexpected error: %s", err)
 	}
-}
 
-func TestChipNotReq(t *testing.T) {
-	// silently skip if the document indicates that Chip-Auth has already been performed
-	var doc document.Document
-
-	// record that ChipAuth was performed via AA
-	doc.ChipAuthStatus = document.CHIP_AUTH_STATUS_AA
-
-	nfc := iso7816.NewNfcSession(&iso7816.StaticTransceiver{})
-
-	ca := NewChipAuth(nfc, &doc)
-
-	err := ca.DoChipAuth()
-
-	if err != nil {
-		t.Errorf("unexpected error: %s", err)
+	if result != nil {
+		t.Errorf("unexpected result")
 	}
 }
 
@@ -104,14 +91,17 @@ func TestChipAuthAT(t *testing.T) {
 
 	chipAuth.keyGeneratorEc = getTestKeyGenEc()
 
-	err = chipAuth.DoChipAuth()
+	var result *document.ChipAuthResult
+
+	result, err = chipAuth.DoChipAuth()
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
 
-	// verify CA status reflects that CA was performed
-	if doc.ChipAuthStatus != document.CHIP_AUTH_STATUS_CA {
-		t.Errorf("CA status not reflecting CA (Exp:%d, Act:%d)", document.CHIP_AUTH_STATUS_CA, doc.ChipAuthStatus)
+	// verify Result is as expected
+	var expResult *document.ChipAuthResult = &document.ChipAuthResult{Success: true}
+	if !reflect.DeepEqual(result, expResult) {
+		t.Errorf("Result differs to expected [Act] %+v [Exp] %+v", result, expResult)
 	}
 
 	var smExp *iso7816.SecureMessaging
@@ -189,14 +179,17 @@ func TestChipAuthDE(t *testing.T) {
 
 	chipAuth.keyGeneratorEc = getTestKeyGenEc()
 
-	err = chipAuth.DoChipAuth()
+	var result *document.ChipAuthResult
+
+	result, err = chipAuth.DoChipAuth()
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
 
-	// verify CA status reflects that CA was performed
-	if doc.ChipAuthStatus != document.CHIP_AUTH_STATUS_CA {
-		t.Errorf("CA status not reflecting CA (Exp:%d, Act:%d)", document.CHIP_AUTH_STATUS_CA, doc.ChipAuthStatus)
+	// verify Result is as expected
+	var expResult *document.ChipAuthResult = &document.ChipAuthResult{Success: true}
+	if !reflect.DeepEqual(result, expResult) {
+		t.Errorf("Result differs to expected [Act] %+v [Exp] %+v", result, expResult)
 	}
 
 	var smExp *iso7816.SecureMessaging
@@ -274,14 +267,17 @@ func TestChipAuthMY(t *testing.T) {
 
 	chipAuth.keyGeneratorEc = getTestKeyGenEc()
 
-	err = chipAuth.DoChipAuth()
+	var result *document.ChipAuthResult
+
+	result, err = chipAuth.DoChipAuth()
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
 
-	// verify CA status reflects that CA was performed
-	if doc.ChipAuthStatus != document.CHIP_AUTH_STATUS_CA {
-		t.Errorf("CA status not reflecting CA (Exp:%d, Act:%d)", document.CHIP_AUTH_STATUS_CA, doc.ChipAuthStatus)
+	// verify Result is as expected
+	var expResult *document.ChipAuthResult = &document.ChipAuthResult{Success: true}
+	if !reflect.DeepEqual(result, expResult) {
+		t.Errorf("Result differs to expected [Act] %+v [Exp] %+v", result, expResult)
 	}
 
 	var smExp *iso7816.SecureMessaging
@@ -357,14 +353,17 @@ func TestChipAuthFR(t *testing.T) {
 
 	chipAuth.keyGeneratorEc = getTestKeyGenEc()
 
-	err = chipAuth.DoChipAuth()
+	var result *document.ChipAuthResult
+
+	result, err = chipAuth.DoChipAuth()
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
 
-	// verify CA status reflects that CA was performed
-	if doc.ChipAuthStatus != document.CHIP_AUTH_STATUS_CA {
-		t.Errorf("CA status not reflecting CA (Exp:%d, Act:%d)", document.CHIP_AUTH_STATUS_CA, doc.ChipAuthStatus)
+	// verify Result is as expected
+	var expResult *document.ChipAuthResult = &document.ChipAuthResult{Success: true}
+	if !reflect.DeepEqual(result, expResult) {
+		t.Errorf("Result differs to expected [Act] %+v [Exp] %+v", result, expResult)
 	}
 
 	var smExp *iso7816.SecureMessaging

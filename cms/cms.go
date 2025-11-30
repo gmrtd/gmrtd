@@ -86,10 +86,10 @@ type SignerInfo struct {
 	Version                   int                 `asn1:"default:1" json:"version"`
 	Sid                       asn1.RawValue       `json:"sid"`
 	DigestAlgorithm           AlgorithmIdentifier `json:"digestAlgorithm"`
-	AuthenticatedAttributes   AttributeList       `asn1:"optional,tag:0" json:"authenticatedAttributes"`
+	AuthenticatedAttributes   AttributeList       `asn1:"optional,tag:0" json:"authenticatedAttributes,omitempty"`
 	DigestEncryptionAlgorithm AlgorithmIdentifier `json:"digestEncryptionAlgorithm"`
 	EncryptedDigest           []byte              `json:"encryptedDigest"`
-	UnauthenticatedAttributes AttributeList       `asn1:"optional,tag:1" json:"unauthenticatedAttributes"`
+	UnauthenticatedAttributes AttributeList       `asn1:"optional,tag:1" json:"unauthenticatedAttributes,omitempty"`
 }
 
 // SignerIdentifier ::= CHOICE {

@@ -558,9 +558,6 @@ func (pace *Pace) doCamEcdh(paceConfig *PaceConfig, domainParams *PACEDomainPara
 		return fmt.Errorf("[doCamEcdh] PACE CAM verification failed (Bad KA.X/Y) KA:%s, pubMapIC:%s", KA.String(), pubMapIC.String())
 	}
 
-	// record that Chip Auth has been performed using PACE-CAM
-	(*pace.document).ChipAuthStatus = document.CHIP_AUTH_STATUS_PACE_CAM
-
 	return nil
 }
 
@@ -650,22 +647,29 @@ func (pace *Pace) doGenericMappingGmCam(paceConfig *PaceConfig, domainParams *PA
 	return nil
 }
 
-func (pace *Pace) DoPACE() (err error) {
+func (pace *Pace) DoPACE() (result *document.PaceResult, err error) {
 	slog.Debug("DoPACE", "password-type", pace.password.PasswordType, "password", pace.password.Password)
 
 	// PACE requires card-access
 	if (*pace.document).Mf.CardAccess == nil {
 		slog.Debug("DoPACE - SKIPPING as no CardAccess file is present")
-		return nil
+		return nil, nil
 	}
+
+	// setup the result (but mark as !success)
+	result = &document.PaceResult{Success: false}
 
 	var paceConfig *PaceConfig
 	var domainParams *PACEDomainParams
 
 	paceConfig, domainParams, err = selectPaceConfig((*pace.document).Mf.CardAccess)
 	if err != nil {
-		return fmt.Errorf("[DoPACE] selectPaceConfig error: %w", err)
+		return result, fmt.Errorf("[DoPACE] selectPaceConfig error: %w", err)
 	}
+
+	// update result to indicate the selected OID/ParameterId
+	result.Oid = paceConfig.oid
+	result.ParameterId = domainParams.id
 
 	slog.Debug("DoPace", "selected paceConfig", paceConfig.String())
 
@@ -673,7 +677,7 @@ func (pace *Pace) DoPACE() (err error) {
 
 	// init PACE (via 'MSE:Set AT' command)
 	if err = pace.doApduMseSetAT(paceConfig, domainParams); err != nil {
-		return fmt.Errorf("[DoPACE] doApduMsgSetAT error: %w", err)
+		return result, fmt.Errorf("[DoPACE] doApduMseSetAT error: %w", err)
 	}
 
 	// get nonce
@@ -683,13 +687,20 @@ func (pace *Pace) DoPACE() (err error) {
 	switch paceConfig.mapping {
 	case GM, CAM:
 		if err = pace.doGenericMappingGmCam(paceConfig, domainParams, s); err != nil {
-			return fmt.Errorf("[DoPACE] doGenericMappingGmCam error: %w", err)
+			return result, fmt.Errorf("[DoPACE] doGenericMappingGmCam error: %w", err)
+		}
+		if paceConfig.mapping == CAM {
+			// flag 'Chip Authentication' for CAM
+			result.ChipAuthenticated = true
 		}
 	case IM:
-		return fmt.Errorf("[DoPACE] PACE-IM NOT IMPLEMENTED")
+		return result, fmt.Errorf("[DoPACE] PACE-IM NOT IMPLEMENTED")
 	}
+
+	// update result to indicate success
+	result.Success = true
 
 	slog.Debug("DoPACE - Completed", "SM", (*pace.nfcSession).SM.String())
 
-	return nil
+	return result, nil
 }
