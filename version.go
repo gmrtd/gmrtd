@@ -1,3 +1,3 @@
 package gmrtd
 
-const Version = "0.12.4" // x-release-please-version
+const Version = "0.13.0" // x-release-please-version
