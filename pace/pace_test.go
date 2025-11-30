@@ -5,6 +5,7 @@ import (
 	"crypto/elliptic"
 	"encoding/asn1"
 	"math"
+	"reflect"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
@@ -291,9 +292,16 @@ func TestDoPaceNoCardAccessFile(t *testing.T) {
 
 	var pace *Pace = NewPace(nfc, &doc, pass)
 
-	err = pace.DoPACE()
+	var paceResult *document.PaceResult
+
+	paceResult, err = pace.DoPACE()
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
+	}
+
+	// NB no PaceResult when CardAccess file is missing
+	if paceResult != nil {
+		t.Errorf("Unexpected PACE result")
 	}
 
 	// verify that PACE was not performed (i.e. no secure-messaging)
@@ -365,9 +373,17 @@ func TestDoPace_GM_ECDH(t *testing.T) {
 	// override EC key-generator (to ensure predictable keys)
 	pace.keyGeneratorEc = getTestKeyGenEc()
 
-	err = pace.DoPACE()
+	var paceResult *document.PaceResult
+
+	paceResult, err = pace.DoPACE()
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
+	}
+
+	// verify Result is as expected
+	var expPaceResult *document.PaceResult = &document.PaceResult{Success: true, Oid: oid.OidPaceEcdhGmAesCbcCmac128, ParameterId: 13, ChipAuthenticated: false}
+	if !reflect.DeepEqual(paceResult, expPaceResult) {
+		t.Errorf("Result differs to expected [Act] %+v [Exp] %+v", paceResult, expPaceResult)
 	}
 
 	// verify Secure-Messaging was setup correctly
@@ -383,12 +399,6 @@ func TestDoPace_GM_ECDH(t *testing.T) {
 			t.Errorf("SecureMessaging differs to expected")
 		}
 	}
-
-	// verify chip-auth-status is NA
-	if doc.ChipAuthStatus != document.CHIP_AUTH_STATUS_NONE {
-		t.Errorf("ChipAuthStatus != NONE")
-	}
-
 }
 
 // PACE test for GM (ECDH) using TDES/CBC (NZ)
@@ -452,9 +462,17 @@ func TestDoPace_GM_ECDH_TDES_CBC_NZ(t *testing.T) {
 	// override EC key-generator (to ensure predictable keys)
 	pace.keyGeneratorEc = getTestKeyGenEc()
 
-	err = pace.DoPACE()
+	var paceResult *document.PaceResult
+
+	paceResult, err = pace.DoPACE()
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
+	}
+
+	// verify Result is as expected
+	var expPaceResult *document.PaceResult = &document.PaceResult{Success: true, Oid: oid.OidPaceEcdhGm3DesCbcCbc, ParameterId: 13, ChipAuthenticated: false}
+	if !reflect.DeepEqual(paceResult, expPaceResult) {
+		t.Errorf("Result differs to expected [Act] %+v [Exp] %+v", paceResult, expPaceResult)
 	}
 
 	// verify Secure-Messaging was setup correctly
@@ -470,12 +488,6 @@ func TestDoPace_GM_ECDH_TDES_CBC_NZ(t *testing.T) {
 			t.Errorf("SecureMessaging differs to expected")
 		}
 	}
-
-	// verify chip-auth-status is NA
-	if doc.ChipAuthStatus != document.CHIP_AUTH_STATUS_NONE {
-		t.Errorf("ChipAuthStatus != NONE")
-	}
-
 }
 
 func TestDoPace_CAM_ECDH_DE(t *testing.T) {
@@ -549,9 +561,17 @@ func TestDoPace_CAM_ECDH_DE(t *testing.T) {
 	// override EC key-generator (to ensure predictable keys)
 	pace.keyGeneratorEc = getTestKeyGenEc()
 
-	err = pace.DoPACE()
+	var paceResult *document.PaceResult
+
+	paceResult, err = pace.DoPACE()
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
+	}
+
+	// verify Result is as expected
+	var expPaceResult *document.PaceResult = &document.PaceResult{Success: true, Oid: oid.OidPaceEcdhCamAesCbcCmac128, ParameterId: 13, ChipAuthenticated: true}
+	if !reflect.DeepEqual(paceResult, expPaceResult) {
+		t.Errorf("Result differs to expected [Act] %+v [Exp] %+v", paceResult, expPaceResult)
 	}
 
 	// verify Secure-Messaging state (inc final SSC) is correct
@@ -566,11 +586,6 @@ func TestDoPace_CAM_ECDH_DE(t *testing.T) {
 		if !nfc.SM.Equal(*smExp) {
 			t.Errorf("SecureMessaging differs to expected")
 		}
-	}
-
-	// verify chip-auth-status reflects PACE-CAM was performed
-	if doc.ChipAuthStatus != document.CHIP_AUTH_STATUS_PACE_CAM {
-		t.Errorf("ChipAuthStatus is not reflecting PACE-CAM")
 	}
 }
 

@@ -121,19 +121,17 @@ func (reader *Reader) readLDS1dgs(nfc *iso7816.NfcSession, doc *document.Documen
 	return nil
 }
 
-func performChipAuthentication(nfc *iso7816.NfcSession, doc *document.Document) (err error) {
-	if doc.ChipAuthStatus == document.CHIP_AUTH_STATUS_NONE {
-		err = chipauth.NewChipAuth(nfc, doc).DoChipAuth()
-		if err != nil {
-			return err
-		}
+func performChipAuthentication(nfc *iso7816.NfcSession, docEx *document.DocumentEx) (err error) {
+	if !docEx.Session.ChipAuthenticated() {
+		// attempt chip-authentication (if supported)
+		// NB errors are just recorded at this point
+		docEx.Session.ChipAuthResult, docEx.Session.ChipAuthErr = chipauth.NewChipAuth(nfc, &docEx.Document).DoChipAuth()
 	}
 
-	if doc.ChipAuthStatus == document.CHIP_AUTH_STATUS_NONE {
-		err = activeauth.NewActiveAuth(nfc, doc).DoActiveAuth()
-		if err != nil {
-			return err
-		}
+	if !docEx.Session.ChipAuthenticated() {
+		// attempt active-authentication (if supported)
+		// NB errors are just recorded at this point
+		docEx.Session.ActiveAuthResult, docEx.Session.ActiveAuthErr = activeauth.NewActiveAuth(nfc, &docEx.Document).DoActiveAuth()
 	}
 
 	return nil
@@ -169,8 +167,8 @@ func (reader *Reader) SkipPace() {
 
 // reads the document using the specified transceiver and password
 // - also performs doc.Verify() and Passive Authentication!
-// NB returns partial data (MrtdDocument) in the event of an error
-func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *password.Password, atr []byte, ats []byte) (doc *document.Document, err error) {
+// NB returns partial data (docEx) in the event of an error
+func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *password.Password, atr []byte, ats []byte) (docEx *document.DocumentEx, err error) {
 	defer func() {
 		if e := recover(); e != nil {
 			switch x := e.(type) {
@@ -192,27 +190,22 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 		nfc.MaxLe = reader.apduMaxLe
 	}
 
-	doc = new(document.Document)
+	docEx = new(document.DocumentEx)
 
 	// record ATR/ATS
 	// NB we don't really do much with these today, just recording
-	doc.Atr = bytes.Clone(atr)
-	doc.Ats = bytes.Clone(ats)
-	slog.Debug("ATR/ATS",
-		"ATR", utils.BytesToHex(doc.Atr),
-		"ATS", utils.BytesToHex(doc.Ats),
-	)
+	recordAtrAts(atr, ats, &docEx.Session)
 
 	// NB spec recommends not to use, but iOS may pre-select the MRTD AID
 	slog.Info("Selecting MF")
 	if err = nfc.SelectMF(); err != nil {
-		return doc, err
+		return docEx, err
 	}
 
 	slog.Info("Read CardAccess")
 	// may not be present (OR may be present but not have PACE info)
-	if doc.Mf.CardAccess, err = document.NewCardAccess(nfc.ReadFileOrPanic(MRTDFileIdCardAccess)); err != nil {
-		return doc, err
+	if docEx.Document.Mf.CardAccess, err = document.NewCardAccess(nfc.ReadFileOrPanic(MRTDFileIdCardAccess)); err != nil {
+		return docEx, err
 	}
 
 	/*
@@ -220,26 +213,24 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 	 */
 	if !reader.skipPace {
 		reader.status.Status("PACE")
-		err = pace.NewPace(nfc, doc, password).DoPACE()
-		if err != nil {
-			return doc, err
-		}
+		// NB errors are just recorded at this point
+		docEx.Session.PaceResult, docEx.Session.PaceErr = pace.NewPace(nfc, &docEx.Document, password).DoPACE()
 	}
 
 	// NB moved after PACE as we've seen access related errors on NZ passports when done before PACE
 	slog.Info("Read EF.DIR")
-	doc.Mf.Dir, err = document.NewEFDIR(nfc.ReadFileOrPanic(MRTDFileIdEFDIR))
+	docEx.Document.Mf.Dir, err = document.NewEFDIR(nfc.ReadFileOrPanic(MRTDFileIdEFDIR))
 	if err != nil {
-		return doc, err
+		return docEx, err
 	}
-	if doc.Mf.Dir != nil {
-		slog.Debug("EF.DIR", "bytes", utils.BytesToHex(doc.Mf.Dir.RawData))
+	if docEx.Document.Mf.Dir != nil {
+		slog.Debug("EF.DIR", "bytes", utils.BytesToHex(docEx.Document.Mf.Dir.RawData))
 	}
 
 	slog.Info("Selecting MRTD AID")
 	_, err = nfc.SelectAid(utils.HexToBytes(MRTD_AID))
 	if err != nil {
-		return doc, err
+		return docEx, err
 	}
 
 	/*
@@ -249,10 +240,8 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 	// NB we only attempt BAC if we don't already have SecureMessaging (i.e. via PACE)
 	if nfc.SM == nil {
 		reader.status.Status("BAC")
-		err = bac.NewBAC(nfc, doc, password).DoBAC()
-		if err != nil {
-			return doc, err
-		}
+		// NB errors are just recorded at this point
+		docEx.Session.BacResult, docEx.Session.BacErr = bac.NewBAC(nfc, &docEx.Document, password).DoBAC()
 	}
 
 	// NB legacy passport may not have BAC/PACE so we should be prepared for no SecureMessaging
@@ -260,9 +249,9 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 	/*
 	 * Read LDS1 files
 	 */
-	err = reader.readLDS1files(nfc, doc)
+	err = reader.readLDS1files(nfc, &docEx.Document)
 	if err != nil {
-		return doc, err
+		return docEx, err
 	}
 
 	/*
@@ -271,17 +260,17 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 	 * NB requires DG data, so performed after DG read
 	 */
 	reader.status.Status("Active Authentication")
-	err = performChipAuthentication(nfc, doc)
+	err = performChipAuthentication(nfc, docEx)
 	if err != nil {
-		return doc, err
+		return docEx, err
 	}
 
 	// verify the document
 	reader.status.Status("Verifying Document")
-	err = doc.Verify()
+	err = docEx.Document.Verify()
 	if err != nil {
 		slog.Error("Document.Verify", "error", err)
-		return doc, err
+		return docEx, err
 	}
 
 	// TODO - should setup this earlier... e.g. Reader setup?
@@ -291,26 +280,36 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 
 		cscaCertPool, err = cms.DefaultMasterList()
 		if err != nil {
-			return doc, err
+			return docEx, err
 		}
-
 	}
 
-	// TODO - don't fail just because of passive auth... or at least return the document/apdus
 	// perform passive authentication
+	// NB errors are just recorded at this point
 	reader.status.Status("Passive Authentication")
-	err = passiveauth.PassiveAuth(doc, cscaCertPool)
-	if err != nil {
-		slog.Error("MrtdPassiveAuth", "error", err)
-		return doc, err
-	}
+	docEx.Session.PassiveAuthResult, docEx.Session.PassiveAuthErr = passiveauth.PassiveAuth(&docEx.Document, cscaCertPool)
 
+	// copy apdu-log over to session
+	docEx.Session.Apdus = nfc.ApduLog
+
+	// TODO - do final classification of the document... e.g. dataAuthenticated / chipAuthenticated??... can also record lds/unicode-version
 	reader.status.Status("Valid Document!")
 
-	// copy apdu-log over to document
-	doc.Apdus = nfc.ApduLog
-
-	slog.Info("** ReadDocument FINISHED **", "ChipAuthStatus", doc.ChipAuthStatus)
+	slog.Info("** ReadDocument FINISHED **", "ChipAuthenticated", docEx.Session.ChipAuthenticated())
 
 	return
+}
+
+func recordAtrAts(atr []byte, ats []byte, session *document.Session) {
+	var chipActivationRsp document.ChipActivationRsp
+
+	chipActivationRsp.Atr = bytes.Clone(atr)
+	chipActivationRsp.Ats = bytes.Clone(ats)
+
+	session.ChipActivationRsp = &chipActivationRsp
+
+	slog.Debug("ATR/ATS",
+		"ATR", utils.BytesToHex(session.ChipActivationRsp.Atr),
+		"ATS", utils.BytesToHex(session.ChipActivationRsp.Ats),
+	)
 }

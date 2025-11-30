@@ -8,11 +8,13 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"math/big"
+	"reflect"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
 	"github.com/gmrtd/gmrtd/document"
 	"github.com/gmrtd/gmrtd/iso7816"
+	"github.com/gmrtd/gmrtd/oid"
 	"github.com/gmrtd/gmrtd/tlv"
 	"github.com/gmrtd/gmrtd/utils"
 )
@@ -76,7 +78,7 @@ func TestDoActiveAuth(t *testing.T) {
 		}
 	}
 
-	var doc *document.Document = &document.Document{}
+	var doc document.Document
 
 	var dg15bytes []byte = utils.HexToBytes("6F8201023081FF300D06092A864886F70D01010105000381ED003081E90281E100BB8F93F4DC95E205CDA17C6927AB1E365B13065D03CD12E0FCE95D96840529453202F56CC4C13F77CD062930C8BC89A2873B257045C286E601CF3C09323A53103314902804AA10A314628CE222206A8866946A36B442041BB54AC81E6855DD1D6E16101833D65A191C20AC8B33B8A1A32920F46043F8031CF2BC17417030865FC5BE5A39DEE423BCBA3CA8177168EB23CFE01BA43EC87711B1CFFF85DB46F300DD8AE317B50D543B573E119E23AF7070D0B2FED6A3B2313A5EC02A531AAED1741F4390D1013E2A0F081EAC5DC8B0A1B2C6BDB1206F08D30E3643E1E5BDF536110203010001")
 
@@ -85,17 +87,21 @@ func TestDoActiveAuth(t *testing.T) {
 		t.Errorf("Unexpected error: %s", err)
 	}
 
-	var activeAuth *ActiveAuth = NewActiveAuth(nfc, doc)
+	var activeAuth *ActiveAuth = NewActiveAuth(nfc, &doc)
 
 	activeAuth.randomBytesFn = getTestRandomBytesFn()
 
-	err = activeAuth.DoActiveAuth()
+	var result *document.ActiveAuthResult
+
+	result, err = activeAuth.DoActiveAuth()
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
 
-	if doc.ChipAuthStatus != document.CHIP_AUTH_STATUS_AA {
-		t.Errorf("Incorrect ChipAuth State (Exp:%1d, Act:%01d)", document.CHIP_AUTH_STATUS_AA, doc.ChipAuthStatus)
+	// verify Result is as expected
+	var expResult *document.ActiveAuthResult = &document.ActiveAuthResult{Success: true, Algorithm: oid.OidRsaEncryption, Nonce: utils.HexToBytes("96302b0f3d7e7864"), Signature: utils.HexToBytes("474256306840c0ab1b63c10e1c26bdfef4a0dd843920283cc4e6e70a60f2bd25dc7725f9677bc1cde66379dc28b38e8490f33afb2d10f9980c44c0bfc175d2b6684218f535c92fdd3e18db770a9ccbf91db3c7f0138e6d9e94b9bc8371761e3abed5e5e9b260279cfb238b58ae0d6a01da51c74c2a3ecd62c448bd9f20127f7384587287fa971204234e55b1a856c3e5aaaa620bb799a68fbae08ee132bb61683eba9b0b40dc1e54641cad975b16991cab50af82e3f3985afd19e7427a125f5b4b9878b12a5d2e01c7eedca3bb41c6fc05dccd818bce379d04b1f2f5d43487d3")}
+	if !reflect.DeepEqual(result, expResult) {
+		t.Errorf("Result differs to expected [Act] %+v [Exp] %+v", result, expResult)
 	}
 
 	// verify Secure-Messaging post-state is correct
@@ -115,42 +121,21 @@ func TestDoActiveAuth(t *testing.T) {
 
 }
 
-func TestDoActiveAuthChipStatusErr(t *testing.T) {
-	var doc *document.Document = &document.Document{}
+func TestDoActiveAuthMissingDg15(t *testing.T) {
+	var doc document.Document
 
 	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(new(iso7816.MockTransceiver))
 
-	var activeAuth *ActiveAuth = NewActiveAuth(nfc, doc)
+	var activeAuth *ActiveAuth = NewActiveAuth(nfc, &doc)
 
-	// NB indicate ChipAuth performed elsewhere (CA) to skip AA
-	doc.ChipAuthStatus = document.CHIP_AUTH_STATUS_CA
-
-	err := activeAuth.DoActiveAuth()
+	result, err := activeAuth.DoActiveAuth()
 
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
 
-	if doc.ChipAuthStatus != document.CHIP_AUTH_STATUS_CA {
-		t.Errorf("Unexpected Chip Auth status")
-	}
-}
-
-func TestDoActiveAuthMissingDg15Err(t *testing.T) {
-	var doc *document.Document = &document.Document{}
-
-	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(new(iso7816.MockTransceiver))
-
-	var activeAuth *ActiveAuth = NewActiveAuth(nfc, doc)
-
-	err := activeAuth.DoActiveAuth()
-
-	if err != nil {
-		t.Errorf("Unexpected error: %s", err)
-	}
-
-	if doc.ChipAuthStatus != document.CHIP_AUTH_STATUS_NONE {
-		t.Errorf("Unexpected Chip Auth status")
+	if result != nil {
+		t.Errorf("Unexpected result")
 	}
 }
 
@@ -372,11 +357,12 @@ func leftPad(b []byte, size int) []byte {
 
 func TestEcdsaValidateActiveAuthSignatureAllCurves(t *testing.T) {
 	type testCase struct {
-		name      string
-		dg15bytes []byte
-		rndIfd    []byte
-		signature []byte
-		expectErr bool
+		name             string
+		dg15bytes        []byte
+		rndIfd           []byte
+		signature        []byte
+		expectErr        bool
+		expResultSuccess bool
 	}
 
 	var cases []testCase
@@ -413,21 +399,23 @@ func TestEcdsaValidateActiveAuthSignatureAllCurves(t *testing.T) {
 
 		// Positive
 		cases = append(cases, testCase{
-			name:      c.name + " valid",
-			dg15bytes: dg15,
-			rndIfd:    rndIfd,
-			signature: sig,
-			expectErr: false,
+			name:             c.name + " valid",
+			dg15bytes:        dg15,
+			rndIfd:           rndIfd,
+			signature:        sig,
+			expectErr:        false,
+			expResultSuccess: true,
 		})
 
 		// Negative: wrong nonce (re-hash different rnd)
 		wrongRnd := cryptoutils.RandomBytes(8)
 		cases = append(cases, testCase{
-			name:      c.name + " wrong nonce",
-			dg15bytes: dg15,
-			rndIfd:    wrongRnd,
-			signature: sig,
-			expectErr: true,
+			name:             c.name + " wrong nonce",
+			dg15bytes:        dg15,
+			rndIfd:           wrongRnd,
+			signature:        sig,
+			expectErr:        true,
+			expResultSuccess: false,
 		})
 
 		// Negative: bit-flip signature (still correct length)
@@ -435,27 +423,38 @@ func TestEcdsaValidateActiveAuthSignatureAllCurves(t *testing.T) {
 		copy(bad, sig)
 		bad[0] ^= 0xFF
 		cases = append(cases, testCase{
-			name:      c.name + " invalid signature",
-			dg15bytes: dg15,
-			rndIfd:    rndIfd,
-			signature: bad,
-			expectErr: true,
+			name:             c.name + " invalid signature",
+			dg15bytes:        dg15,
+			rndIfd:           rndIfd,
+			signature:        bad,
+			expectErr:        true,
+			expResultSuccess: false,
 		})
 	}
 
 	for _, tc := range cases {
-		doc := &document.Document{}
-		if err := doc.NewDG(15, tc.dg15bytes); err != nil {
+		var err error
+		var dg15 *document.DG15
+
+		dg15, err = document.NewDG15(tc.dg15bytes)
+		if err != nil {
 			t.Errorf("%s: NewDG(15, ...) error: %v", tc.name, err)
 			continue
 		}
-		aa := NewActiveAuth(nil, doc)
-		err := aa.ValidateActiveAuthSignature(tc.signature, tc.rndIfd)
+
+		var aaResult *document.ActiveAuthResult
+
+		aaResult, err = ValidateActiveAuthSignature(dg15, tc.signature, tc.rndIfd)
 		if tc.expectErr && err == nil {
 			t.Errorf("%s: expected error, got nil", tc.name)
 		}
 		if !tc.expectErr && err != nil {
 			t.Errorf("%s: unexpected error: %v", tc.name, err)
+		}
+		// check result 'success'
+		if aaResult.Success != tc.expResultSuccess {
+			t.Errorf("Result 'success' differs to expected [act] %t [exp] %t", aaResult.Success, tc.expResultSuccess)
+
 		}
 	}
 }

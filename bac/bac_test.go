@@ -2,6 +2,7 @@ package bac
 
 import (
 	"bytes"
+	"reflect"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
@@ -363,9 +364,17 @@ func TestDoBAC(t *testing.T) {
 	// override random-byte generator
 	bac.randomBytesFn = getTestRandomBytesFn()
 
-	err = bac.DoBAC()
+	var bacResult *document.BacResult
+
+	bacResult, err = bac.DoBAC()
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
+	}
+
+	// verify Result is as expected
+	var expBacResult *document.BacResult = &document.BacResult{Success: true}
+	if !reflect.DeepEqual(bacResult, expBacResult) {
+		t.Errorf("Result differs to expected [Act] %+v [Exp] %+v", bacResult, expBacResult)
 	}
 
 	// verify Secure-Messaging was setup correctly
@@ -392,9 +401,15 @@ func TestDoBACPasswordTypeCAN(t *testing.T) {
 
 	var bac *BAC = NewBAC(nfc, doc, password)
 
-	err := bac.DoBAC()
+	var bacResult *document.BacResult
+
+	bacResult, err := bac.DoBAC()
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
+	}
+
+	if bacResult != nil {
+		t.Errorf("Unexpected BAC result")
 	}
 
 	// verify SM was NOT setup, as BAC is not supported for password=CAN

@@ -161,15 +161,17 @@ func (bac *BAC) setupSecureMessaging(kEnc, kMac, rndIc, rndIfd []byte) (err erro
 	return nil
 }
 
-// TODO - return an indicator as to whether or not BAC was performed... same for PACE also
-func (bac *BAC) DoBAC() (err error) {
+func (bac *BAC) DoBAC() (result *document.BacResult, err error) {
 	slog.Debug("DoBAC", "password-type", bac.password.PasswordType, "password", bac.password.Password)
 
 	if bac.password.PasswordType != password.PASSWORD_TYPE_MRZi {
 		// not supported, but not an error as caller shouldn't care
 		slog.Debug("DoBAC - SKIPPING as BAC is only supported for MRZi password types", "passwordType", bac.password.PasswordType)
-		return nil
+		return nil, nil
 	}
+
+	// setup the result (but mark as !success)
+	result = &document.BacResult{Success: false}
 
 	kEnc, kMac := bac.generateKeys(bac.generateKseed(bac.password))
 
@@ -177,7 +179,7 @@ func (bac *BAC) DoBAC() (err error) {
 	var rndIcc []byte
 	rndIcc, err = (*bac.nfcSession).GetChallenge(8)
 	if err != nil {
-		return fmt.Errorf("[DoBAC] GetChallenge error: %w", err)
+		return result, fmt.Errorf("[DoBAC] GetChallenge error: %w", err)
 	}
 
 	// generate IFD randoms
@@ -188,20 +190,20 @@ func (bac *BAC) DoBAC() (err error) {
 	var bacReq []byte
 	bacReq, err = bac.buildRequest(rndIfd, rndIcc, kIfd, kEnc, kMac)
 	if err != nil {
-		return fmt.Errorf("[DoBAC] buildRequest error: %w", err)
+		return result, fmt.Errorf("[DoBAC] buildRequest error: %w", err)
 	}
 
 	// external authenticate
 	var bacRsp []byte
 	bacRsp, err = (*bac.nfcSession).ExternalAuthenticate(bacReq, 40)
 	if err != nil {
-		return fmt.Errorf("[DoBAC] ExternalAuthenticate error: %w", err)
+		return result, fmt.Errorf("[DoBAC] ExternalAuthenticate error: %w", err)
 	}
 
 	var kIc []byte
 	kIc, err = bac.processResponse(bacRsp, kEnc, kMac, rndIfd, rndIcc)
 	if err != nil {
-		return fmt.Errorf("[DoBAC] processResponse error: %w", err)
+		return result, fmt.Errorf("[DoBAC] processResponse error: %w", err)
 	}
 
 	kXor := utils.XorBytes(kIfd, kIc)
@@ -211,8 +213,11 @@ func (bac *BAC) DoBAC() (err error) {
 
 	err = bac.setupSecureMessaging(kEnc, kMac, rndIcc, rndIfd)
 	if err != nil {
-		return fmt.Errorf("[DoBAC] setupSecureMessaging error: %w", err)
+		return result, fmt.Errorf("[DoBAC] setupSecureMessaging error: %w", err)
 	}
 
-	return nil
+	// update result to indicate success
+	result.Success = true
+
+	return result, nil
 }
