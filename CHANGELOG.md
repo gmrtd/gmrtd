@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0](https://github.com/gmrtd/gmrtd/compare/v0.12.4...v0.13.0) (2025-11-30)
+
+
+### Features
+
+* separate dynamic data from static document ([#120](https://github.com/gmrtd/gmrtd/issues/120)) ([#121](https://github.com/gmrtd/gmrtd/issues/121)) ([7bdf361](https://github.com/gmrtd/gmrtd/commit/7bdf36181b8b2932ebc0bfa7c2096e62d41cd005))
+
 ## [0.12.4](https://github.com/gmrtd/gmrtd/compare/v0.12.3...v0.12.4) (2025-11-26)
 
 
