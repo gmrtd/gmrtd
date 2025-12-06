@@ -484,28 +484,176 @@ func TestSelectAid(t *testing.T) {
 	}
 }
 
-func TestReadBinaryFromOffsetNoRspErr(t *testing.T) {
-	// No need to check whether `recover()` is nil. Just turn off the panic.
-	defer func() { _ = recover() }()
+func TestReadFileSuccess(t *testing.T) {
+	var fileId uint16 = 0x0101
 
+	var transceiver *MockTransceiver = new(MockTransceiver)
+	{
+		// add in expected request/response tuples
+		transceiver.AddReqRsp("00A4020C020101", "9000")                       // SELECT FILE
+		transceiver.AddReqRsp("00B0000004", "110F12349000")                   // READ BINARY
+		transceiver.AddReqRsp("00B000040D", "567890ABCDEF112233445566779000") // READ BINARY
+	}
+
+	var expData []byte = utils.HexToBytes("110F1234567890ABCDEF11223344556677")
+
+	var nfc *NfcSession = NewNfcSession(transceiver)
+
+	data, err := nfc.ReadFile(fileId)
+	if err != nil {
+		t.Errorf("unexpected error: %s", err)
+	}
+
+	if !bytes.Equal(data, expData) {
+		t.Errorf("data mismatch (act:%X) (exp:%X)", data, expData)
+	}
+}
+
+func TestReadBinaryFromOffsetNoRspErr(t *testing.T) {
 	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{})
 
-	_ = nfc.ReadBinaryFromOffset(0, 10)
+	data, err := nfc.ReadBinaryFromOffset(0, 10)
+	if err == nil {
+		t.Errorf("expected error")
+	}
 
-	// Never reaches here if panic
-	t.Errorf("expected panic, but didn't get")
+	if len(data) != 0 {
+		t.Errorf("didn't expect data")
+	}
 }
 
 func TestReadBinaryFromOffsetCardDeadErr(t *testing.T) {
-	// No need to check whether `recover()` is nil. Just turn off the panic.
-	defer func() { _ = recover() }()
-
 	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{utils.HexToBytes("6FFF")}) // NB 6FFF = Card Dead
 
-	_ = nfc.ReadBinaryFromOffset(0, 10)
+	data, err := nfc.ReadBinaryFromOffset(0, 10)
+	if err == nil {
+		t.Errorf("expected error")
+	}
 
-	// Never reaches here if panic
-	t.Errorf("expected panic, but didn't get")
+	if len(data) != 0 {
+		t.Errorf("didn't expect data")
+	}
+}
+
+// simulates an error reading the file header (to determine the file length)
+// - select file (ok)
+// - read binary from offset (0,4) --> error rApdu response (6985 - conditions of use not satisfied)
+func TestReadFileErrorReadingHeader(t *testing.T) {
+	var fileId uint16 = 0x0101
+
+	var transceiver *MockTransceiver = new(MockTransceiver)
+	{
+		// add in expected request/response tuples
+		transceiver.AddReqRsp("00A4020C020101", "9000") // SELECT FILE
+		transceiver.AddReqRsp("00B0000004", "6985")     // READ BINARY
+	}
+
+	var nfc *NfcSession = NewNfcSession(transceiver)
+
+	data, err := nfc.ReadFile(fileId)
+	if err == nil {
+		t.Errorf("expected error")
+	}
+
+	if len(data) != 0 {
+		t.Errorf("didn't expect data")
+	}
+}
+
+// simulates an error caused by an incomplete file header (tag, but no length)
+// - select file (ok)
+// - read binary from offset (0,4) --> ok, but only returns tag (e.g. 0x11)
+func TestReadFileErrorMissingHeaderLength(t *testing.T) {
+	var fileId uint16 = 0x0101
+
+	var transceiver *MockTransceiver = new(MockTransceiver)
+	{
+		// add in expected request/response tuples
+		transceiver.AddReqRsp("00A4020C020101", "9000") // SELECT FILE
+		transceiver.AddReqRsp("00B0000004", "119000")   // READ BINARY
+	}
+
+	var nfc *NfcSession = NewNfcSession(transceiver)
+
+	data, err := nfc.ReadFile(fileId)
+	if err == nil {
+		t.Errorf("expected error")
+	}
+
+	if len(data) != 0 {
+		t.Errorf("didn't expect data")
+	}
+}
+
+func TestReadFileErrorMoreData(t *testing.T) {
+	var fileId uint16 = 0x0101
+
+	var transceiver *MockTransceiver = new(MockTransceiver)
+	{
+		// add in expected request/response tuples
+		transceiver.AddReqRsp("00A4020C020101", "9000")                         // SELECT FILE
+		transceiver.AddReqRsp("00B0000004", "110F12349000")                     // READ BINARY
+		transceiver.AddReqRsp("00B000040D", "567890ABCDEF11223344556677889000") // READ BINARY (1 byte more than expected)
+	}
+
+	var nfc *NfcSession = NewNfcSession(transceiver)
+
+	data, err := nfc.ReadFile(fileId)
+	if err == nil {
+		t.Errorf("expected error")
+	}
+
+	if len(data) != 0 {
+		t.Errorf("didn't expect data")
+	}
+}
+
+// simulates an error caused by a purported success response without any data
+func TestReadFileErrorEmptyResponse(t *testing.T) {
+	var fileId uint16 = 0x0101
+
+	var transceiver *MockTransceiver = new(MockTransceiver)
+	{
+		// add in expected request/response tuples
+		transceiver.AddReqRsp("00A4020C020101", "9000")     // SELECT FILE
+		transceiver.AddReqRsp("00B0000004", "110F12349000") // READ BINARY
+		transceiver.AddReqRsp("00B000040D", "9000")         // READ BINARY (no data, but indicating success)
+	}
+
+	var nfc *NfcSession = NewNfcSession(transceiver)
+
+	data, err := nfc.ReadFile(fileId)
+	if err == nil {
+		t.Errorf("expected error")
+	}
+
+	if len(data) != 0 {
+		t.Errorf("didn't expect data")
+	}
+}
+
+// simulates an error caused by an error whilst reading the data
+func TestReadFileErrorLastFrame(t *testing.T) {
+	var fileId uint16 = 0x0101
+
+	var transceiver *MockTransceiver = new(MockTransceiver)
+	{
+		// add in expected request/response tuples
+		transceiver.AddReqRsp("00A4020C020101", "9000")     // SELECT FILE
+		transceiver.AddReqRsp("00B0000004", "110F12349000") // READ BINARY
+		transceiver.AddReqRsp("00B000040D", "6985")         // READ BINARY (Error)
+	}
+
+	var nfc *NfcSession = NewNfcSession(transceiver)
+
+	data, err := nfc.ReadFile(fileId)
+	if err == nil {
+		t.Errorf("expected error")
+	}
+
+	if len(data) != 0 {
+		t.Errorf("didn't expect data")
+	}
 }
 
 func TestReadFileOrPanicNoRspErr(t *testing.T) {
@@ -516,7 +664,7 @@ func TestReadFileOrPanicNoRspErr(t *testing.T) {
 
 	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{})
 
-	_ = nfc.ReadFileOrPanic(fileId)
+	_ = nfc.MustReadFile(fileId)
 
 	// Never reaches here if panic
 	t.Errorf("expected panic, but didn't get")
@@ -527,7 +675,7 @@ func TestReadFileOrPanicNoFileErr(t *testing.T) {
 
 	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{utils.HexToBytes("6A82")})
 
-	fileData := nfc.ReadFileOrPanic(fileId)
+	fileData := nfc.MustReadFile(fileId)
 	if len(fileData) != 0 {
 		t.Fatalf("Expected no file data")
 	}

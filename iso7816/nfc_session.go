@@ -206,30 +206,30 @@ func (nfc *NfcSession) SelectAid(aid []byte) (selected bool, err error) {
 }
 
 // NB may not return requested length
-func (nfc *NfcSession) ReadBinaryFromOffset(offset, length int) []byte {
+func (nfc *NfcSession) ReadBinaryFromOffset(offset, length int) ([]byte, error) {
 	slog.Debug("ReadBinaryFromOffset", "offset", offset, "length", length)
 
 	var capdu *CApdu = NewCApdu(0x00, INS_READ_BINARY, byte(offset/256), byte(offset%256), nil, length)
 
 	rapdu, err := nfc.DoAPDU(capdu, fmt.Sprintf("Read Binary (offset:%d, length:%d)", offset, length))
 	if err != nil {
-		log.Panicf("[ReadBinaryFromOffset] DoAPDU error: %s", err)
+		return nil, fmt.Errorf("[ReadBinaryFromOffset] DoAPDU (offset:%d,length:%d) error: %w", offset, length, err)
 	}
 
 	if !rapdu.IsSuccess() {
-		log.Panicf("[ReadBinaryFromOffset] Invalid status:%x", rapdu.Status)
+		return nil, fmt.Errorf("[ReadBinaryFromOffset] Invalid status (offset:%d,length:%d):%X", offset, length, rapdu.Status)
 	}
 
 	out := rapdu.Data
 
-	return out
+	return out, nil
 }
 
 // as per ReadFile, but panics if there is an error
-func (nfc *NfcSession) ReadFileOrPanic(fileId uint16) (fileData []byte) {
+func (nfc *NfcSession) MustReadFile(fileId uint16) (fileData []byte) {
 	fileData, err := nfc.ReadFile(fileId)
 	if err != nil {
-		log.Panicf("[ReadFileOrPanic] ReadFile error: %s", err)
+		log.Panicf("[MustReadFile] ReadFile error: %s", err)
 	}
 	return fileData
 }
@@ -250,7 +250,10 @@ func (nfc *NfcSession) ReadFile(fileId uint16) (fileData []byte, err error) {
 	var fileBuf *bytes.Buffer = new(bytes.Buffer)
 
 	// read first 4 bytes from file
-	fileHeader := nfc.ReadBinaryFromOffset(0, 4)
+	fileHeader, err := nfc.ReadBinaryFromOffset(0, 4)
+	if err != nil {
+		return nil, fmt.Errorf("[ReadFile] ReadBinaryFromOffset error: %w", err)
+	}
 	fileBuf.Write(fileHeader)
 
 	var totalBytes int
@@ -276,7 +279,10 @@ func (nfc *NfcSession) ReadFile(fileId uint16) (fileData []byte, err error) {
 		for {
 			bytesToRead := min(maxReadAmount, totalBytes-fileBuf.Len())
 
-			tmpData := nfc.ReadBinaryFromOffset(fileBuf.Len(), bytesToRead)
+			tmpData, err := nfc.ReadBinaryFromOffset(fileBuf.Len(), bytesToRead)
+			if err != nil {
+				return nil, fmt.Errorf("[ReadFile] ReadBinaryFromOffset error: %w", err)
+			}
 
 			// sanity check that we received some data
 			// TODO - we've seen issues with jmrtd applet where it returns 0 bytes if we ask for 236 bytes of data...
