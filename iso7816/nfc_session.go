@@ -3,7 +3,6 @@ package iso7816
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"log/slog"
 	"time"
 
@@ -223,15 +222,6 @@ func (nfc *NfcSession) ReadBinaryFromOffset(offset, length int) ([]byte, error) 
 	out := rapdu.Data
 
 	return out, nil
-}
-
-// as per ReadFile, but panics if there is an error
-func (nfc *NfcSession) MustReadFile(fileId uint16) (fileData []byte) {
-	fileData, err := nfc.ReadFile(fileId)
-	if err != nil {
-		log.Panicf("[MustReadFile] ReadFile error: %s", err)
-	}
-	return fileData
 }
 
 // returns: file contents OR nil if file not found

@@ -80,11 +80,11 @@ func validateDgHashes(doc document.Document) error {
 		sodHash := doc.Mf.Lds1.Sod.DgHash(dgId)
 
 		if len(sodHash) <= 0 {
-			return fmt.Errorf("[validateDgHashes] DG hash is not present in SoD (dg:%1d)", dgId)
+			return fmt.Errorf("[validateDgHashes] DG hash is not present in SoD (dg:%1d) - Data injection!", dgId)
 		}
 
 		if !bytes.Equal(dgHash, sodHash) {
-			return fmt.Errorf("[validateDgHashes] DG hash mismatch (dg:%1d) (act:%x, exp:%x)", dgId, dgHash, sodHash)
+			return fmt.Errorf("[validateDgHashes] DG hash mismatch (dg:%1d) (act:%x, exp:%x) - Data tampering!", dgId, dgHash, sodHash)
 		}
 	}
 
