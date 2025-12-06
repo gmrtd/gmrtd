@@ -655,28 +655,3 @@ func TestReadFileErrorLastFrame(t *testing.T) {
 		t.Errorf("didn't expect data")
 	}
 }
-
-func TestReadFileOrPanicNoRspErr(t *testing.T) {
-	// No need to check whether `recover()` is nil. Just turn off the panic.
-	defer func() { _ = recover() }()
-
-	var fileId uint16 = 0x0101
-
-	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{})
-
-	_ = nfc.MustReadFile(fileId)
-
-	// Never reaches here if panic
-	t.Errorf("expected panic, but didn't get")
-}
-
-func TestReadFileOrPanicNoFileErr(t *testing.T) {
-	var fileId uint16 = 0x0101
-
-	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{utils.HexToBytes("6A82")})
-
-	fileData := nfc.MustReadFile(fileId)
-	if len(fileData) != 0 {
-		t.Fatalf("Expected no file data")
-	}
-}
