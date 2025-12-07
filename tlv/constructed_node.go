@@ -7,35 +7,35 @@ import (
 )
 
 type TlvConstructedNode struct {
-	Tag      TlvTag
-	Children TlvNodes
+	tag      TlvTag
+	children TlvNodes
 }
 
 func (node TlvConstructedNode) IsValidNode() bool {
 	return true
 }
 
-func (node TlvConstructedNode) GetTag() TlvTag {
-	return node.Tag
+func (node TlvConstructedNode) Tag() TlvTag {
+	return node.tag
 }
 
-func (node TlvConstructedNode) GetValue() []byte {
-	return node.Children.Encode()
+func (node TlvConstructedNode) Value() []byte {
+	return node.children.Encode()
 }
 
-func (node TlvConstructedNode) GetNode(tag TlvTag) TlvNode {
-	return node.Children.GetNode(tag)
+func (node TlvConstructedNode) NodeByTag(tag TlvTag) TlvNode {
+	return node.children.NodeByTag(tag)
 }
 
-func (node TlvConstructedNode) GetNodeByOccur(tag TlvTag, occurrence int) TlvNode {
-	return node.Children.GetNodeByOccur(tag, occurrence)
+func (node TlvConstructedNode) NodeByTagOccur(tag TlvTag, occurrence int) TlvNode {
+	return node.children.NodeByTagOccur(tag, occurrence)
 }
 
 func (node TlvConstructedNode) Encode() []byte {
-	childData := node.Children.Encode()
+	childData := node.children.Encode()
 
 	out := new(bytes.Buffer)
-	out.Write(node.Tag.Encode())
+	out.Write(node.tag.Encode())
 	out.Write(TlvLength(len(childData)).Encode())
 	out.Write(childData)
 
@@ -45,8 +45,8 @@ func (node TlvConstructedNode) Encode() []byte {
 func (node TlvConstructedNode) stringWithIndent(indent int) string {
 	var sb strings.Builder
 	sb.WriteString(indentString(indent))
-	sb.WriteString(fmt.Sprintf("%02x\n", node.Tag))
-	sb.WriteString(node.Children.stringWithIndent(indent + 1))
+	sb.WriteString(fmt.Sprintf("%02x\n", node.tag))
+	sb.WriteString(node.children.stringWithIndent(indent + 1))
 	return sb.String()
 }
 
@@ -55,7 +55,7 @@ func (node TlvConstructedNode) String() string {
 }
 
 func (tlv *TlvConstructedNode) AddChild(child TlvNode) *TlvConstructedNode {
-	tlv.Children.AddNode(child)
+	tlv.children.AddNode(child)
 	return tlv
 }
 
@@ -64,5 +64,5 @@ func NewTlvConstructedNode(tag TlvTag) *TlvConstructedNode {
 		panic(fmt.Sprintf("[NewTlvConstructedNode] Cannot create using a non-constructed tag (%02x)", tag))
 	}
 
-	return &TlvConstructedNode{Tag: tag}
+	return &TlvConstructedNode{tag: tag}
 }

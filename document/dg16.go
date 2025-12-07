@@ -41,7 +41,7 @@ func NewDG16(data []byte) (*DG16, error) {
 		return nil, fmt.Errorf("[NewDG16] error: %w", err)
 	}
 
-	rootNode := nodes.GetNode(DG16Tag)
+	rootNode := nodes.NodeByTag(DG16Tag)
 
 	if !rootNode.IsValidNode() {
 		return nil, fmt.Errorf("root node (%x) missing", DG16Tag)
@@ -58,7 +58,7 @@ func NewDG16(data []byte) (*DG16, error) {
 func parseData(node tlv.TlvNode) ([]PersonToNotify, error) {
 	var out []PersonToNotify = []PersonToNotify{}
 
-	numTemplates := utils.BytesToInt(node.GetNode(0x2).GetValue())
+	numTemplates := utils.BytesToInt(node.NodeByTag(0x2).Value())
 	if (numTemplates < 1) || (numTemplates > 15) {
 		// NB numTemplates must be between 1 and 15 as we construct the tag using 4-bits(0-15).. e.g. 0xA{Occur} (where 'Occur' is 1..15)
 		return nil, fmt.Errorf("[parseData] numTemplates (%1d) must be between 1 and 15(xF)", numTemplates)
@@ -70,7 +70,7 @@ func parseData(node tlv.TlvNode) ([]PersonToNotify, error) {
 		slog.Debug("parseData", "loop iteration", i)
 
 		templateTag := tlv.TlvTag(0xA0 + i)
-		templateNode := node.GetNode(templateTag)
+		templateNode := node.NodeByTag(templateTag)
 
 		if !templateNode.IsValidNode() {
 			return nil, fmt.Errorf("[parseData] template (%02x) expected based on numTemplates tag (%1d)", templateTag, numTemplates)
@@ -96,16 +96,16 @@ func parsePersonToNotify(node tlv.TlvNode) (*PersonToNotify, error) {
 	slog.Debug("parsePersonToNotify", "tlv", node.String())
 
 	// should be 8 bytes (YYYYMMDD), but probably also have 4 byte BCD variants
-	out.DateRecorded = parseDateYYYYMMDD(node.GetNode(0x5F50).GetValue())
+	out.DateRecorded = parseDateYYYYMMDD(node.NodeByTag(0x5F50).Value())
 
-	out.Name, err = mrz.ParseName(mrz.DecodeValue(string(node.GetNode(0x5F51).GetValue())))
+	out.Name, err = mrz.ParseName(mrz.DecodeValue(string(node.NodeByTag(0x5F51).Value())))
 	if err != nil {
 		return nil, fmt.Errorf("[parsePersonToNotify] mrz.ParseName error: %w", err)
 	}
 
-	out.Telephone = string(node.GetNode(0x5F52).GetValue())
+	out.Telephone = string(node.NodeByTag(0x5F52).Value())
 
-	out.Address = strings.Split(string(node.GetNode(0x5F53).GetValue()), "<")
+	out.Address = strings.Split(string(node.NodeByTag(0x5F53).Value()), "<")
 
 	slog.Debug("parsePersonToNotify", "out", out)
 

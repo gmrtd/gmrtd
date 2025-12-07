@@ -51,7 +51,7 @@ func NewDG11(data []byte) (*DG11, error) {
 
 	slog.Debug("DG11", "TLV", nodes)
 
-	rootNode := nodes.GetNode(DG11Tag)
+	rootNode := nodes.NodeByTag(DG11Tag)
 
 	if !rootNode.IsValidNode() {
 		return nil, fmt.Errorf("root node (%x) missing", DG11Tag)
@@ -68,7 +68,7 @@ func NewDG11(data []byte) (*DG11, error) {
 }
 
 func (details *PersonDetails) parseData(node tlv.TlvNode) error {
-	tagList, err := tlv.GetTags(bytes.NewBuffer(node.GetNode(0x5C).GetValue()))
+	tagList, err := tlv.GetTags(bytes.NewBuffer(node.NodeByTag(0x5C).Value()))
 	if err != nil {
 		return fmt.Errorf("[parseData] GetTags error: %w", err)
 	}
@@ -93,14 +93,14 @@ func (details *PersonDetails) processTag5F0F(parentNode tlv.TlvNode) error {
 		->	‘5F0F’ 	Var 	Other name formatted per Doc 9303. The data object repeats as many times as indicated in number of other names (data object with Tag’02’)
 	*/
 
-	numOtherNamesNode := parentNode.GetNode(0xA0).GetNode(0x02)
+	numOtherNamesNode := parentNode.NodeByTag(0xA0).NodeByTag(0x02)
 
 	if numOtherNamesNode.IsValidNode() {
 		// special handling as 'Other Names' are nested within tag A0 and there can be multiple instances
-		numOtherNames := utils.BytesToInt(numOtherNamesNode.GetValue())
+		numOtherNames := utils.BytesToInt(numOtherNamesNode.Value())
 
 		for occur := 1; occur <= numOtherNames; occur++ {
-			tmpName, err := mrz.ParseName(mrz.DecodeValue(string(parentNode.GetNode(0xA0).GetNodeByOccur(0x5F0F, occur).GetValue())))
+			tmpName, err := mrz.ParseName(mrz.DecodeValue(string(parentNode.NodeByTag(0xA0).NodeByTagOccur(0x5F0F, occur).Value())))
 			if err != nil {
 				return fmt.Errorf("[processTag5F0F] mrz.ParseName error: %w", err)
 			}
@@ -116,13 +116,13 @@ func (details *PersonDetails) processTag5F0F(parentNode tlv.TlvNode) error {
 		// handle any direct instances of the 5F0F tag
 		occur := 1
 		for {
-			otherNameNode := parentNode.GetNodeByOccur(0x5F0F, occur)
+			otherNameNode := parentNode.NodeByTagOccur(0x5F0F, occur)
 
 			if !otherNameNode.IsValidNode() {
 				break
 			}
 
-			tmpName, err := mrz.ParseName(mrz.DecodeValue(string(otherNameNode.GetValue())))
+			tmpName, err := mrz.ParseName(mrz.DecodeValue(string(otherNameNode.Value())))
 			if err != nil {
 				return fmt.Errorf("[processTag5F0F] mrz.ParseName error: %w", err)
 			}
@@ -141,7 +141,7 @@ func (details *PersonDetails) processTag(tag tlv.TlvTag, node tlv.TlvNode) error
 	switch tag {
 	case 0x5F0E:
 		var err error
-		details.NameOfHolder, err = mrz.ParseName(mrz.DecodeValue(string(node.GetNode(tag).GetValue())))
+		details.NameOfHolder, err = mrz.ParseName(mrz.DecodeValue(string(node.NodeByTag(tag).Value())))
 		if err != nil {
 			return fmt.Errorf("[processTag] mrz.ParseName error: %w", err)
 		}
@@ -150,29 +150,29 @@ func (details *PersonDetails) processTag(tag tlv.TlvTag, node tlv.TlvNode) error
 			return fmt.Errorf("[processTag] processTag5F0F error: %w", err)
 		}
 	case 0x5F10:
-		details.PersonalNumber = string(node.GetNode(tag).GetValue())
+		details.PersonalNumber = string(node.NodeByTag(tag).Value())
 	case 0x5F2B:
 		// should be 8 bytes (YYYYMMDD) but we've also seen 4 bytes (BCD) - e.g. Malaysia passport
-		details.FullDateOfBirth = parseDateYYYYMMDD(node.GetNode(tag).GetValue())
+		details.FullDateOfBirth = parseDateYYYYMMDD(node.NodeByTag(tag).Value())
 	case 0x5F11:
-		details.PlaceOfBirth = strings.Split(string(node.GetNode(tag).GetValue()), "<")
+		details.PlaceOfBirth = strings.Split(string(node.NodeByTag(tag).Value()), "<")
 	case 0x5F42:
-		details.Address = strings.Split(string(node.GetNode(tag).GetValue()), "<")
+		details.Address = strings.Split(string(node.NodeByTag(tag).Value()), "<")
 	case 0x5F12:
-		details.Telephone = string(node.GetNode(tag).GetValue())
+		details.Telephone = string(node.NodeByTag(tag).Value())
 	case 0x5F13:
-		details.Profession = mrz.DecodeValue(string(node.GetNode(tag).GetValue()))
+		details.Profession = mrz.DecodeValue(string(node.NodeByTag(tag).Value()))
 	case 0x5F14:
-		details.Title = mrz.DecodeValue(string(node.GetNode(tag).GetValue()))
+		details.Title = mrz.DecodeValue(string(node.NodeByTag(tag).Value()))
 	case 0x5F15:
-		details.PersonalSummary = mrz.DecodeValue(string(node.GetNode(tag).GetValue()))
+		details.PersonalSummary = mrz.DecodeValue(string(node.NodeByTag(tag).Value()))
 	case 0x5F16:
 		// image data
-		details.ProofOfCitizenship = node.GetNode(tag).GetValue()
+		details.ProofOfCitizenship = node.NodeByTag(tag).Value()
 	case 0x5F17:
-		details.OtherTravelDocuments = strings.Split(string(node.GetNode(tag).GetValue()), "<")
+		details.OtherTravelDocuments = strings.Split(string(node.NodeByTag(tag).Value()), "<")
 	case 0x5F18:
-		details.CustodyInformation = mrz.DecodeValue(string(node.GetNode(tag).GetValue()))
+		details.CustodyInformation = mrz.DecodeValue(string(node.NodeByTag(tag).Value()))
 	default:
 		return fmt.Errorf("[processTag] Unsupported tag:%x", tag)
 	}

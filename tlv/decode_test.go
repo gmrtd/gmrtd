@@ -15,7 +15,7 @@ func TestDecode(t *testing.T) {
 		t.Errorf("Unexpected error: %s", err)
 	}
 
-	act := out.GetNode(0x61).GetNode(0x5f1f).GetValue()
+	act := out.NodeByTag(0x61).NodeByTag(0x5f1f).Value()
 
 	exp := utils.HexToBytes("0123456789")
 
@@ -32,7 +32,7 @@ func TestDecodeIndefinteLength(t *testing.T) {
 		t.Errorf("Unexpected error: %s", err)
 	}
 
-	act := out.GetNode(0x61).GetNode(0x5f1f).GetValue()
+	act := out.NodeByTag(0x61).NodeByTag(0x5f1f).Value()
 
 	exp := utils.HexToBytes("0123456789")
 

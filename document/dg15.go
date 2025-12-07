@@ -28,13 +28,13 @@ func NewDG15(data []byte) (*DG15, error) {
 		return nil, fmt.Errorf("[NewDG15] error: %w", err)
 	}
 
-	rootNode := nodes.GetNode(DG15Tag)
+	rootNode := nodes.NodeByTag(DG15Tag)
 
 	if !rootNode.IsValidNode() {
 		return nil, fmt.Errorf("(NewDG15) root node (%x) missing", DG15Tag)
 	}
 
-	out.SubjectPublicKeyInfoBytes = rootNode.GetNode(0x30).Encode()
+	out.SubjectPublicKeyInfoBytes = rootNode.NodeByTag(0x30).Encode()
 	if len(out.SubjectPublicKeyInfoBytes) < 1 {
 		return nil, fmt.Errorf("(NewDG15) missing SubjectPublicKeyInfo")
 	}

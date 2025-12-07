@@ -83,25 +83,25 @@ func NewDG2(data []byte) (*DG2, error) {
 		return nil, fmt.Errorf("[NewDG2] error: %w", err)
 	}
 
-	rootNode := nodes.GetNode(DG2Tag)
+	rootNode := nodes.NodeByTag(DG2Tag)
 
 	if !rootNode.IsValidNode() {
 		return nil, fmt.Errorf("[NewDG2] root node (%x) missing", DG2Tag)
 	}
 
 	{
-		tag7F61 := rootNode.GetNode(0x7f61)
+		tag7F61 := rootNode.NodeByTag(0x7f61)
 		if !tag7F61.IsValidNode() {
 			return nil, fmt.Errorf("[NewDG2] missing tag (7F61)")
 		}
 
-		numInstances := utils.BytesToInt(tag7F61.GetNode(0x02).GetValue())
+		numInstances := utils.BytesToInt(tag7F61.NodeByTag(0x02).Value())
 		if (numInstances < 1) || (numInstances > 9) {
 			return nil, fmt.Errorf("[NewDG2] numInstances (tag 7f61->02) must be 1-9 (act:%d)", numInstances)
 		}
 
 		for occur := 1; occur <= numInstances; occur++ {
-			tag7F60 := tag7F61.GetNodeByOccur(0x7f60, occur)
+			tag7F60 := tag7F61.NodeByTagOccur(0x7f60, occur)
 			if !tag7F60.IsValidNode() {
 				return nil, fmt.Errorf("[NewDG2] missing tag (7F60) (Occur:%d)", occur)
 			}
@@ -121,15 +121,15 @@ func NewDG2(data []byte) (*DG2, error) {
 
 // processes the Biometric Information Template (Tag:7F60)
 func (dg2 *DG2) processBIT(node tlv.TlvNode) (*BiometricInfoTemplate, []DG2Image, error) {
-	if node.GetTag() != 0x7F60 {
-		return nil, nil, fmt.Errorf("[processBIT] Incorrect BIT tag (Exp:7F60) (Act:%x)", node.GetTag())
+	if node.Tag() != 0x7F60 {
+		return nil, nil, fmt.Errorf("[processBIT] Incorrect BIT tag (Exp:7F60) (Act:%x)", node.Tag())
 	}
 
 	var out BiometricInfoTemplate
 	var outImages []DG2Image = make([]DG2Image, 0)
 
 	{
-		tmpBHT, err := processBHT(node.GetNode(0xA1))
+		tmpBHT, err := processBHT(node.NodeByTag(0xA1))
 		if err != nil {
 			return nil, nil, fmt.Errorf("[processBIT] processBHT error: %w", err)
 		}
@@ -143,11 +143,11 @@ func (dg2 *DG2) processBIT(node tlv.TlvNode) (*BiometricInfoTemplate, []DG2Image
 	* Tag 5F2E: ISO-1979-4
 	* Tag 7F2E: ISO-39794-5
 	 */
-	if node.GetNode(0x5F2E).IsValidNode() {
+	if node.NodeByTag(0x5F2E).IsValidNode() {
 		/*
 		* 5F2E -> ISO-1979-4 encoding
 		 */
-		biometricDataBlock := node.GetNode(0x5F2E).GetValue()
+		biometricDataBlock := node.NodeByTag(0x5F2E).Value()
 
 		var err error
 		var facial *iso19794.ISO19794
@@ -159,11 +159,11 @@ func (dg2 *DG2) processBIT(node tlv.TlvNode) (*BiometricInfoTemplate, []DG2Image
 
 		out.BDB.Iso19794 = facial
 		outImages = imageByteArrToDg2ImageArr(facial.Images())
-	} else if node.GetNode(0x7F2E).IsValidNode() {
+	} else if node.NodeByTag(0x7F2E).IsValidNode() {
 		/*
 		* 7F2E -> ISO-39794-5 encoding
 		 */
-		biometricDataBlock := node.GetNode(0x7F2E).GetValue()
+		biometricDataBlock := node.NodeByTag(0x7F2E).Value()
 
 		var err error
 		var ap *iso39794.ISO39794_5_AP
@@ -184,20 +184,20 @@ func (dg2 *DG2) processBIT(node tlv.TlvNode) (*BiometricInfoTemplate, []DG2Image
 
 // process the Biometric Header Template (BHT) (Tag:A1)
 func processBHT(node tlv.TlvNode) (*BiometricHeaderTemplate, error) {
-	if node.GetTag() != 0xA1 {
-		return nil, fmt.Errorf("[processBHT] Incorrect BHT tag (Exp:A1) (Act:%x)", node.GetTag())
+	if node.Tag() != 0xA1 {
+		return nil, fmt.Errorf("[processBHT] Incorrect BHT tag (Exp:A1) (Act:%x)", node.Tag())
 	}
 
 	var out BiometricHeaderTemplate
 
-	out.IcaoHeaderVersion = node.GetNode(0x80).GetValue()
-	out.BiometricType = node.GetNode(0x81).GetValue()
-	out.BiometricSubType = node.GetNode(0x82).GetValue()
-	out.CreationDateTime = node.GetNode(0x83).GetValue()
-	out.ValidityPeriod = node.GetNode(0x85).GetValue()
-	out.PID = node.GetNode(0x86).GetValue()
-	out.FormatOwner = node.GetNode(0x87).GetValue()
-	out.FormatType = node.GetNode(0x88).GetValue()
+	out.IcaoHeaderVersion = node.NodeByTag(0x80).Value()
+	out.BiometricType = node.NodeByTag(0x81).Value()
+	out.BiometricSubType = node.NodeByTag(0x82).Value()
+	out.CreationDateTime = node.NodeByTag(0x83).Value()
+	out.ValidityPeriod = node.NodeByTag(0x85).Value()
+	out.PID = node.NodeByTag(0x86).Value()
+	out.FormatOwner = node.NodeByTag(0x87).Value()
+	out.FormatType = node.NodeByTag(0x88).Value()
 
 	/*
 	* We're current lenient when it comes to missing mandatory fields
