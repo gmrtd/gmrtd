@@ -32,9 +32,9 @@ func NewDG13(data []byte) (out *DG13, err error) {
 		// extract length (of parent tag) to determine file size
 		tmpBuf := bytes.NewBuffer(out.RawData)
 
-		tag, length, err := tlv.TagAndLength(tmpBuf)
+		tag, length, err := tlv.ParseTagAndLength(tmpBuf)
 		if err != nil {
-			return nil, fmt.Errorf("[NewDG13] TagAndLength error: %w", err)
+			return nil, fmt.Errorf("[NewDG13] ParseTagAndLength error: %w", err)
 		}
 
 		// verify tag

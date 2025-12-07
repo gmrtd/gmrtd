@@ -68,9 +68,9 @@ func NewDG11(data []byte) (*DG11, error) {
 }
 
 func (details *PersonDetails) parseData(node tlv.TlvNode) error {
-	tagList, err := tlv.GetTags(bytes.NewBuffer(node.NodeByTag(0x5C).Value()))
+	tagList, err := tlv.ParseTags(bytes.NewBuffer(node.NodeByTag(0x5C).Value()))
 	if err != nil {
-		return fmt.Errorf("[parseData] GetTags error: %w", err)
+		return fmt.Errorf("[parseData] ParseTags error: %w", err)
 	}
 
 	for _, tag := range tagList {

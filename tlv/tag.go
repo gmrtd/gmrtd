@@ -9,10 +9,10 @@ import (
 
 type TlvTag int
 
-func GetTag(buf *bytes.Buffer) (TlvTag, error) {
+func ParseTag(buf *bytes.Buffer) (TlvTag, error) {
 	b1, err := utils.ByteFromBuffer(buf)
 	if err != nil {
-		return TlvTag(0), fmt.Errorf("[GetTag] ByteFromBuffer error: %w", err)
+		return TlvTag(0), fmt.Errorf("[ParseTag] ByteFromBuffer error: %w", err)
 	}
 
 	var tag int = int(b1)
@@ -22,7 +22,7 @@ func GetTag(buf *bytes.Buffer) (TlvTag, error) {
 		for {
 			tmp, err := utils.ByteFromBuffer(buf)
 			if err != nil {
-				return TlvTag(0), fmt.Errorf("[GetTag] ByteFromBuffer error: %w", err)
+				return TlvTag(0), fmt.Errorf("[ParseTag] ByteFromBuffer error: %w", err)
 			}
 
 			tag <<= 8
@@ -37,7 +37,7 @@ func GetTag(buf *bytes.Buffer) (TlvTag, error) {
 	return TlvTag(tag), nil
 }
 
-func GetTags(buf *bytes.Buffer) ([]TlvTag, error) {
+func ParseTags(buf *bytes.Buffer) ([]TlvTag, error) {
 	var out []TlvTag
 
 	for {
@@ -45,9 +45,9 @@ func GetTags(buf *bytes.Buffer) ([]TlvTag, error) {
 			break
 		}
 
-		tag, err := GetTag(buf)
+		tag, err := ParseTag(buf)
 		if err != nil {
-			return nil, fmt.Errorf("[GetTags] GetTag error: %w", err)
+			return nil, fmt.Errorf("[ParseTags] ParseTag error: %w", err)
 		}
 
 		out = append(out, tag)

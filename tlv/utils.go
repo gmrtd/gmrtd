@@ -8,15 +8,15 @@ import (
 
 const indentStringValue = "  "
 
-func TagAndLength(buf *bytes.Buffer) (tag TlvTag, length TlvLength, err error) {
-	tag, err = GetTag(buf)
+func ParseTagAndLength(buf *bytes.Buffer) (tag TlvTag, length TlvLength, err error) {
+	tag, err = ParseTag(buf)
 	if err != nil {
-		return TlvTag(0), TlvLength(0), fmt.Errorf("[GetTagAndLength] GetTag error: %w", err)
+		return TlvTag(0), TlvLength(0), fmt.Errorf("[ParseTagAndLength] ParseTag error: %w", err)
 	}
 
-	length, err = GetLength(buf)
+	length, err = ParseLength(buf)
 	if err != nil {
-		return TlvTag(0), TlvLength(0), fmt.Errorf("[GetTagAndLength] GetLength error: %w", err)
+		return TlvTag(0), TlvLength(0), fmt.Errorf("[ParseTagAndLength] ParseLength error: %w", err)
 	}
 
 	return tag, length, nil
