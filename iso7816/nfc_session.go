@@ -253,9 +253,9 @@ func (nfc *NfcSession) ReadFile(fileId uint16) (fileData []byte, err error) {
 		tmpBuf := bytes.NewBuffer(fileHeader)
 
 		// extract length (of parent tag) to determine file size
-		_, tmpTlvLength, err = tlv.TagAndLength(tmpBuf)
+		_, tmpTlvLength, err = tlv.ParseTagAndLength(tmpBuf)
 		if err != nil {
-			return nil, fmt.Errorf("[ReadFile] TagAndLength error: %w", err)
+			return nil, fmt.Errorf("[ReadFile] ParseTagAndLength error: %w", err)
 		}
 
 		totalBytes = int(tmpTlvLength)

@@ -23,7 +23,7 @@ func TestGetTags(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		actOut, err := GetTags(bytes.NewBuffer(tc.inp))
+		actOut, err := ParseTags(bytes.NewBuffer(tc.inp))
 		if err != nil {
 			t.Errorf("unexpected error: %s", err)
 		}
@@ -41,7 +41,7 @@ func TestGetTagsErr(t *testing.T) {
 	// bad : 5F0E5F115F425F125F135F
 	var data []byte = utils.HexToBytes("5F0E5F115F425F125F135F")
 
-	_, err := GetTags(bytes.NewBuffer(data))
+	_, err := ParseTags(bytes.NewBuffer(data))
 	if err == nil {
 		t.Errorf("error expected")
 	}
@@ -49,7 +49,7 @@ func TestGetTagsErr(t *testing.T) {
 
 func TestGetTagNoDataErr(t *testing.T) {
 	// NB force error by passing empty buffer
-	_, err := GetTag(bytes.NewBuffer([]byte{})) // NB empty buffer
+	_, err := ParseTag(bytes.NewBuffer([]byte{})) // NB empty buffer
 	if err == nil {
 		t.Errorf("error expected")
 	}

@@ -53,9 +53,9 @@ func NewCOM(data []byte) (*COM, error) {
 	}
 
 	// Tag list
-	out.TagList, err = tlv.GetTags(bytes.NewBuffer(rootNode.NodeByTag(0x5C).Value()))
+	out.TagList, err = tlv.ParseTags(bytes.NewBuffer(rootNode.NodeByTag(0x5C).Value()))
 	if err != nil {
-		return nil, fmt.Errorf("[NewCOM] GetTags error: %w", err)
+		return nil, fmt.Errorf("[NewCOM] ParseTags error: %w", err)
 	}
 
 	return out, nil

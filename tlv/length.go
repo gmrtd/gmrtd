@@ -12,10 +12,10 @@ type TlvLength int64
 
 // decodes and returns the length
 // NB returns -1 when 'indefinite-length' is indicated
-func GetLength(buf *bytes.Buffer) (length TlvLength, err error) {
+func ParseLength(buf *bytes.Buffer) (length TlvLength, err error) {
 	b1, err := utils.ByteFromBuffer(buf)
 	if err != nil {
-		return 0, fmt.Errorf("[GetLength] ByteFromBuffer error: %w", err)
+		return 0, fmt.Errorf("[ParseLength] ByteFromBuffer error: %w", err)
 	}
 
 	if b1 <= 0x7f {
@@ -34,13 +34,13 @@ func GetLength(buf *bytes.Buffer) (length TlvLength, err error) {
 		byteLen := b1 - 0x80
 		bytes, err := utils.BytesFromBuffer(buf, int(byteLen))
 		if err != nil {
-			return 0, fmt.Errorf("[GetLength] ByteBuffer error: %w", err)
+			return 0, fmt.Errorf("[ParseLength] ByteBuffer error: %w", err)
 		}
 		uint32bytes := make([]byte, 4)
 		copy(uint32bytes[4-byteLen:], bytes)
 		length = TlvLength(binary.BigEndian.Uint32(uint32bytes))
 	} else {
-		return 0, fmt.Errorf("[GetLength] Unsupported length (b1:%02x) (remBytes:%x)", b1, buf.Bytes())
+		return 0, fmt.Errorf("[ParseLength] Unsupported length (b1:%02x) (remBytes:%x)", b1, buf.Bytes())
 	}
 
 	return length, nil

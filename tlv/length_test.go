@@ -52,7 +52,7 @@ func TestGetLength(t *testing.T) {
 		// test decode
 		{
 			var bBuf *bytes.Buffer = bytes.NewBuffer(actOut)
-			decodedLen, err := GetLength(bBuf)
+			decodedLen, err := ParseLength(bBuf)
 
 			if err != nil {
 				t.Errorf("unexpected error: %s", err)
@@ -72,7 +72,7 @@ func TestGetLength(t *testing.T) {
 func TestGetLengthBadLengthErr(t *testing.T) {
 	var buf *bytes.Buffer = bytes.NewBuffer(utils.HexToBytes("85000000000199"))
 
-	_, err := GetLength(buf)
+	_, err := ParseLength(buf)
 
 	if err == nil {
 		t.Errorf("error expected")
