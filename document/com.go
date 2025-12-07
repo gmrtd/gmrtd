@@ -34,26 +34,26 @@ func NewCOM(data []byte) (*COM, error) {
 		return nil, fmt.Errorf("[NewCOM] error: %w", err)
 	}
 
-	rootNode := nodes.GetNode(COMTag)
+	rootNode := nodes.NodeByTag(COMTag)
 
 	if !rootNode.IsValidNode() {
 		return nil, fmt.Errorf("root node (%x) missing", COMTag)
 	}
 
 	// LDS version
-	out.LdsVersion = string(rootNode.GetNode(0x5F01).GetValue())
+	out.LdsVersion = string(rootNode.NodeByTag(0x5F01).Value())
 	if len(out.LdsVersion) != 4 {
 		return nil, fmt.Errorf("LdsVersion must be 4 characters")
 	}
 
 	// Unicode version
-	out.UnicodeVersion = string(rootNode.GetNode(0x5F36).GetValue())
+	out.UnicodeVersion = string(rootNode.NodeByTag(0x5F36).Value())
 	if len(out.UnicodeVersion) != 6 {
 		return nil, fmt.Errorf("UnicodeVersion must be 6 characters")
 	}
 
 	// Tag list
-	out.TagList, err = tlv.GetTags(bytes.NewBuffer(rootNode.GetNode(0x5C).GetValue()))
+	out.TagList, err = tlv.GetTags(bytes.NewBuffer(rootNode.NodeByTag(0x5C).Value()))
 	if err != nil {
 		return nil, fmt.Errorf("[NewCOM] GetTags error: %w", err)
 	}

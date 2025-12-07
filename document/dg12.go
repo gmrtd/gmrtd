@@ -45,7 +45,7 @@ func NewDG12(data []byte) (*DG12, error) {
 		return nil, fmt.Errorf("[NewDG12] error: %w", err)
 	}
 
-	rootNode := nodes.GetNode(DG12Tag)
+	rootNode := nodes.NodeByTag(DG12Tag)
 
 	if !rootNode.IsValidNode() {
 		return nil, fmt.Errorf("root node (%x) missing", DG12Tag)
@@ -62,7 +62,7 @@ func NewDG12(data []byte) (*DG12, error) {
 }
 
 func (details *DocumentDetails) parseData(node tlv.TlvNode) error {
-	tagList, err := tlv.GetTags(bytes.NewBuffer(node.GetNode(0x5C).GetValue()))
+	tagList, err := tlv.GetTags(bytes.NewBuffer(node.NodeByTag(0x5C).Value()))
 	if err != nil {
 		return fmt.Errorf("[parseData] GetTags error: %w", err)
 	}
@@ -80,15 +80,15 @@ func (details *DocumentDetails) parseData(node tlv.TlvNode) error {
 func (details *DocumentDetails) processTag(tag tlv.TlvTag, node tlv.TlvNode) error {
 	switch tag {
 	case 0x5F19:
-		details.IssuingAuthority = string(node.GetNode(tag).GetValue())
+		details.IssuingAuthority = string(node.NodeByTag(tag).Value())
 	case 0x5F26:
 		// should be 8 bytes (YYYYMMDD) but we've also seen 4 bytes (BCD) - e.g. Taiwan passport
-		details.DateOfIssue = parseDateYYYYMMDD(node.GetNode(tag).GetValue())
+		details.DateOfIssue = parseDateYYYYMMDD(node.NodeByTag(tag).Value())
 	case 0x5F1A:
 		// special handling as 'Other Persons' are nested within tag A0 and there can be multiple instances
-		numOtherPersons := utils.BytesToInt(node.GetNode(0xA0).GetNode(0x02).GetValue())
+		numOtherPersons := utils.BytesToInt(node.NodeByTag(0xA0).NodeByTag(0x02).Value())
 		for occur := 1; occur <= numOtherPersons; occur++ {
-			tmpName, err := mrz.ParseName(mrz.DecodeValue(string(node.GetNode(0xA0).GetNodeByOccur(tag, occur).GetValue())))
+			tmpName, err := mrz.ParseName(mrz.DecodeValue(string(node.NodeByTag(0xA0).NodeByTagOccur(tag, occur).Value())))
 			if err != nil {
 				log.Panicf("[processTag] ParseName error: %s", err)
 			}
@@ -96,20 +96,20 @@ func (details *DocumentDetails) processTag(tag tlv.TlvTag, node tlv.TlvNode) err
 			details.OtherPersons = append(details.OtherPersons, *tmpName)
 		}
 	case 0x5F1B:
-		details.EndorsementsAndObservations = string(node.GetNode(tag).GetValue())
+		details.EndorsementsAndObservations = string(node.NodeByTag(tag).Value())
 	case 0x5F1C:
-		details.TaxExitRequirements = string(node.GetNode(tag).GetValue())
+		details.TaxExitRequirements = string(node.NodeByTag(tag).Value())
 	case 0x5F1D:
 		// image data
-		details.ImageFront = node.GetNode(tag).GetValue()
+		details.ImageFront = node.NodeByTag(tag).Value()
 	case 0x5F1E:
 		// image data
-		details.ImageRear = node.GetNode(tag).GetValue()
+		details.ImageRear = node.NodeByTag(tag).Value()
 	case 0x5F55:
 		// should be 14 bytes (YYYYMMDDHHMISS), but probably also have 7 byte BCD encoded variants
-		details.PersoDateTime = parseDatetimeYYYYMMDDHHMISS(node.GetNode(tag).GetValue())
+		details.PersoDateTime = parseDatetimeYYYYMMDDHHMISS(node.NodeByTag(tag).Value())
 	case 0x5F56:
-		details.PersoSystemSerialNumber = string(node.GetNode(tag).GetValue())
+		details.PersoSystemSerialNumber = string(node.NodeByTag(tag).Value())
 	default:
 		return fmt.Errorf("[processTag] Unsupported Tag:%x", tag)
 	}

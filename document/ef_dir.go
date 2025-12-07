@@ -35,12 +35,12 @@ func NewEFDIR(data []byte) (efDir *EFDIR, err error) {
 
 		occur := 1
 		for {
-			node := nodes.GetNodeByOccur(0x61, occur)
+			node := nodes.NodeByTagOccur(0x61, occur)
 			if !node.IsValidNode() {
 				break
 			}
 
-			out.Application = append(out.Application, EfDirApplication{aid: node.GetNode(0x4F).GetValue()})
+			out.Application = append(out.Application, EfDirApplication{aid: node.NodeByTag(0x4F).Value()})
 
 			occur++
 		}

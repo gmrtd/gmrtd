@@ -311,7 +311,7 @@ func (chipAuth *ChipAuth) doGeneralAuthenticate(curve *elliptic.Curve, termKeypa
 		if err != nil {
 			return nil, nil, fmt.Errorf("[doGeneralAuthenticate] tlv.Decode error: %w", err)
 		}
-		if !tmpNodes.GetNode(0x7C).IsValidNode() {
+		if !tmpNodes.NodeByTag(0x7C).IsValidNode() {
 			return nil, nil, fmt.Errorf("[doGeneralAuthenticate] missing 7C tag in response (rspBytes:%x)", rApduBytes)
 		}
 	}

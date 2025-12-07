@@ -297,7 +297,7 @@ func decodeDynAuthData(tag byte, data []byte) []byte {
 	if err != nil {
 		panic(fmt.Sprintf("[decodeDynAuthData] tlv.Decode error: %s", err))
 	}
-	return tmpNodes.GetNode(0x7C).GetNode(tlv.TlvTag(tag)).GetValue()
+	return tmpNodes.NodeByTag(0x7C).NodeByTag(tlv.TlvTag(tag)).Value()
 }
 
 // encodes a public-key template (7F49) containing the OID and the public-key (86)

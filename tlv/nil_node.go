@@ -6,19 +6,19 @@ func (node TlvNilNode) IsValidNode() bool {
 	return false
 }
 
-func (node TlvNilNode) GetTag() TlvTag {
+func (node TlvNilNode) Tag() TlvTag {
 	return TlvTag(-1)
 }
 
-func (node TlvNilNode) GetValue() []byte {
+func (node TlvNilNode) Value() []byte {
 	return nil
 }
 
-func (node TlvNilNode) GetNode(_ TlvTag) TlvNode {
+func (node TlvNilNode) NodeByTag(_ TlvTag) TlvNode {
 	return NewTlvNilNode()
 }
 
-func (node TlvNilNode) GetNodeByOccur(_ TlvTag, _ int) TlvNode {
+func (node TlvNilNode) NodeByTagOccur(_ TlvTag, _ int) TlvNode {
 	return NewTlvNilNode()
 }
 

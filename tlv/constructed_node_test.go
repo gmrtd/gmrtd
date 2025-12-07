@@ -30,7 +30,7 @@ func TestNewConstructedNode(t *testing.T) {
 	node.AddChild(NewTlvSimpleNode(TlvTag(0x01), []byte{1, 2, 3, 4, 5}))
 	node.AddChild(NewTlvSimpleNode(TlvTag(0x02), []byte{6, 7, 8, 9, 10}))
 
-	value := node.GetValue()
+	value := node.Value()
 
 	if !bytes.Equal(value, utils.HexToBytes("010501020304050205060708090a")) {
 		t.Errorf("value mismatch")

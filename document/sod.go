@@ -69,7 +69,7 @@ func NewSOD(data []byte) (*SOD, error) {
 		return nil, fmt.Errorf("[NewSOD] error: %w", err)
 	}
 
-	rootNode := nodes.GetNode(SODTag)
+	rootNode := nodes.NodeByTag(SODTag)
 
 	if !rootNode.IsValidNode() {
 		return nil, fmt.Errorf("root node (%x) missing", SODTag)
@@ -79,7 +79,7 @@ func NewSOD(data []byte) (*SOD, error) {
 		var sd *cms.SignedData
 		var err error
 
-		sd, err = cms.ParseSignedData(rootNode.GetNode(0x30).Encode())
+		sd, err = cms.ParseSignedData(rootNode.NodeByTag(0x30).Encode())
 		if err != nil {
 			return nil, err
 		}

@@ -42,7 +42,7 @@ func NewDG7(data []byte) (*DG7, error) {
 		return nil, fmt.Errorf("[NewDG7] error: %w", err)
 	}
 
-	rootNode := nodes.GetNode(DG7Tag)
+	rootNode := nodes.NodeByTag(DG7Tag)
 
 	if !rootNode.IsValidNode() {
 		return nil, fmt.Errorf("root node (%x) missing", DG7Tag)
@@ -51,7 +51,7 @@ func NewDG7(data []byte) (*DG7, error) {
 	{
 		var numImages int
 		{
-			tmp := rootNode.GetNode(0x02).GetValue()
+			tmp := rootNode.NodeByTag(0x02).Value()
 			if len(tmp) != 1 {
 				return nil, fmt.Errorf("DG7 tag 02 length must be 1 byte (actLen:%1d)", len(tmp))
 			}
@@ -64,7 +64,7 @@ func NewDG7(data []byte) (*DG7, error) {
 		}
 
 		for occurrence := 1; occurrence <= numImages; occurrence++ {
-			imageBytes := rootNode.GetNodeByOccur(0x5F43, occurrence).GetValue()
+			imageBytes := rootNode.NodeByTagOccur(0x5F43, occurrence).Value()
 
 			if !utils.IsImage(imageBytes) {
 				return nil, fmt.Errorf("unknown image type [prefixBytes:%x]", imageBytes[0:10])

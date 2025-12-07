@@ -13,19 +13,19 @@ func (node TlvNodes) IsValidNode() bool {
 	return true
 }
 
-func (nodes TlvNodes) GetNode(tag TlvTag) TlvNode {
-	return nodes.GetNodeByOccur(tag, 1)
+func (nodes TlvNodes) NodeByTag(tag TlvTag) TlvNode {
+	return nodes.NodeByTagOccur(tag, 1)
 }
 
 // occurrence: 1-n
-func (nodes TlvNodes) GetNodeByOccur(tag TlvTag, occurrence int) TlvNode {
+func (nodes TlvNodes) NodeByTagOccur(tag TlvTag, occurrence int) TlvNode {
 	if occurrence < 1 {
-		panic("[GetNodeByOccur] occurrence must be 1..n")
+		panic("[NodeByTagOccur] occurrence must be 1..n")
 	}
 
 	curOccurrence := 0
 	for _, child := range nodes.Nodes {
-		if child.GetTag() == tag {
+		if child.Tag() == tag {
 			curOccurrence++
 
 			if occurrence == curOccurrence {

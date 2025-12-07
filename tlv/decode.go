@@ -42,7 +42,7 @@ func decode(data []byte) (nodes *TlvNodes, remainingData []byte, err error) {
 				}
 
 				node := NewTlvConstructedNode(tag)
-				node.Children.Nodes = append(node.Children.Nodes, children.Nodes...)
+				node.children.Nodes = append(node.children.Nodes, children.Nodes...)
 
 				nodes.Nodes = append(nodes.Nodes, node)
 
@@ -65,7 +65,7 @@ func decode(data []byte) (nodes *TlvNodes, remainingData []byte, err error) {
 					return nil, remainingData, fmt.Errorf("[decode] Remaining-data not expected (%x)", remainingData)
 				}
 				node := NewTlvConstructedNode(tag)
-				node.Children.Nodes = append(node.Children.Nodes, children.Nodes...)
+				node.children.Nodes = append(node.children.Nodes, children.Nodes...)
 
 				nodes.Nodes = append(nodes.Nodes, node)
 			}

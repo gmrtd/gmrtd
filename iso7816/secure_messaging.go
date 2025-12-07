@@ -265,15 +265,15 @@ func (sm *SecureMessaging) Encode(cApdu *CApdu) (out *CApdu, err error) {
 func generateMacDataForSmRApduTlv(smRApduTlv *tlv.TlvNodes, ssc []byte) []byte {
 	out := make([]byte, 0)
 	out = append(out, ssc...)
-	out = append(out, smRApduTlv.GetNode(0x85).Encode()...)
-	out = append(out, smRApduTlv.GetNode(0x87).Encode()...)
-	out = append(out, smRApduTlv.GetNode(0x99).Encode()...)
+	out = append(out, smRApduTlv.NodeByTag(0x85).Encode()...)
+	out = append(out, smRApduTlv.NodeByTag(0x87).Encode()...)
+	out = append(out, smRApduTlv.NodeByTag(0x99).Encode()...)
 	return out
 }
 
 func (sm *SecureMessaging) decodeVerifyMAC(tlv *tlv.TlvNodes) error {
 	macData := generateMacDataForSmRApduTlv(tlv, sm.ssc)
-	actMAC := tlv.GetNode(0x8E).GetValue()
+	actMAC := tlv.NodeByTag(0x8E).Value()
 
 	expMAC, err := sm.generateMac(sm.cryptoPad(macData))
 	if err != nil {
@@ -332,13 +332,13 @@ func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
 		return nil, fmt.Errorf("[SM.Decode] error: %w", err)
 	}
 
-	tag85or87 := tlv.GetNode(0x85)
+	tag85or87 := tlv.NodeByTag(0x85)
 	if !tag85or87.IsValidNode() {
-		tag85or87 = tlv.GetNode(0x87)
+		tag85or87 = tlv.NodeByTag(0x87)
 	}
 
-	tag99 := tlv.GetNode(0x99)
-	tag8E := tlv.GetNode(0x8E)
+	tag99 := tlv.NodeByTag(0x99)
+	tag8E := tlv.NodeByTag(0x8E)
 
 	if !tag8E.IsValidNode() {
 		return nil, fmt.Errorf("(sm.Decode) tag 0x8E must be present")
@@ -350,7 +350,7 @@ func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
 	}
 
 	// set the status
-	rApduStatus := binary.BigEndian.Uint16(tag99.GetValue())
+	rApduStatus := binary.BigEndian.Uint16(tag99.Value())
 
 	// sanity check that insecure/secure status values match
 	if smRApdu.Status != rApduStatus {
@@ -360,7 +360,7 @@ func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
 	// decrypt and unpad the data (if applicable)
 	var rapduData []byte
 	if tag85or87.IsValidNode() {
-		rapduData, err = sm.decodeSmRApduData(tag85or87.GetValue())
+		rapduData, err = sm.decodeSmRApduData(tag85or87.Value())
 		if err != nil {
 			return nil, fmt.Errorf("(sm.Decode) error decoding rApduData: %w", err)
 		}

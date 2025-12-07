@@ -28,13 +28,13 @@ func NewDG14(data []byte) (dg14 *DG14, err error) {
 		return nil, fmt.Errorf("[NewDG14] error: %w", err)
 	}
 
-	rootNode := nodes.GetNode(DG14Tag)
+	rootNode := nodes.NodeByTag(DG14Tag)
 
 	if !rootNode.IsValidNode() {
 		return nil, fmt.Errorf("root node (%x) missing", DG14Tag)
 	}
 
-	if dg14.SecInfos, err = DecodeSecurityInfos(rootNode.GetValue()); err != nil {
+	if dg14.SecInfos, err = DecodeSecurityInfos(rootNode.Value()); err != nil {
 		return nil, err
 	}
 

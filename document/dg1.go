@@ -30,14 +30,14 @@ func NewDG1(data []byte) (dg1 *DG1, err error) {
 		return nil, fmt.Errorf("[NewDG1] error: %w", err)
 	}
 
-	rootNode := nodes.GetNode(DG1Tag)
+	rootNode := nodes.NodeByTag(DG1Tag)
 
 	if !rootNode.IsValidNode() {
 		return nil, fmt.Errorf("root node (%x) missing", DG1Tag)
 	}
 
 	{
-		mrzBytes := rootNode.GetNode(0x5f1f).GetValue()
+		mrzBytes := rootNode.NodeByTag(0x5f1f).Value()
 		if mrzBytes == nil {
 			return nil, fmt.Errorf("MRZ Tag (5F1F) missing")
 		}
