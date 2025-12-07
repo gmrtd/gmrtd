@@ -11,7 +11,7 @@ import (
 
 type MockStatus struct{}
 
-func (s *MockStatus) Status(msg string) {
+func (s *MockStatus) Status(_ string) {
 	// NB do nothing
 }
 
