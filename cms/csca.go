@@ -1,7 +1,7 @@
 package cms
 
 import (
-	_ "embed"
+	_ "embed" // Import for loading master-lists
 	"fmt"
 )
 
