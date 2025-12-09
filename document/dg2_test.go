@@ -1,9 +1,8 @@
 package document
 
 import (
-	_ "embed"
-
 	"bytes"
+	_ "embed" // Import for loading test files
 	"testing"
 
 	"github.com/gmrtd/gmrtd/utils"

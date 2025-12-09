@@ -2,7 +2,7 @@ package iso19794
 
 import (
 	"bytes"
-	_ "embed"
+	_ "embed" // Import for loading test files
 	"testing"
 )
 
