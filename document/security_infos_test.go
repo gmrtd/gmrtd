@@ -243,7 +243,7 @@ func TestSecurityInfosContainsError(t *testing.T) {
 		t.Errorf("Unexpected error: %s", err)
 	}
 
-	if err := secInfos.Contains(cardAccessSecInfos); err == nil {
+	if secInfos.Contains(cardAccessSecInfos) == nil {
 		t.Error("secInfos should *NOT* CONTAIN cardAccessSecInfos")
 	}
 }
@@ -267,11 +267,11 @@ func TestContainsBadAsnErr(t *testing.T) {
 	var secInfo2orig SecurityInfos = SecurityInfos{RawData: utils.HexToBytes("31283012060a04007f0007020204020202010202010d3012060a04007f0007020204060202010202010d")}
 	var secInfo2bad SecurityInfos = SecurityInfos{RawData: utils.HexToBytes("31293012060a04007f0007020204020202010202010d3012060a04007f0007020204060202010202010d")}
 
-	if err := secInfo1bad.Contains(&secInfo2orig); err == nil {
+	if secInfo1bad.Contains(&secInfo2orig) == nil {
 		t.Fatalf("error expected")
 	}
 
-	if err := secInfo1orig.Contains(&secInfo2bad); err == nil {
+	if secInfo1orig.Contains(&secInfo2bad) == nil {
 		t.Fatalf("error expected")
 	}
 }
