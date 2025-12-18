@@ -113,9 +113,7 @@ func TestCscaCertPool(t *testing.T) {
 				*       the master-list. For these, we whitelist the 'ski' and skip signature verification
 				 */
 				if len(parentCerts) < 1 {
-					if bytes.Equal(*ski, utils.HexToBytes("e7d8dd1758d54b42aa02db88eb701e44c6925ae6")) ||
-						bytes.Equal(*ski, utils.HexToBytes("f5a8f9b1e7a992a0865408db2a471c04a215f4d7")) ||
-						bytes.Equal(*ski, utils.HexToBytes("b90f6a1f82f3b55803cf9b318b883a8954c47f17")) ||
+					if bytes.Equal(*ski, utils.HexToBytes("f5a8f9b1e7a992a0865408db2a471c04a215f4d7")) ||
 						bytes.Equal(*ski, utils.HexToBytes("6c17211c20901464d3beb833aa83c538c2a757be")) ||
 						bytes.Equal(*ski, utils.HexToBytes("1fe1572e9b35121363a50fee3e2ce2c1d187a8dd")) ||
 						bytes.Equal(*ski, utils.HexToBytes("3f38d115cbf5b2016609c464fb6375d812f15acd")) ||
