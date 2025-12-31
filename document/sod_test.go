@@ -273,16 +273,13 @@ func TestNewSod(t *testing.T) {
 				}
 			}
 
-			// TODO - problem with NL master-list.... should we just validate that we got 2 certs, instead of hard-coding?
-			/*
-				// verify CSCA cert
-				{
-					var actCscaCert []byte = certChain[1]
-					if !bytes.Equal(actCscaCert, tc.expCertCSCA) {
-						t.Errorf("Cert (CSCA) mismatch (exp:%x, act:%x)", tc.expCertCSCA, actCscaCert)
-					}
+			// verify CSCA cert
+			{
+				var actCscaCert []byte = certChain[1]
+				if !bytes.Equal(actCscaCert, tc.expCertCSCA) {
+					t.Errorf("Cert (CSCA) mismatch (exp:%x, act:%x)", tc.expCertCSCA, actCscaCert)
 				}
-			*/
+			}
 		}
 
 		// verify country-code matches expected
