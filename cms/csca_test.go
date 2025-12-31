@@ -121,7 +121,8 @@ func TestCscaCertPool(t *testing.T) {
 						bytes.Equal(*ski, utils.HexToBytes("cd3cc520b508a44e6d518dff33fa36cbde108be2")) ||
 						bytes.Equal(*ski, utils.HexToBytes("a12ae326fc2b0d76a85c8b4711b9c1c22061c919")) ||
 						bytes.Equal(*ski, utils.HexToBytes("9ee0bfdee2d3d4fced1b3928f54aa7b3265dfaf9")) ||
-						bytes.Equal(*ski, utils.HexToBytes("db04dae635a2cbecd63f8d60c2060efd5df719e3")) {
+						bytes.Equal(*ski, utils.HexToBytes("db04dae635a2cbecd63f8d60c2060efd5df719e3")) ||
+						bytes.Equal(*ski, utils.HexToBytes("76ecb9957793744901c6e392f55327426fa10b50")) {
 						continue
 					}
 				}
