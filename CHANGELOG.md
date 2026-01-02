@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.1](https://github.com/gmrtd/gmrtd/compare/v0.15.0...v0.15.1) (2026-01-02)
+
+
+### Bug Fixes
+
+* country mappings for hong kong and hungary ([#140](https://github.com/gmrtd/gmrtd/issues/140)) ([56c089f](https://github.com/gmrtd/gmrtd/commit/56c089f902ad8ea57b1fe4ca0c859230eb19b2b8))
+
 ## [0.15.0](https://github.com/gmrtd/gmrtd/compare/v0.14.0...v0.15.0) (2025-12-31)
 
 
