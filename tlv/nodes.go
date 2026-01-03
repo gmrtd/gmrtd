@@ -37,6 +37,10 @@ func (nodes TlvNodes) NodeByTagOccur(tag TlvTag, occurrence int) TlvNode {
 	return NewTlvNilNode()
 }
 
+func (nodes TlvNodes) Children() []TlvNode {
+	return nodes.Nodes
+}
+
 func (nodes TlvNodes) Encode() []byte {
 	out := new(bytes.Buffer)
 
@@ -61,8 +65,4 @@ func (nodes TlvNodes) String() string {
 
 func (nodes *TlvNodes) AddNode(node TlvNode) {
 	nodes.Nodes = append(nodes.Nodes, node)
-}
-
-func NewTlvNodes() *TlvNodes {
-	return &TlvNodes{}
 }

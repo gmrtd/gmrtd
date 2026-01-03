@@ -6,6 +6,7 @@ type TlvNode interface {
 	Value() []byte
 	NodeByTag(tag TlvTag) TlvNode
 	NodeByTagOccur(tag TlvTag, occurrence int) TlvNode
+	Children() []TlvNode
 	Encode() []byte
 	String() string
 	stringWithIndent(indent int) string
