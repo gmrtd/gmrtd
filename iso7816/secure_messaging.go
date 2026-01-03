@@ -240,7 +240,7 @@ func (sm *SecureMessaging) Encode(cApdu *CApdu) (out *CApdu, err error) {
 	// increment SSC
 	sm.sscIncrement()
 
-	nodes := tlv.NewTlvNodes()
+	var nodes *tlv.TlvNodes = &tlv.TlvNodes{}
 
 	// do85/do87
 	sm.buildTag85or87(cApdu, nodes)

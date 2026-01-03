@@ -9,7 +9,7 @@ import (
 
 // internal decode function - clients should use TlvDecode
 func decode(data []byte) (nodes *TlvNodes, remainingData []byte, err error) {
-	nodes = NewTlvNodes()
+	nodes = &TlvNodes{}
 
 	buf := bytes.NewBuffer(data)
 

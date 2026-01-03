@@ -11,7 +11,7 @@ func (node TlvNilNode) Tag() TlvTag {
 }
 
 func (node TlvNilNode) Value() []byte {
-	return nil
+	return []byte{}
 }
 
 func (node TlvNilNode) NodeByTag(_ TlvTag) TlvNode {
@@ -20,6 +20,10 @@ func (node TlvNilNode) NodeByTag(_ TlvTag) TlvNode {
 
 func (node TlvNilNode) NodeByTagOccur(_ TlvTag, _ int) TlvNode {
 	return NewTlvNilNode()
+}
+
+func (node TlvNilNode) Children() []TlvNode {
+	return []TlvNode{}
 }
 
 func (node TlvNilNode) Encode() []byte {

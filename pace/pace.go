@@ -319,7 +319,7 @@ func (pace *Pace) doApduMseSetAT(paceConfig *PaceConfig, domainParams *PACEDomai
 
 	paceOidBytes := oid.OidBytes(paceConfig.oid)
 
-	nodes := tlv.NewTlvNodes()
+	var nodes *tlv.TlvNodes = &tlv.TlvNodes{}
 	nodes.AddNode(tlv.NewTlvSimpleNode(0x80, paceOidBytes))
 	nodes.AddNode(tlv.NewTlvSimpleNode(0x83, []byte{pace.password.Type()}))
 	// this should be CONDITIONAL and only provided where there is ambiguity, but

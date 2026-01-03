@@ -224,7 +224,7 @@ func (chipAuth *ChipAuth) doMseSetKAT(curve *elliptic.Curve, termKeypair cryptou
 	// Exp Rsp: 9000
 	//			Exp errors: 6A80 / ...
 
-	nodes := tlv.NewTlvNodes()
+	var nodes *tlv.TlvNodes = &tlv.TlvNodes{}
 
 	nodes.AddNode(tlv.NewTlvSimpleNode(0x91, cryptoutils.EncodeX962EcPoint(*curve, termKeypair.Pub)))
 
@@ -269,7 +269,7 @@ func (chipAuth *ChipAuth) doMseSetAT(caInfo *document.ChipAuthenticationInfo) er
 
 	slog.Debug("doCaECdh - doMseSetAT")
 
-	nodes := tlv.NewTlvNodes()
+	var nodes *tlv.TlvNodes = &tlv.TlvNodes{}
 
 	nodes.AddNode(tlv.NewTlvSimpleNode(0x80, oid.OidBytes(caInfo.Protocol)))
 	// specify key-id (if required)

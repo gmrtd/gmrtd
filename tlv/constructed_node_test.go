@@ -22,6 +22,8 @@ func TestNewConstructedNode(t *testing.T) {
 	// - create constructed node (0x7C)
 	// - add child node (0x01)
 	// - add child node (0x02)
+	// - verify we have 2 children
+	// - verify node is valid
 	// - verify that GeValue() works
 	// - verify that String() returns something
 
@@ -29,6 +31,14 @@ func TestNewConstructedNode(t *testing.T) {
 
 	node.AddChild(NewTlvSimpleNode(TlvTag(0x01), []byte{1, 2, 3, 4, 5}))
 	node.AddChild(NewTlvSimpleNode(TlvTag(0x02), []byte{6, 7, 8, 9, 10}))
+
+	if len(node.Children()) != 2 {
+		t.Errorf("Expected 2 child nodes")
+	}
+
+	if !node.IsValidNode() {
+		t.Errorf("Expected valid node")
+	}
 
 	value := node.Value()
 

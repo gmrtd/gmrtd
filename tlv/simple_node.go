@@ -36,6 +36,10 @@ func (node TlvSimpleNode) NodeByTagOccur(_ TlvTag, _ int) TlvNode {
 	return NewTlvNilNode()
 }
 
+func (node TlvSimpleNode) Children() []TlvNode {
+	return []TlvNode{}
+}
+
 func (node TlvSimpleNode) Encode() []byte {
 	out := new(bytes.Buffer)
 	out.Write(node.tag.Encode())

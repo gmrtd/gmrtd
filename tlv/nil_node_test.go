@@ -15,6 +15,14 @@ func TestNilNode(t *testing.T) {
 		t.Errorf("Expected empty value")
 	}
 
+	if len(node.Children()) != 0 {
+		t.Errorf("Expected 0 child nodes")
+	}
+
+	if node.IsValidNode() {
+		t.Errorf("Expected invalid node")
+	}
+
 	if len(node.Encode()) > 0 {
 		t.Errorf("Expected empty (encoded) value")
 	}
