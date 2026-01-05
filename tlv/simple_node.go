@@ -70,5 +70,6 @@ func (node TlvSimpleNode) String() string {
 }
 
 func NewTlvSimpleNode(tag TlvTag, value []byte) *TlvSimpleNode {
+	// NB we don't enforce Tag being !constructed
 	return &TlvSimpleNode{tag: tag, value: value}
 }

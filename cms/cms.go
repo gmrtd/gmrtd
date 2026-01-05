@@ -143,16 +143,13 @@ func (attributes AttributeList) SetOfAsnBytes() []byte {
 	//
 	// https://datatracker.ietf.org/doc/html/rfc5652#section-5.4
 
-	var data []byte
+	var attributeBytes []byte
 
 	for i := range attributes {
-		data = append(data, attributes[i].Raw...)
+		attributeBytes = append(attributeBytes, attributes[i].Raw...)
 	}
 
-	// wrap with explicit 'SET OF' (0x31) tag
-	data = tlv.NewTlvSimpleNode(0x31, data).Encode()
-
-	return data
+	return tlv.NewTlvSimpleNode(0x31, attributeBytes).Encode()
 }
 
 type EncapContentInfo struct {
