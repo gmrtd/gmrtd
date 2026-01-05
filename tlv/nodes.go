@@ -6,7 +6,7 @@ import (
 )
 
 type TlvNodes struct {
-	Nodes []TlvNode
+	nodes []TlvNode
 }
 
 func (node TlvNodes) IsValidNode() bool {
@@ -24,7 +24,7 @@ func (nodes TlvNodes) NodeByTagOccur(tag TlvTag, occurrence int) TlvNode {
 	}
 
 	curOccurrence := 0
-	for _, child := range nodes.Nodes {
+	for _, child := range nodes.nodes {
 		if child.Tag() == tag {
 			curOccurrence++
 
@@ -37,23 +37,26 @@ func (nodes TlvNodes) NodeByTagOccur(tag TlvTag, occurrence int) TlvNode {
 	return NewTlvNilNode()
 }
 
-func (nodes TlvNodes) Children() []TlvNode {
-	return nodes.Nodes
+func (nodes TlvNodes) Nodes() []TlvNode {
+	return nodes.nodes
 }
 
 func (nodes TlvNodes) Encode() []byte {
 	out := new(bytes.Buffer)
 
-	for _, child := range nodes.Nodes {
+	for _, child := range nodes.nodes {
 		out.Write(child.Encode())
 	}
 
 	return bytes.Clone(out.Bytes())
 }
 
+// TODO - may want this to return a standard string... once we have a better way of generating formatted TLV (will need to update other instances also)
+//
+//	e.g. {tag:0x06, children:{...}}
 func (nodes TlvNodes) stringWithIndent(indent int) string {
 	var sb strings.Builder
-	for _, child := range nodes.Nodes {
+	for _, child := range nodes.nodes {
 		sb.WriteString(child.stringWithIndent(indent))
 	}
 	return sb.String()
@@ -64,5 +67,16 @@ func (nodes TlvNodes) String() string {
 }
 
 func (nodes *TlvNodes) AddNode(node TlvNode) {
-	nodes.Nodes = append(nodes.Nodes, node)
+	// silently ignore invalid nodes (e.g. nil-node)
+	if !node.IsValidNode() {
+		return
+	}
+
+	nodes.nodes = append(nodes.nodes, node)
+}
+
+func (nodes *TlvNodes) AddNodes(nodesToAdd TlvNodes) {
+	for _, node := range nodesToAdd.Nodes() {
+		nodes.AddNode(node)
+	}
 }

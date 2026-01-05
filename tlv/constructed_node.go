@@ -32,7 +32,7 @@ func (node TlvConstructedNode) NodeByTagOccur(tag TlvTag, occurrence int) TlvNod
 }
 
 func (node TlvConstructedNode) Children() []TlvNode {
-	return node.children.Nodes
+	return node.children.Nodes()
 }
 
 func (node TlvConstructedNode) Encode() []byte {
