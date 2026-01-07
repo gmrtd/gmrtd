@@ -2,8 +2,10 @@
   "release-type": "go",
   "packages": {
     ".": {
-      "version-file": "version.go",
-      "extra-files": ["version.go"]
+      "version-file": "./internal/version/version.go",
+      "extra-files": [
+        "./internal/version/version.go"
+      ]
     }
   },
   "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json"
