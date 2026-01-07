@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.2](https://github.com/gmrtd/gmrtd/compare/v0.15.1...v0.15.2) (2026-01-07)
+
+
+### Bug Fixes
+
+* add version to mobile interface and cmd app ([#146](https://github.com/gmrtd/gmrtd/issues/146)) ([65916f4](https://github.com/gmrtd/gmrtd/commit/65916f4d60586ebd7db64d26323bb2ad5fbfd338))
+
 ## [0.15.1](https://github.com/gmrtd/gmrtd/compare/v0.15.0...v0.15.1) (2026-01-02)
 
 
