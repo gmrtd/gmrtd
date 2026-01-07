@@ -2,9 +2,9 @@
   "release-type": "go",
   "packages": {
     ".": {
-      "version-file": "./internal/version/version.go",
+      "version-file": "/internal/version/version.go",
       "extra-files": [
-        "./internal/version/version.go"
+        "/internal/version/version.go"
       ]
     }
   },
