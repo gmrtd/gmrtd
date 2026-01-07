@@ -13,6 +13,7 @@ import (
 
 	"github.com/dumacp/smartcard/pcsc"
 	"github.com/gmrtd/gmrtd/document"
+	"github.com/gmrtd/gmrtd/internal/version"
 	"github.com/gmrtd/gmrtd/iso7816"
 	"github.com/gmrtd/gmrtd/password"
 	"github.com/gmrtd/gmrtd/reader"
@@ -133,6 +134,8 @@ func main() {
 	var maxRead uint = 0
 	var skipPace bool = false
 	var err error
+
+	fmt.Printf("GMRTD:v%s\n\n", version.Version)
 
 	pass, debug, maxRead, skipPace, err = cmdParams()
 	if err != nil {
