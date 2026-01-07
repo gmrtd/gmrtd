@@ -7,6 +7,7 @@ import (
 	"runtime/debug"
 
 	"github.com/gmrtd/gmrtd/document"
+	"github.com/gmrtd/gmrtd/internal/version"
 	"github.com/gmrtd/gmrtd/password"
 	"github.com/gmrtd/gmrtd/reader"
 )
@@ -25,6 +26,10 @@ type ReaderStatus interface {
 
 type MrtdPassword struct {
 	password *password.Password
+}
+
+func Version() string {
+	return version.Version
 }
 
 func NewPasswordMrz(mrz string) (*MrtdPassword, error) {
