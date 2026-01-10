@@ -3,13 +3,14 @@ package document
 import (
 	"bytes"
 	"encoding/asn1"
+	"encoding/json"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/oid"
 	"github.com/gmrtd/gmrtd/utils"
 )
 
-func TestDecodeSecurityInfos(t *testing.T) {
+func TestDecodeSecurityInfosPaceInfo(t *testing.T) {
 	cardAccessFile := utils.HexToBytes("31143012060A04007F0007020204020202010202010D")
 
 	secInfos, err := DecodeSecurityInfos(cardAccessFile)
@@ -34,9 +35,20 @@ func TestDecodeSecurityInfos(t *testing.T) {
 	if (secInfos.TotalCnt() != 1) || (len(secInfos.PaceInfos) != 1) {
 		t.Errorf("Security-Info error")
 	}
+
+	jsonStr, err := json.Marshal(secInfos)
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+
+	var expJsonStr string = "{\"rawData\":\"MRQwEgYKBAB/AAcCAgQCAgIBAgIBDQ==\",\"paceInfos\":[{\"protocol\":\"0.4.0.127.0.7.2.2.4.2.2\",\"version\":2,\"parameterId\":13}]}"
+
+	if string(jsonStr) != expJsonStr {
+		t.Errorf("Incorrect JSON [Act] %s [Exp] %s", jsonStr, expJsonStr)
+	}
 }
 
-func TestDecodeSecurityInfos2(t *testing.T) {
+func TestDecodeSecurityInfosChipAuthPubKeyInfo(t *testing.T) {
 	cardAccessFile := utils.HexToBytes("31643062060904007F0007020201023052300C060704007F0007010202010D034200041872709494399E7470A6431BE25E83EEE24FEA568C2ED28DB48E05DB3A610DC884D256A40E35EFCB59BF6753D3A489D28C7A4D973C2DA138A6E7A4A08F68E16F02010D")
 
 	secInfos, err := DecodeSecurityInfos(cardAccessFile)
@@ -65,6 +77,17 @@ func TestDecodeSecurityInfos2(t *testing.T) {
 	if (secInfos.TotalCnt() != 1) || (len(secInfos.ChipAuthPubKeyInfos) != 1) {
 		t.Errorf("Security-Info error")
 	}
+
+	jsonStr, err := json.Marshal(secInfos)
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+
+	var expJsonStr string = "{\"rawData\":\"MWQwYgYJBAB/AAcCAgECMFIwDAYHBAB/AAcBAgIBDQNCAAQYcnCUlDmedHCmQxviXoPu4k/qVowu0o20jgXbOmENyITSVqQONe/LWb9nU9OkidKMek2XPC2hOKbnpKCPaOFvAgEN\",\"chipAuthPubKeyInfos\":[{\"protocol\":\"0.4.0.127.0.7.2.2.1.2\",\"chipAuthenticationPublicKey\":{\"algorithm\":{\"algorithm\":\"0.4.0.127.0.7.1.2\",\"parameters\":\"AgEN\"},\"subjectPublicKey\":\"BBhycJSUOZ50cKZDG+Jeg+7iT+pWjC7SjbSOBds6YQ3IhNJWpA4178tZv2dT06SJ0ox6TZc8LaE4puekoI9o4W8=\"},\"keyId\":13}]}"
+
+	if string(jsonStr) != expJsonStr {
+		t.Errorf("Incorrect JSON [Act] %s [Exp] %s", jsonStr, expJsonStr)
+	}
 }
 
 func TestDecodeSecurityInfosEfDir(t *testing.T) {
@@ -81,6 +104,16 @@ func TestDecodeSecurityInfosEfDir(t *testing.T) {
 		t.Errorf("Security-Info error")
 	}
 
+	jsonStr, err := json.Marshal(secInfos)
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+
+	var expJsonStr string = "{\"rawData\":\"MTcwNQYFKxsBAQ0ELGEJTwegAAACRxABYQlPB6AAAAJHIAFhCU8HoAAAAkcgAmEJTwegAAACRyAD\",\"efDirInfos\":[{\"protocol\":\"1.3.27.1.1.13\",\"efDir\":\"YQlPB6AAAAJHEAFhCU8HoAAAAkcgAWEJTwegAAACRyACYQlPB6AAAAJHIAM=\"}]}"
+
+	if string(jsonStr) != expJsonStr {
+		t.Errorf("Incorrect JSON [Act] %s [Exp] %s", jsonStr, expJsonStr)
+	}
 }
 
 func TestDecodeSecurityInfosCardSecFile(t *testing.T) {
