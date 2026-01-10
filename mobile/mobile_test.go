@@ -1,6 +1,7 @@
 package mobile
 
 import (
+	"regexp"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/iso7816"
@@ -57,9 +58,8 @@ type testReaderStatus struct {
 func (status *testReaderStatus) Status(_ string) {
 }
 
-// TODO -  basic test that will fail quickly due to static transceiver
+// NB basic test that will fail quickly due to static transceiver
 func TestReadDocument(t *testing.T) {
-
 	reader := NewReader(&testReaderStatus{})
 
 	reader.SetApduMaxLe(1000)
@@ -72,5 +72,41 @@ func TestReadDocument(t *testing.T) {
 	err = reader.ReadDocument(&iso7816.StaticTransceiver{}, pass, nil, nil)
 	if err == nil {
 		t.Fatalf("expected error")
+	}
+
+	// attempt to get JSON data even though we expected document reading error
+	// - we should still have some document object
+	{
+		json, jsonErr := reader.DocumentJson()
+
+		if jsonErr != nil {
+			t.Errorf("unexpected error: %s", jsonErr)
+		}
+
+		if len(json) < 1 {
+			t.Errorf("expected some JSON data")
+		}
+	}
+}
+
+func TestDocumentJsonError(t *testing.T) {
+	// error expected as we attempt to get Document-Json before ReadDocument
+
+	reader := NewReader(&testReaderStatus{})
+
+	_, err := reader.DocumentJson()
+	if err == nil {
+		t.Errorf("error expected")
+	}
+}
+
+func TestVersion(t *testing.T) {
+	version := Version()
+
+	// exected format: <major>.<minor>.<patch>
+	var semverRegex = regexp.MustCompile(`^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$`)
+
+	if !semverRegex.MatchString(version) {
+		t.Errorf("invalid version format: %s", version)
 	}
 }
