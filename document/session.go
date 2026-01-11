@@ -35,7 +35,7 @@ type Session struct {
 }
 
 // determines whether Chip Authentication has been performed based on PACE-CAM/CA/AA success (if applicable)
-func (session *Session) ChipAuthenticated() bool {
+func (session Session) ChipAuthenticated() bool {
 	var chipAuthStatus ChipAuthStatus = session.ChipAuthStatus()
 
 	// prefer explicit whitelisting of success
@@ -48,7 +48,7 @@ func (session *Session) ChipAuthenticated() bool {
 	return false
 }
 
-func (session *Session) ChipAuthStatus() (status ChipAuthStatus) {
+func (session Session) ChipAuthStatus() (status ChipAuthStatus) {
 	// PACE-CAM
 	if session.PaceResult != nil && session.PaceResult.Success && session.PaceResult.ChipAuthenticated {
 		return CHIP_AUTH_STATUS_PACE_CAM
