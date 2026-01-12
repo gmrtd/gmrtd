@@ -169,21 +169,21 @@ func TestVerifySignature(t *testing.T) {
 			expSuccess:   false,
 		},
 	}
-	for _, tc := range testCases {
+	for i, tc := range testCases {
 		digest, err := cryptoutils.CryptoHashByOid(tc.digestAlg, tc.data)
 		if err != nil {
-			t.Errorf("CryptoHashByOid error: %s", err)
+			t.Errorf("Test case %d: CryptoHashByOid error: %s", i, err)
 		}
 
 		err = VerifySignature(tc.keyDer, tc.digestAlg, digest, tc.signatureAlg, tc.signature)
 
 		if tc.expSuccess {
 			if err != nil {
-				t.Errorf("Unexpected error: %s", err)
+				t.Errorf("Test case %d: Unexpected error: %s", i, err)
 			}
 		} else {
 			if err == nil {
-				t.Errorf("Error expected")
+				t.Errorf("Test case %d: Error expected", i)
 			}
 		}
 	}

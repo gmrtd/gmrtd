@@ -8,10 +8,12 @@ import (
 	"encoding/asn1"
 	"fmt"
 	"log/slog"
+	"math/big"
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
 	"github.com/gmrtd/gmrtd/oid"
 	"github.com/gmrtd/gmrtd/utils"
+	"github.com/osanderson/brainpool"
 )
 
 func VerifySignature(pubKeyInfo []byte, digestAlg asn1.ObjectIdentifier, digest []byte, sigAlg asn1.ObjectIdentifier, sig []byte) (err error) {
@@ -42,12 +44,84 @@ func VerifySignature(pubKeyInfo []byte, digestAlg asn1.ObjectIdentifier, digest 
 				pub = &ecdsa.PublicKey{Curve: *ecCurve, X: ecPoint.X, Y: ecPoint.Y}
 			}
 
+			// Parse signature to extract R and S values for validation
+			r, s, err := parseEcdsaSignature(sig)
+			if err != nil {
+				return fmt.Errorf("[VerifySignature] Failed to parse ECDSA signature: %w", err)
+			}
+
+			// Get curve information for logging
+			curveName := getCurveName(pub.Curve)
+			curveOrder := pub.Curve.Params().N
+			curveOrderBits := curveOrder.BitLen()
+
+			// Check if R and S are within the curve's order
+			rOutOfRange := r.Cmp(curveOrder) >= 0 || r.Sign() <= 0
+			sOutOfRange := s.Cmp(curveOrder) >= 0 || s.Sign() <= 0
+
+			// Enhanced logging
+			slog.Info("VerifySignature ECDSA",
+				"curve", curveName,
+				"curveOrderBits", curveOrderBits,
+				"rOutOfRange", rOutOfRange,
+				"sOutOfRange", sOutOfRange)
+
+			if rOutOfRange || sOutOfRange {
+				slog.Warn("VerifySignature ECDSA signature values out of range for curve",
+					"curve", curveName,
+					"R", utils.BytesToHex(r.Bytes()),
+					"S", utils.BytesToHex(s.Bytes()),
+					"curveOrder", utils.BytesToHex(curveOrder.Bytes()),
+					"rOutOfRange", rOutOfRange,
+					"sOutOfRange", sOutOfRange)
+			}
+
 			// VerifyASN1: works with non-nist curves (i.e. brainpool) via legacy code (hopefully this doesn't change)
 			tmpDigest := truncateHashForEcdsa(digest, pub.Curve)
 			validSig := ecdsa.VerifyASN1(pub, tmpDigest, sig)
 			slog.Debug("VerifySignature", "validSig", validSig)
+
 			if !validSig {
 				slog.Info("VerifySignature (bad ECDSA signature)", "pub.X", utils.BytesToHex(pub.X.Bytes()), "pub.Y", utils.BytesToHex(pub.Y.Bytes()), "digest", utils.BytesToHex(tmpDigest), "signature", utils.BytesToHex(sig))
+
+				// If signature failed and R/S are out of range, try alternative curves
+				if rOutOfRange || sOutOfRange {
+					slog.Warn("VerifySignature attempting curve fallback due to out-of-range signature values")
+
+					alternatives := getAlternativeCurves(pub.Curve)
+					for _, altCurve := range alternatives {
+						altCurveName := getCurveName(altCurve)
+						slog.Info("VerifySignature trying alternative curve", "curve", altCurveName)
+
+						// Check if R and S are within the alternative curve's order
+						altCurveOrder := altCurve.Params().N
+						altROutOfRange := r.Cmp(altCurveOrder) >= 0 || r.Sign() <= 0
+						altSOutOfRange := s.Cmp(altCurveOrder) >= 0 || s.Sign() <= 0
+
+						if altROutOfRange || altSOutOfRange {
+							slog.Info("VerifySignature signature values still out of range for alternative curve",
+								"curve", altCurveName,
+								"rOutOfRange", altROutOfRange,
+								"sOutOfRange", altSOutOfRange)
+							continue
+						}
+
+						// Try verification with alternative curve
+						altPub := &ecdsa.PublicKey{Curve: altCurve, X: pub.X, Y: pub.Y}
+						altDigest := truncateHashForEcdsa(digest, altCurve)
+						altValidSig := ecdsa.VerifyASN1(altPub, altDigest, sig)
+
+						if altValidSig {
+							slog.Warn("VerifySignature signature verified with ALTERNATIVE curve (possible passport issuing bug)",
+								"specifiedCurve", curveName,
+								"workingCurve", altCurveName)
+							return nil
+						}
+					}
+
+					slog.Warn("VerifySignature curve fallback failed - no alternative curves worked")
+				}
+
 				return fmt.Errorf("[VerifySignature] Invalid ECDSA signature")
 			}
 
@@ -132,4 +206,90 @@ func truncateHashForEcdsa(hash []byte, curve elliptic.Curve) []byte {
 	}
 
 	return hash
+}
+
+// getCurveName returns a human-readable name for the curve
+func getCurveName(curve elliptic.Curve) string {
+	params := curve.Params()
+
+	// Check NIST curves
+	if params.Name != "" {
+		return params.Name
+	}
+
+	// Check Brainpool curves by comparing the order
+	if params.N.Cmp(brainpool.P192r1().Params().N) == 0 {
+		return "BrainpoolP192r1"
+	}
+	if params.N.Cmp(brainpool.P224r1().Params().N) == 0 {
+		return "BrainpoolP224r1"
+	}
+	if params.N.Cmp(brainpool.P256r1().Params().N) == 0 {
+		return "BrainpoolP256r1"
+	}
+	if params.N.Cmp(brainpool.P320r1().Params().N) == 0 {
+		return "BrainpoolP320r1"
+	}
+	if params.N.Cmp(brainpool.P384r1().Params().N) == 0 {
+		return "BrainpoolP384r1"
+	}
+	if params.N.Cmp(brainpool.P512r1().Params().N) == 0 {
+		return "BrainpoolP512r1"
+	}
+
+	return "Unknown"
+}
+
+// parseEcdsaSignature parses an ASN.1 encoded ECDSA signature and extracts R and S values
+func parseEcdsaSignature(sig []byte) (r, s *big.Int, err error) {
+	var ecdsaSig struct {
+		R, S *big.Int
+	}
+
+	_, err = asn1.Unmarshal(sig, &ecdsaSig)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse ECDSA signature: %w", err)
+	}
+
+	return ecdsaSig.R, ecdsaSig.S, nil
+}
+
+// getAlternativeCurves returns alternative curves of the same bit length
+func getAlternativeCurves(curve elliptic.Curve) []elliptic.Curve {
+	bitLen := curve.Params().N.BitLen()
+	var alternatives []elliptic.Curve
+
+	switch bitLen {
+	case 192:
+		// For 192-bit curves, try both P-192 and BrainpoolP192r1
+		alternatives = []elliptic.Curve{cryptoutils.EllipticP192(), brainpool.P192r1()}
+	case 224:
+		// For 224-bit curves, try both P-224 and BrainpoolP224r1
+		alternatives = []elliptic.Curve{elliptic.P224(), brainpool.P224r1()}
+	case 256:
+		// For 256-bit curves, try both P-256 and BrainpoolP256r1
+		alternatives = []elliptic.Curve{elliptic.P256(), brainpool.P256r1()}
+	case 320:
+		// For 320-bit curves, only BrainpoolP320r1 exists
+		alternatives = []elliptic.Curve{brainpool.P320r1()}
+	case 384:
+		// For 384-bit curves, try both P-384 and BrainpoolP384r1
+		alternatives = []elliptic.Curve{elliptic.P384(), brainpool.P384r1()}
+	case 512:
+		// For 512-bit curves, only BrainpoolP512r1 exists
+		alternatives = []elliptic.Curve{brainpool.P512r1()}
+	case 521:
+		// For 521-bit curves, only P-521 exists
+		alternatives = []elliptic.Curve{elliptic.P521()}
+	}
+
+	// Remove the original curve from alternatives
+	var filtered []elliptic.Curve
+	for _, alt := range alternatives {
+		if alt.Params().N.Cmp(curve.Params().N) != 0 {
+			filtered = append(filtered, alt)
+		}
+	}
+
+	return filtered
 }
