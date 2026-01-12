@@ -40,6 +40,10 @@ func VerifySignature(pubKeyInfo []byte, digestAlg asn1.ObjectIdentifier, digest 
 					return fmt.Errorf("[VerifySignature] EcCurveAndPubKey error: %w", err)
 				}
 
+				if ecPoint == nil || ecPoint.X == nil || ecPoint.Y == nil {
+					return fmt.Errorf("[VerifySignature] Invalid public key point")
+				}
+
 				pub = &ecdsa.PublicKey{Curve: *ecCurve, X: ecPoint.X, Y: ecPoint.Y}
 			}
 
@@ -81,7 +85,12 @@ func VerifySignature(pubKeyInfo []byte, digestAlg asn1.ObjectIdentifier, digest 
 			slog.Debug("VerifySignature", "validSig", validSig)
 
 			if !validSig {
-				slog.Info("VerifySignature (bad ECDSA signature)", "pub.X", utils.BytesToHex(pub.X.Bytes()), "pub.Y", utils.BytesToHex(pub.Y.Bytes()), "digest", utils.BytesToHex(tmpDigest), "signature", utils.BytesToHex(sig))
+				// Log signature verification failure
+				if pub.X != nil && pub.Y != nil {
+					slog.Info("VerifySignature (bad ECDSA signature)", "pub.X", utils.BytesToHex(pub.X.Bytes()), "pub.Y", utils.BytesToHex(pub.Y.Bytes()), "digest", utils.BytesToHex(tmpDigest), "signature", utils.BytesToHex(sig))
+				} else {
+					slog.Info("VerifySignature (bad ECDSA signature)", "digest", utils.BytesToHex(tmpDigest), "signature", utils.BytesToHex(sig))
+				}
 
 				// If signature failed and R/S are out of range, try alternative curves
 				if rOutOfRange || sOutOfRange {
