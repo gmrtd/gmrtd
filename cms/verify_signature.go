@@ -8,6 +8,7 @@ import (
 	"encoding/asn1"
 	"fmt"
 	"log/slog"
+	"math/big"
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
 	"github.com/gmrtd/gmrtd/oid"
@@ -39,15 +40,96 @@ func VerifySignature(pubKeyInfo []byte, digestAlg asn1.ObjectIdentifier, digest 
 					return fmt.Errorf("[VerifySignature] EcCurveAndPubKey error: %w", err)
 				}
 
+				if ecPoint == nil || ecPoint.X == nil || ecPoint.Y == nil {
+					return fmt.Errorf("[VerifySignature] Invalid public key point")
+				}
+
 				pub = &ecdsa.PublicKey{Curve: *ecCurve, X: ecPoint.X, Y: ecPoint.Y}
+			}
+
+			// Parse signature to extract R and S values for validation
+			r, s, err := parseEcdsaSignature(sig)
+			if err != nil {
+				return fmt.Errorf("[VerifySignature] Failed to parse ECDSA signature: %w", err)
+			}
+
+			// Get curve information for logging
+			curveName := getCurveName(pub.Curve)
+			curveOrder := pub.Curve.Params().N
+			curveOrderBits := curveOrder.BitLen()
+
+			// Check if R and S are within the curve's order
+			rOutOfRange := r.Cmp(curveOrder) >= 0 || r.Sign() <= 0
+			sOutOfRange := s.Cmp(curveOrder) >= 0 || s.Sign() <= 0
+
+			// Enhanced logging
+			slog.Info("VerifySignature ECDSA",
+				"curve", curveName,
+				"curveOrderBits", curveOrderBits,
+				"rOutOfRange", rOutOfRange,
+				"sOutOfRange", sOutOfRange)
+
+			if rOutOfRange || sOutOfRange {
+				slog.Warn("VerifySignature ECDSA signature values out of range for curve",
+					"curve", curveName,
+					"R", utils.BytesToHex(r.Bytes()),
+					"S", utils.BytesToHex(s.Bytes()),
+					"curveOrder", utils.BytesToHex(curveOrder.Bytes()),
+					"rOutOfRange", rOutOfRange,
+					"sOutOfRange", sOutOfRange)
 			}
 
 			// VerifyASN1: works with non-nist curves (i.e. brainpool) via legacy code (hopefully this doesn't change)
 			tmpDigest := truncateHashForEcdsa(digest, pub.Curve)
 			validSig := ecdsa.VerifyASN1(pub, tmpDigest, sig)
 			slog.Debug("VerifySignature", "validSig", validSig)
+
 			if !validSig {
-				slog.Info("VerifySignature (bad ECDSA signature)", "pub.X", utils.BytesToHex(pub.X.Bytes()), "pub.Y", utils.BytesToHex(pub.Y.Bytes()), "digest", utils.BytesToHex(tmpDigest), "signature", utils.BytesToHex(sig))
+				// Log signature verification failure
+				if pub.X != nil && pub.Y != nil {
+					slog.Info("VerifySignature (bad ECDSA signature)", "pub.X", utils.BytesToHex(pub.X.Bytes()), "pub.Y", utils.BytesToHex(pub.Y.Bytes()), "digest", utils.BytesToHex(tmpDigest), "signature", utils.BytesToHex(sig))
+				} else {
+					slog.Info("VerifySignature (bad ECDSA signature)", "digest", utils.BytesToHex(tmpDigest), "signature", utils.BytesToHex(sig))
+				}
+
+				// If signature failed and R/S are out of range, try alternative curves
+				if rOutOfRange || sOutOfRange {
+					slog.Warn("VerifySignature attempting curve fallback due to out-of-range signature values")
+
+					alternatives := getAlternativeCurves(pub.Curve)
+					for _, altCurve := range alternatives {
+						altCurveName := getCurveName(altCurve)
+						slog.Info("VerifySignature trying alternative curve", "curve", altCurveName)
+
+						// Check if R and S are within the alternative curve's order
+						altCurveOrder := altCurve.Params().N
+						altROutOfRange := r.Cmp(altCurveOrder) >= 0 || r.Sign() <= 0
+						altSOutOfRange := s.Cmp(altCurveOrder) >= 0 || s.Sign() <= 0
+
+						if altROutOfRange || altSOutOfRange {
+							slog.Info("VerifySignature signature values still out of range for alternative curve",
+								"curve", altCurveName,
+								"rOutOfRange", altROutOfRange,
+								"sOutOfRange", altSOutOfRange)
+							continue
+						}
+
+						// Try verification with alternative curve
+						altPub := &ecdsa.PublicKey{Curve: altCurve, X: pub.X, Y: pub.Y}
+						altDigest := truncateHashForEcdsa(digest, altCurve)
+						altValidSig := ecdsa.VerifyASN1(altPub, altDigest, sig)
+
+						if altValidSig {
+							slog.Warn("VerifySignature signature verified with ALTERNATIVE curve (possible passport issuing bug)",
+								"specifiedCurve", curveName,
+								"workingCurve", altCurveName)
+							return nil
+						}
+					}
+
+					slog.Warn("VerifySignature curve fallback failed - no alternative curves worked")
+				}
+
 				return fmt.Errorf("[VerifySignature] Invalid ECDSA signature")
 			}
 
@@ -132,4 +214,18 @@ func truncateHashForEcdsa(hash []byte, curve elliptic.Curve) []byte {
 	}
 
 	return hash
+}
+
+// parseEcdsaSignature parses an ASN.1 encoded ECDSA signature and extracts R and S values
+func parseEcdsaSignature(sig []byte) (r, s *big.Int, err error) {
+	var ecdsaSig struct {
+		R, S *big.Int
+	}
+
+	_, err = asn1.Unmarshal(sig, &ecdsaSig)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse ECDSA signature: %w", err)
+	}
+
+	return ecdsaSig.R, ecdsaSig.S, nil
 }
