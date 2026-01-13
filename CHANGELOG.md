@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.3](https://github.com/gmrtd/gmrtd/compare/v0.15.2...v0.15.3) (2026-01-13)
+
+
+### Bug Fixes
+
+* alternative curves ([#153](https://github.com/gmrtd/gmrtd/issues/153)) ([5b92054](https://github.com/gmrtd/gmrtd/commit/5b920548a5bed6327988302bf3c6e1c7f83c00b5))
+
 ## [0.15.2](https://github.com/gmrtd/gmrtd/compare/v0.15.1...v0.15.2) (2026-01-07)
 
 
