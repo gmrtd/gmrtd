@@ -145,7 +145,8 @@ func (details *PersonDetails) processTag(tag tlv.TlvTag, node tlv.TlvNode) error
 		if err != nil {
 			return fmt.Errorf("[processTag] mrz.ParseName error: %w", err)
 		}
-	case 0x5F0F:
+	// presenсe of 'Other name(s)' should be defined by '0x5F0F' but we've also seen '0xA0' - e.g. Belarus ID card
+	case 0x5F0F, 0xA0:
 		if err := details.processTag5F0F(node); err != nil {
 			return fmt.Errorf("[processTag] processTag5F0F error: %w", err)
 		}
