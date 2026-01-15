@@ -13,7 +13,7 @@ import (
 //go:embed master_list/DE_ROOT_CA_CSCA07.cer
 var de_masterListRootCA []byte
 
-//go:embed master_list/DE_ML_2025-11-27-07-39-21.ml
+//go:embed master_list/DE_ML_2026-01-08-12-20-54.ml
 var de_masterList []byte
 
 /*
