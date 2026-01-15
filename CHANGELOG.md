@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.0](https://github.com/gmrtd/gmrtd/compare/v0.15.3...v0.16.0) (2026-01-15)
+
+
+### Features
+
+* process other name(s) defined by '0xA0' tag ([#155](https://github.com/gmrtd/gmrtd/issues/155)) ([7d2bedd](https://github.com/gmrtd/gmrtd/commit/7d2beddf4d27fcabc4795966205ea52cca72175e))
+
 ## [0.15.3](https://github.com/gmrtd/gmrtd/compare/v0.15.2...v0.15.3) (2026-01-13)
 
 
