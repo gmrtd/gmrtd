@@ -99,7 +99,6 @@ type PaceDomainParameterInfo struct {
 	ParameterId     *big.Int `asn1:"optional"` // nil if not present
 }
 
-// TODO - what is using this?
 type ActiveAuthenticationInfo struct {
 	Raw                asn1.RawContent
 	Protocol           asn1.ObjectIdentifier
@@ -190,8 +189,8 @@ func (ef EFDirInfo) MarshalJSON() ([]byte, error) {
 }
 
 type UnhandledInfo struct {
-	Raw      asn1.RawContent       `json:"rawData,omitempty"`
-	Protocol asn1.ObjectIdentifier `json:"protocol,omitempty"`
+	Raw      asn1.RawContent
+	Protocol asn1.ObjectIdentifier
 }
 
 func (u UnhandledInfo) MarshalJSON() ([]byte, error) {
@@ -356,20 +355,10 @@ func handleEfDirInfo(oid asn1.ObjectIdentifier, data []byte, secInfos *SecurityI
 	return true, nil
 }
 
-// returns true (as will always handle the data)
-// NB should be called after all other handlers
-func handleUnsupportedInfo(_ asn1.ObjectIdentifier, data []byte, secInfos *SecurityInfos) (handled bool, err error) {
-	var unhandledInfo UnhandledInfo
-
-	// NB isPartiallyParsed=TRUE because we expect data after the Protocol(OID)
-	err = utils.ParseAsn1(data, true, &unhandledInfo)
-	if err != nil {
-		return false, fmt.Errorf("[handleUnsupportedInfo] ParseAsn1 error: %w", err)
-	}
-
+func recordUnsupportedInfo(oid asn1.ObjectIdentifier, data []byte, secInfos *SecurityInfos) {
+	var unhandledInfo UnhandledInfo = UnhandledInfo{Raw: data, Protocol: oid}
 	secInfos.UnhandledInfos = append(secInfos.UnhandledInfos, unhandledInfo)
-
-	return true, nil
+	return
 }
 
 /*
@@ -386,7 +375,6 @@ var securityInfoHandleFnArr []SecurityInfoHandlerFn = []SecurityInfoHandlerFn{
 	handleChipAuthenticationPublicKeyInfo,
 	handleTerminalAuthenticationInfo,
 	handleEfDirInfo,
-	handleUnsupportedInfo,
 }
 
 func DecodeSecurityInfos(secInfoData []byte) (secInfos *SecurityInfos, err error) {
@@ -422,7 +410,7 @@ func DecodeSecurityInfos(secInfoData []byte) (secInfos *SecurityInfos, err error
 		}
 
 		if !handled {
-			return nil, fmt.Errorf("[DecodeSecurityInfos] secInfo should have been handled by at least one of the handlers")
+			recordUnsupportedInfo(oid, data, secInfos)
 		}
 	}
 

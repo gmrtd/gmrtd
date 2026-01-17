@@ -4,47 +4,139 @@ import (
 	"bytes"
 	"encoding/asn1"
 	"encoding/json"
+	"math/big"
+	"reflect"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/oid"
 	"github.com/gmrtd/gmrtd/utils"
 )
 
-func TestDecodeSecurityInfosPaceInfo(t *testing.T) {
-	cardAccessFile := utils.HexToBytes("31143012060A04007F0007020204020202010202010D")
-
-	secInfos, err := DecodeSecurityInfos(cardAccessFile)
-	if err != nil {
-		t.Errorf("Unexpected error: %s", err)
+func TestDecodeSecurityInfos(t *testing.T) {
+	testCases := []struct {
+		bytes       []byte
+		expError    bool
+		expSecInfos SecurityInfos
+		expTotalCnt int
+		expJson     string
+	}{
+		{
+			// PaceInfos (Valid)
+			bytes:       utils.HexToBytes("31143012060A04007F0007020204020202010202010D"),
+			expSecInfos: SecurityInfos{RawData: utils.HexToBytes("31143012060A04007F0007020204020202010202010D"), PaceInfos: []PaceInfo{{Raw: utils.HexToBytes("3012060A04007F0007020204020202010202010D"), Protocol: asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 2, 2}, Version: 2, ParameterId: big.NewInt(13)}}},
+			expTotalCnt: 1,
+			expJson:     "{\"rawData\":\"MRQwEgYKBAB/AAcCAgQCAgIBAgIBDQ==\",\"paceInfos\":[{\"protocol\":\"0.4.0.127.0.7.2.2.4.2.2\",\"version\":2,\"parameterId\":13}]}",
+		},
+		{
+			// PaceInfos (Inalid) - Version != 2 (set to 1 instead)
+			bytes:    utils.HexToBytes("31143012060A04007F0007020204020202010102010D"),
+			expError: true,
+		},
+		{
+			// PaceInfos (Inalid) - TLV error (less data than expected)
+			bytes:    utils.HexToBytes("31143012060A04007F0007020204020202010202020D"),
+			expError: true,
+		},
+		{
+			// ActiveAuthInfos (Valid)
+			bytes:       utils.HexToBytes("311930170606678108010105020101060A04007F00070101040105"),
+			expSecInfos: SecurityInfos{RawData: utils.HexToBytes("311930170606678108010105020101060A04007F00070101040105"), ActiveAuthInfos: []ActiveAuthenticationInfo{{Raw: utils.HexToBytes("30170606678108010105020101060A04007F00070101040105"), Protocol: asn1.ObjectIdentifier{2, 23, 136, 1, 1, 5}, Version: 1, SignatureAlgorithm: asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 1, 1, 4, 1, 5}}}},
+			expTotalCnt: 1,
+			expJson:     "{\"rawData\":\"MRkwFwYGZ4EIAQEFAgEBBgoEAH8ABwEBBAEF\",\"activeAuthInfos\":[{\"protocol\":\"2.23.136.1.1.5\",\"version\":1,\"signatureAlgorithm\":\"0.4.0.127.0.7.1.1.4.1.5\"}]}",
+		},
+		{
+			// ActiveAuthInfos (Invalid) - TLV error (less data than expected)
+			bytes:    utils.HexToBytes("311930170606678108010105020101060B04007F00070101040105"),
+			expError: true,
+		},
+		{
+			// ChipAuthInfos (Valid) - without KeyId
+			bytes:       utils.HexToBytes("3111300F060A04007F00070202030202020101"),
+			expSecInfos: SecurityInfos{RawData: utils.HexToBytes("3111300F060A04007F00070202030202020101"), ChipAuthInfos: []ChipAuthenticationInfo{{Raw: utils.HexToBytes("300F060A04007F00070202030202020101"), Protocol: asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 2, 2}, Version: 1}}},
+			expTotalCnt: 1,
+			expJson:     "{\"rawData\":\"MREwDwYKBAB/AAcCAgMCAgIBAQ==\",\"chipAuthInfos\":[{\"protocol\":\"0.4.0.127.0.7.2.2.3.2.2\",\"version\":1}]}",
+		},
+		{
+			// ChipAuthInfos (Valid) - with KeyId
+			bytes:       utils.HexToBytes("31153013060A04007F00070202030202020101020200C3"),
+			expSecInfos: SecurityInfos{RawData: utils.HexToBytes("31153013060A04007F00070202030202020101020200C3"), ChipAuthInfos: []ChipAuthenticationInfo{{Raw: utils.HexToBytes("3013060A04007F00070202030202020101020200C3"), Protocol: asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 2, 2}, Version: 1, KeyId: big.NewInt(195)}}},
+			expTotalCnt: 1,
+			expJson:     "{\"rawData\":\"MRUwEwYKBAB/AAcCAgMCAgIBAQICAMM=\",\"chipAuthInfos\":[{\"protocol\":\"0.4.0.127.0.7.2.2.3.2.2\",\"version\":1,\"keyId\":195}]}",
+		},
+		{
+			// ChipAuthInfos (Invalid) - with KeyId - TLV error (less data than expected)
+			bytes:    utils.HexToBytes("31153013060A04007F00070202030202020101020300C3"),
+			expError: true,
+		},
+		{
+			// TermAuthInfos (Valid)
+			bytes:       utils.HexToBytes("310F300D060804007F0007020202020101"),
+			expSecInfos: SecurityInfos{RawData: utils.HexToBytes("310F300D060804007F0007020202020101"), TermAuthInfos: []TerminalAuthenticationInfo{{Raw: utils.HexToBytes("300D060804007F0007020202020101"), Protocol: asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 2}, Version: 1}}},
+			expTotalCnt: 1,
+			expJson:     "{\"rawData\":\"MQ8wDQYIBAB/AAcCAgICAQE=\",\"termAuthInfos\":[{\"protocol\":\"0.4.0.127.0.7.2.2.2\",\"version\":1}]}",
+		},
+		{
+			// TermAuthInfos (Invalid) - TLV error (less data than expected)
+			bytes:    utils.HexToBytes("310F300D060804007F0007020202020201"),
+			expError: true,
+		},
+		{
+			// EfDirInfos (Valid)
+			bytes:       utils.HexToBytes("3137303506052B1B01010D042C61094F07A000000247100161094F07A000000247200161094F07A000000247200261094F07A0000002472003"),
+			expSecInfos: SecurityInfos{RawData: utils.HexToBytes("3137303506052B1B01010D042C61094F07A000000247100161094F07A000000247200161094F07A000000247200261094F07A0000002472003"), EfDirInfos: []EFDirInfo{{Raw: utils.HexToBytes("303506052B1B01010D042C61094F07A000000247100161094F07A000000247200161094F07A000000247200261094F07A0000002472003"), Protocol: asn1.ObjectIdentifier{1, 3, 27, 1, 1, 13}, EFDir: utils.HexToBytes("61094F07A000000247100161094F07A000000247200161094F07A000000247200261094F07A0000002472003")}}},
+			expTotalCnt: 1,
+			expJson:     "{\"rawData\":\"MTcwNQYFKxsBAQ0ELGEJTwegAAACRxABYQlPB6AAAAJHIAFhCU8HoAAAAkcgAmEJTwegAAACRyAD\",\"efDirInfos\":[{\"protocol\":\"1.3.27.1.1.13\",\"efDir\":\"YQlPB6AAAAJHEAFhCU8HoAAAAkcgAWEJTwegAAACRyACYQlPB6AAAAJHIAM=\"}]}",
+		},
+		{
+			// EfDirInfos (Invalid) - TLV error (less data than expected)
+			bytes:    utils.HexToBytes("3137303506052B1B01010D042D61094F07A000000247100161094F07A000000247200161094F07A000000247200261094F07A0000002472003"),
+			expError: true,
+		},
+		{
+			// UnhandledInfos (Valid)
+			bytes:       utils.HexToBytes("311330110603678108060A04007F00070101040105"),
+			expSecInfos: SecurityInfos{RawData: utils.HexToBytes("311330110603678108060A04007F00070101040105"), UnhandledInfos: []UnhandledInfo{{Raw: utils.HexToBytes("30110603678108060A04007F00070101040105"), Protocol: asn1.ObjectIdentifier{2, 23, 136}}}},
+			expTotalCnt: 1,
+			expJson:     "{\"rawData\":\"MRMwEQYDZ4EIBgoEAH8ABwEBBAEF\",\"unhandledInfos\":[{\"protocol\":\"2.23.136\",\"raw\":\"MBEGA2eBCAYKBAB/AAcBAQQBBQ==\"}]}",
+		},
 	}
+	for _, tc := range testCases {
 
-	if len(secInfos.PaceInfos) != 1 {
-		t.Errorf("PACEInfo expected")
-	} else {
-		pi := secInfos.PaceInfos[0]
+		actSecInfos, err := DecodeSecurityInfos(tc.bytes)
 
-		if pi.Protocol.String() != "0.4.0.127.0.7.2.2.4.2.2" {
-			t.Errorf("Wrong protocol")
-		} else if pi.Version != 2 {
-			t.Errorf("Wrong version")
-		} else if pi.ParameterId.Int64() != 13 {
-			t.Errorf("Wrong parameterId")
+		if tc.expError {
+			/*
+			* expect error
+			 */
+			if err == nil {
+				t.Errorf("Error expected")
+			}
+		} else {
+			/*
+			* expect success
+			 */
+			if err != nil {
+				t.Errorf("Error not expected (%s)", err)
+			}
+
+			if !reflect.DeepEqual(actSecInfos, &tc.expSecInfos) {
+				t.Errorf("SecInfos differs to expected\n(Act:%+v)\n(Exp:%+v)", actSecInfos, &tc.expSecInfos)
+			}
+
+			if actSecInfos.TotalCnt() != tc.expTotalCnt {
+				t.Errorf("TotalCnt differs to expected [Act:%1d, Exp:%1d]", actSecInfos.TotalCnt(), tc.expTotalCnt)
+			}
+
+			json, err := json.Marshal(actSecInfos)
+			if err != nil {
+				t.Errorf("Unexpected error: %s", err)
+			}
+
+			if string(json) != tc.expJson {
+				t.Errorf("JSON differs to expected\n(Act:%s)\n(Exp:%s)", json, tc.expJson)
+			}
+
 		}
-	}
-
-	if (secInfos.TotalCnt() != 1) || (len(secInfos.PaceInfos) != 1) {
-		t.Errorf("Security-Info error")
-	}
-
-	jsonStr, err := json.Marshal(secInfos)
-	if err != nil {
-		t.Errorf("Unexpected error: %s", err)
-	}
-
-	var expJsonStr string = "{\"rawData\":\"MRQwEgYKBAB/AAcCAgQCAgIBAgIBDQ==\",\"paceInfos\":[{\"protocol\":\"0.4.0.127.0.7.2.2.4.2.2\",\"version\":2,\"parameterId\":13}]}"
-
-	if string(jsonStr) != expJsonStr {
-		t.Errorf("Incorrect JSON [Act] %s [Exp] %s", jsonStr, expJsonStr)
 	}
 }
 
@@ -90,32 +182,6 @@ func TestDecodeSecurityInfosChipAuthPubKeyInfo(t *testing.T) {
 	}
 }
 
-func TestDecodeSecurityInfosEfDir(t *testing.T) {
-	// EF.DIR (1.3.27.1.1.13)
-	// 3137303506052B1B01010D042C61094F07A000000247100161094F07A000000247200161094F07A000000247200261094F07A0000002472003
-	cardAccessFile := utils.HexToBytes("3137303506052B1B01010D042C61094F07A000000247100161094F07A000000247200161094F07A000000247200261094F07A0000002472003")
-
-	secInfos, err := DecodeSecurityInfos(cardAccessFile)
-	if err != nil {
-		t.Errorf("Unexpected error: %s", err)
-	}
-
-	if (secInfos.TotalCnt() != 1) || (len(secInfos.EfDirInfos) != 1) {
-		t.Errorf("Security-Info error")
-	}
-
-	jsonStr, err := json.Marshal(secInfos)
-	if err != nil {
-		t.Errorf("Unexpected error: %s", err)
-	}
-
-	var expJsonStr string = "{\"rawData\":\"MTcwNQYFKxsBAQ0ELGEJTwegAAACRxABYQlPB6AAAAJHIAFhCU8HoAAAAkcgAmEJTwegAAACRyAD\",\"efDirInfos\":[{\"protocol\":\"1.3.27.1.1.13\",\"efDir\":\"YQlPB6AAAAJHEAFhCU8HoAAAAkcgAWEJTwegAAACRyACYQlPB6AAAAJHIAM=\"}]}"
-
-	if string(jsonStr) != expJsonStr {
-		t.Errorf("Incorrect JSON [Act] %s [Exp] %s", jsonStr, expJsonStr)
-	}
-}
-
 func TestDecodeSecurityInfosCardSecFile(t *testing.T) {
 	// taken from CardSecurity file on DE passport
 	cardAccessFile := utils.HexToBytes("31820131300d060804007f00070202020201023012060a04007f000702020302020201020201483012060a04007f0007020204020202010202010d3012060a04007f0007020204060202010202010d301c060904007f000702020302300c060704007f0007010202010d0201483062060904007f0007020201023052300c060704007f0007010202010d03420004614cd88b00821a887869d0060b44a9d18789353e8cf7dfbc3f29f79327de30b97b1b2dda0be77f24ad415c327c7b7ab2e9c10b0258f5bcbf90c01825fbdfdef702010d3062060904007f0007020201023052300c060704007f0007010202010d034200048488a2dc34b6b36d6c01a8dfbd70a874610c53b32893a1de3b1c4bbf477eef3761aa51dfd6b52da43587e95386fc34ffe178d90086a7d646047c82bebc27da3e020148")
@@ -136,46 +202,6 @@ func TestDecodeSecurityInfosCardSecFile(t *testing.T) {
 	}
 }
 
-func TestHandlePaceInfoBadAsnErr(t *testing.T) {
-	// adapted from valid test data, to be invalid ASN1 (made length +1 byte higher than it should be)
-	// oid			: 0.4.0.127.0.7.2.2.4.2.2 (OidPaceEcdhGmAesCbcCmac128)
-	// data (orig)	: 3012060a04007f0007020204020202010202010d
-	// data (bad)	: 3013060a04007f0007020204020202010202010d
-
-	var oid asn1.ObjectIdentifier = oid.OidPaceEcdhGmAesCbcCmac128
-	var data []byte = utils.HexToBytes("3013060a04007f0007020204020202010202010d")
-
-	var secInfos SecurityInfos
-
-	handled, err := handlePaceInfo(oid, data, &secInfos)
-	if err == nil {
-		t.Fatalf("error expected")
-	}
-	if handled {
-		t.Fatalf("should not be handled")
-	}
-}
-
-func TestHandleChipAuthenticationInfoBadAsnErr(t *testing.T) {
-	// adapted from valid test data, to be invalid ASN1 (made length +1 byte higher than it should be)
-	// oid			:0.4.0.127.0.7.2.2.3.2.4 (OidCaEcdhAesCbcCmac256)
-	// data (orig)	:300f060a04007f00070202030204020101
-	// data (bad)	:3010060a04007f00070202030204020101
-
-	var oid asn1.ObjectIdentifier = oid.OidCaEcdhAesCbcCmac256
-	var data []byte = utils.HexToBytes("3010060a04007f00070202030204020101")
-
-	var secInfos SecurityInfos
-
-	handled, err := handleChipAuthenticationInfo(oid, data, &secInfos)
-	if err == nil {
-		t.Fatalf("error expected")
-	}
-	if handled {
-		t.Fatalf("should not be handled")
-	}
-}
-
 func TestHandleChipAuthenticationPublicKeyInfoBadAsnErr(t *testing.T) {
 	// adapted from valid test data, to be invalid ASN1 (made length +1 byte higher than it should be)
 	// oid			:0.4.0.127.0.7.2.2.1.2 (OidPkEcdh)
@@ -188,46 +214,6 @@ func TestHandleChipAuthenticationPublicKeyInfoBadAsnErr(t *testing.T) {
 	var secInfos SecurityInfos
 
 	handled, err := handleChipAuthenticationPublicKeyInfo(oid, data, &secInfos)
-	if err == nil {
-		t.Fatalf("error expected")
-	}
-	if handled {
-		t.Fatalf("should not be handled")
-	}
-}
-
-func TestHandleEfDirInfoBadAsnErr(t *testing.T) {
-	// adapted from valid test data, to be invalid ASN1 (made length +1 byte higher than it should be)
-	// oid			:1.3.27.1.1.13 (OidEfDir)
-	// data (orig)	:303506052b1b01010d042c61094f07a000000247100161094f07a000000247200161094f07a000000247200261094f07a0000002472003
-	// data (bad)	:303606052b1b01010d042c61094f07a000000247100161094f07a000000247200161094f07a000000247200261094f07a0000002472003
-
-	var oid asn1.ObjectIdentifier = oid.OidEfDir
-	var data []byte = utils.HexToBytes("303606052b1b01010d042c61094f07a000000247100161094f07a000000247200161094f07a000000247200261094f07a0000002472003")
-
-	var secInfos SecurityInfos
-
-	handled, err := handleEfDirInfo(oid, data, &secInfos)
-	if err == nil {
-		t.Fatalf("error expected")
-	}
-	if handled {
-		t.Fatalf("should not be handled")
-	}
-}
-
-func TestHandleUnsupportedInfoBadAsnErr(t *testing.T) {
-	// adapted from valid test data, to be invalid ASN1 (made length +1 byte higher than it should be)
-	// oid			:0.4.0.127.0.7.2.2.3.2 (OidCaEcdh)
-	// data (orig)	:301c060904007f000702020302300c060704007f0007010202010d020148
-	// data (bad)	:301d060904007f000702020302300c060704007f0007010202010d020148
-
-	var oid asn1.ObjectIdentifier = oid.OidCaEcdh
-	var data []byte = utils.HexToBytes("301d060904007f000702020302300c060704007f0007010202010d020148")
-
-	var secInfos SecurityInfos
-
-	handled, err := handleUnsupportedInfo(oid, data, &secInfos)
 	if err == nil {
 		t.Fatalf("error expected")
 	}

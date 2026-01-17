@@ -17,6 +17,9 @@ import (
 	"github.com/gmrtd/gmrtd/utils"
 )
 
+// TODO - does this currently make any use of DG14.ActiveAuthInfos? (eg NL passport)
+//			- not a big deal, as we currently drive AA primarily from DG15
+
 type ActiveAuth struct {
 	randomBytesFn cryptoutils.RandomBytesFn
 	nfcSession    **iso7816.NfcSession
