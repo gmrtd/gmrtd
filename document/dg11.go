@@ -138,10 +138,12 @@ func (details *PersonDetails) processTag5F0F(parentNode tlv.TlvNode) error {
 
 // processes the 'tag', getting the data from the TLV and populating PersonDetails
 func (details *PersonDetails) processTag(tag tlv.TlvTag, node tlv.TlvNode) error {
+	value := node.NodeByTag(tag).Value()
+
 	switch tag {
 	case 0x5F0E:
 		var err error
-		details.NameOfHolder, err = mrz.ParseName(mrz.DecodeValue(string(node.NodeByTag(tag).Value())))
+		details.NameOfHolder, err = mrz.ParseName(mrz.DecodeValue(string(value)))
 		if err != nil {
 			return fmt.Errorf("[processTag] mrz.ParseName error: %w", err)
 		}
@@ -151,29 +153,29 @@ func (details *PersonDetails) processTag(tag tlv.TlvTag, node tlv.TlvNode) error
 			return fmt.Errorf("[processTag] processTag5F0F error: %w", err)
 		}
 	case 0x5F10:
-		details.PersonalNumber = string(node.NodeByTag(tag).Value())
+		details.PersonalNumber = string(value)
 	case 0x5F2B:
 		// should be 8 bytes (YYYYMMDD) but we've also seen 4 bytes (BCD) - e.g. Malaysia passport
-		details.FullDateOfBirth = parseDateYYYYMMDD(node.NodeByTag(tag).Value())
+		details.FullDateOfBirth = parseDateYYYYMMDD(value)
 	case 0x5F11:
-		details.PlaceOfBirth = strings.Split(string(node.NodeByTag(tag).Value()), "<")
+		details.PlaceOfBirth = strings.Split(string(value), "<")
 	case 0x5F42:
-		details.Address = strings.Split(string(node.NodeByTag(tag).Value()), "<")
+		details.Address = strings.Split(string(value), "<")
 	case 0x5F12:
-		details.Telephone = string(node.NodeByTag(tag).Value())
+		details.Telephone = string(value)
 	case 0x5F13:
-		details.Profession = mrz.DecodeValue(string(node.NodeByTag(tag).Value()))
+		details.Profession = mrz.DecodeValue(string(value))
 	case 0x5F14:
-		details.Title = mrz.DecodeValue(string(node.NodeByTag(tag).Value()))
+		details.Title = mrz.DecodeValue(string(value))
 	case 0x5F15:
-		details.PersonalSummary = mrz.DecodeValue(string(node.NodeByTag(tag).Value()))
+		details.PersonalSummary = mrz.DecodeValue(string(value))
 	case 0x5F16:
 		// image data
-		details.ProofOfCitizenship = node.NodeByTag(tag).Value()
+		details.ProofOfCitizenship = value
 	case 0x5F17:
-		details.OtherTravelDocuments = strings.Split(string(node.NodeByTag(tag).Value()), "<")
+		details.OtherTravelDocuments = strings.Split(string(value), "<")
 	case 0x5F18:
-		details.CustodyInformation = mrz.DecodeValue(string(node.NodeByTag(tag).Value()))
+		details.CustodyInformation = mrz.DecodeValue(string(value))
 	default:
 		return fmt.Errorf("[processTag] Unsupported tag:%x", tag)
 	}

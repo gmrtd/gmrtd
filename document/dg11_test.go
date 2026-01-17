@@ -145,3 +145,64 @@ func TestNewDG11China(t *testing.T) {
 		}
 	}
 }
+
+func TestNewDG11OtherNames(t *testing.T) {
+	testCases := []struct {
+		dg11bytes  []byte
+		expError   bool
+		expDetails PersonDetails
+	}{
+		{
+			// Other Names (*2) - wrapped with A0 - referenced as 5F0F in tag-list [nominal case]
+			dg11bytes:  utils.HexToBytes("6B245C025F0FA01E0201025F0F0B534D4954483C3C4A4F484E5F0F0A4A4F484E3C534D495448"),
+			expDetails: PersonDetails{OtherNames: []mrz.MrzName{{Primary: "SMITH", Secondary: "JOHN"}, {Primary: "JOHN SMITH"}}},
+		},
+		{
+			// Other Names (*2) - wrapped with A0 - referenced as *A0* in tag-list [deviation - e.g. Belarus ID]
+			dg11bytes:  utils.HexToBytes("6B235C01A0A01E0201025F0F0B534D4954483C3C4A4F484E5F0F0A4A4F484E3C534D495448"),
+			expDetails: PersonDetails{OtherNames: []mrz.MrzName{{Primary: "SMITH", Secondary: "JOHN"}, {Primary: "JOHN SMITH"}}},
+		},
+		{
+			// Other Names (*1) - *NOT* wrapped with A0 - referenced as 5F0F in tag-list [deviation - e.g. China passport]
+			dg11bytes:  utils.HexToBytes("6B125C025F0F5F0F0B534D4954483C3C4A4F484E"),
+			expDetails: PersonDetails{OtherNames: []mrz.MrzName{{Primary: "SMITH", Secondary: "JOHN"}}},
+		},
+		{
+			// *ERROR*
+			// Other Names (*1) - wrapped with A0 - referenced as 5F0F in tag-list [nominal]
+			// ** BUT with incorrectly encoded MRZ Name that has 3 components (instead of 1 or 2)
+			dg11bytes: utils.HexToBytes("6B1E5C025F0FA0180201015F0F12534D4954483C3C534D4954483C3C4A4F484E"),
+			expError:  true,
+		},
+	}
+	for _, tc := range testCases {
+		var doc Document
+
+		err := doc.NewDG(11, tc.dg11bytes)
+
+		if tc.expError {
+			/*
+			* expect error
+			 */
+			if err == nil {
+				t.Errorf("Error expected")
+			}
+		} else {
+			/*
+			* expect success
+			 */
+			if err != nil {
+				t.Errorf("Error not expected (%s)", err)
+			}
+
+			if doc.Mf.Lds1.Dg11 == nil {
+				t.Errorf("DG11 expected")
+				break
+			}
+
+			if !reflect.DeepEqual(doc.Mf.Lds1.Dg11.Details, tc.expDetails) {
+				t.Errorf("DG11 PersonDetails differs to expected\n(Act:%+v)\n(Exp:%+v)", doc.Mf.Lds1.Dg11.Details, tc.expDetails)
+			}
+		}
+	}
+}
