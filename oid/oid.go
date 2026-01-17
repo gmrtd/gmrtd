@@ -20,6 +20,8 @@ import (
 // 9.2.9 Terminal Authentication Object Identifiers
 // 9.2.10 EFDIRInfo
 
+// TODO - missing sig alg: 0.4.0.127.0.7.1.1.4.1.5
+
 var (
 	OidBsiDe                            = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7}
 	OidBsiDeAlgorithms                  = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 1}
@@ -100,9 +102,6 @@ var (
 	OidSigningTime                      = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 5}
 	OidHashAlgorithmMD5                 = asn1.ObjectIdentifier{1, 2, 840, 113549, 2, 5}
 	OidHashAlgorithmSHA1                = asn1.ObjectIdentifier{1, 3, 14, 3, 2, 26}
-	OidIcao                             = asn1.ObjectIdentifier{1, 3, 27}
-	OidIcaoMrtdSecurity                 = asn1.ObjectIdentifier{1, 3, 27, 1, 1}
-	OidIcaoMrtdSecurityAaProtocolObject = asn1.ObjectIdentifier{1, 3, 27, 1, 1, 5}
 	OidEfDir                            = asn1.ObjectIdentifier{1, 3, 27, 1, 1, 13}
 	OidBrainpoolP192r1                  = asn1.ObjectIdentifier{1, 3, 36, 3, 3, 2, 8, 1, 1, 3}
 	OidBrainpoolP224r1                  = asn1.ObjectIdentifier{1, 3, 36, 3, 3, 2, 8, 1, 1, 5}
@@ -134,7 +133,10 @@ var (
 	OidHashAlgorithmSHA384              = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 2, 2}
 	OidHashAlgorithmSHA512              = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 2, 3}
 	OidHashAlgorithmSHA224              = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 2, 4}
+	OidIcao                             = asn1.ObjectIdentifier{2, 23, 136}
+	OidIcaoMrtdSecurity                 = asn1.ObjectIdentifier{2, 23, 136, 1, 1}
 	OidLdsSecurityObject                = asn1.ObjectIdentifier{2, 23, 136, 1, 1, 1}
+	OidIcaoMrtdSecurityAaProtocolObject = asn1.ObjectIdentifier{2, 23, 136, 1, 1, 5}
 	OidDocumentTypeList                 = asn1.ObjectIdentifier{2, 23, 136, 1, 1, 6, 2}
 )
 
@@ -218,9 +220,6 @@ var oidLookup = map[string]string{
 	OidSigningTime.String():                      "signing-time",
 	OidHashAlgorithmMD5.String():                 "md5",
 	OidHashAlgorithmSHA1.String():                "sha1",
-	OidIcao.String():                             "id-icao",
-	OidIcaoMrtdSecurity.String():                 "id-icao-mrtd-security",
-	OidIcaoMrtdSecurityAaProtocolObject.String(): "id-icao-mrtd-security-aaProtocolObject",
 	OidEfDir.String():                            "id-EFDIR",
 	OidBrainpoolP192r1.String():                  "brainpoolP192r1",
 	OidBrainpoolP224r1.String():                  "brainpoolP224r1",
@@ -252,7 +251,10 @@ var oidLookup = map[string]string{
 	OidHashAlgorithmSHA384.String():              "sha384",
 	OidHashAlgorithmSHA512.String():              "sha512",
 	OidHashAlgorithmSHA224.String():              "sha224",
+	OidIcao.String():                             "id-icao",
+	OidIcaoMrtdSecurity.String():                 "id-icao-mrtd-security",
 	OidLdsSecurityObject.String():                "ldsSecurityObject",
+	OidIcaoMrtdSecurityAaProtocolObject.String(): "id-icao-mrtd-security-aaProtocolObject",
 	OidDocumentTypeList.String():                 "documentTypeList",
 }
 
