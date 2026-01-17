@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.1](https://github.com/gmrtd/gmrtd/compare/v0.17.0...v0.17.1) (2026-01-17)
+
+
+### Bug Fixes
+
+* incorrect OIDs and enhanced SecurityInfos UTs (fixes:[#161](https://github.com/gmrtd/gmrtd/issues/161)) ([#162](https://github.com/gmrtd/gmrtd/issues/162)) ([d8e393c](https://github.com/gmrtd/gmrtd/commit/d8e393c40b5d823aecce36ba07d380c31cb70d02))
+
 ## [0.17.0](https://github.com/gmrtd/gmrtd/compare/v0.16.0...v0.17.0) (2026-01-15)
 
 
