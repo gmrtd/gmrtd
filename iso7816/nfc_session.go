@@ -18,6 +18,14 @@ const INS_INTERNAL_AUTHENTICATE = byte(0x88)
 const INS_SELECT = byte(0xA4)
 const INS_READ_BINARY = byte(0xB0)
 
+// default to 65,535 maximum file (TLV) size
+// - as we always read the first 4 bytes (so max 2 byte length)
+const READ_FILE_MAX_TLV_LENGTH = tlv.TlvLength(65535)
+
+// default to 1,000 chunks when reading a file
+// - some older passports support <100 byte reads
+const READ_FILE_MAX_CHUNKS = 1000
+
 // TODO - extended length support? odd INS read-binary can support larger offset.. and potentially avoid SELECT FILE
 //
 // 3.5.2 READ BINARY
@@ -27,15 +35,19 @@ const INS_READ_BINARY = byte(0xB0)
 // TODO - review and align with 9303 p10.. 3.6 Command Formats and Parameter Options (LDS1 and LDS2)
 
 type NfcSession struct {
-	transceiver Transceiver
-	SM          *SecureMessaging
-	MaxLe       int
-	ApduLog     []ApduLog
+	transceiver          Transceiver
+	readFileMaxTlvLength tlv.TlvLength
+	readFileMaxChunks    int
+	SM                   *SecureMessaging
+	MaxLe                int
+	ApduLog              []ApduLog
 }
 
 func NewNfcSession(transceiver Transceiver) *NfcSession {
 	var nfc NfcSession
 	nfc.transceiver = transceiver
+	nfc.readFileMaxTlvLength = READ_FILE_MAX_TLV_LENGTH
+	nfc.readFileMaxChunks = READ_FILE_MAX_CHUNKS
 	nfc.MaxLe = 256
 	return &nfc
 }
@@ -219,9 +231,12 @@ func (nfc *NfcSession) ReadBinaryFromOffset(offset, length int) ([]byte, error) 
 		return nil, fmt.Errorf("[ReadBinaryFromOffset] Invalid status (offset:%d,length:%d):%X", offset, length, rapdu.Status)
 	}
 
-	out := rapdu.Data
+	if len(rapdu.Data) > length {
+		// more data than requested, possible abuse
+		return nil, fmt.Errorf("[ReadBinaryFromOffset] More data than requested (act:%1d, req:%1d)", len(rapdu.Data), length)
+	}
 
-	return out, nil
+	return rapdu.Data, nil
 }
 
 // returns: file contents OR nil if file not found
@@ -258,15 +273,27 @@ func (nfc *NfcSession) ReadFile(fileId uint16) (fileData []byte, err error) {
 			return nil, fmt.Errorf("[ReadFile] ParseTagAndLength error: %w", err)
 		}
 
+		// abort if file length (TLV) exceeds configured maximum
+		if tmpTlvLength > nfc.readFileMaxTlvLength {
+			return nil, fmt.Errorf("[ReadFile] TLV length exceeds permitted maximum (len:%1d, max:%1d)", tmpTlvLength, nfc.readFileMaxTlvLength)
+		}
+
 		totalBytes = int(tmpTlvLength)
 		totalBytes += 4 - tmpBuf.Len()
 	}
 
 	// read remainder of file
 	if fileBuf.Len() < totalBytes {
+		chunkCnt := 0
 		maxReadAmount := nfc.MaxLe
 
 		for {
+			// limit the maximum number of chunks permitted when reading a file
+			if chunkCnt >= nfc.readFileMaxChunks {
+				return nil, fmt.Errorf("[ReadFile] Max chunks reached (cnt:%1d)", chunkCnt)
+			}
+			chunkCnt++
+
 			bytesToRead := min(maxReadAmount, totalBytes-fileBuf.Len())
 
 			tmpData, err := nfc.ReadBinaryFromOffset(fileBuf.Len(), bytesToRead)

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
+	"github.com/gmrtd/gmrtd/tlv"
 	"github.com/gmrtd/gmrtd/utils"
 )
 
@@ -535,6 +536,41 @@ func TestReadBinaryFromOffsetCardDeadErr(t *testing.T) {
 	}
 }
 
+func TestReadBinaryFromOffsetTooManyBytes(t *testing.T) {
+	/*
+	* expect an error if we get more bytes than we requested
+	 */
+	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{utils.HexToBytes("12345678909000")}) // 5 bytes (x1234567890)
+
+	data, err := nfc.ReadBinaryFromOffset(0, 4) // only 4 bytes requested
+	if err == nil {
+		t.Errorf("expected error (too many bytes)")
+	}
+
+	if len(data) != 0 {
+		t.Errorf("didn't expect data")
+	}
+}
+
+func TestReadFileTlvLengthTooLong(t *testing.T) {
+	/*
+	* expect an error when the TLV file length exceeds the configured maximum (i.e. 65534 > 65535)
+	 */
+	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{utils.HexToBytes("6182FFFF9000")}) // len:65535
+
+	// set to smaller maximum which is less than advertised file length (65534 < 65535)
+	nfc.readFileMaxTlvLength = tlv.TlvLength(65534)
+
+	data, err := nfc.ReadFile(0x0101) // DG1
+	if err == nil {
+		t.Errorf("expected error (TLV file length exceeds maximum) %s", err)
+	}
+
+	if len(data) != 0 {
+		t.Errorf("didn't expect data")
+	}
+}
+
 // simulates an error reading the file header (to determine the file length)
 // - select file (ok)
 // - read binary from offset (0,4) --> error rApdu response (6985 - conditions of use not satisfied)
@@ -653,5 +689,53 @@ func TestReadFileErrorLastFrame(t *testing.T) {
 
 	if len(data) != 0 {
 		t.Errorf("didn't expect data")
+	}
+}
+
+// MockTransceiverHugeLength simulates evil chip sending TLV with gigantic length
+type MockTransceiverTooManyChunks struct {
+	chunkCnt int
+}
+
+func (t *MockTransceiverTooManyChunks) Transceive(cla, ins, p1, p2 int, data []byte, le int, rapdu []byte) []byte {
+	if ins == int(INS_SELECT) {
+		// SELECT FILE - return success
+		return []byte{0x90, 0x00}
+	} else if ins == int(INS_READ_BINARY) {
+		offset := p1*256 + p2
+
+		if offset == 0 {
+			// Tag: 0x61 (DG1)
+			// Length: 0x82 0xFF FF
+			return append([]byte{
+				0x61,       // Tag
+				0x82,       // 2 byte length
+				0xFF, 0xFF, // Length = 65535
+			}, []byte{0x90, 0x00}...)
+		} else {
+			// Subsequent reads - just return 1 byte to keep it going
+			t.chunkCnt++
+			return []byte{0x00, 0x90, 0x00}
+		}
+	}
+
+	panic("unexpected APDU")
+}
+
+func TestReadFileTooManyChunksErr(t *testing.T) {
+	// expect error due to too many chunks during ReadFile
+	mockTrans := &MockTransceiverTooManyChunks{}
+	nfc := NewNfcSession(mockTrans)
+
+	nfc.readFileMaxChunks = 100
+
+	_, err := nfc.ReadFile(0x0101) // DG1
+
+	if err == nil {
+		t.Errorf("Expected error")
+	}
+
+	if mockTrans.chunkCnt != 100 {
+		t.Errorf("Expected 100 chunks before error (actual:%1d)", mockTrans.chunkCnt)
 	}
 }
