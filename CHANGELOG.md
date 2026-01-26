@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.2](https://github.com/gmrtd/gmrtd/compare/v0.17.1...v0.17.2) (2026-01-26)
+
+
+### Bug Fixes
+
+* trigger patch release for v0.17.2 ([#165](https://github.com/gmrtd/gmrtd/issues/165)) ([03474d4](https://github.com/gmrtd/gmrtd/commit/03474d44c33c9bc59da9583c18e92be501e85f06))
+
 ## [0.17.1](https://github.com/gmrtd/gmrtd/compare/v0.17.0...v0.17.1) (2026-01-17)
 
 
