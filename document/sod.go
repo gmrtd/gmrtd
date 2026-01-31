@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/asn1"
 	"fmt"
+	"log/slog"
 	"slices"
 
 	cms "github.com/gmrtd/gmrtd/cms"
@@ -44,6 +45,84 @@ type LDSVersionInfo struct {
 	UnicodeVersion string `json:"unicodeVersion,omitempty"`
 }
 
+func NewSOD(data []byte) (*SOD, error) {
+	var err error
+
+	if len(data) < 1 {
+		return nil, nil
+	}
+
+	var out *SOD = new(SOD)
+
+	out.RawData = slices.Clone(data)
+
+	// extract the content from the root tag.. and parse the SignedData
+	{
+		var sdBytes []byte
+
+		sdBytes, err = tlv.UnwrapTag(SODTag, out.RawData)
+		if err != nil {
+			return nil, fmt.Errorf("[NewSOD] UnwrapTag error: %w", err)
+		}
+
+		out.SD, err = parseSignedDataWithDecodeEncodeRetry(sdBytes)
+		if err != nil {
+			return nil, fmt.Errorf("[NewSOD] parseSignedDataWithDecodeEncodeRetry error: %w", err)
+		}
+	}
+
+	// verify the content-type is as expected
+	if !isValidEContentType(out.SD.Content.EContentType) {
+		return nil, fmt.Errorf("[NewSOD] Incorrect ContentType (got:%s)", out.SD.Content.EContentType.String())
+	}
+
+	out.LdsSecurityObject, err = parseLdsSecurityObject(out.SD.Content.EContent)
+	if err != nil {
+		return nil, fmt.Errorf("[NewSOD] parseLdsSecurityObject error: %w", err)
+	}
+
+	return out, nil
+}
+
+// parseSignedDataWithDecodeEncodeRetry attempts to parse a CMS SignedData
+// structure from the provided DER-encoded input.
+//
+// In the common case, it delegates directly to cms.ParseSignedData. However,
+// some real-world inputs (notably certain NZ-issued CMS payloads) use
+// indefinite-length ASN.1 encodings, which are not supported by the Go ASN.1
+// parser and will cause parsing to fail.
+//
+// As a defensive fallback, this function performs a TLV decode → re-encode
+// pass to normalise the input into a definite-length encoding before retrying
+// parsing. This is only attempted if the initial parse fails.
+//
+// IMPORTANT:
+//   - The decode/encode path is intentionally used as a last resort.
+//   - It should not be treated as a general-purpose normalisation step.
+//   - Any failure during the fallback is returned as an error.
+//   - This exists for interoperability, not as a correctness guarantee.
+func parseSignedDataWithDecodeEncodeRetry(data []byte) (*cms.SignedData, error) {
+	var sd *cms.SignedData
+	var err error
+
+	sd, err = cms.ParseSignedData(data)
+	if err != nil {
+		slog.Warn("parseSignedDataWithDecodeEncodeRetry - error parsing SignedData, will retry after TLV Decode/Encode cycle", "error", err.Error())
+
+		sdBytes2, err := tlv.DecodeEncode(data)
+		if err != nil {
+			return nil, fmt.Errorf("[parseSignedDataWithDecodeEncodeRetry] TLV.DecodeEncode error: %w", err)
+		}
+
+		sd, err = cms.ParseSignedData(sdBytes2)
+		if err != nil {
+			return nil, fmt.Errorf("[parseSignedDataWithDecodeEncodeRetry] ParseSignedData(2nd attempt) error: %w", err)
+		}
+	}
+
+	return sd, nil
+}
+
 func isValidEContentType(eContentOid asn1.ObjectIdentifier) bool {
 	if eContentOid.Equal(oid.OidLdsSecurityObject) {
 		return true
@@ -53,52 +132,6 @@ func isValidEContentType(eContentOid asn1.ObjectIdentifier) bool {
 	}
 
 	return false
-}
-
-func NewSOD(data []byte) (*SOD, error) {
-	if len(data) < 1 {
-		return nil, nil
-	}
-
-	var out *SOD = new(SOD)
-
-	out.RawData = slices.Clone(data)
-
-	nodes, err := tlv.Decode(out.RawData)
-	if err != nil {
-		return nil, fmt.Errorf("[NewSOD] error: %w", err)
-	}
-
-	rootNode := nodes.NodeByTag(SODTag)
-
-	if !rootNode.IsValidNode() {
-		return nil, fmt.Errorf("root node (%x) missing", SODTag)
-	}
-
-	{
-		var sd *cms.SignedData
-		var err error
-
-		sd, err = cms.ParseSignedData(rootNode.NodeByTag(0x30).Encode())
-		if err != nil {
-			return nil, err
-		}
-
-		out.SD = sd
-
-		// verify the content-type is as expected
-		if !isValidEContentType(sd.Content.EContentType) {
-			return nil, fmt.Errorf("incorrect ContentType (got:%s)", sd.Content.EContentType.String())
-		}
-		eContent := sd.Content.EContent
-
-		out.LdsSecurityObject, err = parseLdsSecurityObject(eContent)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return out, nil
 }
 
 func (sod SOD) haveLdsVersionInfo() bool {
@@ -135,7 +168,7 @@ func parseLdsSecurityObject(data []byte) (*LDSSecurityObject, error) {
 
 	err = utils.ParseAsn1(data, false, &securityObject)
 	if err != nil {
-		return nil, fmt.Errorf("asn1 parsing error: %s", err)
+		return nil, fmt.Errorf("[parseLdsSecurityObject] ParseAsn1 error: %s", err)
 	}
 
 	// NB main difference between v0 and v1 is the presence of LDSVersionInfo in v1
