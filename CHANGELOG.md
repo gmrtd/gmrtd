@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.3](https://github.com/gmrtd/gmrtd/compare/v0.17.2...v0.17.3) (2026-01-31)
+
+
+### Bug Fixes
+
+* bump version for tlv hardening changes ([#170](https://github.com/gmrtd/gmrtd/issues/170)) ([967b798](https://github.com/gmrtd/gmrtd/commit/967b79895c6d765f4546b770725c11923812a194))
+
 ## [0.17.2](https://github.com/gmrtd/gmrtd/compare/v0.17.1...v0.17.2) (2026-01-26)
 
 
