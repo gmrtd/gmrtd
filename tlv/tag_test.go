@@ -8,6 +8,55 @@ import (
 	"github.com/gmrtd/gmrtd/utils"
 )
 
+func TestParseTag(t *testing.T) {
+	testCases := []struct {
+		inpBytes []byte
+		expErr   bool
+		expTag   TlvTag
+	}{
+		{
+			inpBytes: []byte{0},
+			expErr:   false,
+			expTag:   0,
+		},
+		{
+			inpBytes: []byte{0x1f, 0x80, 0x80, 0x00},
+			expErr:   false,
+			expTag:   0x1f808000,
+		},
+		{
+			inpBytes: []byte{0xff, 0xff, 0xff, 0x7f},
+			expErr:   false,
+			expTag:   0xffffff7f,
+		},
+		{
+			// error: tag exceeds 4 bytes
+			inpBytes: []byte{0x1f, 0x80, 0x80, 0x80, 0x00},
+			expErr:   true,
+		},
+		{
+			// error: tag exceeds 4 bytes
+			inpBytes: []byte{0x5F, 0xD2, 0xD2, 0xD2, 0xD2, 0xD2, 0xD2, 0xD2, 0x41},
+			expErr:   true,
+		},
+	}
+	for _, tc := range testCases {
+		actTag, err := ParseTag(bytes.NewBuffer(tc.inpBytes))
+
+		if tc.expErr {
+			if err == nil {
+				t.Errorf("Error expected")
+			}
+		} else {
+			if err != nil {
+				t.Errorf("Unexpected error: %s", err)
+			} else if tc.expTag != actTag {
+				t.Errorf("Tag differs to expected (act:%1d, exp:%1d)", actTag, tc.expTag)
+			}
+		}
+	}
+}
+
 func TestGetTags(t *testing.T) {
 	testCases := []struct {
 		inp    []byte
@@ -55,6 +104,46 @@ func TestGetTagNoDataErr(t *testing.T) {
 	}
 }
 
+func TestEncode(t *testing.T) {
+	testCases := []struct {
+		tag      TlvTag
+		expBytes []byte
+	}{
+		{
+			// negative or 0 tag -> 0x00
+			tag:      0,
+			expBytes: []byte{0},
+		},
+		{
+			// negative or 0 tag -> 0x00
+			tag:      -1,
+			expBytes: []byte{0},
+		},
+		{
+			// negative or 0 tag -> 0x00
+			tag:      -2147483648,
+			expBytes: []byte{0},
+		},
+		{
+			// 32-bit tag is encoded correctly
+			tag:      0x1F808000,
+			expBytes: []byte{0x1F, 0x80, 0x80, 0x00},
+		},
+		{
+			// max positive 32-bit tag is encoded correctly
+			tag:      2147483647,
+			expBytes: []byte{0x7F, 0xFF, 0xFF, 0xFF},
+		},
+	}
+	for _, tc := range testCases {
+		actBytes := tc.tag.Encode()
+
+		if !bytes.Equal(actBytes, tc.expBytes) {
+			t.Errorf("Encoded Tag differs to expected (act:%x, exp:%x)", actBytes, tc.expBytes)
+		}
+	}
+}
+
 func TestIsConstructed(t *testing.T) {
 	testCases := []struct {
 		tag           TlvTag
@@ -74,6 +163,18 @@ func TestIsConstructed(t *testing.T) {
 		},
 		{
 			tag:           0x81,
+			isConstructed: false,
+		},
+		{
+			tag:           0xFFFFFFFF,
+			isConstructed: true,
+		},
+		{
+			tag:           0,
+			isConstructed: false,
+		},
+		{
+			tag:           -1,
 			isConstructed: false,
 		},
 	}

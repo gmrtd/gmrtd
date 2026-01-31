@@ -88,3 +88,13 @@ func TestEncodeLengthBadLengthErr(t *testing.T) {
 	// Never reaches here if panic
 	t.Errorf("expected panic, but didn't get")
 }
+
+func TestEncodeLengthBadLengthErr2(t *testing.T) {
+	defer func() { _ = recover() }()
+
+	// trigger error by using length > 32-bits
+	_ = TlvLength(-2147483648).Encode()
+
+	// Never reaches here if panic
+	t.Errorf("expected panic, but didn't get")
+}
