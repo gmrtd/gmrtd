@@ -15,6 +15,8 @@ type DG15 struct {
 }
 
 func NewDG15(data []byte) (*DG15, error) {
+	var err error
+
 	if len(data) < 1 {
 		return nil, nil
 	}
@@ -23,20 +25,14 @@ func NewDG15(data []byte) (*DG15, error) {
 
 	out.RawData = slices.Clone(data)
 
-	nodes, err := tlv.Decode(out.RawData)
+	// extract the content from the root tag
+	out.SubjectPublicKeyInfoBytes, err = tlv.UnwrapTag(DG15Tag, out.RawData)
 	if err != nil {
-		return nil, fmt.Errorf("[NewDG15] error: %w", err)
+		return nil, fmt.Errorf("[NewDG15] UnwrapTag error: %w", err)
 	}
 
-	rootNode := nodes.NodeByTag(DG15Tag)
-
-	if !rootNode.IsValidNode() {
-		return nil, fmt.Errorf("(NewDG15) root node (%x) missing", DG15Tag)
-	}
-
-	out.SubjectPublicKeyInfoBytes = rootNode.NodeByTag(0x30).Encode()
 	if len(out.SubjectPublicKeyInfoBytes) < 1 {
-		return nil, fmt.Errorf("(NewDG15) missing SubjectPublicKeyInfo")
+		return nil, fmt.Errorf("[NewDG15] missing SubjectPublicKeyInfo")
 	}
 
 	return out, nil

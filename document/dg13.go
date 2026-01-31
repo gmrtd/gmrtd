@@ -1,12 +1,10 @@
 package document
 
 import (
-	"bytes"
 	"fmt"
 	"slices"
 
 	"github.com/gmrtd/gmrtd/tlv"
-	"github.com/gmrtd/gmrtd/utils"
 )
 
 const DG13Tag = 0x6D
@@ -28,24 +26,9 @@ func NewDG13(data []byte) (out *DG13, err error) {
 	// extract the content from the root tag (6D)
 	// NB content may not be TLV, so don't attempt to decode everything
 	//		- we've seen some bad TLV encoding within DG13 on SG passports
-	{
-		// extract length (of parent tag) to determine file size
-		tmpBuf := bytes.NewBuffer(out.RawData)
-
-		tag, length, err := tlv.ParseTagAndLength(tmpBuf)
-		if err != nil {
-			return nil, fmt.Errorf("[NewDG13] ParseTagAndLength error: %w", err)
-		}
-
-		// verify tag
-		if tag != DG13Tag {
-			return nil, fmt.Errorf("(NewDG13) invalid root tag (Exp:%x, Act:%x)", DG13Tag, tag)
-		}
-
-		out.Content, err = utils.BytesFromBuffer(tmpBuf, int(length))
-		if err != nil {
-			return nil, fmt.Errorf("[NewDG13] ByteBuffer error: %w", err)
-		}
+	out.Content, err = tlv.UnwrapTag(DG13Tag, out.RawData)
+	if err != nil {
+		return nil, fmt.Errorf("[NewDG13] UnwrapTag error: %w", err)
 	}
 
 	return out, nil
