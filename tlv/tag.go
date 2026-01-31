@@ -20,6 +20,11 @@ func ParseTag(buf *bytes.Buffer) (TlvTag, error) {
 	// special handling for multi-byte tags
 	if (tag & 0x1f) == 0x1f {
 		for {
+			// prevent tags over 4 bytes
+			if (tag & 0xFF000000) != 0 {
+				return TlvTag(0), fmt.Errorf("[ParseTag] Tag exceeds 4 bytes (tag:%x)", tag)
+			}
+
 			tmp, err := utils.ByteFromBuffer(buf)
 			if err != nil {
 				return TlvTag(0), fmt.Errorf("[ParseTag] ByteFromBuffer error: %w", err)
@@ -57,20 +62,28 @@ func ParseTags(buf *bytes.Buffer) ([]TlvTag, error) {
 }
 
 func (tag TlvTag) Encode() []byte {
+	// gracefully handle invalid tags (negative or 0)
+	if tag < 1 {
+		return []byte{0}
+	}
+
+	// tag >= 1, so convert to bytes and trim leading 0 bytes
 	return bytes.TrimLeft(utils.UInt64ToBytes(uint64(tag)), "\x00")
 }
 
 func (tag TlvTag) IsConstructed() bool {
 	var tmp int = int(tag)
 
+	// gracefully handle negative
+	if tmp < 0 {
+		return false
+	}
+
 	// get the 1st byte of the tag
-	for {
-		if tmp <= 0xFF {
-			break
-		}
+	for tmp > 0xFF {
 		tmp >>= 8
 	}
 
 	// constructed if bit 5 is set
-	return (tmp & 0x20) == 0x20
+	return (tmp & 0x20) != 0
 }

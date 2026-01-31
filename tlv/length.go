@@ -51,6 +51,9 @@ func (length TlvLength) Encode() []byte {
 
 	if length == -1 {
 		out = append(out, byte(0x80))
+	} else if length < 0 {
+		// negative values other than -1 are not permitted
+		panic(fmt.Sprintf("[EncodeLength] Unsupported length (%d)", length))
 	} else if length <= 127 {
 		out = append(out, byte(length&0xff))
 	} else if length <= 0xffffffff {
