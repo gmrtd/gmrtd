@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.0](https://github.com/gmrtd/gmrtd/compare/v0.17.3...v0.18.0) (2026-02-01)
+
+
+### Features
+
+* **gmrtd-reader:** updated style for gmrtd-reader output ([#173](https://github.com/gmrtd/gmrtd/issues/173)) ([af3c7bb](https://github.com/gmrtd/gmrtd/commit/af3c7bb1a836f1ff65ff057b81ebbaa3a019f15c))
+
 ## [0.17.3](https://github.com/gmrtd/gmrtd/compare/v0.17.2...v0.17.3) (2026-01-31)
 
 
