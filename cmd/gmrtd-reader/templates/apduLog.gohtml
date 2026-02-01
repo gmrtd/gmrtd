@@ -2,8 +2,30 @@
 
 <h1>APDU LOG</h1>
 
-<h2>Count: {{len .}}</h2>
-<h2>Duration(ms): {{. | ApduTotalDurMs}}</h2>
+<h2>Overview</h2>
+
+<div>
+<table class="striped">
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Value</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Count</td>
+      <td>{{len .}}</td>
+    </tr>
+    <tr>
+      <td>Duration(ms)</td>
+      <td>{{. | ApduTotalDurMs}}</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h2>APDUs</h2>
 
 {{ range . }}
 <div><pre>
@@ -11,12 +33,12 @@ Desc: <b>{{ .Desc }}</b>
 Dur(ms): <b>{{ .DurMs }}</b>
 </pre></div>
 <div><pre>
--> {{ .Tx | BytesToHex }}
-    {{if .Child}}
---> {{ .Child.Tx | BytesToHex }}
-<-- {{ .Child.Rx | BytesToHex }}
-    {{end}}
-<- {{ .Rx | BytesToHex }}
+&rarr; {{ .Tx | BytesToHex }}
+{{if .Child}}
+&rarr;&rarr; {{ .Child.Tx | BytesToHex }}
+&larr;&larr; {{ .Child.Rx | BytesToHex }}
+{{end}}
+&larr; {{ .Rx | BytesToHex }}
 </pre></div>
 <hr>
 {{ end }}

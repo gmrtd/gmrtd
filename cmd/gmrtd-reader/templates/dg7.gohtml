@@ -1,9 +1,15 @@
 {{define "dg7"}}
 
 <h2>DG7 <sub>Displayed Signature or Usual Mark</sub></h2>
+
 {{if .}}
 {{template "fileHexAndTlv" .RawData}}
-<!-- TODO - output any image(s) -->
+{{ range .Images }}
+    <h3>Image size (bytes): {{len .Image}}</h3>
+    <img src="data:image/jpeg;base64, {{.Image | BytesToBase64}}" />
+    <br/>
+    {{template "fileHex" .Image}}
+{{ end }}
 {{else}}
 <i>No data</i>
 {{end}}

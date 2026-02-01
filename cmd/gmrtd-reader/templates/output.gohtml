@@ -1,57 +1,588 @@
 <html>
-<head>
-<style>
-h1 {
-    background-color:SkyBlue
-}
-h2 {
-    background-color:Silver
-}
-</style>
-
-<style>
-table.striped {
-  
-  border-collapse: collapse;
-  font-family: sans-serif;
-}
-
-table.striped th, table.striped td {
-  padding: 8px 12px;
-  border: 1px solid #ccc;
-  text-align: left;
-}
-
-table.striped thead {
-  background-color: #f0f0f0;
-}
-
-table.striped tbody tr:nth-child(even) {
-  background-color: #f9f9f9;
-}
-
-table.striped tbody tr:nth-child(odd) {
-  background-color: #ffffff;
-}
-
-table.striped tbody tr:hover {
-  background-color: #e6f7ff;
-}
-</style>
-
+<head><meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
 
 <title>GMRTD</title>
+
+<style>
+:root{
+  --bg:#f6f7f9;     /* page background */
+  --panel:#ffffff;  /* card surface */
+  --text:#111827;   /* primary text */
+  --muted:#6b7280;  /* secondary text */
+  --line:rgba(17,24,39,.12);
+  --line-strong:rgba(17,24,39,.18);
+  --pill:rgba(17,24,39,.05);
+  --pill2:rgba(17,24,39,.035);
+  --hover:rgba(17,24,39,.04);
+  --thead:#eef2f7;
+}
+
+*{ box-sizing: border-box; }
+
+body{
+  margin:0;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+  background: radial-gradient(1200px 700px at 20% 10%, #ffffff, var(--bg));
+  color:var(--text);
+  padding:24px;
+}
+
+a{ color: inherit; text-decoration: underline; text-decoration-color: rgba(17,24,39,.35); }
+a:hover{ text-decoration-color: rgba(17,24,39,.65); }
+
+/* Headings */
+h1, h2, h3{
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+  font-weight: 650;
+  color: var(--text);
+  line-height: 1.25;
+  margin: 1.2em 0 0.5em 0;
+}
+h1{
+  font-size: 1.6rem;
+  border-bottom: 2px solid rgba(17,24,39,.10);
+  padding-bottom: 0.35em;
+}
+h2{
+  font-size: 1.25rem;
+  border-left: 4px solid rgba(17,24,39,.18);
+  padding-left: 0.65em;
+}
+h3{
+  font-size: 1.05rem;
+  color: rgba(17,24,39,.82);
+}
+
+/* Card */
+.card{
+  margin: 0 auto;
+  background: var(--panel);
+  border: 1px solid rgba(17,24,39,.10);
+  border-radius: 14px;
+  padding: 18px;
+  box-shadow: 0 10px 30px rgba(17,24,39,.10);
+}
+
+.title{
+  display:flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.title h1, .title h3{
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+.title h1{
+  font-size: 18px;
+  letter-spacing: .2px;
+}
+
+.legend{
+  font: 12px/1.2 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  color: var(--muted);
+  opacity: .95;
+}
+
+/* Striped table (aligned with page styling) */
+table.striped{
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+  border: 1px solid rgba(17,24,39,.10);
+  border-radius: 12px;
+  overflow: hidden; /* works with border-radius in most browsers */
+  background: var(--panel);
+}
+
+table.striped th,
+table.striped td{
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(17,24,39,.10);
+  text-align: left;
+  vertical-align: top;
+}
+
+table.striped thead th{
+  background: var(--thead);
+  border-bottom: 1px solid rgba(17,24,39,.14);
+  font-weight: 650;
+  color: rgba(17,24,39,.92);
+}
+
+table.striped tbody tr:nth-child(even){
+  background: rgba(17,24,39,.015);
+}
+table.striped tbody tr:hover{ background: inherit; }
+
+/* Native details/summary toggles (used for TLV and section-level collapse) */
+details{
+  width:100%;
+}
+summary{
+  list-style: none;
+  cursor: pointer;
+}
+summary::-webkit-details-marker{ display:none; }
+
+/* Section collapsible (H2 sections) */
+details.section{
+  margin: 0.2rem 0 0.8rem 0;
+}
+details.section > summary{
+  display:flex;
+  align-items:center;
+  gap:0.55rem;
+  user-select:none;
+}
+details.section > summary .chev{
+  width:1.1rem;
+  height:1.1rem;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border:1px solid rgba(17,24,39,.12);
+  border-radius:999px;
+  color: rgba(17,24,39,.78);
+  font-size:0.85rem;
+  line-height:1;
+  flex:0 0 auto;
+  background:#ffffff;
+}
+details.section[open] > summary .chev{ transform: rotate(0deg); }
+details.section:not([open]) > summary .chev{ transform: rotate(-90deg); }
+details.section > summary:hover .chev{ background:#f9fafb; }
+
+details.section .section-content{
+  margin-left: 0.4rem;
+  border-left: 2px solid rgba(17,24,39,.06);
+  padding-left: 0.9rem;
+  margin-top: 0.6rem;
+}
+
+/* TLV tree */
+.tlv-tree{
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font: 13px/1.35 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.tlv-node{
+  position: relative;
+  padding-left: 18px;
+  margin: 6px 0;
+}
+
+.tlv-tree .tlv-tree{
+  margin-left: 14px;
+  padding-left: 10px;
+  border-left: 1px dashed var(--line);
+}
+
+.tlv-node::before{
+  content:"";
+  position:absolute;
+  left:0;
+  top: 14px;
+  width: 12px;
+  border-top: 1px dashed var(--line);
+}
+
+.row{
+  display:flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  background: rgba(17,24,39,.03); /* was too dark for light theme */
+  border: 1px solid rgba(17,24,39,.10);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.pill{
+  display:inline-flex;
+  gap: 6px;
+  align-items: baseline;
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: var(--pill);
+  border: 1px solid rgba(17,24,39,.10);
+  white-space: nowrap;
+}
+
+.k{
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: .2px;
+  text-transform: uppercase;
+}
+
+.v{
+  color: var(--text);
+  font-weight: 650;
+}
+
+.desc{
+  color: var(--muted);
+  margin-left: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 420px;
+}
+
+.value{
+  flex: 1 1 260px;
+  min-width: 240px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--pill2);
+  border: 1px solid rgba(17,24,39,.10);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.hint{
+  margin-top: 10px;
+  color: var(--muted);
+  font: 12px/1.4 ui-sans-serif, system-ui;
+}
+
+
+/* Raw data blocks (hex / DER / dumps) */
+pre, .hex-data{
+  margin: 0.6rem 0 1rem 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(17,24,39,.10);
+  background: var(--pill2);
+  color: rgba(17,24,39,.92);
+  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  overflow: auto;
+  white-space: pre-wrap;      /* allow wrapping */
+  word-break: break-word;     /* break long hex safely */
+}
+
+pre.raw-hex, .hex-data.raw-hex{
+  letter-spacing: .06em;
+}
+
+
+/* Raw data truncation + copy */
+.raw-block{
+  position: relative;
+  margin: 0.6rem 0 1rem 0;
+}
+.raw-toolbar{
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font: 12px/1.2 ui-sans-serif, system-ui;
+}
+.raw-toolbar .raw-meta{
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.raw-actions{
+  display:flex;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.btn{
+  appearance:none;
+  border: 1px solid rgba(17,24,39,.12);
+  background: #ffffff;
+  color: rgba(17,24,39,.88);
+  border-radius: 10px;
+  padding: 6px 10px;
+  font: 12px/1.1 ui-sans-serif, system-ui;
+  cursor:pointer;
+}
+.btn:hover{ background:#f9fafb; }
+.btn:active{ transform: translateY(0.5px); }
+.btn:focus{ outline: 2px solid rgba(17,24,39,.18); outline-offset: 2px; }
+
+.raw-preview{
+  max-height: 7.8em; /* ~5 lines */
+  overflow: hidden;
+  position: relative;
+}
+.raw-preview::after{
+  content:"";
+  position:absolute;
+  left:0; right:0; bottom:0;
+  height: 2.2em;
+  background: linear-gradient(to bottom, rgba(255,255,255,0), var(--pill2));
+  pointer-events:none;
+}
+.raw-full{ display:none; }
+
+.raw-block[data-expanded="true"] .raw-preview{ display:none; }
+.raw-block[data-expanded="true"] .raw-full{ display:block; }
+.raw-block[data-expanded="true"] .raw-preview::after{ display:none; }
+
+.copy-status{
+  margin-left: 8px;
+  color: rgba(17,24,39,.75);
+  font: 12px/1.2 ui-sans-serif, system-ui;
+}
+</style>
+
+<script>
+/**
+ * Unified "raw hex" renderer for ALL standalone hex <pre> blocks.
+ * - Detects pre tags whose content is pure hex (ignoring whitespace)
+ * - Shows byte length for all
+ * - Adds Copy hex / Copy base64 / Download .bin
+ * - Adds Expand/Collapse only when data is large (preview shown otherwise)
+ *
+ * This matches the existing page's button + toolbar styling (.btn, .raw-block, etc).
+ */
+document.addEventListener('DOMContentLoaded', () => {
+  const EXPAND_THRESHOLD_BYTES = 128;      // show Expand/Collapse only above this
+  const PREVIEW_BYTES = 64;               // preview shows first N bytes
+  const MIN_HEX_CHARS = 16;               // ignore tiny hex snippets
+
+  function normalizeHex(text) {
+    return (text || '').trim().replace(/\s+/g, '');
+  }
+
+  function isPureHex(hex) {
+    return /^[0-9a-fA-F]+$/.test(hex) && (hex.length % 2 === 0);
+  }
+
+  function hexToBytes(hex) {
+    const clean = hex.toLowerCase();
+    const out = new Uint8Array(clean.length / 2);
+    for (let i = 0; i < clean.length; i += 2) {
+      const byte = parseInt(clean.slice(i, i + 2), 16);
+      if (Number.isNaN(byte)) return null;
+      out[i / 2] = byte;
+    }
+    return out;
+  }
+
+  function bytesToBase64(bytes) {
+    let bin = '';
+    const chunkSize = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      const chunk = bytes.subarray(i, i + chunkSize);
+      bin += String.fromCharCode.apply(null, chunk);
+    }
+    return btoa(bin);
+  }
+
+  function formatHexForDisplay(hex) {
+    const pairs = hex.match(/.{2}/g);
+    return pairs ? pairs.join(' ') : hex;
+  }
+
+  function setStatus(el, msg) {
+    el.textContent = msg || '';
+    if (!msg) return;
+    window.setTimeout(() => { el.textContent = ''; }, 900);
+  }
+
+  async function copyText(text, statusEl, label) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setStatus(statusEl, label || 'Copied');
+    } catch (e) {
+      setStatus(statusEl, 'Copy failed');
+    }
+  }
+
+  function downloadBin(bytes, filename) {
+    const blob = new Blob([bytes], { type: 'application/octet-stream' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename || 'data.bin';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  // Process AFTER other DOM reshaping (e.g., H2 -> <details>)
+  requestAnimationFrame(() => {
+    document.querySelectorAll('pre').forEach(pre => {
+      if (pre.closest('.raw-block')) return;
+
+      const raw = (pre.textContent || '').trim();
+      const hex = normalizeHex(raw);
+
+      if (hex.length < MIN_HEX_CHARS) return;
+      if (!isPureHex(hex)) return;
+
+      const bytes = hexToBytes(hex);
+      if (!bytes) return;
+
+      const byteLen = bytes.length;
+      const needsExpand = byteLen > EXPAND_THRESHOLD_BYTES;
+
+      const rawBlock = document.createElement('div');
+      rawBlock.className = 'raw-block';
+      rawBlock.dataset.expanded = needsExpand ? 'false' : 'true';
+
+      const toolbar = document.createElement('div');
+      toolbar.className = 'raw-toolbar';
+
+      const meta = document.createElement('div');
+      meta.className = 'raw-meta';
+      meta.textContent = `${byteLen.toLocaleString()} bytes`;
+
+      const actions = document.createElement('div');
+      actions.className = 'raw-actions';
+
+      const status = document.createElement('span');
+      status.className = 'copy-status';
+
+      let btnToggle = null;
+      if (needsExpand) {
+        btnToggle = document.createElement('button');
+        btnToggle.className = 'btn';
+        btnToggle.type = 'button';
+        btnToggle.textContent = 'Expand';
+        actions.appendChild(btnToggle);
+      }
+
+      const btnCopyHex = document.createElement('button');
+      btnCopyHex.className = 'btn';
+      btnCopyHex.type = 'button';
+      btnCopyHex.textContent = 'Copy hex';
+
+      const btnCopyB64 = document.createElement('button');
+      btnCopyB64.className = 'btn';
+      btnCopyB64.type = 'button';
+      btnCopyB64.textContent = 'Copy base64';
+
+      const btnDl = document.createElement('button');
+      btnDl.className = 'btn';
+      btnDl.type = 'button';
+      btnDl.textContent = 'Download .bin';
+
+      actions.appendChild(btnCopyHex);
+      actions.appendChild(btnCopyB64);
+      actions.appendChild(btnDl);
+
+      toolbar.appendChild(meta);
+      toolbar.appendChild(actions);
+      toolbar.appendChild(status);
+
+      const preview = document.createElement('div');
+      preview.className = 'raw-preview';
+
+      const full = document.createElement('div');
+      full.className = 'raw-full';
+
+      const displayPre = document.createElement('div');
+      displayPre.className = 'hex-data';
+      displayPre.textContent = formatHexForDisplay(hex);
+
+      if (needsExpand) {
+        const previewHex = hex.slice(0, PREVIEW_BYTES * 2);
+        const previewPre = document.createElement('div');
+         previewPre.className = 'hex-data';
+         previewPre.textContent = formatHexForDisplay(previewHex) + ' …';
+        preview.appendChild(previewPre);
+        full.appendChild(displayPre);
+      } else {
+        full.appendChild(displayPre);
+      rawBlock.dataset.expanded = 'true';
+    }
+
+      rawBlock.appendChild(toolbar);
+      rawBlock.appendChild(preview);
+      rawBlock.appendChild(full);
+
+      const parent = pre.parentElement;
+      if (parent && parent.tagName === 'DIV' && parent.children.length === 1) {
+        parent.replaceWith(rawBlock);
+      } else {
+        pre.replaceWith(rawBlock);
+      }
+
+      function setExpanded(expanded) {
+        rawBlock.dataset.expanded = expanded ? 'true' : 'false';
+        if (btnToggle) btnToggle.textContent = expanded ? 'Collapse' : 'Expand';
+      }
+
+      if (btnToggle) {
+        btnToggle.addEventListener('click', () => {
+          setExpanded(rawBlock.dataset.expanded !== 'true');
+        });
+      } else {
+        setExpanded(true);
+      }
+
+      btnCopyHex.addEventListener('click', () => copyText(hex, status, 'Copied hex'));
+      btnCopyB64.addEventListener('click', () => copyText(bytesToBase64(bytes), status, 'Copied base64'));
+      btnDl.addEventListener('click', () => {
+        downloadBin(bytes, 'data.bin');
+        setStatus(status, 'Downloaded');
+      });
+    });
+  });
+});
+</script>
+
 </head>
 <body>
+
+{{define "tlvNode"}}
+  {{if .Tag.IsConstructed }}
+    <li class="tlv-node">
+      <details open>
+      <summary class="row">
+        <span class="pill"><span class="k">tag</span><span class="v">{{ TagToHex .Tag }}</span></span>
+        <span class="value">Constructed</span>
+      </summary>
+      <ul class="tlv-tree">
+        {{ range .Children }}
+          {{template "tlvNode" .}}
+        {{end}}
+      </ul>
+      </details>
+    </li>
+  {{else}}
+    <li class="tlv-node">
+      <summary class="row">
+        <span class="pill"><span class="k">tag</span><span class="v">{{ TagToHex .Tag }}</span></span>
+        <span class="pill"><span class="k">len</span><span class="v">{{ ByteLen .Value }}</span></span>
+        {{ if eq .Tag 6 }}        
+          <span class="pill"><span class="k">oid</span><span class="v">{{ OidDesc .Value }}</span></span>
+        {{ else if IsPrintable .Value }}
+          <span class="pill"><span class="k">str</span><span class="v">{{ BytesToStr .Value }}</span></span>
+        {{end}}
+        <span class="value">{{ BytesToHex .Value }}</span>
+      </summary>
+    </li>
+  {{end}}
+{{end}}
 
 {{define "fileHexAndTlv"}}
 <div><pre>
 {{. | BytesToHex}}
 </pre></div>
-
-<div><pre>
-{{. | TlvBytesToString}}
-</pre></div>
+  <div class="card">
+    <div class="title">
+      <h3>TLV</h3>
+      <div class="legend">tag • length • value</div>
+    </div>
+    <details>
+      <ul class="tlv-tree">
+        {{ range (DecodeTlvBytes .) }}
+          {{template "tlvNode" .}}
+        {{ end }}
+      </ul>
+    </details>
+  </div>
 {{end}}
 
 {{define "fileHex"}}
@@ -60,38 +591,16 @@ table.striped tbody tr:hover {
 </pre></div>
 {{end}}
 
-<h1><a href="https://github.com/gmrtd/gmrtd">GMRTD</a></h1>
+<h1><a href="https://github.com/gmrtd/gmrtd">GMRTD</a> <sub>(v{{ GmrtdVersion }})</sub></h1>
 
 <div>
-<a href="#json">JSON</a>
+<a href="#session">Session</a> | <a href="#document">Document</a> | <a href="#apdu">APDU</a> | <a href="#json">JSON</a>
 </div>
 
 <br/>
 
-<div>
-<table class="striped">
-  <thead>
-    <tr>
-      <th>Field</th>
-      <th>Value</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>LDS version</td>
-      <td>{{.Document.LdsVersion}}</td>
-    </tr>
-    <tr>
-      <td>Unicode version</td>
-      <td>{{.Document.UnicodeVersion}}</td>
-    </tr>
-  </tbody>
-</table>
-</div>
-
-<br/>
-
-<h1>Session</H1>
+<div id="session">
+<h1>Session</h1>
 
 <h2>Chip Activation Response</h2>
 {{if .Session.ChipActivationRsp}}
@@ -296,8 +805,34 @@ table.striped tbody tr:hover {
 {{else}}
 <i>No data</i>
 {{end}}
+</div>
 
+<div id="document">
 <h1>Document</h1>
+
+<h2>Overview</h2>
+<div>
+<table class="striped">
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Value</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>LDS version</td>
+      <td>{{.Document.LdsVersion}}</td>
+    </tr>
+    <tr>
+      <td>Unicode version</td>
+      <td>{{.Document.UnicodeVersion}}</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<br/>
 
 {{template "cardAccess" .Document.Mf.CardAccess}}
 {{template "cardSecurity" .Document.Mf.CardSecurity}}
@@ -314,8 +849,11 @@ table.striped tbody tr:hover {
 {{template "dg14" .Document.Mf.Lds1.Dg14}}
 {{template "dg15" .Document.Mf.Lds1.Dg15}}
 {{template "dg16" .Document.Mf.Lds1.Dg16}}
+</div>
 
+<div id="apdu">
 {{template "apduLog" .Session.Apdus}}
+</div>
 
 <div id="json">
 <h1>Document JSON</h1>

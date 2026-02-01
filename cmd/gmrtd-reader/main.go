@@ -15,6 +15,7 @@ import (
 	"github.com/gmrtd/gmrtd/document"
 	"github.com/gmrtd/gmrtd/internal/version"
 	"github.com/gmrtd/gmrtd/iso7816"
+	"github.com/gmrtd/gmrtd/oid"
 	"github.com/gmrtd/gmrtd/password"
 	"github.com/gmrtd/gmrtd/reader"
 	"github.com/gmrtd/gmrtd/tlv"
@@ -57,10 +58,22 @@ func outputDocument(documentEx *document.DocumentEx) {
 		return
 	}
 
+	// TODO - is 'TlvBytesToString' still required? check others also
 	funcMap := template.FuncMap{
+		"GmrtdVersion":     func() string { return version.Version },
 		"BytesToHex":       func(bytes []byte) string { return fmt.Sprintf("%X", bytes) },
+		"BytesToStr":       func(bytes []byte) string { return string(bytes) },
+		"ByteLen":          func(bytes []byte) int { return len(bytes) },
+		"TagToHex":         func(tag tlv.TlvTag) string { return fmt.Sprintf("%X", tag) },
 		"TlvBytesToString": func(bytes []byte) string { nodes := tlv.MustDecode(bytes); return nodes.String() },
+		"DecodeTlvBytes":   func(bytes []byte) []tlv.TlvNode { nodes := tlv.MustDecode(bytes); return nodes.Nodes() },
 		"BytesToBase64":    func(bytes []byte) string { return base64.StdEncoding.EncodeToString(bytes) },
+		"OidDesc": func(oidBytes []byte) string {
+			tmpOid := oid.DecodeAsn1objectId(oidBytes)
+			tmpOidDesc := oid.OidDesc(tmpOid)
+			return fmt.Sprintf("%s %s", tmpOid.String(), tmpOidDesc)
+		},
+		"IsPrintable": func(bytes []byte) bool { return len(bytes) > 0 && utils.PrintableBytes(bytes) },
 		"ApduTotalDurMs": func(apdus []iso7816.ApduLog) int {
 			var totalMs int
 			for _, apdu := range apdus {
