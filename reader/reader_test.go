@@ -2,10 +2,12 @@ package reader
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/document"
 	"github.com/gmrtd/gmrtd/iso7816"
+	"github.com/gmrtd/gmrtd/password"
 	"github.com/gmrtd/gmrtd/utils"
 )
 
@@ -122,5 +124,37 @@ func TestReadEfCom(t *testing.T) {
 
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
+	}
+}
+
+type PanicTransceiver struct {
+	P any
+}
+
+func (t *PanicTransceiver) Transceive(cla, ins, p1, p2 int, data []byte, le int, rapdu []byte) []byte {
+	panic(t.P)
+}
+
+func TestReadDocumentTransceiverPanicIsHandled(t *testing.T) {
+	cases := []struct {
+		name  string
+		panic any
+	}{
+		{"panic:string", "Transceiver that always panics"},
+		{"panic:error", fmt.Errorf("Transceiver that always panics")},
+		{"panic:other", []byte{1, 2, 3, 4, 5}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var status MockStatus
+			reader := NewReader(&status)
+			pass := password.NewPasswordCan("123456")
+
+			_, err := reader.ReadDocument(&PanicTransceiver{P: tc.panic}, pass, nil, nil)
+			if err == nil {
+				t.Fatalf("expected error")
+			}
+		})
 	}
 }

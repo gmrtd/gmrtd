@@ -100,6 +100,25 @@ func TestDocumentJsonError(t *testing.T) {
 	}
 }
 
+type PanicTransceiver struct {
+}
+
+func (t *PanicTransceiver) Transceive(cla, ins, p1, p2 int, data []byte, le int, rapdu []byte) []byte {
+	panic("Transceiver that always panics")
+}
+
+func TestReadDocumentNilPassword(t *testing.T) {
+	// pass in invalid Password (nil) to trigger panic, should get error
+	reader := NewReader(&testReaderStatus{})
+
+	var pass *MrtdPassword = nil
+
+	err := reader.ReadDocument(&PanicTransceiver{}, pass, nil, nil)
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+}
+
 func TestVersion(t *testing.T) {
 	version := Version()
 
