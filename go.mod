@@ -1,21 +1,19 @@
 module github.com/gmrtd/gmrtd
 
-go 1.24.0
-
-toolchain go1.24.1
+go 1.25.0
 
 require (
 	github.com/aead/cmac v0.0.0-20160719120800-7af84192f0b1
 	github.com/dumacp/smartcard v0.1.8
 	github.com/osanderson/brainpool v1.0.0
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
-	golang.org/x/mobile v0.0.0-20251209145715-2553ed8ce294
+	golang.org/x/mobile v0.0.0-20260217195705-b56b3793a9c4
 )
 
 require (
 	github.com/ebfe/scard v0.0.0-20241214075232-7af069cabc25 // indirect
-	golang.org/x/mod v0.31.0 // indirect
+	golang.org/x/mod v0.33.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
-	golang.org/x/sys v0.39.0 // indirect
-	golang.org/x/tools v0.40.0 // indirect
+	golang.org/x/sys v0.41.0 // indirect
+	golang.org/x/tools v0.42.0 // indirect
 )
