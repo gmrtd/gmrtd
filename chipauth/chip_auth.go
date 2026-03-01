@@ -143,15 +143,9 @@ func inferCAInfoFromKey(doc *document.Document) (caInfo *document.ChipAuthentica
 		// just go with the 1st key
 		var keyInfo *document.ChipAuthenticationPublicKeyInfo = &(doc.Mf.Lds1.Dg14.SecInfos.ChipAuthPubKeyInfos[0])
 
-		// process based on the type of key (DH/ECDH)
-		if keyInfo.Protocol.Equal(oid.OidPkDh) {
-			// DH
-			caInfo = &document.ChipAuthenticationInfo{Protocol: oid.OidCaDh3DesCbcCbc, Version: 1}
-		} else if keyInfo.Protocol.Equal(oid.OidPkEcdh) {
-			// ECDH
-			caInfo = &document.ChipAuthenticationInfo{Protocol: oid.OidCaEcdh3DesCbcCbc, Version: 1}
-		} else {
-			return nil, nil, fmt.Errorf("(inferCAInfoFromKey) unsupported key type (OID:%s)", keyInfo.Protocol.String())
+		caInfo, err = inferCAInfoFromKeyProtocol(keyInfo.Protocol)
+		if err != nil {
+			return nil, nil, fmt.Errorf("(inferCAInfoFromKey) inferCAInfoFromKeyProtocol error: %w", err)
 		}
 
 		caAlgInfo, err = algInfo(caInfo.Protocol)
@@ -163,6 +157,23 @@ func inferCAInfoFromKey(doc *document.Document) (caInfo *document.ChipAuthentica
 	}
 
 	return caInfo, caAlgInfo, nil
+}
+
+// infer the CAInfo from the provided Protocol(OID)
+// returns: caInfo or error
+func inferCAInfoFromKeyProtocol(protocol asn1.ObjectIdentifier) (caInfo *document.ChipAuthenticationInfo, err error) {
+	// process based on the type of key (DH/ECDH)
+	if protocol.Equal(oid.OidPkDh) {
+		// DH
+		caInfo = &document.ChipAuthenticationInfo{Protocol: oid.OidCaDh3DesCbcCbc, Version: 1}
+	} else if protocol.Equal(oid.OidPkEcdh) {
+		// ECDH
+		caInfo = &document.ChipAuthenticationInfo{Protocol: oid.OidCaEcdh3DesCbcCbc, Version: 1}
+	} else {
+		return nil, fmt.Errorf("(inferCAInfoFromKeyProtocol) unsupported key type (OID:%s)", protocol.String())
+	}
+
+	return caInfo, nil
 }
 
 // selects the public key matching the target OID (i.e. oidPkDh / oidPkEcdh) as well as the 'KeyId' (if specified)
@@ -191,7 +202,7 @@ type CaAlgorithmInfo struct {
 }
 
 // NB weighting: we prioritise ECDH (2xxx) over DH (1xxx), then select based on key-bits
-var caAlgInfo = map[string]CaAlgorithmInfo{
+var caAlgInfoLookup = map[string]CaAlgorithmInfo{
 	oid.OidCaDh3DesCbcCbc.String():    {oid.OidPkDh, cryptoutils.TDES, 112, 1112},
 	oid.OidCaDhAesCbcCmac128.String(): {oid.OidPkDh, cryptoutils.AES, 128, 1128},
 	oid.OidCaDhAesCbcCmac192.String(): {oid.OidPkDh, cryptoutils.AES, 192, 1192},
@@ -204,7 +215,7 @@ var caAlgInfo = map[string]CaAlgorithmInfo{
 }
 
 func algInfo(oid asn1.ObjectIdentifier) (*CaAlgorithmInfo, error) {
-	out, ok := caAlgInfo[oid.String()]
+	out, ok := caAlgInfoLookup[oid.String()]
 
 	if !ok {
 		return nil, fmt.Errorf("algInfo: OID not found (%s)", oid.String())
