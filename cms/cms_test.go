@@ -90,7 +90,6 @@ func TestVerifySignedData(t *testing.T) {
 		sd, err = ParseSignedData(tc.signedDataBytes)
 		if err != nil {
 			t.Errorf("Unexpected error: %s", err)
-			// TODO - use t.Fatal then no need for 'else'
 		} else {
 			certChain, err := sd.Verify(cscaCertPool)
 
