@@ -2,12 +2,14 @@ package chipauth
 
 import (
 	"crypto/elliptic"
+	"encoding/asn1"
 	"reflect"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
 	"github.com/gmrtd/gmrtd/document"
 	"github.com/gmrtd/gmrtd/iso7816"
+	"github.com/gmrtd/gmrtd/oid"
 	"github.com/gmrtd/gmrtd/utils"
 )
 
@@ -378,5 +380,179 @@ func TestChipAuthFR(t *testing.T) {
 	// verify the post Secure-Messaging state (as this truly indicates whether it worked)
 	if !nfc.SM.Equal(*smExp) {
 		t.Errorf("SM (Post) state differs to expected")
+	}
+}
+
+func TestInferCAInfoFromKey(t *testing.T) {
+	testCases := []struct {
+		dg14bytes    []byte
+		expError     bool
+		expCAInfo    *document.ChipAuthenticationInfo
+		expCAAlgInfo *CaAlgorithmInfo
+	}{
+		{
+			// NB infer not required, but need to ensure we check for the inferred OID (0.4.0.127.0.7.2.2.3.2.1)
+			dg14bytes:    utils.HexToBytes("6E82017E3182017A300D060804007F0007020202020101300F060A04007F000702020302040201013012060A04007F0007020204020402010202010D30820142060904007F000702020102308201333081EC06072A8648CE3D02013081E0020101302C06072A8648CE3D0101022100A9FB57DBA1EEA9BC3E660A909D838D726E3BF623D52620282013481D1F6E5377304404207D5A0975FC2C3057EEF67530417AFFE7FB8055C126DC5C6CE94A4B44F330B5D9042026DC5C6CE94A4B44F330B5D9BBD77CBF958416295CF7E1CE6BCCDC18FF8C07B60441048BD2AEB9CB7E57CB2C4B482FFC81B7AFB9DE27E1E3BD23C23A4453BD9ACE3262547EF835C3DAC4FD97F8461A14611DC9C27745132DED8E545C1D54C72F046997022100A9FB57DBA1EEA9BC3E660A909D838D718C397AA3B561A6F7901E0E82974856A70201010342000459862118B22439FE7CF09B371CE559783EEF329DF3160F97D63178AFEFB35C499949E15C960635253A6E1A213C34B6B3B5AD61E3F4CE25B498E66E0E87D27C47"),
+			expError:     false,
+			expCAInfo:    &document.ChipAuthenticationInfo{Protocol: asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 2, 1}, Version: 1},
+			expCAAlgInfo: &CaAlgorithmInfo{oid.OidPkEcdh, cryptoutils.TDES, 112, 2112},
+		},
+		{
+			// no CA information - expect success but without CAInfo/CAAlgInfo
+			dg14bytes:    utils.HexToBytes("6E1631143012060A04007F0007020204020402010202010D"),
+			expError:     false,
+			expCAInfo:    nil,
+			expCAAlgInfo: nil,
+		},
+	}
+	for _, tc := range testCases {
+		var doc document.Document
+
+		err := doc.NewDG(14, tc.dg14bytes)
+		if err != nil {
+			t.Errorf("Unexpected error: %s", err)
+		}
+
+		caInfo, caAlgInfo, err := inferCAInfoFromKey(&doc)
+
+		if tc.expError {
+			if err == nil {
+				t.Errorf("Error expected")
+			}
+		} else {
+			if err != nil {
+				t.Errorf("Unexpected error: %s", err)
+			}
+
+			if !reflect.DeepEqual(tc.expCAInfo, caInfo) {
+				t.Errorf("CAInfo differs to expected (Act:%+v) (Exp:%+v)", caInfo, tc.expCAInfo)
+			}
+
+			if !reflect.DeepEqual(tc.expCAAlgInfo, caAlgInfo) {
+				t.Errorf("CAAlgInfo differs to expected (Act:%+v) (Exp:%+v)", caAlgInfo, tc.expCAAlgInfo)
+			}
+		}
+	}
+}
+
+func TestInferCAInfoFromKeyProtocol(t *testing.T) {
+	testCases := []struct {
+		protocol  asn1.ObjectIdentifier
+		expError  bool
+		expCAInfo *document.ChipAuthenticationInfo
+	}{
+		{
+			// error: DH
+			protocol:  oid.OidPkDh,
+			expError:  false,
+			expCAInfo: &document.ChipAuthenticationInfo{Protocol: oid.OidCaDh3DesCbcCbc, Version: 1},
+		},
+		{
+			// error: ECDH
+			protocol:  oid.OidPkEcdh,
+			expError:  false,
+			expCAInfo: &document.ChipAuthenticationInfo{Protocol: oid.OidCaEcdh3DesCbcCbc, Version: 1},
+		},
+		{
+			// error: invalid protocol
+			protocol: oid.OidPk,
+			expError: true,
+		},
+	}
+	for _, tc := range testCases {
+		caInfo, err := inferCAInfoFromKeyProtocol(tc.protocol)
+
+		if tc.expError {
+			if err == nil {
+				t.Errorf("Error expected")
+			}
+		} else {
+			if err != nil {
+				t.Errorf("Unexpected error: %s", err)
+			}
+
+			if !reflect.DeepEqual(tc.expCAInfo, caInfo) {
+				t.Errorf("CAInfo differs to expected (Act:%+v) (Exp:%+v)", caInfo, tc.expCAInfo)
+			}
+		}
+	}
+}
+
+func TestAlgInfo(t *testing.T) {
+	testCases := []struct {
+		protocol   asn1.ObjectIdentifier
+		expError   bool
+		expAlgInfo *CaAlgorithmInfo
+	}{
+		{
+			// ok
+			protocol:   oid.OidCaDh3DesCbcCbc,
+			expError:   false,
+			expAlgInfo: &CaAlgorithmInfo{oid.OidPkDh, cryptoutils.TDES, 112, 1112},
+		},
+		{
+			// ok
+			protocol:   oid.OidCaDhAesCbcCmac128,
+			expError:   false,
+			expAlgInfo: &CaAlgorithmInfo{oid.OidPkDh, cryptoutils.AES, 128, 1128},
+		},
+		{
+			// ok
+			protocol:   oid.OidCaDhAesCbcCmac192,
+			expError:   false,
+			expAlgInfo: &CaAlgorithmInfo{oid.OidPkDh, cryptoutils.AES, 192, 1192},
+		},
+		{
+			// ok
+			protocol:   oid.OidCaDhAesCbcCmac256,
+			expError:   false,
+			expAlgInfo: &CaAlgorithmInfo{oid.OidPkDh, cryptoutils.AES, 256, 1256},
+		},
+		{
+			// ok
+			protocol:   oid.OidCaEcdh3DesCbcCbc,
+			expError:   false,
+			expAlgInfo: &CaAlgorithmInfo{oid.OidPkEcdh, cryptoutils.TDES, 112, 2112},
+		},
+		{
+			// ok
+			protocol:   oid.OidCaEcdhAesCbcCmac128,
+			expError:   false,
+			expAlgInfo: &CaAlgorithmInfo{oid.OidPkEcdh, cryptoutils.AES, 128, 2128},
+		},
+		{
+			// ok
+			protocol:   oid.OidCaEcdhAesCbcCmac192,
+			expError:   false,
+			expAlgInfo: &CaAlgorithmInfo{oid.OidPkEcdh, cryptoutils.AES, 192, 2192},
+		},
+		{
+			// ok
+			protocol:   oid.OidCaEcdhAesCbcCmac256,
+			expError:   false,
+			expAlgInfo: &CaAlgorithmInfo{oid.OidPkEcdh, cryptoutils.AES, 256, 2256},
+		},
+		{
+			// error (invalid protocol)
+			protocol: oid.OidCa,
+			expError: true,
+		},
+	}
+	for _, tc := range testCases {
+		algInfo, err := algInfo(tc.protocol)
+
+		if tc.expError {
+			if err == nil {
+				t.Errorf("Error expected")
+			}
+		} else {
+			if err != nil {
+				t.Errorf("Unexpected error: %s", err)
+			}
+
+			if !reflect.DeepEqual(tc.expAlgInfo, algInfo) {
+				t.Errorf("AlgInfo differs to expected (Act:%+v) (Exp:%+v)", algInfo, tc.expAlgInfo)
+			}
+		}
 	}
 }
