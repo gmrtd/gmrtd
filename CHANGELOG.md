@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.1](https://github.com/gmrtd/gmrtd/compare/v0.19.0...v0.19.1) (2026-03-02)
+
+
+### Bug Fixes
+
+* change TlvTag type to uint32 for Android builds ([#184](https://github.com/gmrtd/gmrtd/issues/184)) ([ae36932](https://github.com/gmrtd/gmrtd/commit/ae3693266737bed869371525eb3cf90ba32e970b))
+
 ## [0.19.0](https://github.com/gmrtd/gmrtd/compare/v0.18.0...v0.19.0) (2026-02-25)
 
 
