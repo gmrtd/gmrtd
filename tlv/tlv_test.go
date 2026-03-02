@@ -68,7 +68,7 @@ func TestDecodeAndAccess(t *testing.T) {
 		nodes.NodeByTag(0x70).NodeByTag(0x02).NodeByTagOccur(0x01, 3).IsValidNode() ||
 		nodes.NodeByTag(0x70).NodeByTag(0x02).NodeByTag(0x01).NodeByTag(0x01).IsValidNode() ||
 		nodes.NodeByTag(0x70).NodeByTag(0x02).NodeByTag(0x01).NodeByTagOccur(0x01, 1).IsValidNode() ||
-		(nodes.NodeByTag(0x70).NodeByTag(0x02).NodeByTag(0x01).NodeByTag(0x01).Tag() != -1) ||
+		(nodes.NodeByTag(0x70).NodeByTag(0x02).NodeByTag(0x01).NodeByTag(0x01).Tag() != 0) ||
 		nodes.NodeByTagOccur(0x70, 2).IsValidNode() ||
 		nodes.NodeByTag(0x70).NodeByTag(0xA0).NodeByTagOccur(0x02, 2).IsValidNode() {
 		t.Errorf("Absent tags not handled correctly")
@@ -127,7 +127,7 @@ func TestDecodeAndAccessIndefiniteLength(t *testing.T) {
 		nodes.NodeByTag(0x70).NodeByTag(0x02).NodeByTagOccur(0x01, 3).IsValidNode() ||
 		nodes.NodeByTag(0x70).NodeByTag(0x02).NodeByTag(0x01).NodeByTag(0x01).IsValidNode() ||
 		nodes.NodeByTag(0x70).NodeByTag(0x02).NodeByTag(0x01).NodeByTagOccur(0x01, 1).IsValidNode() ||
-		(nodes.NodeByTag(0x70).NodeByTag(0x02).NodeByTag(0x01).NodeByTag(0x01).Tag() != -1) ||
+		(nodes.NodeByTag(0x70).NodeByTag(0x02).NodeByTag(0x01).NodeByTag(0x01).Tag() != 0) ||
 		nodes.NodeByTagOccur(0x70, 2).IsValidNode() ||
 		nodes.NodeByTag(0x70).NodeByTag(0xA0).NodeByTagOccur(0x02, 2).IsValidNode() {
 		t.Errorf("Absent tags not handled correctly")

@@ -115,13 +115,8 @@ func TestEncode(t *testing.T) {
 			expBytes: []byte{0},
 		},
 		{
-			// negative or 0 tag -> 0x00
-			tag:      -1,
-			expBytes: []byte{0},
-		},
-		{
-			// negative or 0 tag -> 0x00
-			tag:      -2147483648,
+			// 0 tag -> 0x00
+			tag:      0,
 			expBytes: []byte{0},
 		},
 		{
@@ -130,9 +125,9 @@ func TestEncode(t *testing.T) {
 			expBytes: []byte{0x1F, 0x80, 0x80, 0x00},
 		},
 		{
-			// max positive 32-bit tag is encoded correctly
-			tag:      2147483647,
-			expBytes: []byte{0x7F, 0xFF, 0xFF, 0xFF},
+			// max unsigned 32-bit tag is encoded correctly
+			tag:      4294967295,
+			expBytes: []byte{0xFF, 0xFF, 0xFF, 0xFF},
 		},
 	}
 	for _, tc := range testCases {
@@ -171,10 +166,6 @@ func TestIsConstructed(t *testing.T) {
 		},
 		{
 			tag:           0,
-			isConstructed: false,
-		},
-		{
-			tag:           -1,
 			isConstructed: false,
 		},
 	}

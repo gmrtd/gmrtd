@@ -7,7 +7,7 @@ func (node TlvNilNode) IsValidNode() bool {
 }
 
 func (node TlvNilNode) Tag() TlvTag {
-	return TlvTag(-1)
+	return TlvTag(0)
 }
 
 func (node TlvNilNode) Value() []byte {
