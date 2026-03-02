@@ -43,12 +43,12 @@ func (chipAuth *ChipAuth) DoChipAuth() (result *document.ChipAuthResult, err err
 
 	caInfo, caAlgInfo, err = selectCAInfo(*chipAuth.document)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("[DoChipAuth] selectCAInfo error: %w", err)
 	} else if caInfo == nil || caAlgInfo == nil {
 		// try to infer from any available CA key
 		caInfo, caAlgInfo, err = inferCAInfoFromKey(*chipAuth.document)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("[DoChipAuth] inferCAInfoFromKey error: %w", err)
 		}
 		algInferred = true
 	}
@@ -70,21 +70,21 @@ func (chipAuth *ChipAuth) DoChipAuth() (result *document.ChipAuthResult, err err
 
 	caPubKeyInfo, err = selectCAPubKeyInfo(caInfo, caAlgInfo, *chipAuth.document)
 	if err != nil {
-		return result, err
+		return result, fmt.Errorf("[DoChipAuth] selectCAPubKeyInfo error: %w", err)
 	}
 
 	// process based on the type of key (DH/ECDH)
 	if caPubKeyInfo.Protocol.Equal(oid.OidPkDh) {
 		// DH
-		return result, fmt.Errorf("chipAuth: DH not currently supported (Raw:%x)", caPubKeyInfo.Raw)
+		return result, fmt.Errorf("[DoChipAuth] DH not currently supported (Raw:%x)", caPubKeyInfo.Raw)
 	} else if caPubKeyInfo.Protocol.Equal(oid.OidPkEcdh) {
 		// ECDH
 		err = chipAuth.doCaEcdh(caInfo, caAlgInfo, caPubKeyInfo, algInferred)
 		if err != nil {
-			return result, err
+			return result, fmt.Errorf("[DoChipAuth] doCaEcdh error: %w", err)
 		}
 	} else {
-		return result, fmt.Errorf("chipAuth: unsupported public key type (OID:%s)", caPubKeyInfo.Protocol.String())
+		return result, fmt.Errorf("[DoChipAuth] unsupported public key type (OID:%s)", caPubKeyInfo.Protocol.String())
 	}
 
 	// update result to indicate success
@@ -113,7 +113,7 @@ func selectCAInfo(doc *document.Document) (caInfo *document.ChipAuthenticationIn
 
 		curCaAlgInfo, err = algInfo(curCaInfo.Protocol)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, fmt.Errorf("[selectCAInfo] algInfo error: %w", err)
 		}
 
 		// first valid entry, so record as best
@@ -145,12 +145,12 @@ func inferCAInfoFromKey(doc *document.Document) (caInfo *document.ChipAuthentica
 
 		caInfo, err = inferCAInfoFromKeyProtocol(keyInfo.Protocol)
 		if err != nil {
-			return nil, nil, fmt.Errorf("(inferCAInfoFromKey) inferCAInfoFromKeyProtocol error: %w", err)
+			return nil, nil, fmt.Errorf("[inferCAInfoFromKey] inferCAInfoFromKeyProtocol error: %w", err)
 		}
 
 		caAlgInfo, err = algInfo(caInfo.Protocol)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, fmt.Errorf("[inferCAInfoFromKey] algInfo error: %w", err)
 		}
 	} else {
 		slog.Debug("inferCAInfoFromKey - skip due to lack of ChipAuthPubKeyInfos")
@@ -170,7 +170,7 @@ func inferCAInfoFromKeyProtocol(protocol asn1.ObjectIdentifier) (caInfo *documen
 		// ECDH
 		caInfo = &document.ChipAuthenticationInfo{Protocol: oid.OidCaEcdh3DesCbcCbc, Version: 1}
 	} else {
-		return nil, fmt.Errorf("(inferCAInfoFromKeyProtocol) unsupported key type (OID:%s)", protocol.String())
+		return nil, fmt.Errorf("[inferCAInfoFromKeyProtocol] unsupported key type (OID:%s)", protocol.String())
 	}
 
 	return caInfo, nil
@@ -191,7 +191,7 @@ func selectCAPubKeyInfo(caInfo *document.ChipAuthenticationInfo, caAlgInfo *CaAl
 		}
 	}
 
-	return nil, fmt.Errorf("chipAuth: unable to locate public key (oid:%s) (keyId:%s)", caAlgInfo.targetOid.String(), caInfo.KeyId)
+	return nil, fmt.Errorf("[selectCAPubKeyInfo] unable to locate public key (oid:%s) (keyId:%s)", caAlgInfo.targetOid.String(), caInfo.KeyId)
 }
 
 type CaAlgorithmInfo struct {
@@ -218,7 +218,7 @@ func algInfo(oid asn1.ObjectIdentifier) (*CaAlgorithmInfo, error) {
 	out, ok := caAlgInfoLookup[oid.String()]
 
 	if !ok {
-		return nil, fmt.Errorf("algInfo: OID not found (%s)", oid.String())
+		return nil, fmt.Errorf("[algInfo] OID not found (%s)", oid.String())
 	}
 
 	return &out, nil
@@ -248,7 +248,7 @@ func (chipAuth *ChipAuth) doMseSetKAT(curve *elliptic.Curve, termKeypair cryptou
 	// NB same as 'MseSetAT'
 	err = (*chipAuth.nfcSession).MseSetAT(0x41, 0xA6, nodes.Encode())
 	if err != nil {
-		return nil, nil, fmt.Errorf("(CA.doMseSetKAT) Error: %w", err)
+		return nil, nil, fmt.Errorf("[doMseSetKAT] MseSetAT error: %w", err)
 	}
 
 	// 3. Both the eMRTD chip and the terminal compute the following:
