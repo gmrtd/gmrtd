@@ -7,7 +7,7 @@ import (
 	"github.com/gmrtd/gmrtd/utils"
 )
 
-type TlvTag int
+type TlvTag uint32
 
 func ParseTag(buf *bytes.Buffer) (TlvTag, error) {
 	b1, err := utils.ByteFromBuffer(buf)
@@ -15,7 +15,7 @@ func ParseTag(buf *bytes.Buffer) (TlvTag, error) {
 		return TlvTag(0), fmt.Errorf("[ParseTag] ByteFromBuffer error: %w", err)
 	}
 
-	var tag int = int(b1)
+	var tag TlvTag = TlvTag(b1)
 
 	// special handling for multi-byte tags
 	if (tag & 0x1f) == 0x1f {
@@ -31,7 +31,7 @@ func ParseTag(buf *bytes.Buffer) (TlvTag, error) {
 			}
 
 			tag <<= 8
-			tag += int(tmp)
+			tag += TlvTag(tmp)
 
 			if (tmp & 0x80) == 0 {
 				break
@@ -39,7 +39,7 @@ func ParseTag(buf *bytes.Buffer) (TlvTag, error) {
 		}
 	}
 
-	return TlvTag(tag), nil
+	return tag, nil
 }
 
 func ParseTags(buf *bytes.Buffer) ([]TlvTag, error) {
@@ -72,7 +72,7 @@ func (tag TlvTag) Encode() []byte {
 }
 
 func (tag TlvTag) IsConstructed() bool {
-	var tmp int = int(tag)
+	var tmp uint32 = uint32(tag)
 
 	// gracefully handle negative
 	if tmp < 0 {
