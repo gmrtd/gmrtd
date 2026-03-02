@@ -168,7 +168,7 @@ func parseLdsSecurityObject(data []byte) (*LDSSecurityObject, error) {
 
 	err = utils.ParseAsn1(data, false, &securityObject)
 	if err != nil {
-		return nil, fmt.Errorf("[parseLdsSecurityObject] ParseAsn1 error: %s", err)
+		return nil, fmt.Errorf("[parseLdsSecurityObject] ParseAsn1 error: %w", err)
 	}
 
 	// NB main difference between v0 and v1 is the presence of LDSVersionInfo in v1
