@@ -94,11 +94,11 @@ func (reader *Reader) readEfSod(nfc *iso7816.NfcSession, doc *document.Document)
 	reader.status.Status("Reading EF.SOD")
 	sodData, err := nfc.ReadFile(MRTDFileIdEFSOD)
 	if err != nil {
-		return fmt.Errorf("[readLDS1files] Read EF.SOD error: %w", err)
+		return fmt.Errorf("[readEfSod] ReadFile error: %w", err)
 	}
 	doc.Mf.Lds1.Sod, err = document.NewSOD(sodData)
 	if err != nil {
-		return fmt.Errorf("[readLDS1files] Parse EF.SOD error: %w", err)
+		return fmt.Errorf("[readEfSod] NewSOD error: %w", err)
 	}
 
 	return nil
@@ -110,11 +110,11 @@ func (reader *Reader) readEfCom(nfc *iso7816.NfcSession, doc *document.Document)
 	reader.status.Status("Reading EF.COM")
 	efComData, err := nfc.ReadFile(MRTDFileIdEFCOM)
 	if err != nil {
-		return fmt.Errorf("[readLDS1files] Read EF.COM error: %w", err)
+		return fmt.Errorf("[readEfCom] ReadFile error: %w", err)
 	}
 	doc.Mf.Lds1.Com, err = document.NewCOM(efComData)
 	if err != nil {
-		return fmt.Errorf("[readLDS1files] Parse EF.COM error: %w", err)
+		return fmt.Errorf("[readEfCom] NewCOM error: %w", err)
 	}
 
 	return nil
