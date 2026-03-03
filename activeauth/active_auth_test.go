@@ -7,6 +7,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
+	"encoding/asn1"
 	"math/big"
 	"reflect"
 	"testing"
@@ -355,6 +356,13 @@ func leftPad(b []byte, size int) []byte {
 	return out
 }
 
+// DER/ASN.1 encoded signature (X9.62 format, used by some national ID cards)
+func encodeDERSignature(r, s *big.Int) ([]byte, error) {
+	return asn1.Marshal(struct {
+		R, S *big.Int
+	}{r, s})
+}
+
 func TestEcdsaValidateActiveAuthSignatureAllCurves(t *testing.T) {
 	type testCase struct {
 		name             string
@@ -457,4 +465,213 @@ func TestEcdsaValidateActiveAuthSignatureAllCurves(t *testing.T) {
 
 		}
 	}
+}
+
+// TestEcdsaValidateActiveAuthSignatureDERFormat tests that DER-encoded ECDSA signatures
+// are correctly validated. This format is used by some national ID cards (e.g., Portuguese
+// Cartão de Cidadão) instead of the plain r||s format specified in ICAO 9303.
+func TestEcdsaValidateActiveAuthSignatureDERFormat(t *testing.T) {
+	type testCase struct {
+		name             string
+		dg15bytes        []byte
+		rndIfd           []byte
+		signature        []byte
+		expectErr        bool
+		expResultSuccess bool
+	}
+
+	var cases []testCase
+
+	// Test DER-encoded signatures for various curves
+	curves := []struct {
+		name string
+		ec   elliptic.Curve
+	}{
+		{"P-256", elliptic.P256()},
+		{"P-384", elliptic.P384()},
+		{"P-521", elliptic.P521()},
+	}
+
+	for _, c := range curves {
+		priv, err := ecdsa.GenerateKey(c.ec, rand.Reader)
+		if err != nil {
+			t.Fatalf("keygen %s: %v", c.name, err)
+		}
+		dg15, err := makeDG15FromECPublicKey(&priv.PublicKey)
+		if err != nil {
+			t.Fatalf("DG15 build %s: %v", c.name, err)
+		}
+
+		rndIfd := cryptoutils.RandomBytes(8)
+		hashAlg := cryptoutils.CryptoHashFromEcPubKey(&priv.PublicKey)
+		hash := cryptoutils.CryptoHash(hashAlg, rndIfd)
+
+		r, s, err := ecdsa.Sign(rand.Reader, priv, hash)
+		if err != nil {
+			t.Fatalf("sign %s: %v", c.name, err)
+		}
+
+		// Create DER-encoded signature
+		derSig, err := encodeDERSignature(r, s)
+		if err != nil {
+			t.Fatalf("DER encode %s: %v", c.name, err)
+		}
+
+		// Positive: valid DER-encoded signature
+		cases = append(cases, testCase{
+			name:             c.name + " DER valid",
+			dg15bytes:        dg15,
+			rndIfd:           rndIfd,
+			signature:        derSig,
+			expectErr:        false,
+			expResultSuccess: true,
+		})
+
+		// Negative: DER-encoded signature with wrong nonce
+		wrongRnd := cryptoutils.RandomBytes(8)
+		cases = append(cases, testCase{
+			name:             c.name + " DER wrong nonce",
+			dg15bytes:        dg15,
+			rndIfd:           wrongRnd,
+			signature:        derSig,
+			expectErr:        true,
+			expResultSuccess: false,
+		})
+
+		// Negative: corrupted DER signature
+		badDer := make([]byte, len(derSig))
+		copy(badDer, derSig)
+		// Corrupt the r value (skip the header bytes)
+		if len(badDer) > 10 {
+			badDer[8] ^= 0xFF
+		}
+		cases = append(cases, testCase{
+			name:             c.name + " DER corrupted",
+			dg15bytes:        dg15,
+			rndIfd:           rndIfd,
+			signature:        badDer,
+			expectErr:        true,
+			expResultSuccess: false,
+		})
+	}
+
+	for _, tc := range cases {
+		var err error
+		var dg15 *document.DG15
+
+		dg15, err = document.NewDG15(tc.dg15bytes)
+		if err != nil {
+			t.Errorf("%s: NewDG15 error: %v", tc.name, err)
+			continue
+		}
+
+		var aaResult *document.ActiveAuthResult
+
+		aaResult, err = ValidateActiveAuthSignature(dg15, tc.signature, tc.rndIfd)
+		if tc.expectErr && err == nil {
+			t.Errorf("%s: expected error, got nil", tc.name)
+		}
+		if !tc.expectErr && err != nil {
+			t.Errorf("%s: unexpected error: %v", tc.name, err)
+		}
+		if aaResult.Success != tc.expResultSuccess {
+			t.Errorf("%s: Result 'success' differs to expected [act] %t [exp] %t", tc.name, aaResult.Success, tc.expResultSuccess)
+		}
+	}
+}
+
+// TestParseEcdsaSignaturePlain tests the parseEcdsaSignaturePlain function
+func TestParseEcdsaSignaturePlain(t *testing.T) {
+	curve := elliptic.P256()
+	curveByteLen := (curve.Params().BitSize + 7) / 8
+
+	// Generate a valid signature
+	priv, err := ecdsa.GenerateKey(curve, rand.Reader)
+	if err != nil {
+		t.Fatalf("keygen: %v", err)
+	}
+
+	hash := cryptoutils.CryptoHash(crypto.SHA256, []byte("test data"))
+	r, s, err := ecdsa.Sign(rand.Reader, priv, hash)
+	if err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+
+	t.Run("valid plain format", func(t *testing.T) {
+		plainSig := concatRSFixed(curve, r, s)
+		parsedR, parsedS, err := parseEcdsaSignaturePlain(plainSig)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if parsedR.Cmp(r) != 0 {
+			t.Errorf("R mismatch: got %v, want %v", parsedR, r)
+		}
+		if parsedS.Cmp(s) != 0 {
+			t.Errorf("S mismatch: got %v, want %v", parsedS, s)
+		}
+	})
+
+	t.Run("empty signature", func(t *testing.T) {
+		_, _, err := parseEcdsaSignaturePlain([]byte{})
+		if err == nil {
+			t.Error("expected error for empty signature")
+		}
+	})
+
+	t.Run("odd length rejected", func(t *testing.T) {
+		oddSig := make([]byte, curveByteLen*2+1)
+		_, _, err := parseEcdsaSignaturePlain(oddSig)
+		if err == nil {
+			t.Error("expected error for odd-length signature")
+		}
+	})
+}
+
+// TestParseEcdsaSignatureDER tests the parseEcdsaSignatureDER function
+func TestParseEcdsaSignatureDER(t *testing.T) {
+	curve := elliptic.P256()
+
+	// Generate a valid signature
+	priv, err := ecdsa.GenerateKey(curve, rand.Reader)
+	if err != nil {
+		t.Fatalf("keygen: %v", err)
+	}
+
+	hash := cryptoutils.CryptoHash(crypto.SHA256, []byte("test data"))
+	r, s, err := ecdsa.Sign(rand.Reader, priv, hash)
+	if err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+
+	t.Run("valid DER format", func(t *testing.T) {
+		derSig, err := encodeDERSignature(r, s)
+		if err != nil {
+			t.Fatalf("DER encode: %v", err)
+		}
+		parsedR, parsedS, err := parseEcdsaSignatureDER(derSig)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if parsedR.Cmp(r) != 0 {
+			t.Errorf("R mismatch: got %v, want %v", parsedR, r)
+		}
+		if parsedS.Cmp(s) != 0 {
+			t.Errorf("S mismatch: got %v, want %v", parsedS, s)
+		}
+	})
+
+	t.Run("empty signature", func(t *testing.T) {
+		_, _, err := parseEcdsaSignatureDER([]byte{})
+		if err == nil {
+			t.Error("expected error for empty signature")
+		}
+	})
+
+	t.Run("invalid DER", func(t *testing.T) {
+		invalidDer := []byte{0x30, 0x05, 0x01, 0x02, 0x03}
+		_, _, err := parseEcdsaSignatureDER(invalidDer)
+		if err == nil {
+			t.Error("expected error for invalid DER")
+		}
+	})
 }
