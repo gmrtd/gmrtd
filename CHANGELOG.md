@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.2](https://github.com/gmrtd/gmrtd/compare/v0.19.1...v0.19.2) (2026-03-03)
+
+
+### Bug Fixes
+
+* **activeauth:** support DER-encoded ECDSA signatures for AA ([#188](https://github.com/gmrtd/gmrtd/issues/188)) ([43057ff](https://github.com/gmrtd/gmrtd/commit/43057ffc22c1f87a5f821e4a2833ddd764652a5c))
+
 ## [0.19.1](https://github.com/gmrtd/gmrtd/compare/v0.19.0...v0.19.1) (2026-03-02)
 
 
