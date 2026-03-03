@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"crypto"
 	"crypto/ecdsa"
+	"encoding/asn1"
 	"fmt"
 	"log/slog"
 	"math/big"
@@ -19,6 +20,50 @@ import (
 
 // TODO - does this currently make any use of DG14.ActiveAuthInfos? (eg NL passport)
 //			- not a big deal, as we currently drive AA primarily from DG15
+
+// ecdsaSignature represents an ASN.1/DER encoded ECDSA signature
+type ecdsaSignature struct {
+	R, S *big.Int
+}
+
+// parseEcdsaSignaturePlain parses an ECDSA signature in plain r||s format
+// (TR-03110 "ecdsa-plain" style, used by ICAO 9303 passports)
+func parseEcdsaSignaturePlain(sigBytes []byte) (r, s *big.Int, err error) {
+	if len(sigBytes) == 0 {
+		return nil, nil, fmt.Errorf("empty signature")
+	}
+
+	if len(sigBytes)%2 != 0 {
+		return nil, nil, fmt.Errorf("plain signature must have even length, got %d", len(sigBytes))
+	}
+
+	half := len(sigBytes) / 2
+	r = new(big.Int).SetBytes(sigBytes[:half])
+	s = new(big.Int).SetBytes(sigBytes[half:])
+
+	return r, s, nil
+}
+
+// parseEcdsaSignatureDER parses an ECDSA signature in ASN.1/DER format
+// (X9.62 standard, used by some national ID cards like Portuguese Cartão de Cidadão)
+func parseEcdsaSignatureDER(sigBytes []byte) (r, s *big.Int, err error) {
+	if len(sigBytes) == 0 {
+		return nil, nil, fmt.Errorf("empty signature")
+	}
+
+	var sig ecdsaSignature
+	rest, err := asn1.Unmarshal(sigBytes, &sig)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse DER-encoded ECDSA signature: %w", err)
+	}
+	if len(rest) > 0 {
+		slog.Debug("parseEcdsaSignatureDER", "trailing_bytes", len(rest))
+	}
+	if sig.R == nil || sig.S == nil {
+		return nil, nil, fmt.Errorf("DER-encoded signature has nil R or S")
+	}
+	return sig.R, sig.S, nil
+}
 
 type ActiveAuth struct {
 	randomBytesFn cryptoutils.RandomBytesFn
@@ -234,6 +279,10 @@ func ValidateActiveAuthSignature(dg15 *document.DG15, intAuthRspBytes, rndIfd []
 				ECDSA key in use, SHALL be used. Only SHA-224, SHA-256, SHA-384 or SHA-512 are supported as hash functions.
 				RIPEMD-160 and SHA-1 SHALL NOT be used.
 				The message M to be signed is the nonce RND.IFD provided by the Inspection System.
+
+				Note: While ICAO 9303 specifies plain r||s format, some national ID cards (e.g., Portuguese Cartão de Cidadão)
+				use ASN.1/DER encoded signatures (X9.62 standard). This implementation tries plain format first, then falls
+				back to DER if plain fails and the signature starts with 0x30 (SEQUENCE tag).
 			*/
 			curve, ecPoint, err := subPubKeyInfo.EcCurveAndPubKey()
 			if err != nil {
@@ -246,21 +295,36 @@ func ValidateActiveAuthSignature(dg15 *document.DG15, intAuthRspBytes, rndIfd []
 				Y:     ecPoint.Y,
 			}
 
-			var r, s big.Int
-			// Plain concatenation r||s (TR-03110 "ecdsa-plain" style)
-			if len(intAuthRspBytes)%2 != 0 {
-				return result, fmt.Errorf("(ValidateActiveAuthSignature) Unexpected plain signature length: %d (Context:%s)", len(intAuthRspBytes), errContext)
-			}
-			half := len(intAuthRspBytes) / 2
-			r.SetBytes(intAuthRspBytes[:half])
-			s.SetBytes(intAuthRspBytes[half:])
-
 			var alg = cryptoutils.CryptoHashFromEcPubKey(pub)
 			var hash = cryptoutils.CryptoHash(alg, rndIfd)
-			var verified = ecdsa.Verify(pub, hash, &r, &s)
-			if !verified {
-				return result, fmt.Errorf("(ValidateActiveAuthSignature) AA signature did not verify with hash: %s for the provided nonce", alg.String())
+
+			// Try plain r||s format first (TR-03110, used by most passports)
+			r, s, plainErr := parseEcdsaSignaturePlain(intAuthRspBytes)
+			if plainErr == nil {
+				slog.Debug("ValidateActiveAuthSignature", "format", "plain r||s")
+				if ecdsa.Verify(pub, hash, r, s) {
+					// Success with plain format
+					result.Success = true
+					return result, nil
+				}
 			}
+
+			// If plain format failed or didn't verify, and signature starts with 0x30, try DER format
+			if len(intAuthRspBytes) > 0 && intAuthRspBytes[0] == 0x30 {
+				slog.Debug("ValidateActiveAuthSignature", "format", "trying DER/ASN.1 fallback")
+				r, s, derErr := parseEcdsaSignatureDER(intAuthRspBytes)
+				if derErr == nil {
+					if ecdsa.Verify(pub, hash, r, s) {
+						// Success with DER format
+						slog.Debug("ValidateActiveAuthSignature", "format", "DER/ASN.1 succeeded")
+						result.Success = true
+						return result, nil
+					}
+				}
+			}
+
+			// Both formats failed
+			return result, fmt.Errorf("(ValidateActiveAuthSignature) AA signature did not verify with hash: %s for the provided nonce (tried plain r||s and DER formats)", alg.String())
 		}
 	default:
 		return result, fmt.Errorf("(ValidateActiveAuthSignature) unsupported SubjectPublicKeyInfo (OID:%s) (Context:%s)", subPubKeyInfo.Algorithm.Algorithm.String(), errContext)
