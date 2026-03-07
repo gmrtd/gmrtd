@@ -148,33 +148,6 @@ func (activeAuth *ActiveAuth) randomIfd() []byte {
 	return rndIfd
 }
 
-func (activeAuth *ActiveAuth) doInternalAuthenticate(rndIfd []byte) (rspBytes []byte, err error) {
-	var errContext string
-
-	errContext = fmt.Sprintf("dg15:%x,rndIfd:%x", (*activeAuth.document).Mf.Lds1.Dg15, rndIfd)
-
-	var cApdu *iso7816.CApdu = iso7816.NewCApdu(0, iso7816.INS_INTERNAL_AUTHENTICATE, 0x00, 0x00, rndIfd, (*activeAuth.nfcSession).MaxLe)
-
-	var rApdu *iso7816.RApdu
-
-	rApdu, err = (*activeAuth.nfcSession).DoAPDU(cApdu, "AA Internal Authenticate")
-	if err != nil {
-		return nil, fmt.Errorf("(doInternalAuthenticate) Internal Authenticate APDU error: %w (Context:%s)", err, errContext)
-	}
-
-	errContext = fmt.Sprintf("dg15:%x,rndIfd:%x,rApdu:%s", (*activeAuth.document).Mf.Lds1.Dg15, rndIfd, rApdu.String())
-
-	if !rApdu.IsSuccess() {
-		return nil, fmt.Errorf("(doInternalAuthenticate) Internal-Auth failed (rApduStatus:%04x) (Context:%s)", rApdu.Status, errContext)
-	}
-
-	slog.Debug("doInternalAuthenticate", "rApdu", rApdu.String())
-
-	rspBytes = bytes.Clone(rApdu.Data)
-
-	return rspBytes, nil
-}
-
 // DoActiveAuth performs ICAO 9303 Active Authentication (AA) against the
 // eMRTD chip to confirm possession of the private key associated with DG15.
 //
@@ -205,7 +178,7 @@ func (activeAuth *ActiveAuth) DoActiveAuth() (result *document.ActiveAuthResult,
 
 	var intAuthRspBytes []byte
 
-	intAuthRspBytes, err = activeAuth.doInternalAuthenticate(rndIfd)
+	intAuthRspBytes, err = (*activeAuth.nfcSession).InternalAuthenticate(rndIfd)
 	if err != nil {
 		return &document.ActiveAuthResult{Success: false}, fmt.Errorf("[DoActiveAuth] doInternalAuthenticate error: %w", err)
 	}

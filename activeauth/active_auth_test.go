@@ -300,32 +300,6 @@ func TestDecodeFWithLeadingZeros(t *testing.T) {
 	}
 }
 
-func TestDoInternalAuthenticateNoRspErr(t *testing.T) {
-	var doc document.Document
-	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{})
-	var aa *ActiveAuth = NewActiveAuth(nfc, &doc)
-	var rndIfd []byte = make([]byte, 20)
-
-	_, err := aa.doInternalAuthenticate(rndIfd)
-	// NB expect error due to lack of RApdu response
-	if err == nil {
-		t.Errorf("expected error")
-	}
-}
-
-func TestDoInternalAuthenticateCardDeadErr(t *testing.T) {
-	var doc document.Document
-	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{RApdu: utils.HexToBytes("6FFF")}) // NB 6FFF = Card Dead
-	var aa *ActiveAuth = NewActiveAuth(nfc, &doc)
-	var rndIfd []byte = make([]byte, 20)
-
-	_, err := aa.doInternalAuthenticate(rndIfd)
-	// NB expect error due to RApdu error
-	if err == nil {
-		t.Errorf("expected error")
-	}
-}
-
 // Build DG15 from an EC public key: DG15 = 0x6F || len || SPKI
 func makeDG15FromECPublicKey(pub *ecdsa.PublicKey) ([]byte, error) {
 	spki, err := x509.MarshalPKIXPublicKey(pub)

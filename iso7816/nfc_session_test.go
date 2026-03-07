@@ -160,6 +160,38 @@ func TestGetChallengeErrors(t *testing.T) {
 	}
 }
 
+func TestDoInternalAuthenticateHappy(t *testing.T) {
+	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{utils.HexToBytes("0123456789ABCDEF01239000")})
+	var rndIfd []byte = make([]byte, 20)
+
+	_, err := nfc.InternalAuthenticate(rndIfd)
+	if err != nil {
+		t.Errorf("unexpected error: %s", err)
+	}
+}
+
+func TestDoInternalAuthenticateNoRspErr(t *testing.T) {
+	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{})
+	var rndIfd []byte = make([]byte, 20)
+
+	_, err := nfc.InternalAuthenticate(rndIfd)
+	// NB expect error due to lack of RApdu response
+	if err == nil {
+		t.Errorf("expected error")
+	}
+}
+
+func TestDoInternalAuthenticateCardDeadErr(t *testing.T) {
+	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{RApdu: utils.HexToBytes("6FFF")}) // NB 6FFF = Card Dead
+	var rndIfd []byte = make([]byte, 20)
+
+	_, err := nfc.InternalAuthenticate(rndIfd)
+	// NB expect error due to RApdu error
+	if err == nil {
+		t.Errorf("expected error")
+	}
+}
+
 func TestExternalAuthenticateHappy(t *testing.T) {
 	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{utils.HexToBytes("0123456789ABCDEF01239000")})
 

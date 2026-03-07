@@ -73,6 +73,27 @@ func (nfc *NfcSession) GetChallenge(length int) (out []byte, err error) {
 	return rapdu.Data, nil
 }
 
+func (nfc *NfcSession) InternalAuthenticate(data []byte) (out []byte, err error) {
+	var cApdu *CApdu = NewCApdu(0, INS_INTERNAL_AUTHENTICATE, 0x00, 0x00, data, nfc.MaxLe)
+
+	var rApdu *RApdu
+
+	rApdu, err = nfc.DoAPDU(cApdu, "Internal Authenticate")
+	if err != nil {
+		return nil, fmt.Errorf("[InternalAuthenticate] DoAPDU error: %w", err)
+	}
+
+	if !rApdu.IsSuccess() {
+		return nil, fmt.Errorf("[InternalAuthenticate] Status:%x", rApdu.Status)
+	}
+
+	slog.Debug("InternalAuthenticate", "rApdu", rApdu.String())
+
+	out = bytes.Clone(rApdu.Data)
+
+	return out, nil
+}
+
 func (nfc *NfcSession) ExternalAuthenticate(data []byte, le int) (out []byte, err error) {
 	slog.Debug("ExternalAuthenticate", "data", utils.BytesToHex(data), "le", le)
 
