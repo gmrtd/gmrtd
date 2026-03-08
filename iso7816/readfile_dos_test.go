@@ -43,7 +43,7 @@ func TestReadFileDoSViaHugeLength(t *testing.T) {
 	mockTrans := &MockTransceiverHugeLength{}
 	nfc := NewNfcSession(mockTrans)
 
-	nfc.MaxLe = 256
+	nfc.SetMaxLe(256)
 
 	_, err := nfc.ReadFile(0x0101) // DG1
 

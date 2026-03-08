@@ -219,7 +219,7 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 
 	// override default (if required)
 	if reader.apduMaxLe > 0 {
-		nfc.MaxLe = reader.apduMaxLe
+		nfc.SetMaxLe(reader.apduMaxLe)
 	}
 
 	docEx = new(document.DocumentEx)
