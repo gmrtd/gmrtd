@@ -39,8 +39,8 @@ type NfcSession struct {
 	sm                   SecureMessenger
 	readFileMaxTlvLength tlv.TlvLength
 	readFileMaxChunks    int
+	maxLe                int
 	// TODO - make following private
-	MaxLe   int
 	ApduLog []ApduLog
 }
 
@@ -49,15 +49,20 @@ func NewNfcSession(transceiver Transceiver) *NfcSession {
 	nfc.transceiver = transceiver
 	nfc.readFileMaxTlvLength = READ_FILE_MAX_TLV_LENGTH
 	nfc.readFileMaxChunks = READ_FILE_MAX_CHUNKS
-	nfc.MaxLe = 256
+	nfc.maxLe = 256
 	return &nfc
 }
 
 func (nfc *NfcSession) SetSecureMessaging(sm SecureMessenger) {
 	nfc.sm = sm
 }
+
 func (nfc *NfcSession) SM() SecureMessenger {
 	return nfc.sm
+}
+
+func (nfc *NfcSession) SetMaxLe(value int) {
+	nfc.maxLe = value
 }
 
 func (nfc *NfcSession) GetChallenge(length int) (out []byte, err error) {
@@ -82,7 +87,7 @@ func (nfc *NfcSession) GetChallenge(length int) (out []byte, err error) {
 }
 
 func (nfc *NfcSession) InternalAuthenticate(data []byte) (out []byte, err error) {
-	var cApdu *CApdu = NewCApdu(0, INS_INTERNAL_AUTHENTICATE, 0x00, 0x00, data, nfc.MaxLe)
+	var cApdu *CApdu = NewCApdu(0, INS_INTERNAL_AUTHENTICATE, 0x00, 0x00, data, nfc.maxLe)
 
 	var rApdu *RApdu
 
@@ -131,7 +136,7 @@ func (nfc *NfcSession) GeneralAuthenticate(commandChaining bool, data []byte) ([
 		cla = 0x10
 	}
 
-	cApdu := NewCApdu(byte(cla), INS_GENERAL_AUTHENTICATE, 0x00, 0x00, data, nfc.MaxLe)
+	cApdu := NewCApdu(byte(cla), INS_GENERAL_AUTHENTICATE, 0x00, 0x00, data, nfc.maxLe)
 
 	rApdu, err := nfc.DoAPDU(cApdu, "General Authenticate")
 	if err != nil {
@@ -314,7 +319,7 @@ func (nfc *NfcSession) ReadFile(fileId uint16) (fileData []byte, err error) {
 	// read remainder of file
 	if fileBuf.Len() < totalBytes {
 		chunkCnt := 0
-		maxReadAmount := nfc.MaxLe
+		maxReadAmount := nfc.maxLe
 
 		for {
 			// limit the maximum number of chunks permitted when reading a file
