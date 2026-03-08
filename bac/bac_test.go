@@ -386,7 +386,9 @@ func TestDoBAC(t *testing.T) {
 
 		smExp.SetSSC(utils.HexToBytes("887022120C06C226"))
 
-		if !nfc.SM.Equal(*smExp) {
+		var smAct *iso7816.SecureMessaging = nfc.SM().(*iso7816.SecureMessaging)
+
+		if !smExp.Equal(*smAct) {
 			t.Errorf("SecureMessaging differs to expected")
 		}
 	}
@@ -413,7 +415,7 @@ func TestDoBACPasswordTypeCAN(t *testing.T) {
 	}
 
 	// verify SM was NOT setup, as BAC is not supported for password=CAN
-	if nfc.SM != nil {
+	if nfc.SM() != nil {
 		t.Errorf("SM should not have been setup")
 	}
 }

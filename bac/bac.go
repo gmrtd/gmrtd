@@ -16,16 +16,16 @@ import (
 
 type BAC struct {
 	randomBytesFn cryptoutils.RandomBytesFn
-	nfcSession    **iso7816.NfcSession
-	document      **document.Document
+	nfcSession    *iso7816.NfcSession
+	document      *document.Document
 	password      *password.Password
 }
 
 func NewBAC(nfc *iso7816.NfcSession, doc *document.Document, pass *password.Password) *BAC {
 	var bac BAC
 	bac.randomBytesFn = cryptoutils.RandomBytes
-	bac.nfcSession = &nfc
-	bac.document = &doc
+	bac.nfcSession = nfc
+	bac.document = doc
 	bac.password = pass
 	return &bac
 
@@ -146,17 +146,18 @@ func (bac *BAC) processResponse(data, kEnc, kMac, rndIfd, rndIcc []byte) (kIcc [
 }
 
 func (bac *BAC) setupSecureMessaging(kEnc, kMac, rndIc, rndIfd []byte) (err error) {
-	(*bac.nfcSession).SM, err = iso7816.NewSecureMessaging(cryptoutils.TDES, kEnc, kMac)
+	sm, err := iso7816.NewSecureMessaging(cryptoutils.TDES, kEnc, kMac)
 	if err != nil {
 		return fmt.Errorf("[setupSecureMessaging] NewSecureMessaging error: %w", err)
 	}
+	bac.nfcSession.SetSecureMessaging(sm)
 
 	// set the SSC
 	// - BAC requires a custom SSC derived from IC/IFD Randoms
 	ssc := make([]byte, 8)
 	copy(ssc[0:4], rndIc[4:8])  // ls 4 bytes
 	copy(ssc[4:8], rndIfd[4:8]) // ls 4 bytes
-	(*bac.nfcSession).SM.SetSSC(ssc)
+	bac.nfcSession.SM().SetSSC(ssc)
 
 	return nil
 }
@@ -177,7 +178,7 @@ func (bac *BAC) DoBAC() (result *document.BacResult, err error) {
 
 	// request challenge (RND.IC) from the chip
 	var rndIcc []byte
-	rndIcc, err = (*bac.nfcSession).GetChallenge(8)
+	rndIcc, err = bac.nfcSession.GetChallenge(8)
 	if err != nil {
 		return result, fmt.Errorf("[DoBAC] GetChallenge error: %w", err)
 	}
@@ -195,7 +196,7 @@ func (bac *BAC) DoBAC() (result *document.BacResult, err error) {
 
 	// external authenticate
 	var bacRsp []byte
-	bacRsp, err = (*bac.nfcSession).ExternalAuthenticate(bacReq, 40)
+	bacRsp, err = bac.nfcSession.ExternalAuthenticate(bacReq, 40)
 	if err != nil {
 		return result, fmt.Errorf("[DoBAC] ExternalAuthenticate error: %w", err)
 	}

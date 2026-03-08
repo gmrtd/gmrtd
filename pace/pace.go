@@ -47,16 +47,16 @@ import (
 
 type Pace struct {
 	keyGeneratorEc cryptoutils.KeyGeneratorEcFn
-	nfcSession     **iso7816.NfcSession
-	document       **document.Document
+	nfcSession     *iso7816.NfcSession
+	document       *document.Document
 	password       *password.Password
 }
 
 func NewPace(nfc *iso7816.NfcSession, doc *document.Document, pass *password.Password) *Pace {
 	var pace Pace
 	pace.keyGeneratorEc = cryptoutils.KeyGeneratorEc
-	pace.nfcSession = &nfc
-	pace.document = &doc
+	pace.nfcSession = nfc
+	pace.document = doc
 	pace.password = pass
 	return &pace
 }
@@ -327,7 +327,7 @@ func (pace *Pace) doApduMseSetAT(paceConfig *PaceConfig, domainParams *PACEDomai
 	nodes.AddNode(tlv.NewTlvSimpleNode(0x84, []byte{byte(domainParams.id)}))
 
 	// MSE:Set AT (0xC1A4: Set Authentication Template for mutual authentication)
-	err = (*pace.nfcSession).MseSetAT(0xC1, 0xA4, nodes.Encode())
+	err = pace.nfcSession.MseSetAT(0xC1, 0xA4, nodes.Encode())
 	if err != nil {
 		return fmt.Errorf("[doApduMseSetAT] MseSetAT error: %w", err)
 	}
@@ -350,7 +350,7 @@ func (pace *Pace) mapNonceGmEcDh(domainParams *PACEDomainParams, s []byte) (mapp
 	{
 		reqData := encodeDynAuthData(0x81, cryptoutils.EncodeX962EcPoint(domainParams.ec, termKeypair.Pub))
 
-		rApduBytes, err := (*pace.nfcSession).GeneralAuthenticate(true, reqData)
+		rApduBytes, err := pace.nfcSession.GeneralAuthenticate(true, reqData)
 		if err != nil {
 			return nil, nil, fmt.Errorf("[mapNonceGmEcDh] GeneralAuthenticate error: %w", err)
 		}
@@ -398,7 +398,7 @@ func (pace *Pace) keyAgreementGmEcDh(domainParams *PACEDomainParams, G *cryptout
 	{
 		reqData := encodeDynAuthData(0x83, cryptoutils.EncodeX962EcPoint(domainParams.ec, termKeypair.Pub))
 
-		rApduBytes, err := (*pace.nfcSession).GeneralAuthenticate(true, reqData)
+		rApduBytes, err := pace.nfcSession.GeneralAuthenticate(true, reqData)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("[keyAgreementGmEcDh] GeneralAuthenticate error: %w", err)
 		}
@@ -444,7 +444,7 @@ func (pace *Pace) mutualAuthGmEcDh(paceConfig *PaceConfig, domainParams *PACEDom
 	{
 		reqData := encodeDynAuthData(0x85, tIfd)
 
-		rApduBytes, err := (*pace.nfcSession).GeneralAuthenticate(false, reqData)
+		rApduBytes, err := pace.nfcSession.GeneralAuthenticate(false, reqData)
 		if err != nil {
 			return nil, fmt.Errorf("[mutualAuthGmEcDh] GeneralAuthenticate error: %w", err)
 		}
@@ -468,10 +468,13 @@ func (pace *Pace) mutualAuthGmEcDh(paceConfig *PaceConfig, domainParams *PACEDom
 
 	// setup secure messaging
 	{
-		var err error
-		if (*pace.nfcSession).SM, err = iso7816.NewSecureMessaging(paceConfig.cipher, ksEnc, ksMac); err != nil {
+		slog.Debug("mutualAuthGmEcDh - setting up SM")
+		sm, err := iso7816.NewSecureMessaging(paceConfig.cipher, ksEnc, ksMac)
+		if err != nil {
 			return nil, fmt.Errorf("[mutualAuthGmEcDh] NewSecureMessaging error: %w", err)
 		}
+		pace.nfcSession.SetSecureMessaging(sm)
+		slog.Debug("mutualAuthGmEcDh", "SM", pace.nfcSession.SM().String())
 	}
 
 	return ecadIC, nil
@@ -516,7 +519,7 @@ func (pace *Pace) doCamEcdh(paceConfig *PaceConfig, domainParams *PACEDomainPara
 	// ICAO9303 p11... 4.4.3.3.3 Chip Authentication Mapping
 
 	var blockCipher cipher.Block
-	blockCipher, err = cryptoutils.CipherForKey(paceConfig.cipher, (*pace.nfcSession).SM.KsEnc())
+	blockCipher, err = cryptoutils.CipherForKey(paceConfig.cipher, pace.nfcSession.SM().KsEnc())
 	if err != nil {
 		return fmt.Errorf("[doCamEcdh] CipherForKey error: %w", err)
 	}
@@ -545,7 +548,7 @@ func (pace *Pace) doCamEcdh(paceConfig *PaceConfig, domainParams *PACEDomainPara
 
 	// get IC PubKey (EC) for paramId
 	var pkIC *cryptoutils.EcPoint
-	pkIC, err = icPubKeyECForCAM(domainParams, (*pace.document).Mf.CardSecurity)
+	pkIC, err = icPubKeyECForCAM(domainParams, pace.document.Mf.CardSecurity)
 	if err != nil {
 		return fmt.Errorf("[doCamEcdh] icPubKeyECForCAM error: %w", err)
 	}
@@ -569,7 +572,7 @@ func (pace *Pace) getNonce(paceConfig *PaceConfig, kKdf []byte) []byte {
 	var nonceE []byte
 	{
 		reqData := []byte{0x7C, 0x00}
-		rApduBytes, err := (*pace.nfcSession).GeneralAuthenticate(true, reqData)
+		rApduBytes, err := pace.nfcSession.GeneralAuthenticate(true, reqData)
 		if err != nil {
 			// TODO -this is firing for NZ.. maxRead=65536... RAPDU=6982
 			//			- maybe we can include this as a catch.. and try to decrease max-read
@@ -588,12 +591,12 @@ func (pace *Pace) getNonce(paceConfig *PaceConfig, kKdf []byte) []byte {
 func (pace *Pace) loadCardSecurityFile() error {
 	const MRTDFileIdCardSecurity = uint16(0x011D)
 
-	fileBytes, err := (*pace.nfcSession).ReadFile(MRTDFileIdCardSecurity)
+	fileBytes, err := pace.nfcSession.ReadFile(MRTDFileIdCardSecurity)
 	if err != nil {
 		return fmt.Errorf("[loadCardSecurityFile] ReadFile error: %w", err)
 	}
 
-	(*pace.document).Mf.CardSecurity, err = document.NewCardSecurity(fileBytes)
+	pace.document.Mf.CardSecurity, err = document.NewCardSecurity(fileBytes)
 	if err != nil {
 		return fmt.Errorf("[loadCardSecurityFile] NewCardSecurity error: %w", err)
 	}
@@ -630,7 +633,7 @@ func (pace *Pace) doGenericMappingGmCam(paceConfig *PaceConfig, domainParams *PA
 		// Perform Chip Authentication - CAM (if applicable)
 		if paceConfig.mapping == CAM {
 			// load Card Security file (if required)
-			if (*pace.document).Mf.CardSecurity == nil {
+			if pace.document.Mf.CardSecurity == nil {
 				if err = pace.loadCardSecurityFile(); err != nil {
 					return fmt.Errorf("[doGenericMappingGmCam] loadCardSecurityFile error: %w", err)
 				}
@@ -651,7 +654,7 @@ func (pace *Pace) DoPACE() (result *document.PaceResult, err error) {
 	slog.Debug("DoPACE", "password-type", pace.password.PasswordType, "password", pace.password.Password)
 
 	// PACE requires card-access
-	if (*pace.document).Mf.CardAccess == nil {
+	if pace.document.Mf.CardAccess == nil {
 		slog.Debug("DoPACE - SKIPPING as no CardAccess file is present")
 		return nil, nil
 	}
@@ -662,7 +665,7 @@ func (pace *Pace) DoPACE() (result *document.PaceResult, err error) {
 	var paceConfig *PaceConfig
 	var domainParams *PACEDomainParams
 
-	paceConfig, domainParams, err = selectPaceConfig((*pace.document).Mf.CardAccess)
+	paceConfig, domainParams, err = selectPaceConfig(pace.document.Mf.CardAccess)
 	if err != nil {
 		return result, fmt.Errorf("[DoPACE] selectPaceConfig error: %w", err)
 	}
@@ -700,7 +703,7 @@ func (pace *Pace) DoPACE() (result *document.PaceResult, err error) {
 	// update result to indicate success
 	result.Success = true
 
-	slog.Debug("DoPACE - Completed", "SM", (*pace.nfcSession).SM.String())
+	slog.Debug("DoPACE - Completed", "SM", pace.nfcSession.SM().String())
 
 	return result, nil
 }

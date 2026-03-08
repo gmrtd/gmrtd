@@ -281,7 +281,7 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 	 */
 
 	// NB we only attempt BAC if we don't already have SecureMessaging (i.e. via PACE)
-	if nfc.SM == nil {
+	if nfc.SM() == nil {
 		reader.status.Status("BAC")
 		// NB errors are just recorded at this point
 		docEx.Session.BacResult, docEx.Session.BacErr = bac.NewBAC(nfc, &docEx.Document, password).DoBAC()
