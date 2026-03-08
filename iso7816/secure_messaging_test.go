@@ -196,8 +196,19 @@ func TestSSCIncrement(t *testing.T) {
 			sm.SetSSC(tc.ssc)
 			sm.sscIncrement()
 
-			if !bytes.Equal(sm.ssc, tc.expSsc) {
-				t.Errorf("SSC mismatch (Exp:%x) (Act:%x)", tc.expSsc, sm.ssc)
+			// verify SSC
+			if !bytes.Equal(sm.SSC(), tc.expSsc) {
+				t.Errorf("SSC mismatch (Exp:%x) (Act:%x)", tc.expSsc, sm.SSC())
+			}
+
+			// verify KsEnc has NOT changed
+			if !bytes.Equal(sm.KsEnc(), tc.ksEnc) {
+				t.Errorf("KsEnc has changed (Exp:%x) (Act:%x)", tc.ksEnc, sm.KsEnc())
+			}
+
+			// verify KsMac has NOT changed
+			if !bytes.Equal(sm.ksMac, tc.ksMac) {
+				t.Errorf("KsMac has changed (Exp:%x) (Act:%x)", tc.ksMac, sm.ksMac)
 			}
 		}
 	}
