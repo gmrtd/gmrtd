@@ -31,7 +31,7 @@ type Session struct {
 	PassiveAuthErr    error              `json:"passiveAuthErr,omitempty"`
 	PassiveAuthResult *PassiveAuthResult `json:"passiveAuthResult,omitempty"`
 
-	Apdus []iso7816.ApduLog `json:"apdus,omitempty"`
+	ApduLog *iso7816.ApduLog `json:"apduLog,omitempty"`
 }
 
 // determines whether Chip Authentication has been performed based on PACE-CAM/CA/AA success (if applicable)

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/gmrtd/gmrtd/tlv"
 	"github.com/gmrtd/gmrtd/utils"
@@ -40,8 +39,7 @@ type NfcSession struct {
 	readFileMaxTlvLength tlv.TlvLength
 	readFileMaxChunks    int
 	maxLe                int
-	// TODO - make following private
-	ApduLog []ApduLog
+	apduLog              *ApduLog
 }
 
 func NewNfcSession(transceiver Transceiver) *NfcSession {
@@ -50,6 +48,8 @@ func NewNfcSession(transceiver Transceiver) *NfcSession {
 	nfc.readFileMaxTlvLength = READ_FILE_MAX_TLV_LENGTH
 	nfc.readFileMaxChunks = READ_FILE_MAX_CHUNKS
 	nfc.maxLe = 256
+	nfc.apduLog = NewApduLog()
+
 	return &nfc
 }
 
@@ -63,6 +63,10 @@ func (nfc *NfcSession) SM() SecureMessenger {
 
 func (nfc *NfcSession) SetMaxLe(value int) {
 	nfc.maxLe = value
+}
+
+func (nfc *NfcSession) ApduLog() *ApduLog {
+	return nfc.apduLog
 }
 
 func (nfc *NfcSession) GetChallenge(length int) (out []byte, err error) {
@@ -361,43 +365,13 @@ func (nfc *NfcSession) ReadFile(fileId uint16) (fileData []byte, err error) {
 	return fileData, nil
 }
 
-type ApduLog struct {
-	Desc      string    `json:"desc,omitempty"`
-	Tx        []byte    `json:"tx,omitempty"`
-	Rx        []byte    `json:"rx,omitempty"`
-	Child     *ApduLog  `json:"child,omitempty"` // optional (e.g. if secure-messaging enabled)
-	DurMs     int       `json:"durMs,omitempty"`
-	StartTime time.Time `json:"startTime,omitempty"`
-}
-
-// creates a new instance, records the desc/tx information and starts the timer
-func NewApduLog(desc string, tx []byte) *ApduLog {
-	var out ApduLog
-
-	out.Desc = desc
-	out.Tx = bytes.Clone(tx)
-
-	out.StartTime = time.Now()
-
-	return &out
-}
-
-// finalises an instance, records rx and calculates duration(ms)
-func (apduLog *ApduLog) Finalise(rx []byte) {
-	endTime := time.Now()
-
-	apduLog.DurMs = int(endTime.Sub(apduLog.StartTime).Milliseconds())
-
-	apduLog.Rx = bytes.Clone(rx)
-}
-
 func (nfc *NfcSession) DoAPDU(cApdu *CApdu, desc string) (rApdu *RApdu, err error) {
-	var apduLog *ApduLog
+	var apduLogEntry *ApduLogEntry
 
 	if nfc.sm == nil {
-		rApdu, apduLog, err = nfc.doTransceive(cApdu, desc)
+		rApdu, apduLogEntry, err = nfc.doTransceive(cApdu, desc)
 	} else {
-		apduLog = NewApduLog(desc, cApdu.Encode())
+		apduLogEntry = NewApduLogEntry(desc, cApdu.Encode())
 
 		var encCApdu *CApdu
 		if encCApdu, err = nfc.sm.Encode(cApdu); err != nil {
@@ -405,39 +379,38 @@ func (nfc *NfcSession) DoAPDU(cApdu *CApdu, desc string) (rApdu *RApdu, err erro
 		}
 
 		var encRApdu *RApdu
-		encRApdu, apduLog.Child, err = nfc.doTransceive(encCApdu, desc)
+		var apduLogEntryChild *ApduLogEntry
+		encRApdu, apduLogEntryChild, err = nfc.doTransceive(encCApdu, desc)
 		if err != nil {
 			return nil, fmt.Errorf("DoAPDU] doTransceive error: %w", err)
 		}
+		apduLogEntry.SetChild(apduLogEntryChild)
 
 		rApdu, err = nfc.sm.Decode(encRApdu.Encode())
 		if err != nil {
 			return nil, fmt.Errorf("DoAPDU] SM.Decode error: %w", err)
 		}
 
-		apduLog.Finalise(rApdu.Encode())
+		apduLogEntry.Finalise(rApdu.Encode())
 	}
 
 	// record the APDU log
-	nfc.recordApduLog(*apduLog)
+	nfc.apduLog.Add(apduLogEntry)
+	//	nfc.recordApduLog(*apduLog)
 
 	return rApdu, err
 }
 
-func (nfc *NfcSession) doTransceive(cApdu *CApdu, desc string) (rApdu *RApdu, apduLog *ApduLog, err error) {
+func (nfc *NfcSession) doTransceive(cApdu *CApdu, desc string) (rApdu *RApdu, apduLogEntry *ApduLogEntry, err error) {
 	cApduBytes := cApdu.Encode()
 
-	apduLog = NewApduLog(desc, cApduBytes)
+	apduLogEntry = NewApduLogEntry(desc, cApduBytes)
 
 	rApduBytes := nfc.transceiver.Transceive(int(cApdu.cla), int(cApdu.ins), int(cApdu.p1), int(cApdu.p2), cApdu.data, cApdu.le, cApduBytes)
 
-	apduLog.Finalise(rApduBytes)
+	apduLogEntry.Finalise(rApduBytes)
 
 	rApdu, err = ParseRApdu(rApduBytes)
 
 	return
-}
-
-func (nfc *NfcSession) recordApduLog(log ApduLog) {
-	nfc.ApduLog = append(nfc.ApduLog, log)
 }
