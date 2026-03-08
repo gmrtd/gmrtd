@@ -713,9 +713,6 @@ func TestDoCamEcdhMappingNoEcadIcErr(t *testing.T) {
 func TestGetNonceApduErr(t *testing.T) {
 	// NB we expect an error when an APDU error occurs
 
-	// No need to check whether `recover()` is nil. Just turn off the panic.
-	defer func() { _ = recover() }()
-
 	var doc document.Document
 	var pass password.Password = *password.NewPasswordCan("123456")
 	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{}) // force APDU errors!
@@ -728,11 +725,10 @@ func TestGetNonceApduErr(t *testing.T) {
 
 	var kKdf []byte = make([]byte, 10)
 
-	_ = pace.getNonce(paceConfig, kKdf)
-
-	// Never reaches here if panic
-	t.Errorf("expected panic, but didn't get")
-
+	_, err = pace.getNonce(paceConfig, kKdf)
+	if err == nil {
+		t.Errorf("Expected error")
+	}
 }
 
 func TestCardSecurityFileApduErr(t *testing.T) {
