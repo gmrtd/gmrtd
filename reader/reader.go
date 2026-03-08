@@ -330,7 +330,7 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 	docEx.Session.PassiveAuthResult, docEx.Session.PassiveAuthErr = passiveauth.PassiveAuth(&docEx.Document, cscaCertPool)
 
 	// copy apdu-log over to session
-	docEx.Session.Apdus = nfc.ApduLog
+	docEx.Session.ApduLog = nfc.ApduLog()
 
 	// TODO - do final classification of the document... e.g. dataAuthenticated / chipAuthenticated??... can also record lds/unicode-version
 	reader.status.Status("Valid Document!")

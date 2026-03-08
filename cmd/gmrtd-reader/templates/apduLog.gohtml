@@ -15,11 +15,11 @@
   <tbody>
     <tr>
       <td>Count</td>
-      <td>{{len .}}</td>
+      <td>{{len .Entries}}</td>
     </tr>
     <tr>
       <td>Duration(ms)</td>
-      <td>{{. | ApduTotalDurMs}}</td>
+      <td>{{.Entries | ApduTotalDurMs}}</td>
     </tr>
   </tbody>
 </table>
@@ -27,7 +27,7 @@
 
 <h2>APDUs</h2>
 
-{{ range . }}
+{{ range .Entries }}
 <div><pre>
 Desc: <b>{{ .Desc }}</b>
 Dur(ms): <b>{{ .DurMs }}</b>

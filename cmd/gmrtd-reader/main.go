@@ -74,10 +74,10 @@ func outputDocument(documentEx *document.DocumentEx) {
 			return fmt.Sprintf("%s %s", tmpOid.String(), tmpOidDesc)
 		},
 		"IsPrintable": func(bytes []byte) bool { return len(bytes) > 0 && utils.PrintableBytes(bytes) },
-		"ApduTotalDurMs": func(apdus []iso7816.ApduLog) int {
+		"ApduTotalDurMs": func(entries []*iso7816.ApduLogEntry) int {
 			var totalMs int
-			for _, apdu := range apdus {
-				totalMs += apdu.DurMs
+			for _, entry := range entries {
+				totalMs += int(entry.DurMs)
 			}
 			return totalMs
 		},
