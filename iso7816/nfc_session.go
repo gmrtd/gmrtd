@@ -36,11 +36,12 @@ const READ_FILE_MAX_CHUNKS = 1000
 
 type NfcSession struct {
 	transceiver          Transceiver
+	sm                   SecureMessenger
 	readFileMaxTlvLength tlv.TlvLength
 	readFileMaxChunks    int
-	SM                   *SecureMessaging
-	MaxLe                int
-	ApduLog              []ApduLog
+	// TODO - make following private
+	MaxLe   int
+	ApduLog []ApduLog
 }
 
 func NewNfcSession(transceiver Transceiver) *NfcSession {
@@ -50,6 +51,13 @@ func NewNfcSession(transceiver Transceiver) *NfcSession {
 	nfc.readFileMaxChunks = READ_FILE_MAX_CHUNKS
 	nfc.MaxLe = 256
 	return &nfc
+}
+
+func (nfc *NfcSession) SetSecureMessaging(sm SecureMessenger) {
+	nfc.sm = sm
+}
+func (nfc *NfcSession) SM() SecureMessenger {
+	return nfc.sm
 }
 
 func (nfc *NfcSession) GetChallenge(length int) (out []byte, err error) {
@@ -381,13 +389,13 @@ func (apduLog *ApduLog) Finalise(rx []byte) {
 func (nfc *NfcSession) DoAPDU(cApdu *CApdu, desc string) (rApdu *RApdu, err error) {
 	var apduLog *ApduLog
 
-	if nfc.SM == nil {
+	if nfc.sm == nil {
 		rApdu, apduLog, err = nfc.doTransceive(cApdu, desc)
 	} else {
 		apduLog = NewApduLog(desc, cApdu.Encode())
 
 		var encCApdu *CApdu
-		if encCApdu, err = nfc.SM.Encode(cApdu); err != nil {
+		if encCApdu, err = nfc.sm.Encode(cApdu); err != nil {
 			return nil, fmt.Errorf("DoAPDU] SM.Encode error: %w", err)
 		}
 
@@ -397,7 +405,7 @@ func (nfc *NfcSession) DoAPDU(cApdu *CApdu, desc string) (rApdu *RApdu, err erro
 			return nil, fmt.Errorf("DoAPDU] doTransceive error: %w", err)
 		}
 
-		rApdu, err = nfc.SM.Decode(encRApdu.Encode())
+		rApdu, err = nfc.sm.Decode(encRApdu.Encode())
 		if err != nil {
 			return nil, fmt.Errorf("DoAPDU] SM.Decode error: %w", err)
 		}

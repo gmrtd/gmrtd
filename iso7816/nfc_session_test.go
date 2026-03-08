@@ -52,12 +52,13 @@ func TestNfcSessionSecureMessagingTDES(t *testing.T) {
 
 	var err error
 
-	nfc.SM, err = NewSecureMessaging(cryptoutils.TDES, utils.HexToBytes("979EC13B1CBFE9DCD01AB0FED307EAE5"), utils.HexToBytes("F1CB1F1FB5ADF208806B89DC579DC1F8"))
+	sm, err := NewSecureMessaging(cryptoutils.TDES, utils.HexToBytes("979EC13B1CBFE9DCD01AB0FED307EAE5"), utils.HexToBytes("F1CB1F1FB5ADF208806B89DC579DC1F8"))
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
+	nfc.SetSecureMessaging(sm)
 
-	nfc.SM.SetSSC(utils.HexToBytes("887022120C06C226"))
+	nfc.SM().SetSSC(utils.HexToBytes("887022120C06C226"))
 
 	// Read EF.COM
 	actEfComData, err := nfc.ReadFile(0x011e)
@@ -69,7 +70,7 @@ func TestNfcSessionSecureMessagingTDES(t *testing.T) {
 		t.Errorf("Incorrect EF.COM data (Exp:%x, Act:%x)", expEfComData, actEfComData)
 	}
 
-	if !bytes.Equal(nfc.SM.ssc, utils.HexToBytes("887022120C06C22C")) {
+	if !bytes.Equal(sm.ssc, utils.HexToBytes("887022120C06C22C")) {
 		t.Errorf("Incorrect SSC")
 	}
 }
@@ -92,12 +93,13 @@ func TestNfcSessionSecureMessagingAES(t *testing.T) {
 
 	var err error
 
-	nfc.SM, err = NewSecureMessaging(cryptoutils.AES, utils.HexToBytes("74B94F408BBB2CD92571FD5B6370A94CCE7A2FA42AE3EB4DA47B97CE6EAA24C6"), utils.HexToBytes("9E28D5D9FF1D979BE752E8926BF0E1D35A440FC0AEFC4AA3BC5610055AC8B113"))
+	sm, err := NewSecureMessaging(cryptoutils.AES, utils.HexToBytes("74B94F408BBB2CD92571FD5B6370A94CCE7A2FA42AE3EB4DA47B97CE6EAA24C6"), utils.HexToBytes("9E28D5D9FF1D979BE752E8926BF0E1D35A440FC0AEFC4AA3BC5610055AC8B113"))
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
+	nfc.SetSecureMessaging(sm)
 
-	nfc.SM.SetSSC(utils.HexToBytes("00000000000000000000000000000020"))
+	nfc.SM().SetSSC(utils.HexToBytes("00000000000000000000000000000020"))
 
 	// Read EF.COM
 	actEfComData, err := nfc.ReadFile(0x011e)
@@ -109,7 +111,7 @@ func TestNfcSessionSecureMessagingAES(t *testing.T) {
 		t.Errorf("Incorrect EF.COM data (Exp:%x, Act:%x)", expEfComData, actEfComData)
 	}
 
-	if !bytes.Equal(nfc.SM.ssc, utils.HexToBytes("00000000000000000000000000000026")) {
+	if !bytes.Equal(sm.ssc, utils.HexToBytes("00000000000000000000000000000026")) {
 		t.Errorf("Incorrect SSC")
 	}
 }

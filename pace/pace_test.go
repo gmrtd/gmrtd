@@ -305,7 +305,7 @@ func TestDoPaceNoCardAccessFile(t *testing.T) {
 	}
 
 	// verify that PACE was not performed (i.e. no secure-messaging)
-	if nfc.SM != nil {
+	if nfc.SM() != nil {
 		t.Errorf("Secure-messaging not expected")
 	}
 }
@@ -393,9 +393,10 @@ func TestDoPace_GM_ECDH(t *testing.T) {
 			t.Errorf("Unexpected error: %s", err)
 		}
 
-		// NB SSC should be 0's
+		var smAct *iso7816.SecureMessaging = nfc.SM().(*iso7816.SecureMessaging)
 
-		if !nfc.SM.Equal(*smExp) {
+		// NB SSC should be 0's
+		if !smExp.Equal(*smAct) {
 			t.Errorf("SecureMessaging differs to expected")
 		}
 	}
@@ -482,9 +483,10 @@ func TestDoPace_GM_ECDH_TDES_CBC_NZ(t *testing.T) {
 			t.Errorf("Unexpected error: %s", err)
 		}
 
-		// NB SSC should be 0's
+		var smAct *iso7816.SecureMessaging = nfc.SM().(*iso7816.SecureMessaging)
 
-		if !nfc.SM.Equal(*smExp) {
+		// NB SSC should be 0's
+		if !smExp.Equal(*smAct) {
 			t.Errorf("SecureMessaging differs to expected")
 		}
 	}
@@ -583,7 +585,9 @@ func TestDoPace_CAM_ECDH_DE(t *testing.T) {
 
 		smExp.SetSSC(utils.HexToBytes("00000000000000000000000000000016"))
 
-		if !nfc.SM.Equal(*smExp) {
+		var smAct *iso7816.SecureMessaging = nfc.SM().(*iso7816.SecureMessaging)
+
+		if !smExp.Equal(*smAct) {
 			t.Errorf("SecureMessaging differs to expected")
 		}
 	}

@@ -62,8 +62,8 @@ func (chipAuth *ChipAuth) DoChipAuth() (result *document.ChipAuthResult, err err
 	// setup the result (but mark as !success)
 	result = &document.ChipAuthResult{Success: false}
 
-	if (*chipAuth.nfcSession).SM != nil {
-		slog.Debug("doChipAuth", "SM(pre)", (*chipAuth.nfcSession).SM.String())
+	if (*chipAuth.nfcSession).SM() != nil {
+		slog.Debug("doChipAuth", "SM(pre)", (*chipAuth.nfcSession).SM().String())
 	}
 
 	var caPubKeyInfo *document.ChipAuthenticationPublicKeyInfo
@@ -90,8 +90,8 @@ func (chipAuth *ChipAuth) DoChipAuth() (result *document.ChipAuthResult, err err
 	// update result to indicate success
 	result.Success = true
 
-	if (*chipAuth.nfcSession).SM != nil {
-		slog.Debug("doChipAuth", "SM(post)", (*chipAuth.nfcSession).SM.String())
+	if (*chipAuth.nfcSession).SM() != nil {
+		slog.Debug("doChipAuth", "SM(post)", (*chipAuth.nfcSession).SM().String())
 	}
 
 	return result, nil
@@ -394,10 +394,11 @@ func (chipAuth *ChipAuth) doCaEcdh(caInfo *document.ChipAuthenticationInfo, caAl
 	{
 		var err error
 
-		(*chipAuth.nfcSession).SM, err = iso7816.NewSecureMessaging(caAlgInfo.cipherAlg, ksEnc, ksMac)
+		sm, err := iso7816.NewSecureMessaging(caAlgInfo.cipherAlg, ksEnc, ksMac)
 		if err != nil {
 			return fmt.Errorf("[doCaEcdh] NewSecureMessaging error: %w", err)
 		}
+		(*chipAuth.nfcSession).SetSecureMessaging(sm)
 	}
 
 	/*

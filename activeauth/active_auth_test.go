@@ -46,12 +46,12 @@ func TestDoActiveAuth(t *testing.T) {
 
 	// setup SM
 	{
-		nfc.SM, err = iso7816.NewSecureMessaging(cryptoutils.TDES, utils.HexToBytes("b99d546108eaa251570876b6d3456dce"), utils.HexToBytes("e3857ca24946251c151c540e13f2cd51"))
+		sm, err := iso7816.NewSecureMessaging(cryptoutils.TDES, utils.HexToBytes("b99d546108eaa251570876b6d3456dce"), utils.HexToBytes("e3857ca24946251c151c540e13f2cd51"))
 		if err != nil {
 			t.Errorf("Unexpected error: %s", err)
 		}
-
-		nfc.SM.SetSSC(utils.HexToBytes("00000000000000cc"))
+		sm.SetSSC(utils.HexToBytes("00000000000000cc"))
+		nfc.SetSecureMessaging(sm)
 	}
 
 	// setup static randoms for test
@@ -115,7 +115,8 @@ func TestDoActiveAuth(t *testing.T) {
 
 		smExp.SetSSC(utils.HexToBytes("00000000000000ce"))
 
-		if !nfc.SM.Equal(*smExp) {
+		var smAct *iso7816.SecureMessaging = nfc.SM().(*iso7816.SecureMessaging)
+		if !smExp.Equal(*smAct) {
 			t.Errorf("SecureMessaging differs to expected")
 		}
 	}

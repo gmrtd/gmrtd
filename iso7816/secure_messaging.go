@@ -35,6 +35,15 @@ import (
 
 const CLA_MASK byte = 0x0C
 
+type SecureMessenger interface {
+	SSC() []byte
+	SetSSC([]byte)
+	KsEnc() []byte
+	String() string
+	Encode(*CApdu) (*CApdu, error)
+	Decode([]byte) (*RApdu, error)
+}
+
 type SecureMessaging struct {
 	alg       cryptoutils.BlockCipherAlg
 	ksEnc     []byte
@@ -43,6 +52,9 @@ type SecureMessaging struct {
 	encCipher cipher.Block
 	macCipher cipher.Block
 }
+
+// verify that SecureMessaging conforms to SecureMessenger
+var _ SecureMessenger = (*SecureMessaging)(nil)
 
 func (sm1 SecureMessaging) Equal(sm2 SecureMessaging) bool {
 	if (sm1.alg == sm2.alg) &&
@@ -57,6 +69,10 @@ func (sm1 SecureMessaging) Equal(sm2 SecureMessaging) bool {
 
 func (sm SecureMessaging) KsEnc() []byte {
 	return bytes.Clone(sm.ksEnc)
+}
+
+func (sm SecureMessaging) SSC() []byte {
+	return bytes.Clone(sm.ssc)
 }
 
 func NewSecureMessaging(alg cryptoutils.BlockCipherAlg, ksEnc []byte, ksMac []byte) (sm *SecureMessaging, err error) {

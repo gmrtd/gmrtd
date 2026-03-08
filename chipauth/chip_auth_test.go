@@ -65,11 +65,12 @@ func TestChipAuthAT(t *testing.T) {
 	}
 
 	// setup SM (and SSC)
-	nfc.SM, err = iso7816.NewSecureMessaging(cryptoutils.AES, utils.HexToBytes("524170DE3419B7AF2F23E45AD6EF9595"), utils.HexToBytes("97893F5FDC29A5C13A924FE7D8ED44FD"))
+	sm, err := iso7816.NewSecureMessaging(cryptoutils.AES, utils.HexToBytes("524170DE3419B7AF2F23E45AD6EF9595"), utils.HexToBytes("97893F5FDC29A5C13A924FE7D8ED44FD"))
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
-	nfc.SM.SetSSC(utils.HexToBytes("000000000000000000000000000000F0"))
+	sm.SetSSC(utils.HexToBytes("000000000000000000000000000000F0"))
+	nfc.SetSecureMessaging(sm)
 
 	// setup static EC keys for test
 	getTestKeyGenEc := func() func(ec elliptic.Curve) (keypair cryptoutils.EcKeypair) {
@@ -116,7 +117,8 @@ func TestChipAuthAT(t *testing.T) {
 	}
 
 	// verify the post Secure-Messaging state (as this truly indicates whether it worked)
-	if !nfc.SM.Equal(*smExp) {
+	var smAct *iso7816.SecureMessaging = nfc.SM().(*iso7816.SecureMessaging)
+	if !smExp.Equal(*smAct) {
 		t.Errorf("SM (Post) state differs to expected")
 	}
 }
@@ -153,11 +155,12 @@ func TestChipAuthDE(t *testing.T) {
 	}
 
 	// setup SM (and SSC)
-	nfc.SM, err = iso7816.NewSecureMessaging(cryptoutils.AES, utils.HexToBytes("CC86415F2ED7E8FD663B754265695AE1"), utils.HexToBytes("581E84B8EE06C4D3EEE30461498D7FB3"))
+	sm, err := iso7816.NewSecureMessaging(cryptoutils.AES, utils.HexToBytes("CC86415F2ED7E8FD663B754265695AE1"), utils.HexToBytes("581E84B8EE06C4D3EEE30461498D7FB3"))
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
-	nfc.SM.SetSSC(utils.HexToBytes("000000000000000000000000000000BA"))
+	sm.SetSSC(utils.HexToBytes("000000000000000000000000000000BA"))
+	nfc.SetSecureMessaging(sm)
 
 	// setup static EC keys for test
 	getTestKeyGenEc := func() func(ec elliptic.Curve) (keypair cryptoutils.EcKeypair) {
@@ -204,7 +207,8 @@ func TestChipAuthDE(t *testing.T) {
 	}
 
 	// verify the post Secure-Messaging state (as this truly indicates whether it worked)
-	if !nfc.SM.Equal(*smExp) {
+	var smAct *iso7816.SecureMessaging = nfc.SM().(*iso7816.SecureMessaging)
+	if !smExp.Equal(*smAct) {
 		t.Errorf("SM (Post) state differs to expected")
 	}
 }
@@ -241,11 +245,12 @@ func TestChipAuthMY(t *testing.T) {
 	}
 
 	// setup SM (and SSC)
-	nfc.SM, err = iso7816.NewSecureMessaging(cryptoutils.TDES, utils.HexToBytes("896de34a942c7076fec207207acb79c2"), utils.HexToBytes("d6c47ff4677ac8ae91cb49f4ce673432"))
+	sm, err := iso7816.NewSecureMessaging(cryptoutils.TDES, utils.HexToBytes("896de34a942c7076fec207207acb79c2"), utils.HexToBytes("d6c47ff4677ac8ae91cb49f4ce673432"))
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
-	nfc.SM.SetSSC(utils.HexToBytes("9646c154bfb7be79"))
+	sm.SetSSC(utils.HexToBytes("9646c154bfb7be79"))
+	nfc.SetSecureMessaging(sm)
 
 	// setup static EC keys for test
 	getTestKeyGenEc := func() func(ec elliptic.Curve) (keypair cryptoutils.EcKeypair) {
@@ -292,7 +297,8 @@ func TestChipAuthMY(t *testing.T) {
 	}
 
 	// verify the post Secure-Messaging state (as this truly indicates whether it worked)
-	if !nfc.SM.Equal(*smExp) {
+	var smAct *iso7816.SecureMessaging = nfc.SM().(*iso7816.SecureMessaging)
+	if !smExp.Equal(*smAct) {
 		t.Errorf("SM (Post) state differs to expected")
 	}
 }
@@ -327,11 +333,12 @@ func TestChipAuthFR(t *testing.T) {
 	}
 
 	// setup SM (and SSC)
-	nfc.SM, err = iso7816.NewSecureMessaging(cryptoutils.AES, utils.HexToBytes("17da5d46e356f5b31c3d65b1369ef531ca811effc76967d2b62335e1ad9fe5cb"), utils.HexToBytes("5cb99a25e6081581fac80c8da621087939b6bde273f2f7c65693b3a0ea3051ed"))
+	sm, err := iso7816.NewSecureMessaging(cryptoutils.AES, utils.HexToBytes("17da5d46e356f5b31c3d65b1369ef531ca811effc76967d2b62335e1ad9fe5cb"), utils.HexToBytes("5cb99a25e6081581fac80c8da621087939b6bde273f2f7c65693b3a0ea3051ed"))
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
-	nfc.SM.SetSSC(utils.HexToBytes("000000000000000000000000000000c6"))
+	sm.SetSSC(utils.HexToBytes("000000000000000000000000000000c6"))
+	nfc.SetSecureMessaging(sm)
 
 	// setup static EC keys for test
 	getTestKeyGenEc := func() func(ec elliptic.Curve) (keypair cryptoutils.EcKeypair) {
@@ -378,7 +385,8 @@ func TestChipAuthFR(t *testing.T) {
 	}
 
 	// verify the post Secure-Messaging state (as this truly indicates whether it worked)
-	if !nfc.SM.Equal(*smExp) {
+	var smAct *iso7816.SecureMessaging = nfc.SM().(*iso7816.SecureMessaging)
+	if !smExp.Equal(*smAct) {
 		t.Errorf("SM (Post) state differs to expected")
 	}
 }

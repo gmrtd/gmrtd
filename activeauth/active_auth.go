@@ -170,8 +170,8 @@ func (activeAuth *ActiveAuth) DoActiveAuth() (result *document.ActiveAuthResult,
 		return nil, nil
 	}
 
-	if (*activeAuth.nfcSession).SM != nil {
-		slog.Debug("DoActiveAuth", "SM(pre)", (*activeAuth.nfcSession).SM.String())
+	if (*activeAuth.nfcSession).SM() != nil {
+		slog.Debug("DoActiveAuth", "SM(pre)", (*activeAuth.nfcSession).SM().String())
 	}
 
 	var rndIfd []byte = activeAuth.randomIfd()
@@ -188,8 +188,8 @@ func (activeAuth *ActiveAuth) DoActiveAuth() (result *document.ActiveAuthResult,
 		return result, fmt.Errorf("[DoActiveAuth] ValidateActiveAuthSignature error: %w", err)
 	}
 
-	if (*activeAuth.nfcSession).SM != nil {
-		slog.Debug("DoActiveAuth", "SM(post)", (*activeAuth.nfcSession).SM.String())
+	if (*activeAuth.nfcSession).SM() != nil {
+		slog.Debug("DoActiveAuth", "SM(post)", (*activeAuth.nfcSession).SM().String())
 	}
 
 	return result, err
