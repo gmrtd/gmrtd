@@ -568,7 +568,7 @@ func keyForPassword(paceConfig *PaceConfig, pass *password.Password) []byte {
 	return cryptoutils.KDF(pass.Key(), cryptoutils.KDF_COUNTER_PACE, paceConfig.cipher, paceConfig.keyLengthBits)
 }
 
-func (pace *Pace) getNonce(paceConfig *PaceConfig, kKdf []byte) []byte {
+func (pace *Pace) getNonce(paceConfig *PaceConfig, kKdf []byte) ([]byte, error) {
 	var nonceE []byte
 	{
 		reqData := []byte{0x7C, 0x00}
@@ -577,14 +577,14 @@ func (pace *Pace) getNonce(paceConfig *PaceConfig, kKdf []byte) []byte {
 			// TODO -this is firing for NZ.. maxRead=65536... RAPDU=6982
 			//			- maybe we can include this as a catch.. and try to decrease max-read
 			//			** needs to be handled somewhere common like doAPDU
-			panic(fmt.Sprintf("[getNonce] GeneralAuthenticate error: %s", err))
+			return nil, fmt.Errorf("[getNonce] GeneralAuthenticate error: %s", err)
 		}
 
 		nonceE = decodeDynAuthData(0x80, rApduBytes)
 	}
 
 	// decrypt the nonce (s)
-	return paceConfig.decryptNonce(kKdf, nonceE)
+	return paceConfig.decryptNonce(kKdf, nonceE), nil
 }
 
 // loads the Card Security file and stores it within the Document
@@ -684,7 +684,11 @@ func (pace *Pace) DoPACE() (result *document.PaceResult, err error) {
 	}
 
 	// get nonce
-	var s []byte = pace.getNonce(paceConfig, kKdf)
+	var s []byte
+	s, err = pace.getNonce(paceConfig, kKdf)
+	if err != nil {
+		return result, fmt.Errorf("[DoPACE] getNonce error: %w", err)
+	}
 
 	// process based on the mapping type (GM/IM/CAM) and the key type (ECDH/DH)
 	switch paceConfig.mapping {
