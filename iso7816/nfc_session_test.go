@@ -391,8 +391,18 @@ func TestSelectMF(t *testing.T) {
 			expError:    false,
 		},
 		{
+			// happy - new zealand passport returning 6982
+			transceiver: &StaticTransceiver{utils.HexToBytes("6982")},
+			expError:    false,
+		},
+		{
 			// happy - china passport returning 6A81
 			transceiver: &StaticTransceiver{utils.HexToBytes("6A81")},
+			expError:    false,
+		},
+		{
+			// happy - australia passport returning 6A86
+			transceiver: &StaticTransceiver{utils.HexToBytes("6A86")},
 			expError:    false,
 		},
 		{
@@ -430,6 +440,13 @@ func TestSelectEF(t *testing.T) {
 			transceiver: &StaticTransceiver{utils.HexToBytes("9000")},
 			expError:    false,
 			expSelected: true,
+		},
+		{
+			// happy - malaysia passport returning 6283
+			fileId:      0x0101,
+			transceiver: &StaticTransceiver{utils.HexToBytes("6283")},
+			expError:    false,
+			expSelected: false,
 		},
 		{
 			// happy - file not found
