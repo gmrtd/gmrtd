@@ -154,7 +154,7 @@ func parseImageIso19794(r *bytes.Reader) (*Image, error) {
 	}
 
 	if !utils.IsImage(imageBytes) {
-		return nil, fmt.Errorf("[parseImageIso19794] Unknown image type [prefixBytes:%x]", imageBytes[0:10])
+		return nil, fmt.Errorf("[parseImageIso19794] Unknown image type [prefixBytes:%x]", utils.SafePrefix(imageBytes, 10))
 	}
 
 	var img Image = Image{

@@ -77,6 +77,50 @@ func TestParseAsn1(t *testing.T) {
 	}
 }
 
+func TestSafePrefix(t *testing.T) {
+	tests := []struct {
+		name         string
+		input        []byte
+		prefixLength int
+		expected     []byte
+	}{
+		{
+			name:         "prefix shorter than slice",
+			input:        []byte{1, 2, 3, 4},
+			prefixLength: 2,
+			expected:     []byte{1, 2},
+		},
+		{
+			name:         "prefix equal to slice length",
+			input:        []byte{1, 2, 3},
+			prefixLength: 3,
+			expected:     []byte{1, 2, 3},
+		},
+		{
+			name:         "prefix longer than slice",
+			input:        []byte{1, 2, 3},
+			prefixLength: 10,
+			expected:     []byte{1, 2, 3},
+		},
+		{
+			name:         "empty slice",
+			input:        []byte{},
+			prefixLength: 5,
+			expected:     []byte{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := SafePrefix(tt.input, tt.prefixLength)
+
+			if !bytes.Equal(result, tt.expected) {
+				t.Fatalf("expected %v, got %v", tt.expected, result)
+			}
+		})
+	}
+}
+
 func TestXorBytes(t *testing.T) {
 	in1 := []byte{0x00, 0x00, 0xFF, 0xFF}
 	in2 := []byte{0x00, 0xFF, 0x00, 0xFF}
