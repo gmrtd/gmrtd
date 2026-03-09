@@ -30,6 +30,16 @@ func TestProcessISO19794(t *testing.T) {
 	}
 }
 
+//go:embed test_data/ISO19794_Test2_Data_InvalidImage.bin
+var test2data []byte
+
+func TestProcessISO19794InvalidImage(t *testing.T) {
+	_, err := ProcessISO19794(test2data)
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+}
+
 func TestProcessISO19794RecordLengthValidation(t *testing.T) {
 	// Test cases for recordLength and dataLength differences
 	testCases := []struct {
