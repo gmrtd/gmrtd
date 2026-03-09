@@ -28,7 +28,7 @@ var allFields39794 []byte
 //go:embed test_data/ICAO_39794_5_AP_Face.jpg
 var allFields39794Face []byte
 
-func TestNewDG2AllFields39794(t *testing.T) {
+func TestProcessISO39794p5AllFields(t *testing.T) {
 	ap, err := ProcessISO39794p5(allFields39794)
 	if err != nil {
 		t.Fatalf("Unexpected error: %s", err)
@@ -52,7 +52,7 @@ var mandFields39794 []byte
 //go:embed test_data/ICAO_39794_5_AP_Face.jpg
 var mandFields39794Face []byte
 
-func TestNewDG2MandFields39794(t *testing.T) {
+func TestProcessISO39794p5MandFields(t *testing.T) {
 	ap, err := ProcessISO39794p5(mandFields39794)
 	if err != nil {
 		t.Fatalf("Unexpected error: %s", err)
@@ -67,5 +67,16 @@ func TestNewDG2MandFields39794(t *testing.T) {
 	// verify that the photo matches the reference data
 	if !bytes.Equal(images[0], mandFields39794Face) {
 		t.Fatalf("photo differs to expected")
+	}
+}
+
+//go:embed test_data/ICAO_39794_5_AP_MandFields_InvalidImage.dat
+var mandFields39794_invalidImage []byte
+
+func TestProcessISO39794p5MandFieldsInvalidImage(t *testing.T) {
+	// TODO
+	_, err := ProcessISO39794p5(mandFields39794_invalidImage)
+	if err == nil {
+		t.Fatalf("Expected error")
 	}
 }
