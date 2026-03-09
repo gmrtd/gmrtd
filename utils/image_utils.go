@@ -25,7 +25,7 @@ func IsImage(imageBytes []byte) bool {
 
 	/*
 	* JPEG 2000 (not the same as classic JPEG):
-	* 	- JP2 file      : 00 00 00 0C 6A 50 20 20 0D 0A 87 0A
+	* 	- JP2 file      : 00 00 00 0C 6A 50 20 20 0D 0A
 	* 	- Raw codestream: FF 4F FF 51
 	 */
 	{
@@ -39,7 +39,7 @@ func IsImage(imageBytes []byte) bool {
 
 	}
 
-	slog.Debug("Unknown image type", "prefix", imageBytes[0:10])
+	slog.Debug("Unknown image type", "prefix", SafePrefix(imageBytes, 10))
 
 	return false
 }

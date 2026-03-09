@@ -46,6 +46,29 @@ func ParseAsn1[T any](data []byte, isPartiallyParsed bool, out *T) (err error) {
 	return nil
 }
 
+// SafePrefix returns a slice containing at most the first prefixLength bytes
+// of data.
+//
+// If prefixLength is greater than len(data), the entire slice is returned.
+// The function never panics due to slicing beyond the bounds of the input
+// slice.
+//
+// The returned slice references the same underlying array as data and does
+// not allocate.
+//
+// Example:
+//
+//	data := []byte{1,2,3}
+//	SafePrefix(data, 2) // returns []byte{1,2}
+//	SafePrefix(data, 10) // returns []byte{1,2,3}
+func SafePrefix(data []byte, prefixLength int) []byte {
+	if prefixLength > len(data) {
+		prefixLength = len(data)
+	}
+
+	return data[:prefixLength]
+}
+
 func XorBytes(arr1, arr2 []byte) []byte {
 	if len(arr1) != len(arr2) {
 		panic(fmt.Sprintf("Arrays must be the same length (arr1:%1d, arr2:%1d)", len(arr1), len(arr2)))

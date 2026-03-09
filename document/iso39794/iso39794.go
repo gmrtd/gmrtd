@@ -40,8 +40,10 @@ func ProcessISO39794p5(data []byte) (*ISO39794_5_AP, error) {
 			return nil, fmt.Errorf("[processISO39794_5_AP] Expected 1 RepresentationBlocks (act:%1d)", len(ap.FaceImageDataBlock.RepresentationBlocks))
 		}
 
-		if !utils.IsImage(ap.FaceImageDataBlock.RepresentationBlocks[0].ImageRepresentation.Base.ImageRepresentation2DBlock.RepresentationData2D) {
-			return nil, fmt.Errorf("[processISO39794_5_AP] Not a valid image")
+		var imageBytes []byte = ap.FaceImageDataBlock.RepresentationBlocks[0].ImageRepresentation.Base.ImageRepresentation2DBlock.RepresentationData2D
+
+		if !utils.IsImage(imageBytes) {
+			return nil, fmt.Errorf("[processISO39794_5_AP] Unknown image type [prefixBytes:%x]", utils.SafePrefix(imageBytes, 10))
 		}
 	}
 

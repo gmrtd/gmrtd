@@ -27,6 +27,21 @@ func TestIsImage(t *testing.T) {
 			imageBytes: HexToBytes("0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF"),
 			isImage:    false,
 		},
+		{
+			// invalid image data (possibly malicious) - no data
+			imageBytes: []byte{},
+			isImage:    false,
+		},
+		{
+			// invalid image data (possibly malicious) - nil
+			imageBytes: nil,
+			isImage:    false,
+		},
+		{
+			// invalid image data (possibly malicious) - too short (2 bytes)
+			imageBytes: []byte{0x12, 0x34},
+			isImage:    false,
+		},
 	}
 	for _, tc := range testCases {
 		actIsImage := IsImage(tc.imageBytes)
