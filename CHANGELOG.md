@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.3](https://github.com/gmrtd/gmrtd/compare/v0.19.2...v0.19.3) (2026-03-09)
+
+
+### Bug Fixes
+
+* IsImage panics with malicious or malformed data [fixes [#198](https://github.com/gmrtd/gmrtd/issues/198)] ([#199](https://github.com/gmrtd/gmrtd/issues/199)) ([72164e7](https://github.com/gmrtd/gmrtd/commit/72164e7a33e1667c0bb476fca1e50e97e29292de))
+
 ## [0.19.2](https://github.com/gmrtd/gmrtd/compare/v0.19.1...v0.19.2) (2026-03-03)
 
 
