@@ -3,7 +3,6 @@ package document
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"log/slog"
 	"slices"
 
@@ -48,7 +47,7 @@ func NewDG12(data []byte) (*DG12, error) {
 	rootNode := nodes.NodeByTag(DG12Tag)
 
 	if !rootNode.IsValidNode() {
-		return nil, fmt.Errorf("root node (%x) missing", DG12Tag)
+		return nil, fmt.Errorf("[NewDG12] root node (%x) missing", DG12Tag)
 	}
 
 	err = out.Details.parseData(rootNode)
@@ -69,7 +68,7 @@ func (details *DocumentDetails) parseData(node tlv.TlvNode) error {
 
 	for _, tag := range tagList {
 		if err := details.processTag(tag, node); err != nil {
-			return fmt.Errorf("[NewDG12] processTag(%x) error: %w", tag, err)
+			return fmt.Errorf("[parseData] processTag(%x) error: %w", tag, err)
 		}
 	}
 
@@ -81,16 +80,13 @@ func (details *DocumentDetails) processTag(tag tlv.TlvTag, node tlv.TlvNode) err
 	switch tag {
 	case 0x5F19:
 		details.IssuingAuthority = string(node.NodeByTag(tag).Value())
-	case 0x5F26:
-		// should be 8 bytes (YYYYMMDD) but we've also seen 4 bytes (BCD) - e.g. Taiwan passport
-		details.DateOfIssue = parseDateYYYYMMDD(node.NodeByTag(tag).Value())
 	case 0x5F1A:
 		// special handling as 'Other Persons' are nested within tag A0 and there can be multiple instances
 		numOtherPersons := utils.BytesToInt(node.NodeByTag(0xA0).NodeByTag(0x02).Value())
 		for occur := 1; occur <= numOtherPersons; occur++ {
 			tmpName, err := mrz.ParseName(mrz.DecodeValue(string(node.NodeByTag(0xA0).NodeByTagOccur(tag, occur).Value())))
 			if err != nil {
-				log.Panicf("[processTag] ParseName error: %s", err)
+				return fmt.Errorf("[processTag] mrz.ParseName error: %w", err)
 			}
 
 			details.OtherPersons = append(details.OtherPersons, *tmpName)
@@ -105,6 +101,9 @@ func (details *DocumentDetails) processTag(tag tlv.TlvTag, node tlv.TlvNode) err
 	case 0x5F1E:
 		// image data
 		details.ImageRear = node.NodeByTag(tag).Value()
+	case 0x5F26:
+		// should be 8 bytes (YYYYMMDD) but we've also seen 4 bytes (BCD) - e.g. Taiwan passport
+		details.DateOfIssue = parseDateYYYYMMDD(node.NodeByTag(tag).Value())
 	case 0x5F55:
 		// should be 14 bytes (YYYYMMDDHHMISS), but probably also have 7 byte BCD encoded variants
 		details.PersoDateTime = parseDatetimeYYYYMMDDHHMISS(node.NodeByTag(tag).Value())
