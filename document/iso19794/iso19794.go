@@ -110,12 +110,11 @@ func ProcessISO19794(data []byte) (*ISO19794, error) {
 	}
 
 	// verify that we read all of the data (or close to it)
-	// Note: Some passports have small discrepancies in RecordLength (1-8 bytes), so we tolerate up to 8 bytes remaining
-	//    		- NZ passport: hdr.recordLength = dataLen - 8
-	//    		- UK passport: hdr.recordLength = dataLen - 1
-	{
-		remaining := r.Len()
-
+	remaining := r.Len()
+	if remaining > 0 {
+		// Note: Some passports have small discrepancies in RecordLength (1-8 bytes), so we tolerate up to 8 bytes remaining
+		//    		- NZ passport: hdr.recordLength = dataLen - 8
+		//    		- UK passport: hdr.recordLength = dataLen - 1
 		if remaining <= 8 {
 			slog.Warn("ProcessISO19794 - tolerating excess trailing bytes", "excess-bytes", remaining)
 		} else {
