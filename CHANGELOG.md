@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.1](https://github.com/gmrtd/gmrtd/compare/v0.20.0...v0.20.1) (2026-03-29)
+
+
+### Bug Fixes
+
+* resolve incorrect warning about remaining bytes ([#209](https://github.com/gmrtd/gmrtd/issues/209)) ([e314c62](https://github.com/gmrtd/gmrtd/commit/e314c62864aebba027c9538c150a388547e5d797))
+
 ## [0.20.0](https://github.com/gmrtd/gmrtd/compare/v0.19.3...v0.20.0) (2026-03-28)
 
 
