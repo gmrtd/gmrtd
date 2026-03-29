@@ -14,6 +14,9 @@ var test1data []byte
 //go:embed test_data/ISO19794_Test1_Face.jpg
 var test1face []byte
 
+//go:embed test_data/ISO19794_Test2_Data_InvalidImage.bin
+var test2data []byte
+
 func TestProcessISO19794(t *testing.T) {
 	data, err := ProcessISO19794(test1data)
 	if err != nil {
@@ -29,16 +32,6 @@ func TestProcessISO19794(t *testing.T) {
 	// verify that the photo matches the reference data
 	if !bytes.Equal(images[0], test1face) {
 		t.Fatalf("photo differs to expected")
-	}
-}
-
-//go:embed test_data/ISO19794_Test2_Data_InvalidImage.bin
-var test2data []byte
-
-func TestProcessISO19794InvalidImage(t *testing.T) {
-	_, err := ProcessISO19794(test2data)
-	if err == nil {
-		t.Fatalf("expected error")
 	}
 }
 
@@ -97,74 +90,12 @@ func TestProcessISO19794Permutations(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name: "Valid: recordLength is dataLength - 1",
-			data: test1data,
-			modifyData: func(data []byte) []byte {
-				testData := bytes.Clone(data)
-				// Set recordLength to dataLength - 1
-				dataLen := uint32(len(testData)) - 1
-				testData[8] = byte(dataLen >> 24)
-				testData[9] = byte(dataLen >> 16)
-				testData[10] = byte(dataLen >> 8)
-				testData[11] = byte(dataLen)
-				return testData
-			},
-			expectError: false,
-		},
-		{
-			name: "Valid: recordLength is dataLength - 8",
-			data: test1data,
-			modifyData: func(data []byte) []byte {
-				testData := bytes.Clone(data)
-				// Set recordLength to dataLength - 8
-				dataLen := uint32(len(testData)) - 8
-				testData[8] = byte(dataLen >> 24)
-				testData[9] = byte(dataLen >> 16)
-				testData[10] = byte(dataLen >> 8)
-				testData[11] = byte(dataLen)
-				return testData
-			},
-			expectError: false,
-		},
-		{
-			name: "Invalid: recordLength is dataLength - 9",
-			data: test1data,
-			modifyData: func(data []byte) []byte {
-				testData := bytes.Clone(data)
-				// Set recordLength to dataLength - 9 (exceeds tolerance)
-				dataLen := uint32(len(testData)) - 9
-				testData[8] = byte(dataLen >> 24)
-				testData[9] = byte(dataLen >> 16)
-				testData[10] = byte(dataLen >> 8)
-				testData[11] = byte(dataLen)
-				return testData
-			},
-			expectError:   true,
-			errorContains: "FacialHeader.RecordLength does not match with data",
-		},
-		{
 			name: "Invalid: recordLength is greater than dataLength",
 			data: test1data,
 			modifyData: func(data []byte) []byte {
 				testData := bytes.Clone(data)
 				// Set recordLength to dataLength + 1
 				dataLen := uint32(len(testData)) + 1
-				testData[8] = byte(dataLen >> 24)
-				testData[9] = byte(dataLen >> 16)
-				testData[10] = byte(dataLen >> 8)
-				testData[11] = byte(dataLen)
-				return testData
-			},
-			expectError:   true,
-			errorContains: "FacialHeader.RecordLength does not match with data",
-		},
-		{
-			name: "Invalid: recordLength is dataLength + 10",
-			data: test1data,
-			modifyData: func(data []byte) []byte {
-				testData := bytes.Clone(data)
-				// Set recordLength to dataLength + 10
-				dataLen := uint32(len(testData)) + 10
 				testData[8] = byte(dataLen >> 24)
 				testData[9] = byte(dataLen >> 16)
 				testData[10] = byte(dataLen >> 8)
@@ -346,6 +277,76 @@ func TestProcessISO19794Permutations(t *testing.T) {
 			expectError:   true,
 			errorContains: "[parseImage] FacialInfo.Length smaller than allowed minimum",
 		},
+		{
+			name:          "Invalid: Invalid image",
+			data:          test2data,
+			expectError:   true,
+			errorContains: "Unknown image type",
+		},
+		{
+			name: "Invalid: Too much data remaining (10 bytes)",
+			data: test1data,
+			modifyData: func(data []byte) []byte {
+				// Create test data with 10 extra bytes appended
+				testData := bytes.Clone(test1data)
+				extraData := make([]byte, 10)
+				for i := range extraData {
+					extraData[i] = 0xFF
+				}
+				testData = append(testData, extraData...)
+				// update length
+				dataLen := uint32(len(testData))
+				testData[8] = byte(dataLen >> 24)
+				testData[9] = byte(dataLen >> 16)
+				testData[10] = byte(dataLen >> 8)
+				testData[11] = byte(dataLen)
+				return testData
+			},
+			expectError:   true,
+			errorContains: "Too much data remaining: expected at most 8 bytes, got 10",
+		},
+		{
+			name: "Valid: Some data remaining (1 byte), but within tolerated limits (0-8 bytes)",
+			data: test1data,
+			modifyData: func(data []byte) []byte {
+				// Create test data with 1 extra byte appended
+				testData := bytes.Clone(test1data)
+				extraData := make([]byte, 1)
+				for i := range extraData {
+					extraData[i] = 0xFF
+				}
+				testData = append(testData, extraData...)
+				// update length
+				dataLen := uint32(len(testData))
+				testData[8] = byte(dataLen >> 24)
+				testData[9] = byte(dataLen >> 16)
+				testData[10] = byte(dataLen >> 8)
+				testData[11] = byte(dataLen)
+				return testData
+			},
+			expectError: false,
+		},
+		{
+			name: "Valid: Some data remaining (8 bytes), but within tolerated limits (0-8 bytes)",
+			data: test1data,
+			modifyData: func(data []byte) []byte {
+				// Create test data with 8 extra bytes appended
+				testData := bytes.Clone(test1data)
+				extraData := make([]byte, 8)
+				for i := range extraData {
+					extraData[i] = 0xFF
+				}
+				testData = append(testData, extraData...)
+				// update length
+				dataLen := uint32(len(testData))
+				testData[8] = byte(dataLen >> 24)
+				testData[9] = byte(dataLen >> 16)
+				testData[10] = byte(dataLen >> 8)
+				testData[11] = byte(dataLen)
+				return testData
+			},
+			expectError: false,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -370,34 +371,5 @@ func TestProcessISO19794Permutations(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-
-func TestProcessISO19794TooMuchDataRemaining(t *testing.T) {
-	// Create test data with 10 extra bytes appended
-	testData := bytes.Clone(test1data)
-	extraData := make([]byte, 10)
-	for i := range extraData {
-		extraData[i] = 0xFF
-	}
-	testData = append(testData, extraData...)
-
-	// Update the recordLength in the header to match the new data length
-	// This ensures we pass the initial recordLength check and reach the
-	// "too much data remaining" validation
-	dataLen := uint32(len(testData))
-	testData[8] = byte(dataLen >> 24)
-	testData[9] = byte(dataLen >> 16)
-	testData[10] = byte(dataLen >> 8)
-	testData[11] = byte(dataLen)
-
-	_, err := ProcessISO19794(testData)
-
-	if err == nil {
-		t.Errorf("Expected error but got nil")
-	}
-
-	if !bytes.Contains([]byte(err.Error()), []byte("Too much data remaining")) {
-		t.Errorf("Expected error to contain 'Too much data remaining', got: %s", err.Error())
 	}
 }
