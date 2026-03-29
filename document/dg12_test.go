@@ -1,9 +1,12 @@
 package document
 
 import (
+	"bytes"
 	"reflect"
 	"testing"
 
+	"github.com/gmrtd/gmrtd/mrz"
+	"github.com/gmrtd/gmrtd/tlv"
 	"github.com/gmrtd/gmrtd/utils"
 )
 
@@ -148,5 +151,146 @@ func TestNewDG12UnknownTagErr(t *testing.T) {
 
 	if doc.Mf.Lds1.Dg12 != nil {
 		t.Errorf("DG12 NOT expected")
+	}
+}
+
+func TestProcessTag(t *testing.T) {
+	testCases := []struct {
+		name          string
+		tlvTag        tlv.TlvTag
+		tlvNode       tlv.TlvNode
+		expDocDetails DocumentDetails
+	}{
+		{
+			// 5F19: "UNITED STATES DEPARTMENT OF STATE"
+			name:          "5F19 IssuingAuthority",
+			tlvTag:        0x5F19,
+			tlvNode:       tlv.NewTlvConstructedNode(0x6C).AddChild(tlv.NewTlvSimpleNode(0x5F19, utils.HexToBytes("554E4954454420535441544553204445504152544D454E54204F46205354415445"))),
+			expDocDetails: DocumentDetails{IssuingAuthority: "UNITED STATES DEPARTMENT OF STATE"},
+		},
+		{
+			// 5F1A: OtherPersons: [1] SMITH, BRENDA P
+			//
+			// - sample taken from 'SUPPLEMENT to Doc 9303' (Release 11)
+			//
+			// 		‘6C’ ‘45’
+			//			...
+			// 			‘0A’ ‘15’
+			// 				‘02’ ‘01’ ‘01’
+			// 				‘5F1A’ ‘0F’ SMITH<<BRENDA<P
+			name:          "5F1A OtherPersons",
+			tlvTag:        0x5F1A,
+			tlvNode:       tlv.NewTlvConstructedNode(0x6C).AddChild(tlv.NewTlvConstructedNode(0xA0).AddChild(tlv.NewTlvSimpleNode(0x02, []byte{0x01})).AddChild(tlv.NewTlvSimpleNode(0x5F1A, utils.HexToBytes("534D4954483C3C4252454E44413C50")))),
+			expDocDetails: DocumentDetails{OtherPersons: []mrz.MrzName{{Primary: "SMITH", Secondary: "BRENDA P"}}},
+		},
+		{
+			// 5F1B: "SEE PAGE 51"
+			name:          "5F1B EndorsementsAndObservations",
+			tlvTag:        0x5F1B,
+			tlvNode:       tlv.NewTlvConstructedNode(0x6C).AddChild(tlv.NewTlvSimpleNode(0x5F1B, utils.HexToBytes("5345452050414745203531"))),
+			expDocDetails: DocumentDetails{EndorsementsAndObservations: "SEE PAGE 51"},
+		},
+		{
+			// 5F1C: "NOT APPLICABLE"
+			name:          "5F1C TaxExitRequirements",
+			tlvTag:        0x5F1C,
+			tlvNode:       tlv.NewTlvConstructedNode(0x6C).AddChild(tlv.NewTlvSimpleNode(0x5F1C, utils.HexToBytes("4E4F54204150504C494341424C45"))),
+			expDocDetails: DocumentDetails{TaxExitRequirements: "NOT APPLICABLE"},
+		},
+		{
+			// 5F1D: <image>
+			name:          "5F1D ImageFront",
+			tlvTag:        0x5F1D,
+			tlvNode:       tlv.NewTlvConstructedNode(0x6C).AddChild(tlv.NewTlvSimpleNode(0x5F1D, utils.HexToBytes("ffd8ffe000104a46494600010100000100010000ffdb004300ffdb004301010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101ffc0000b080001000101011100ffc40014000100000000000000000000000000000000ffc40014100100000000000000000000000000000000ffda0008010100003f00d2cf20ffd9"))),
+			expDocDetails: DocumentDetails{ImageFront: utils.HexToBytes("ffd8ffe000104a46494600010100000100010000ffdb004300ffdb004301010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101ffc0000b080001000101011100ffc40014000100000000000000000000000000000000ffc40014100100000000000000000000000000000000ffda0008010100003f00d2cf20ffd9")},
+		},
+		{
+			// 5F1E: <image>
+			name:          "5F1E ImageRear",
+			tlvTag:        0x5F1E,
+			tlvNode:       tlv.NewTlvConstructedNode(0x6C).AddChild(tlv.NewTlvSimpleNode(0x5F1E, utils.HexToBytes("ffd8ffe000104a46494600010100000100010000ffdb004300ffdb004301010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101ffc0000b080001000101011100ffc40014000100000000000000000000000000000000ffc40014100100000000000000000000000000000000ffda0008010100003f00d2cf20ffd9"))),
+			expDocDetails: DocumentDetails{ImageRear: utils.HexToBytes("ffd8ffe000104a46494600010100000100010000ffdb004300ffdb004301010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101ffc0000b080001000101011100ffc40014000100000000000000000000000000000000ffc40014100100000000000000000000000000000000ffda0008010100003f00d2cf20ffd9")},
+		},
+		{
+			// 5F26 (Date-of-issue): 4 bytes BCD 0x20210915
+			name:          "5F26 DateOfIssue - BCD encoded (4 bytes)",
+			tlvTag:        0x5F26,
+			tlvNode:       tlv.NewTlvConstructedNode(0x6C).AddChild(tlv.NewTlvSimpleNode(0x5F26, utils.HexToBytes("20210915"))),
+			expDocDetails: DocumentDetails{DateOfIssue: "20210915"},
+		},
+		{
+			// 5F26 (Date-of-issue): 8 bytes ASCII 0x3230313730393035
+			name:          "5F26 DateOfIssue - ASCII encoded (8 bytes)",
+			tlvTag:        0x5F26,
+			tlvNode:       tlv.NewTlvConstructedNode(0x6C).AddChild(tlv.NewTlvSimpleNode(0x5F26, utils.HexToBytes("3230313730393035"))),
+			expDocDetails: DocumentDetails{DateOfIssue: "20170905"},
+		},
+		{
+			// 5F55 (Perso-date-time): 7 bytes BCD 0x20171115013612
+			name:          "5F55 PersoDateTime - BCD encoded (7 bytes)",
+			tlvTag:        0x5F55,
+			tlvNode:       tlv.NewTlvConstructedNode(0x6C).AddChild(tlv.NewTlvSimpleNode(0x5F55, utils.HexToBytes("20171115013612"))),
+			expDocDetails: DocumentDetails{PersoDateTime: "20171115013612"},
+		},
+		{
+			// 5F55 (Perso-date-time): 14 bytes ASCII 0x3230313730393035
+			name:          "5F55 PersoDateTime - ASCII encoded (14 bytes)",
+			tlvTag:        0x5F55,
+			tlvNode:       tlv.NewTlvConstructedNode(0x6C).AddChild(tlv.NewTlvSimpleNode(0x5F55, utils.HexToBytes("3230313731313135303133363132"))),
+			expDocDetails: DocumentDetails{PersoDateTime: "20171115013612"},
+		},
+		{
+			// 5F56 (Perso-system-serial-number): "M-4060"
+			name:          "5F56 PersoSystemSerialNumber",
+			tlvTag:        0x5F56,
+			tlvNode:       tlv.NewTlvConstructedNode(0x6C).AddChild(tlv.NewTlvSimpleNode(0x5F56, utils.HexToBytes("4d2d34303630"))),
+			expDocDetails: DocumentDetails{PersoSystemSerialNumber: "M-4060"},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var docDetails DocumentDetails
+
+			err := docDetails.processTag(tc.tlvTag, tc.tlvNode)
+			if err != nil {
+				t.Errorf("Unexpected processTag error: %s", err)
+			}
+
+			// verify data
+			if !reflect.DeepEqual(tc.expDocDetails, docDetails) {
+				t.Errorf("DocumentDetails differs to expected [Exp] %+v [Act] %+v", tc.expDocDetails, docDetails)
+			}
+		})
+	}
+}
+
+func TestProcessTagErrors(t *testing.T) {
+	testCases := []struct {
+		name          string
+		tlvTag        tlv.TlvTag
+		tlvNode       tlv.TlvNode
+		errorContains string
+	}{
+		{
+			// 5F1A: OtherPersons: [1] SMITH, BRENDA P -> SMITH, BRENDA, P
+			name:          "5F1A OtherPersons",
+			tlvTag:        0x5F1A,
+			tlvNode:       tlv.NewTlvConstructedNode(0x6C).AddChild(tlv.NewTlvConstructedNode(0xA0).AddChild(tlv.NewTlvSimpleNode(0x02, []byte{0x01})).AddChild(tlv.NewTlvSimpleNode(0x5F1A, utils.HexToBytes("534D4954483C3C4252454E44413C3C50")))),
+			errorContains: "[ParseName] Incorrect number of name components: 3",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var docDetails DocumentDetails
+
+			err := docDetails.processTag(tc.tlvTag, tc.tlvNode)
+			if err == nil {
+				t.Errorf("Expected error")
+			}
+
+			if !bytes.Contains([]byte(err.Error()), []byte(tc.errorContains)) {
+				t.Errorf("Expected error to contain '%s', got: %s", tc.errorContains, err.Error())
+			}
+		})
 	}
 }
