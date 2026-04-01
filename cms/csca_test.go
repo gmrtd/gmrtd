@@ -295,7 +295,7 @@ func TestGermanMasterListError(t *testing.T) {
 
 	wantErr := errors.New("parse failure")
 
-	createCertPoolFromSignedDataFn = func(data []byte, rootCA []byte) (*SignedDataCertPool, error) {
+	createCertPoolFromSignedDataFn = func(data, rootCA []byte) (*SignedDataCertPool, error) {
 		if string(data) != string(de_masterList) {
 			t.Fatal("expected GermanMasterList to pass de_masterList")
 		}
@@ -325,7 +325,7 @@ func TestDutchMasterListError(t *testing.T) {
 
 	wantErr := errors.New("parse failure")
 
-	createCertPoolFromSignedDataFn = func(data []byte, rootCA []byte) (*SignedDataCertPool, error) {
+	createCertPoolFromSignedDataFn = func(data, rootCA []byte) (*SignedDataCertPool, error) {
 		if string(data) != string(nl_masterList) {
 			t.Fatal("expected DutchMasterList to pass nl_masterList")
 		}
