@@ -5,6 +5,14 @@ import (
 	"fmt"
 )
 
+var (
+	createCertPoolFromSignedDataFn = CreateCertPoolFromSignedData
+
+	germanMasterListFn          = GermanMasterList
+	dutchMasterListFn           = DutchMasterList
+	indonesian2010SeriesCertsFn = Indonesian2010SeriesCerts
+)
+
 /*
 * Load the (DE) Master List
 * https://www.bsi.bund.de/EN/Themen/Oeffentliche-Verwaltung/Elektronische-Identitaeten/Public-Key-Infrastrukturen/CSCA/Root_Cert_Germany/Root_Certificate_node.html
@@ -41,18 +49,18 @@ func DefaultMasterList() (*CombinedCertPool, error) {
 
 	// German
 	{
-		tmpCertPool, err := GermanMasterList()
+		tmpCertPool, err := germanMasterListFn()
 		if err != nil {
-			return nil, fmt.Errorf("[DefaultMasterList] GermanMasterList error: %w", err)
+			return nil, fmt.Errorf("[DefaultMasterList] germanMasterListFn error: %w", err)
 		}
 		out.AddCertPool(tmpCertPool)
 	}
 
 	// Dutch
 	{
-		tmpCertPool, err := DutchMasterList()
+		tmpCertPool, err := dutchMasterListFn()
 		if err != nil {
-			return nil, fmt.Errorf("[DefaultMasterList] DutchMasterList error: %w", err)
+			return nil, fmt.Errorf("[DefaultMasterList] dutchMasterListFn error: %w", err)
 		}
 		out.AddCertPool(tmpCertPool)
 	}
@@ -60,9 +68,9 @@ func DefaultMasterList() (*CombinedCertPool, error) {
 	// Indonesia: 2010 CSCA Series Certificate(s)
 	// - these are not part of ICAO PKD as Indonesia manages two separate CSCAs (see https://www.imigrasi.go.id/csca)
 	{
-		tmpCertPool, err := Indonesian2010SeriesCerts()
+		tmpCertPool, err := indonesian2010SeriesCertsFn()
 		if err != nil {
-			return nil, fmt.Errorf("[DefaultMasterList] Indonesian2010SeriesCerts error: %w", err)
+			return nil, fmt.Errorf("[DefaultMasterList] indonesian2010SeriesCertsFn error: %w", err)
 		}
 		out.AddCertPool(tmpCertPool)
 	}
@@ -71,34 +79,30 @@ func DefaultMasterList() (*CombinedCertPool, error) {
 }
 
 func GermanMasterList() (*SignedDataCertPool, error) {
-	return CreateCertPoolFromSignedData(de_masterList, de_masterListRootCA)
+	return createCertPoolFromSignedDataFn(de_masterList, de_masterListRootCA)
 }
 
 func DutchMasterList() (*SignedDataCertPool, error) {
-	return CreateCertPoolFromSignedData(nl_masterList, nl_masterListRootCA)
+	return createCertPoolFromSignedDataFn(nl_masterList, nl_masterListRootCA)
 }
 
 func Indonesian2010SeriesCerts() (*GenericCertPool, error) {
-	// Note: Indonesia manages two seperate CSCAs (2010/2018 series)!
-	//
-	// Only the 2018 series is published via ICAO PKD (and NL Master-List).
-	//
-	// As such we need to directly load the 2010 Series (for which there will not
-	// be any new CSCA certs issued) based on the certs published at:
-	// - https://www.imigrasi.go.id/csca
+	return genericCertPoolFromCerts(
+		[][]byte{
+			id_2010series_2010,
+			id_2010series_2016,
+			id_2010series_2020,
+		},
+	)
+}
+
+func genericCertPoolFromCerts(certs [][]byte) (*GenericCertPool, error) {
 	var certPool GenericCertPool
-	var err error
 
-	if err = certPool.Add(id_2010series_2010); err != nil {
-		return nil, fmt.Errorf("[GetIndonesian2010SeriesCerts] Error adding 2010 cert: %w", err)
-	}
-
-	if err = certPool.Add(id_2010series_2016); err != nil {
-		return nil, fmt.Errorf("[GetIndonesian2010SeriesCerts] Error adding 2016 cert: %w", err)
-	}
-
-	if err = certPool.Add(id_2010series_2020); err != nil {
-		return nil, fmt.Errorf("[GetIndonesian2010SeriesCerts] Error adding 2020 cert: %w", err)
+	for i, cert := range certs {
+		if err := certPool.Add(cert); err != nil {
+			return nil, fmt.Errorf("[genericCertPoolFromCerts] certPool.Add(i:%d) error: %w", i, err)
+		}
 	}
 
 	return &certPool, nil
