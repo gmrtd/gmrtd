@@ -3,6 +3,8 @@ package cms
 import (
 	"bytes"
 	"encoding/asn1"
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
@@ -154,4 +156,226 @@ func verifySignatureAgainstCerts(parentCerts []Certificate, digestAlg asn1.Objec
 	}
 
 	return false
+}
+
+func TestDefaultMasterListGermanError(t *testing.T) {
+	origGerman := germanMasterListFn
+	origDutch := dutchMasterListFn
+	origID := indonesian2010SeriesCertsFn
+	defer func() {
+		germanMasterListFn = origGerman
+		dutchMasterListFn = origDutch
+		indonesian2010SeriesCertsFn = origID
+	}()
+
+	wantErr := errors.New("german boom")
+
+	germanMasterListFn = func() (*SignedDataCertPool, error) {
+		return nil, wantErr
+	}
+	dutchMasterListFn = func() (*SignedDataCertPool, error) {
+		t.Fatal("dutchMasterListFn should not be called after german failure")
+		return nil, nil
+	}
+	indonesian2010SeriesCertsFn = func() (*GenericCertPool, error) {
+		t.Fatal("indonesian2010SeriesCertsFn should not be called after german failure")
+		return nil, nil
+	}
+
+	got, err := DefaultMasterList()
+	if got != nil {
+		t.Fatalf("expected nil result, got %#v", got)
+	}
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("expected wrapped error %v, got %v", wantErr, err)
+	}
+	if !strings.Contains(err.Error(), "[DefaultMasterList] germanMasterListFn error") {
+		t.Fatalf("expected context in error, got %q", err.Error())
+	}
+}
+
+func TestDefaultMasterListDutchError(t *testing.T) {
+	origGerman := germanMasterListFn
+	origDutch := dutchMasterListFn
+	origID := indonesian2010SeriesCertsFn
+	defer func() {
+		germanMasterListFn = origGerman
+		dutchMasterListFn = origDutch
+		indonesian2010SeriesCertsFn = origID
+	}()
+
+	wantErr := errors.New("dutch boom")
+	germanCalled := false
+
+	germanMasterListFn = func() (*SignedDataCertPool, error) {
+		germanCalled = true
+		return &SignedDataCertPool{}, nil
+	}
+	dutchMasterListFn = func() (*SignedDataCertPool, error) {
+		return nil, wantErr
+	}
+	indonesian2010SeriesCertsFn = func() (*GenericCertPool, error) {
+		t.Fatal("indonesian2010SeriesCertsFn should not be called after dutch failure")
+		return nil, nil
+	}
+
+	got, err := DefaultMasterList()
+	if !germanCalled {
+		t.Fatal("expected germanMasterListFn to be called")
+	}
+	if got != nil {
+		t.Fatalf("expected nil result, got %#v", got)
+	}
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("expected wrapped error %v, got %v", wantErr, err)
+	}
+	if !strings.Contains(err.Error(), "[DefaultMasterList] dutchMasterListFn error") {
+		t.Fatalf("expected context in error, got %q", err.Error())
+	}
+}
+
+func TestDefaultMasterListIndonesianError(t *testing.T) {
+	origGerman := germanMasterListFn
+	origDutch := dutchMasterListFn
+	origID := indonesian2010SeriesCertsFn
+	defer func() {
+		germanMasterListFn = origGerman
+		dutchMasterListFn = origDutch
+		indonesian2010SeriesCertsFn = origID
+	}()
+
+	wantErr := errors.New("indonesian boom")
+	germanCalled := false
+	dutchCalled := false
+
+	germanMasterListFn = func() (*SignedDataCertPool, error) {
+		germanCalled = true
+		return &SignedDataCertPool{}, nil
+	}
+	dutchMasterListFn = func() (*SignedDataCertPool, error) {
+		dutchCalled = true
+		return &SignedDataCertPool{}, nil
+	}
+	indonesian2010SeriesCertsFn = func() (*GenericCertPool, error) {
+		return nil, wantErr
+	}
+
+	got, err := DefaultMasterList()
+	if !germanCalled {
+		t.Fatal("expected germanMasterListFn to be called")
+	}
+	if !dutchCalled {
+		t.Fatal("expected dutchMasterListFn to be called")
+	}
+	if got != nil {
+		t.Fatalf("expected nil result, got %#v", got)
+	}
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("expected wrapped error %v, got %v", wantErr, err)
+	}
+	if !strings.Contains(err.Error(), "[DefaultMasterList] indonesian2010SeriesCertsFn error") {
+		t.Fatalf("expected context in error, got %q", err.Error())
+	}
+}
+
+func TestGermanMasterListError(t *testing.T) {
+	orig := createCertPoolFromSignedDataFn
+	defer func() {
+		createCertPoolFromSignedDataFn = orig
+	}()
+
+	wantErr := errors.New("parse failure")
+
+	createCertPoolFromSignedDataFn = func(data []byte, rootCA []byte) (*SignedDataCertPool, error) {
+		if string(data) != string(de_masterList) {
+			t.Fatal("expected GermanMasterList to pass de_masterList")
+		}
+		if string(rootCA) != string(de_masterListRootCA) {
+			t.Fatal("expected GermanMasterList to pass de_masterListRootCA")
+		}
+		return nil, wantErr
+	}
+
+	got, err := GermanMasterList()
+	if got != nil {
+		t.Fatalf("expected nil result, got %#v", got)
+	}
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("expected wrapped error %v, got %v", wantErr, err)
+	}
+}
+
+func TestDutchMasterListError(t *testing.T) {
+	orig := createCertPoolFromSignedDataFn
+	defer func() {
+		createCertPoolFromSignedDataFn = orig
+	}()
+
+	wantErr := errors.New("parse failure")
+
+	createCertPoolFromSignedDataFn = func(data []byte, rootCA []byte) (*SignedDataCertPool, error) {
+		if string(data) != string(nl_masterList) {
+			t.Fatal("expected DutchMasterList to pass nl_masterList")
+		}
+		if string(rootCA) != string(nl_masterListRootCA) {
+			t.Fatal("expected DutchMasterList to pass nl_masterListRootCA")
+		}
+		return nil, wantErr
+	}
+
+	got, err := DutchMasterList()
+	if got != nil {
+		t.Fatalf("expected nil result, got %#v", got)
+	}
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("expected wrapped error %v, got %v", wantErr, err)
+	}
+}
+
+func TestGenericCertPoolFromCertsFirstCertInvalid(t *testing.T) {
+	got, err := genericCertPoolFromCerts([][]byte{
+		[]byte("not-a-cert"),
+	})
+
+	if got != nil {
+		t.Fatalf("expected nil result, got %#v", got)
+	}
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "[genericCertPoolFromCerts] certPool.Add(i:0) error") {
+		t.Fatalf("expected index/context in error, got %q", err.Error())
+	}
+}
+
+func TestGenericCertPoolFromCertsSecondCertInvalid(t *testing.T) {
+	got, err := genericCertPoolFromCerts([][]byte{
+		id_2010series_2010,
+		[]byte("not-a-cert"),
+	})
+
+	if got != nil {
+		t.Fatalf("expected nil result, got %#v", got)
+	}
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "[genericCertPoolFromCerts] certPool.Add(i:1) error") {
+		t.Fatalf("expected index/context in error, got %q", err.Error())
+	}
 }
