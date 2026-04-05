@@ -603,13 +603,13 @@ func asn1decodeBytes(data []byte) []byte {
 	return out
 }
 
-func Asn1decodeSubjectPublicKeyInfo(data []byte) SubjectPublicKeyInfo {
+func Asn1decodeSubjectPublicKeyInfo(data []byte) (SubjectPublicKeyInfo, error) {
 	var out SubjectPublicKeyInfo
 	err := utils.ParseAsn1(data, false, &out)
 	if err != nil {
-		log.Panicf("(asn1decodeSubjectPublicKeyInfo) Unexpected ASN1 parsing error: %s", err)
+		return SubjectPublicKeyInfo{}, fmt.Errorf("[Asn1decodeSubjectPublicKeyInfo] ParseAsn1 error: %w", err)
 	}
-	return out
+	return out, nil
 }
 
 type EcNamedCurve struct {
@@ -686,7 +686,7 @@ func (subPubKeyInfo *SubjectPublicKeyInfo) EcCurveAndPubKey() (curve *elliptic.C
 	return curve, pubKey, nil
 }
 
-func (subPubKeyInfo *SubjectPublicKeyInfo) RsaPubKey() *cryptoutils.RsaPublicKey {
+func (subPubKeyInfo *SubjectPublicKeyInfo) RsaPubKey() (*cryptoutils.RsaPublicKey, error) {
 	var err error
 	var out cryptoutils.RsaPublicKey
 
@@ -694,16 +694,21 @@ func (subPubKeyInfo *SubjectPublicKeyInfo) RsaPubKey() *cryptoutils.RsaPublicKey
 	{
 		var expOid asn1.ObjectIdentifier = oid.OidRsaEncryption
 		if !subPubKeyInfo.Algorithm.Algorithm.Equal(expOid) {
-			log.Panicf("(SubjectPublicKeyInfoGetRsaPubKey) Algorithm differs to expected (exp:%s) (act:%s)", expOid.String(), subPubKeyInfo.Algorithm.Algorithm.String())
+			return nil, fmt.Errorf("[RsaPubKey] Algorithm differs to expected (exp:%s) (act:%s)", expOid.String(), subPubKeyInfo.Algorithm.Algorithm.String())
 		}
 	}
 
 	err = utils.ParseAsn1(subPubKeyInfo.SubjectPublicKey.Bytes, false, &out)
 	if err != nil {
-		log.Panicf("(SubjectPublicKeyInfo.RsaPubKey) Unexpected ASN1 parsing error: %s", err)
+		return nil, fmt.Errorf("[RsaPubKey] ParseAsn1 error: %w", err)
 	}
 
-	return &out
+	// sanity check to ensure that N and E are present, and non-zero
+	if out.N == nil || out.N.Sign() == 0 || out.E == 0 {
+		return nil, fmt.Errorf("[decodeRSAPublicKey] missing pubKey, N or E")
+	}
+
+	return &out, nil
 }
 
 type ECSpecifiedDomain struct {

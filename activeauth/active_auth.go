@@ -199,7 +199,12 @@ func (activeAuth *ActiveAuth) DoActiveAuth() (result *document.ActiveAuthResult,
 func ValidateActiveAuthSignature(dg15 *document.DG15, intAuthRspBytes, rndIfd []byte) (result *document.ActiveAuthResult, err error) {
 	var errContext string
 
-	var subPubKeyInfo cms.SubjectPublicKeyInfo = cms.Asn1decodeSubjectPublicKeyInfo(dg15.SubjectPublicKeyInfoBytes)
+	var subPubKeyInfo cms.SubjectPublicKeyInfo
+
+	subPubKeyInfo, err = cms.Asn1decodeSubjectPublicKeyInfo(dg15.SubjectPublicKeyInfoBytes)
+	if err != nil {
+		return nil, fmt.Errorf("[ValidateActiveAuthSignature]Asn1decodeSubjectPublicKeyInfo error: %w", err)
+	}
 
 	// setup result - but set success to FALSE (initially)
 	result = &document.ActiveAuthResult{Success: false, Algorithm: subPubKeyInfo.Algorithm.Algorithm, Nonce: bytes.Clone(rndIfd), Signature: bytes.Clone(intAuthRspBytes)}
@@ -207,7 +212,12 @@ func ValidateActiveAuthSignature(dg15 *document.DG15, intAuthRspBytes, rndIfd []
 	switch subPubKeyInfo.Algorithm.Algorithm.String() {
 	case oid.OidRsaEncryption.String():
 		{
-			var pubKey *cryptoutils.RsaPublicKey = subPubKeyInfo.RsaPubKey()
+			var pubKey *cryptoutils.RsaPublicKey
+
+			pubKey, err = subPubKeyInfo.RsaPubKey()
+			if err != nil {
+				return result, fmt.Errorf("(ValidateActiveAuthSignature) RsaPubKey error: %w", err)
+			}
 
 			// S = rapdu-data
 			s := intAuthRspBytes
