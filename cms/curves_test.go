@@ -34,7 +34,7 @@ func TestGetCurveName(t *testing.T) {
 	}
 }
 
-func TestParseEcdsaSignature(t *testing.T) {
+func TestParseAndValidateEcdsaSignature(t *testing.T) {
 	// Valid ECDSA signature from LTU passport logs
 	validSig := []byte{
 		0x30, 0x3e, // SEQUENCE, length 62
@@ -50,7 +50,7 @@ func TestParseEcdsaSignature(t *testing.T) {
 		0x87, 0x2e, 0x31, 0x1d,
 	}
 
-	r, s, err := parseEcdsaSignature(validSig)
+	r, s, err := parseECDSASignature(validSig)
 	if err != nil {
 		t.Errorf("parseEcdsaSignature failed on valid signature: %s", err)
 	}
@@ -69,17 +69,17 @@ func TestParseEcdsaSignature(t *testing.T) {
 	})
 
 	if r.Cmp(expectedR) != 0 {
-		t.Errorf("parseEcdsaSignature R value mismatch: expected %x, got %x", expectedR, r)
+		t.Errorf("parseECDSASignature R value mismatch: expected %x, got %x", expectedR, r)
 	}
 	if s.Cmp(expectedS) != 0 {
-		t.Errorf("parseEcdsaSignature S value mismatch: expected %x, got %x", expectedS, s)
+		t.Errorf("parseECDSASignature S value mismatch: expected %x, got %x", expectedS, s)
 	}
 
 	// Test invalid signature
 	invalidSig := []byte{0x30, 0x01, 0x02} // Malformed ASN.1
-	_, _, err = parseEcdsaSignature(invalidSig)
+	_, _, err = parseECDSASignature(invalidSig)
 	if err == nil {
-		t.Errorf("parseEcdsaSignature should fail on invalid signature")
+		t.Errorf("parseECDSASignature should fail on invalid signature")
 	}
 }
 

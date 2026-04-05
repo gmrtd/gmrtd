@@ -1,7 +1,14 @@
 package cms
 
 import (
+	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rsa"
 	"encoding/asn1"
+	"errors"
+	"fmt"
+	"math/big"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
@@ -170,22 +177,380 @@ func TestVerifySignature(t *testing.T) {
 		},
 	}
 	for i, tc := range testCases {
-		digest, err := cryptoutils.CryptoHashByOid(tc.digestAlg, tc.data)
-		if err != nil {
-			t.Errorf("Test case %d: CryptoHashByOid error: %s", i, err)
-		}
-
-		err = VerifySignature(tc.keyDer, tc.digestAlg, digest, tc.signatureAlg, tc.signature)
-
-		if tc.expSuccess {
+		t.Run(fmt.Sprintf("case_%d", i), func(t *testing.T) {
+			digest, err := cryptoutils.CryptoHashByOid(tc.digestAlg, tc.data)
 			if err != nil {
-				t.Errorf("Test case %d: Unexpected error: %s", i, err)
+				t.Errorf("Test case %d: CryptoHashByOid error: %s", i, err)
 			}
-		} else {
-			if err == nil {
-				t.Errorf("Test case %d: Error expected", i)
+
+			err = VerifySignature(tc.keyDer, tc.digestAlg, digest, tc.signatureAlg, tc.signature)
+
+			if tc.expSuccess {
+				if err != nil {
+					t.Errorf("Test case %d: Unexpected error: %s", i, err)
+				}
+			} else {
+				if err == nil {
+					t.Errorf("Test case %d: Error expected", i)
+				}
 			}
-		}
+		})
 	}
 }
 
+func TestParseAndValidateECDSASignature(t *testing.T) {
+	type ecdsaSignature struct {
+		R, S *big.Int
+	}
+
+	tests := []struct {
+		name    string
+		input   func(t *testing.T) []byte
+		wantR   *big.Int
+		wantS   *big.Int
+		wantErr bool
+	}{
+		{
+			name: "valid signature",
+			input: func(t *testing.T) []byte {
+				t.Helper()
+
+				der, err := asn1.Marshal(ecdsaSignature{
+					R: big.NewInt(123),
+					S: big.NewInt(456),
+				})
+				if err != nil {
+					t.Fatalf("asn1.Marshal: %v", err)
+				}
+				return der
+			},
+			wantR:   big.NewInt(123),
+			wantS:   big.NewInt(456),
+			wantErr: false,
+		},
+		{
+			name: "invalid asn1",
+			input: func(t *testing.T) []byte {
+				t.Helper()
+				return []byte{0xff, 0x01, 0x02}
+			},
+			wantErr: true,
+		},
+		{
+			name: "trailing data",
+			input: func(t *testing.T) []byte {
+				t.Helper()
+
+				der, err := asn1.Marshal(ecdsaSignature{
+					R: big.NewInt(1),
+					S: big.NewInt(2),
+				})
+				if err != nil {
+					t.Fatalf("asn1.Marshal: %v", err)
+				}
+
+				return append(der, 0x00)
+			},
+			wantErr: true,
+		},
+		{
+			name: "zero values are allowed by parser",
+			input: func(t *testing.T) []byte {
+				t.Helper()
+
+				der, err := asn1.Marshal(ecdsaSignature{
+					R: big.NewInt(0),
+					S: big.NewInt(0),
+				})
+				if err != nil {
+					t.Fatalf("asn1.Marshal: %v", err)
+				}
+				return der
+			},
+			wantR:   big.NewInt(0),
+			wantS:   big.NewInt(0),
+			wantErr: false,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			r, s, err := parseECDSASignature(tc.input(t))
+
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if r == nil || s == nil {
+				t.Fatalf("expected non-nil R and S, got R=%v S=%v", r, s)
+			}
+			if r.Cmp(tc.wantR) != 0 {
+				t.Fatalf("unexpected R: got %s want %s", r.String(), tc.wantR.String())
+			}
+			if s.Cmp(tc.wantS) != 0 {
+				t.Fatalf("unexpected S: got %s want %s", s.String(), tc.wantS.String())
+			}
+		})
+	}
+}
+
+func TestVerifySignatureUnsupportedSignatureAlgorithm(t *testing.T) {
+	unsupportedSigAlg := asn1.ObjectIdentifier{1, 2, 3, 4, 5}
+
+	err := VerifySignature(
+		[]byte{0x01, 0x02},                // pubKeyInfo
+		asn1.ObjectIdentifier{2, 16, 840}, // digestAlg
+		[]byte{0xaa, 0xbb},                // digest
+		unsupportedSigAlg,                 // sigAlg
+		[]byte{0xcc, 0xdd},                // sig
+	)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestVerifyECDSASignatureDecodePublicKeyError(t *testing.T) {
+	origDecode := decodeECDSAPublicKeyFn
+	defer func() {
+		decodeECDSAPublicKeyFn = origDecode
+	}()
+
+	wantErr := errors.New("decode public key failed")
+
+	decodeECDSAPublicKeyFn = func(pubKeyInfo []byte) (*ecdsa.PublicKey, error) {
+		return nil, wantErr
+	}
+
+	err := verifyECDSASignature([]byte{0x01}, []byte("digest"), []byte("sig"))
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("expected decode error %v, got %v", wantErr, err)
+	}
+}
+
+func TestVerifyECDSASignatureParseSignatureError(t *testing.T) {
+	origDecode := decodeECDSAPublicKeyFn
+	defer func() {
+		decodeECDSAPublicKeyFn = origDecode
+	}()
+
+	decodeECDSAPublicKeyFn = func(pubKeyInfo []byte) (*ecdsa.PublicKey, error) {
+		return &ecdsa.PublicKey{
+			Curve: elliptic.P256(),
+			X:     big.NewInt(1),
+			Y:     big.NewInt(1),
+		}, nil
+	}
+
+	// Invalid ASN.1 so parseAndValidateECDSASignature(sig) fails.
+	badSig := []byte{0xff, 0x00, 0x01}
+
+	err := verifyECDSASignature([]byte("pub"), []byte("digest"), badSig)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestVerifyRSAPKCS1SignatureDecodeRSAPublicKeyError(t *testing.T) {
+	origDecode := decodeRSAPublicKeyFn
+	defer func() {
+		decodeRSAPublicKeyFn = origDecode
+	}()
+
+	wantErr := errors.New("decode RSA public key failed")
+
+	decodeRSAPublicKeyFn = func(pubKeyInfo []byte) (*rsa.PublicKey, error) {
+		return nil, wantErr
+	}
+
+	err := verifyRSAPKCS1Signature(
+		[]byte{0x01},
+		asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 2, 1},
+		[]byte("digest"),
+		[]byte("sig"),
+	)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("expected decode error %v, got %v", wantErr, err)
+	}
+}
+
+func TestVerifyRSAPKCS1SignatureCryptoHashOidToAlgError(t *testing.T) {
+	origDecode := decodeRSAPublicKeyFn
+	origHash := cryptoHashOidToAlgFn
+	defer func() {
+		decodeRSAPublicKeyFn = origDecode
+		cryptoHashOidToAlgFn = origHash
+	}()
+
+	decodeRSAPublicKeyFn = func(pubKeyInfo []byte) (*rsa.PublicKey, error) {
+		return &rsa.PublicKey{}, nil
+	}
+
+	wantErr := fmt.Errorf("hash oid error")
+
+	cryptoHashOidToAlgFn = func(oid asn1.ObjectIdentifier) (crypto.Hash, error) {
+		return 0, wantErr
+	}
+
+	digestAlg := asn1.ObjectIdentifier{1, 2, 3, 4, 5}
+
+	err := verifyRSAPKCS1Signature(
+		[]byte("pub"),
+		digestAlg,
+		[]byte("digest"),
+		[]byte("sig"),
+	)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("expected wrapped hash conversion error %v, got %v", wantErr, err)
+	}
+}
+
+func TestVerifyRSAPKCS1SignatureCryptoHashOidToAlgErrorDoesNotCallVerifier(t *testing.T) {
+	origDecode := decodeRSAPublicKeyFn
+	origHash := cryptoHashOidToAlgFn
+	origVerify := rsaVerifyPKCS1v15Fn
+	defer func() {
+		decodeRSAPublicKeyFn = origDecode
+		cryptoHashOidToAlgFn = origHash
+		rsaVerifyPKCS1v15Fn = origVerify
+	}()
+
+	decodeRSAPublicKeyFn = func(pubKeyInfo []byte) (*rsa.PublicKey, error) {
+		return &rsa.PublicKey{}, nil
+	}
+
+	wantErr := errors.New("bad hash oid")
+
+	cryptoHashOidToAlgFn = func(oid asn1.ObjectIdentifier) (crypto.Hash, error) {
+		return 0, wantErr
+	}
+
+	rsaVerifyPKCS1v15Fn = func(pub *rsa.PublicKey, hash crypto.Hash, digest []byte, sig []byte) error {
+		t.Fatal("rsaVerifyPKCS1v15Fn should not be called when hash OID conversion fails")
+		return nil
+	}
+
+	err := verifyRSAPKCS1Signature(
+		[]byte("pub"),
+		asn1.ObjectIdentifier{9, 9, 9},
+		[]byte("digest"),
+		[]byte("sig"),
+	)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestVerifyRSAPSSSignatureDecodeRSAPublicKeyError(t *testing.T) {
+	origDecode := decodeRSAPublicKeyFn
+	defer func() {
+		decodeRSAPublicKeyFn = origDecode
+	}()
+
+	wantErr := fmt.Errorf("rsa public key error")
+
+	decodeRSAPublicKeyFn = func(pubKeyInfo []byte) (*rsa.PublicKey, error) {
+		return nil, wantErr
+	}
+
+	err := verifyRSAPSSSignature(
+		[]byte{0x01},
+		asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 2, 1},
+		[]byte("digest"),
+		[]byte("sig"),
+	)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("expected decode error %v, got %v", wantErr, err)
+	}
+}
+
+func TestVerifyRSAPSSSignatureCryptoHashOidToAlgError(t *testing.T) {
+	origDecode := decodeRSAPublicKeyFn
+	origHash := cryptoHashOidToAlgFn
+	defer func() {
+		decodeRSAPublicKeyFn = origDecode
+		cryptoHashOidToAlgFn = origHash
+	}()
+
+	decodeRSAPublicKeyFn = func(pubKeyInfo []byte) (*rsa.PublicKey, error) {
+		return &rsa.PublicKey{}, nil
+	}
+
+	wantErr := fmt.Errorf("hash oid error")
+
+	cryptoHashOidToAlgFn = func(oid asn1.ObjectIdentifier) (crypto.Hash, error) {
+		return 0, wantErr
+	}
+
+	digestAlg := asn1.ObjectIdentifier{1, 2, 3, 4, 5}
+
+	err := verifyRSAPSSSignature(
+		[]byte("pub"),
+		digestAlg,
+		[]byte("digest"),
+		[]byte("sig"),
+	)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("expected wrapped hash conversion error %v, got %v", wantErr, err)
+	}
+}
+
+func TestVerifyRSAPSSSignatureCryptoHashOidToAlgErrorDoesNotCallVerifier(t *testing.T) {
+	origDecode := decodeRSAPublicKeyFn
+	origHash := cryptoHashOidToAlgFn
+	origVerify := rsaVerifyPSSFn
+	defer func() {
+		decodeRSAPublicKeyFn = origDecode
+		cryptoHashOidToAlgFn = origHash
+		rsaVerifyPSSFn = origVerify
+	}()
+
+	decodeRSAPublicKeyFn = func(pubKeyInfo []byte) (*rsa.PublicKey, error) {
+		return &rsa.PublicKey{}, nil
+	}
+
+	wantErr := fmt.Errorf("hash oid error")
+
+	cryptoHashOidToAlgFn = func(oid asn1.ObjectIdentifier) (crypto.Hash, error) {
+		return 0, wantErr
+	}
+
+	rsaVerifyPSSFn = func(pub *rsa.PublicKey, hash crypto.Hash, digest []byte, sig []byte, opts *rsa.PSSOptions) error {
+		t.Fatal("rsaVerifyPSSFn should not be called when hash OID conversion fails")
+		return nil
+	}
+
+	err := verifyRSAPSSSignature(
+		[]byte("pub"),
+		asn1.ObjectIdentifier{9, 9, 9},
+		[]byte("digest"),
+		[]byte("sig"),
+	)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("expected wrapped error %v, got %v", wantErr, err)
+	}
+}
