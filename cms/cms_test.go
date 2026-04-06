@@ -1,10 +1,13 @@
 package cms
 
 import (
+	"crypto/elliptic"
 	"encoding/asn1"
 	"fmt"
+	"math/big"
 	"testing"
 
+	"github.com/gmrtd/gmrtd/cryptoutils"
 	"github.com/gmrtd/gmrtd/oid"
 	"github.com/gmrtd/gmrtd/utils"
 )
@@ -138,5 +141,181 @@ func TestRsaPubKeyZeroExponentError(t *testing.T) {
 	_, err := spki.RsaPubKey()
 	if err == nil {
 		t.Fatalf("Error expected")
+	}
+}
+
+func TestValidateRSAPublicKey(t *testing.T) {
+	tests := []struct {
+		name    string
+		pubKey  cryptoutils.RsaPublicKey
+		wantErr bool
+	}{
+		{
+			name: "valid key",
+			pubKey: cryptoutils.RsaPublicKey{
+				N: big.NewInt(12345),
+				E: 65537,
+			},
+			wantErr: false,
+		},
+		{
+			name: "nil modulus",
+			pubKey: cryptoutils.RsaPublicKey{
+				N: nil,
+				E: 65537,
+			},
+			wantErr: true,
+		},
+		{
+			name: "zero modulus",
+			pubKey: cryptoutils.RsaPublicKey{
+				N: big.NewInt(0),
+				E: 65537,
+			},
+			wantErr: true,
+		},
+		{
+			name: "negative modulus",
+			pubKey: cryptoutils.RsaPublicKey{
+				N: big.NewInt(-12345),
+				E: 65537,
+			},
+			wantErr: true,
+		},
+		{
+			name: "zero exponent",
+			pubKey: cryptoutils.RsaPublicKey{
+				N: big.NewInt(12345),
+				E: 0,
+			},
+			wantErr: true,
+		},
+		{
+			name: "negative exponent",
+			pubKey: cryptoutils.RsaPublicKey{
+				N: big.NewInt(12345),
+				E: -3,
+			},
+			wantErr: true,
+		},
+		{
+			name: "exponent one",
+			pubKey: cryptoutils.RsaPublicKey{
+				N: big.NewInt(12345),
+				E: 1,
+			},
+			wantErr: true,
+		},
+		{
+			name: "even exponent",
+			pubKey: cryptoutils.RsaPublicKey{
+				N: big.NewInt(12345),
+				E: 2,
+			},
+			wantErr: true,
+		},
+		{
+			name: "small valid odd exponent",
+			pubKey: cryptoutils.RsaPublicKey{
+				N: big.NewInt(12345),
+				E: 3,
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateRsaPublicKey(tt.pubKey)
+
+			if !tt.wantErr {
+				if err != nil {
+					t.Fatalf("expected no error, got: %v", err)
+				}
+				return
+			}
+
+			// error expected
+			if err == nil {
+				t.Fatalf("expected error")
+			}
+		})
+	}
+}
+
+func TestSubjectPublicKeyInfoKeyTypeHandling(t *testing.T) {
+	tests := []struct {
+		name                string
+		derHex              string
+		ecCurve             elliptic.Curve
+		wantIsEC            bool
+		wantIsRSA           bool
+		expectRsaPubKeyErr  bool
+		expectEcCurveErr    bool
+		expectEcPubKeyErr   bool
+		expectEcCurvePubErr bool
+	}{
+		{
+			name:                "EC key (P384)",
+			derHex:              "3076301006072a8648ce3d020106052b81040022036200048aca5f821170fa4d8233c7f23f795792af42e791045bdf55989684aa16d1027d27541b0226d665c50e0ff76f91f5aeebf6af5178c02204045aa43002c893ed2b800cafa1e42cb47f80a21a6f0c3a2919bc5242c21daca5f4ec3c270e5620eb7c",
+			ecCurve:             elliptic.P384(),
+			wantIsEC:            true,
+			wantIsRSA:           false,
+			expectRsaPubKeyErr:  true,
+			expectEcCurveErr:    false,
+			expectEcPubKeyErr:   false,
+			expectEcCurvePubErr: false,
+		},
+		{
+			name:                "RSA key",
+			derHex:              "30820122300d06092a864886f70d01010105000382010f003082010a0282010100c2c4a860236d3c9096a076d6ba5107e0f7bd81e1ba916f7375724bd2b0b0b63956813715a3457ab0458b71fb35a45b27f9ef7ac3e579dea45dfbfd07819ed6b7021aa5336c58442aadd96ca9ee9d32473e9d9278562b4d10258ade6a98fb1c7cfdc3b3716ef5dec58cf73b359f389599b4b5865a9863519eb001c324387da755450db341309360e3807c0565b8e2c44fbd5e6e8d04d006d7ee768b8e8436082a90fa0e837f32f46087ab4a0d9be28aa7da1794ceb0172a7f50ed20f6df641efbcbfd2aac89775c761a7310093c671c977fa18b0d6e01fb25f7a432b42c65359784c689205719c1cf6e3a65dae2da434c326dde81bb6ffffbdbf6de5c16bba7490203010001",
+			ecCurve:             elliptic.P256(),
+			wantIsEC:            false,
+			wantIsRSA:           true,
+			expectRsaPubKeyErr:  false,
+			expectEcCurveErr:    true,
+			expectEcPubKeyErr:   true,
+			expectEcCurvePubErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data := utils.HexToBytes(tt.derHex)
+
+			spki, err := Asn1decodeSubjectPublicKeyInfo(data)
+			if err != nil {
+				t.Fatalf("Asn1decodeSubjectPublicKeyInfo() unexpected error: %v", err)
+			}
+
+			if got := spki.IsEC(); got != tt.wantIsEC {
+				t.Fatalf("IsEC() = %v, want %v", got, tt.wantIsEC)
+			}
+
+			if got := spki.IsRSA(); got != tt.wantIsRSA {
+				t.Fatalf("IsRSA() = %v, want %v", got, tt.wantIsRSA)
+			}
+
+			_, err = spki.RsaPubKey()
+			if (err != nil) != tt.expectRsaPubKeyErr {
+				t.Fatalf("RsaPubKey() error = %v, expectErr %v", err, tt.expectRsaPubKeyErr)
+			}
+
+			_, err = spki.EcCurve()
+			if (err != nil) != tt.expectEcCurveErr {
+				t.Fatalf("EcCurve() error = %v, expectErr %v", err, tt.expectEcCurveErr)
+			}
+
+			_, err = spki.EcPubKeyForCurve(tt.ecCurve)
+			if (err != nil) != tt.expectEcPubKeyErr {
+				t.Fatalf("EcPubKeyForCurve(P256) error = %v, expectErr %v", err, tt.expectEcPubKeyErr)
+			}
+
+			_, _, err = spki.EcCurveAndPubKey(true)
+			if (err != nil) != tt.expectEcCurvePubErr {
+				t.Fatalf("EcCurveAndPubKey() error = %v, expectErr %v", err, tt.expectEcCurvePubErr)
+			}
+		})
 	}
 }

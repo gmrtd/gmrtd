@@ -132,13 +132,10 @@ func decodeECDSAPublicKey(pubKeyInfo []byte) (*ecdsa.PublicKey, error) {
 		return nil, fmt.Errorf("[decodeECDSAPublicKey] asn1DecodeSubjectPublicKeyInfoFn error: %w", err)
 	}
 
-	ecCurve, ecPoint, err := subPubKeyInfo.EcCurveAndPubKey()
+	// NB following code (EcCurveAndPubKey) will also try alternative curves, if specified curve is not valid for the public-key
+	ecCurve, ecPoint, err := subPubKeyInfo.EcCurveAndPubKey(true)
 	if err != nil {
 		return nil, fmt.Errorf("[decodeECDSAPublicKey] EcCurveAndPubKey error: %w", err)
-	}
-
-	if ecCurve == nil || ecPoint == nil || ecPoint.X == nil || ecPoint.Y == nil {
-		return nil, fmt.Errorf("[decodeECDSAPublicKey] missing curve, or X/Y")
 	}
 
 	return &ecdsa.PublicKey{
@@ -310,9 +307,6 @@ func parseECDSASignature(sig []byte) (r, s *big.Int, err error) {
 	}
 	if len(rest) != 0 {
 		return nil, nil, fmt.Errorf("[parseECDSASignature] trailing bytes (len:%d)", len(rest))
-	}
-	if ecdsaSig.R == nil || ecdsaSig.S == nil {
-		return nil, nil, fmt.Errorf("[parseECDSASignature] Missing R or S")
 	}
 
 	return ecdsaSig.R, ecdsaSig.S, nil

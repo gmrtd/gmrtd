@@ -360,6 +360,19 @@ func TestVerifyECDSASignatureParseSignatureError(t *testing.T) {
 	}
 }
 
+func TestVerifyECDSASignatureCurveFallback(t *testing.T) {
+	// verify that curve fallback will be performed if the advertised curve is not valid for the public-key
+	// - test advertises BrainpoolP384r1 but key is actually for P-384
+	pubKeyInfo := utils.HexToBytes("307A301406072a8648ce3d020106092B240303020801010B036200042da57dda1089276a543f9ffdac0bff0d976cad71eb7280e7d9bfd9fee4bdb2f20f47ff888274389772d98cc5752138aa4b6d054d69dcf3e25ec49df870715e34883b1836197d76f8ad962e78f6571bbc7407b0d6091f9e4d88f014274406174f")
+	digest := utils.HexToBytes("43f800fbeaf9238c58af795bcdad04bc49cd850c394d3382953356b023210281757b30e19218a37cbd612086fbc158caa8b4e1acb2ec00837e5d941f342fb3cc")
+	sig := utils.HexToBytes("3066023100814cc9a70febda342d4ada87fc39426f403d5e89808428460c1eca60c897bfd6728da14673854673d7d297ea944a15e202310084f5ef11d22f22d0548af6a50dbf2f6a1bb9054585af5e600c49cf35b1e69b712754dd781c837355ddd41c752193a7cd")
+
+	err := verifyECDSASignature(pubKeyInfo, digest, sig)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+}
+
 func TestVerifyRSAPKCS1SignatureDecodeRSAPublicKeyError(t *testing.T) {
 	origDecode := decodeRSAPublicKeyFn
 	defer func() {

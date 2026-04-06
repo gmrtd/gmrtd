@@ -353,7 +353,7 @@ func (chipAuth *ChipAuth) doCaEcdh(caInfo *document.ChipAuthenticationInfo, caAl
 
 	var curve *elliptic.Curve
 	var chipPubKey *cryptoutils.EcPoint
-	curve, chipPubKey, err = caPubKeyInfo.ChipAuthenticationPublicKey.EcCurveAndPubKey()
+	curve, chipPubKey, err = caPubKeyInfo.ChipAuthenticationPublicKey.EcCurveAndPubKey(true)
 	if err != nil {
 		return fmt.Errorf("[doCaEcdh] EcCurveAndPubKey error: %w", err)
 	}
