@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.0](https://github.com/gmrtd/gmrtd/compare/v0.20.1...v0.21.0) (2026-04-06)
+
+
+### Features
+
+* **cms:** Add EC curve fallback (fixes [#220](https://github.com/gmrtd/gmrtd/issues/220)) ([#221](https://github.com/gmrtd/gmrtd/issues/221)) ([32a8809](https://github.com/gmrtd/gmrtd/commit/32a8809a2c45094cac45bef8299c6f1b07f4ef03))
+
 ## [0.20.1](https://github.com/gmrtd/gmrtd/compare/v0.20.0...v0.20.1) (2026-03-29)
 
 
