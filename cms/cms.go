@@ -605,10 +605,12 @@ func asn1decodeBytes(data []byte) []byte {
 
 func Asn1decodeSubjectPublicKeyInfo(data []byte) (SubjectPublicKeyInfo, error) {
 	var out SubjectPublicKeyInfo
+
 	err := utils.ParseAsn1(data, false, &out)
 	if err != nil {
 		return SubjectPublicKeyInfo{}, fmt.Errorf("[Asn1decodeSubjectPublicKeyInfo] ParseAsn1 error: %w", err)
 	}
+
 	return out, nil
 }
 
@@ -631,18 +633,25 @@ var ecNamedCurveArr []EcNamedCurve = []EcNamedCurve{
 	{oid: oid.OidBrainpoolP512r1, curve: brainpool.P512r1()},
 }
 
-func (subPubKeyInfo *SubjectPublicKeyInfo) EcCurveAndPubKey() (curve *elliptic.Curve, pubKey *cryptoutils.EcPoint, err error) {
+func (subPubKeyInfo *SubjectPublicKeyInfo) IsEC() bool {
+	// verify Algorithm OID
+	var expOid asn1.ObjectIdentifier = oid.OidEcPublicKey
+	if !subPubKeyInfo.Algorithm.Algorithm.Equal(expOid) {
+		return false
+	}
+
+	return true
+}
+
+func (subPubKeyInfo *SubjectPublicKeyInfo) EcCurve() (curve *elliptic.Curve, err error) {
 	/*
 	* Note: We avoid using 'ParsePKIXPublicKey' as it follows PKIX standard and only allows names curves,
 	*       but passports tend to use specified curves (i.e. curve parameters, even if corresponding to well-known curves)
 	 */
 
-	// verify Algorithm OID
-	{
-		var expOid asn1.ObjectIdentifier = oid.OidEcPublicKey
-		if !subPubKeyInfo.Algorithm.Algorithm.Equal(expOid) {
-			return nil, nil, fmt.Errorf("[EcCurveAndPubKey] Algorithm differs to expected (exp:%s) (act:%s)", expOid.String(), subPubKeyInfo.Algorithm.Algorithm.String())
-		}
+	// verify this is an EC key
+	if !subPubKeyInfo.IsEC() {
+		return nil, fmt.Errorf("[EcCurve] Not an EC key")
 	}
 
 	var specDomain *ECSpecifiedDomain
@@ -650,7 +659,7 @@ func (subPubKeyInfo *SubjectPublicKeyInfo) EcCurveAndPubKey() (curve *elliptic.C
 	if err == nil {
 		curve, err = specDomain.EcCurve()
 		if err != nil {
-			return nil, nil, fmt.Errorf("[EcCurveAndPubKey] EcCurve error: %w", err)
+			return nil, fmt.Errorf("[EcCurve] EcCurve error: %w", err)
 		}
 	} else {
 		/*
@@ -660,7 +669,7 @@ func (subPubKeyInfo *SubjectPublicKeyInfo) EcCurveAndPubKey() (curve *elliptic.C
 
 		err = utils.ParseAsn1(subPubKeyInfo.Algorithm.Parameters.FullBytes, false, &tmpOid)
 		if err != nil {
-			return nil, nil, fmt.Errorf("[EcCurveAndPubKey] ParseAsn1 error: %w", err)
+			return nil, fmt.Errorf("[EcCurve] ParseAsn1 error: %w", err)
 		}
 
 		for i := range ecNamedCurveArr {
@@ -673,29 +682,141 @@ func (subPubKeyInfo *SubjectPublicKeyInfo) EcCurveAndPubKey() (curve *elliptic.C
 
 		if curve == nil {
 			// unsupported named curve
-			return nil, nil, fmt.Errorf("[EcCurveAndPubKey] Unsupported EC Named Curve (OID:%s)", tmpOid.String())
+			return nil, fmt.Errorf("[EcCurve] Unsupported EC Named Curve (OID:%s)", tmpOid.String())
 		}
 	}
 
-	// get the chip's public key
-	{
-		var chipPubKeyBytes []byte = subPubKeyInfo.SubjectPublicKey.Bytes
-		pubKey = cryptoutils.DecodeX962EcPoint(*curve, chipPubKeyBytes)
+	return curve, nil
+}
+
+// EcPubKeyForCurve extracts and decodes the EC public key from the SubjectPublicKeyInfo
+// using the caller-provided elliptic curve.
+//
+// This function does NOT derive or validate the curve from the key itself. Instead,
+// it assumes the provided curve is correct and attempts to decode the public key
+// bytes (in X9.62 uncompressed/compressed format) against that curve.
+//
+// Callers MUST ensure that the supplied curve matches the expected domain parameters
+// for the key. Providing an incorrect curve may result in decoding failure or,
+// worse, successful decoding of an invalid point under the wrong curve.
+//
+// Returns an error if:
+//   - the SubjectPublicKeyInfo does not represent an EC key
+//   - the public key bytes cannot be decoded into a valid EC point for the given curve
+//
+// Security note:
+// This function performs minimal validation and does not check whether the point lies
+// on the curve beyond what DecodeX962EcPoint enforces. Additional validation may be
+// required depending on the trust model.
+func (subPubKeyInfo *SubjectPublicKeyInfo) EcPubKeyForCurve(curve elliptic.Curve) (pubKey *cryptoutils.EcPoint, err error) {
+	// verify this is an EC key
+	if !subPubKeyInfo.IsEC() {
+		return nil, fmt.Errorf("[EcPubKeyForCurve] Not an EC key")
 	}
 
-	return curve, pubKey, nil
+	// get the chip's public key
+	var chipPubKeyBytes []byte = subPubKeyInfo.SubjectPublicKey.Bytes
+	pubKey = cryptoutils.DecodeX962EcPoint(curve, chipPubKeyBytes)
+	if pubKey == nil {
+		return nil, fmt.Errorf("[EcPubKeyForCurve] DecodeX962EcPoint failed to return pubKey")
+	}
+
+	return pubKey, nil
+}
+
+// EcCurveAndPubKey resolves the elliptic curve and decodes the EC public key
+// from the SubjectPublicKeyInfo.
+//
+// The function first determines the curve from the key metadata (via EcCurve)
+// and attempts to decode the public key using that curve. If decoding fails,
+// it may optionally attempt a fallback by trying a set of alternative curves.
+//
+// The set of alternative curves is controlled by the caller (e.g. via
+// getAlternativeCurvesFn). Callers can disable fallback entirely, restrict the
+// allowed curves, or enforce strict matching with the advertised curve.
+//
+// Returns:
+//   - curve: pointer to the resolved elliptic curve used for decoding
+//   - pubKey: decoded EC point
+//   - error: if the key is not EC, the curve cannot be determined, or no valid
+//     curve can successfully decode the public key
+//
+// Behavior:
+//   - Validates that the SubjectPublicKeyInfo represents an EC key
+//   - Uses the advertised curve first
+//   - Optionally falls back to caller-defined alternative curves if decoding fails
+//
+// Security note:
+// Curve fallback may allow successful decoding under a curve different from the
+// one advertised in the key metadata. This can indicate malformed, non-compliant,
+// or malicious inputs. Callers SHOULD carefully configure or disable fallback
+// depending on their trust model. In high-assurance contexts, strict enforcement
+// of the advertised curve is typically preferred.
+func (subPubKeyInfo *SubjectPublicKeyInfo) EcCurveAndPubKey(allowCurveFallback bool) (curve *elliptic.Curve, pubKey *cryptoutils.EcPoint, err error) {
+	// verify this is an EC key
+	if !subPubKeyInfo.IsEC() {
+		return nil, nil, fmt.Errorf("[EcCurveAndPubKey] Not an EC key")
+	}
+
+	curve, err = subPubKeyInfo.EcCurve()
+	if err != nil {
+		return nil, nil, fmt.Errorf("[EcCurveAndPubKey] EcCurve error: %w", err)
+	}
+
+	pubKey, err = subPubKeyInfo.EcPubKeyForCurve(*curve)
+	if err != nil {
+		if !allowCurveFallback {
+			return nil, nil, fmt.Errorf("[EcCurveAndPubKey] EcPubKeyForCurve error: %w", err)
+		} else {
+			// log warning AND reset error, as we'll be attempting alternative curves
+			slog.Warn("[EcCurveAndPubKey] unable to get PublicKey for Curve, possible Curve mismatch, trying alternative curves", "origCurve", getCurveName(*curve), "subjectPublicKey", utils.BytesToHex(subPubKeyInfo.SubjectPublicKey.Bytes))
+			err = nil
+		}
+	} else {
+		// finish if no error
+		return curve, pubKey, nil
+	}
+
+	// try to find an alternative curve, as the advertised curve was not valid for the public-key
+	{
+		slog.Debug("[EcCurveAndPubKey] evaluating alternative curves...")
+
+		for _, altCurve := range getAlternativeCurvesFn(*curve) {
+			altCurveName := getCurveName(altCurve)
+			slog.Debug("[EcCurveAndPubKey] trying alternative curve", "curve", altCurveName)
+
+			pubKey, err := subPubKeyInfo.EcPubKeyForCurve(altCurve)
+			if err != nil {
+				slog.Debug("[EcCurveAndPubKey] alternative curve not valid for public-key", "altCurve", altCurveName)
+			}
+
+			if pubKey != nil {
+				slog.Warn("[EcCurveAndPubKey] valid alternative curve found", "origCurve", getCurveName(*curve), "altCurve", altCurveName, "subjectPublicKey", utils.BytesToHex(subPubKeyInfo.SubjectPublicKey.Bytes))
+				return &altCurve, pubKey, nil
+			}
+		}
+	}
+
+	return nil, nil, fmt.Errorf("[EcCurveAndPubKey] Unable to get PublicKey")
+}
+
+func (subPubKeyInfo *SubjectPublicKeyInfo) IsRSA() bool {
+	// verify Algorithm OID
+	var expOid asn1.ObjectIdentifier = oid.OidRsaEncryption
+	if !subPubKeyInfo.Algorithm.Algorithm.Equal(expOid) {
+		return false
+	}
+
+	return true
 }
 
 func (subPubKeyInfo *SubjectPublicKeyInfo) RsaPubKey() (*cryptoutils.RsaPublicKey, error) {
 	var err error
 	var out cryptoutils.RsaPublicKey
 
-	// verify Algorithm OID
-	{
-		var expOid asn1.ObjectIdentifier = oid.OidRsaEncryption
-		if !subPubKeyInfo.Algorithm.Algorithm.Equal(expOid) {
-			return nil, fmt.Errorf("[RsaPubKey] Algorithm differs to expected (exp:%s) (act:%s)", expOid.String(), subPubKeyInfo.Algorithm.Algorithm.String())
-		}
+	// verify this is an RSA key
+	if !subPubKeyInfo.IsRSA() {
+		return nil, fmt.Errorf("[RsaPubKey] Not an RSA key")
 	}
 
 	err = utils.ParseAsn1(subPubKeyInfo.SubjectPublicKey.Bytes, false, &out)
@@ -703,12 +824,28 @@ func (subPubKeyInfo *SubjectPublicKeyInfo) RsaPubKey() (*cryptoutils.RsaPublicKe
 		return nil, fmt.Errorf("[RsaPubKey] ParseAsn1 error: %w", err)
 	}
 
-	// sanity check to ensure that N and E are present, and non-zero
-	if out.N == nil || out.N.Sign() == 0 || out.E == 0 {
-		return nil, fmt.Errorf("[decodeRSAPublicKey] missing pubKey, N or E")
+	err = validateRsaPublicKey(out)
+	if err != nil {
+		return nil, fmt.Errorf("[RsaPubKey] validateRSAPublicKey error: %w", err)
 	}
 
 	return &out, nil
+}
+
+func validateRsaPublicKey(pubKey cryptoutils.RsaPublicKey) error {
+	if pubKey.N == nil || pubKey.N.Sign() <= 0 {
+		return fmt.Errorf("[validateRSAPublicKey] invalid modulus N")
+	}
+
+	if pubKey.E <= 1 {
+		return fmt.Errorf("[validateRSAPublicKey] invalid exponent E")
+	}
+
+	if pubKey.E%2 == 0 { // even check
+		return fmt.Errorf("[validateRSAPublicKey] exponent must be odd")
+	}
+
+	return nil
 }
 
 type ECSpecifiedDomain struct {

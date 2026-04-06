@@ -278,10 +278,12 @@ func KeyGeneratorEc(ec elliptic.Curve) EcKeypair {
 
 	out.Pub = new(EcPoint)
 
-	out.Pri, out.Pub.X, out.Pub.Y, err = elliptic.GenerateKey(ec, rand.Reader)
+	pri, pubX, pubY, err := elliptic.GenerateKey(ec, rand.Reader)
 	if err != nil {
 		log.Panic(err)
 	}
+
+	out = NewEcKeypair(pri, pubX.Bytes(), pubY.Bytes())
 
 	slog.Debug("KeyGeneratorEc", "Keypair", out.String())
 
@@ -292,10 +294,31 @@ func EncodeX962EcPoint(ec elliptic.Curve, point *EcPoint) []byte {
 	return elliptic.Marshal(ec, point.X, point.Y)
 }
 
+// DecodeX962EcPoint decodes an EC public key point from X9.62 encoded bytes
+// using the provided elliptic curve.
+//
+// The input data is expected to be in standard X9.62 format (compressed or
+// uncompressed). The function delegates decoding to elliptic.Unmarshal.
+//
+// Returns a non-nil EcPoint if decoding succeeds and the point is valid for
+// the given curve. Returns nil if the data cannot be decoded or if the point
+// is not valid on the specified curve.
+//
+// Callers MUST ensure that the provided curve matches the intended domain
+// parameters. Supplying an incorrect curve will result in a nil return value.
+//
+// Security note:
+// This function relies on elliptic.Unmarshal for validation, which ensures
+// the point lies on the curve. No additional validation is performed.
 func DecodeX962EcPoint(ec elliptic.Curve, data []byte) *EcPoint {
-	var point EcPoint
-	point.X, point.Y = elliptic.Unmarshal(ec, data)
-	return &point
+	x, y := elliptic.Unmarshal(ec, data)
+
+	// unmarshall can fail if the public-key points are not valid for the curve
+	if x == nil || y == nil {
+		return nil
+	}
+
+	return NewEcPoint(x.Bytes(), y.Bytes())
 }
 
 func DoEcDh(localPrivate []byte, remotePublic *EcPoint, ec elliptic.Curve) *EcPoint {

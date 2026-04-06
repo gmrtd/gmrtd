@@ -267,7 +267,7 @@ func ValidateActiveAuthSignature(dg15 *document.DG15, intAuthRspBytes, rndIfd []
 				use ASN.1/DER encoded signatures (X9.62 standard). This implementation tries plain format first, then falls
 				back to DER if plain fails and the signature starts with 0x30 (SEQUENCE tag).
 			*/
-			curve, ecPoint, err := subPubKeyInfo.EcCurveAndPubKey()
+			curve, ecPoint, err := subPubKeyInfo.EcCurveAndPubKey(true)
 			if err != nil {
 				return result, fmt.Errorf("(ValidateActiveAuthSignature) EcCurveAndPubKey error: %w (Context:%s)", err, errContext)
 			}

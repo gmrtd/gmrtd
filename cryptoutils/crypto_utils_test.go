@@ -588,6 +588,114 @@ func TestX962EcPointEncoding(t *testing.T) {
 	}
 }
 
+func TestDecodeX962EcPoint(t *testing.T) {
+	p256 := elliptic.P256()
+	p384 := elliptic.P384()
+
+	validP256Uncompressed := elliptic.Marshal(p256, p256.Params().Gx, p256.Params().Gy)
+	validP384Uncompressed := elliptic.Marshal(p384, p384.Params().Gx, p384.Params().Gy)
+
+	tests := []struct {
+		name    string
+		curve   elliptic.Curve
+		data    []byte
+		wantNil bool
+	}{
+		// TODO - update to include some brainpool tests
+		{
+			name:    "valid uncompressed point for matching curve",
+			curve:   p256,
+			data:    validP256Uncompressed,
+			wantNil: false,
+		},
+		{
+			name:    "nil data",
+			curve:   p256,
+			data:    nil,
+			wantNil: true,
+		},
+		{
+			name:    "empty data",
+			curve:   p256,
+			data:    []byte{},
+			wantNil: true,
+		},
+		{
+			name:    "truncated point encoding",
+			curve:   p256,
+			data:    validP256Uncompressed[:len(validP256Uncompressed)-1],
+			wantNil: true,
+		},
+		{
+			name:    "random invalid bytes",
+			curve:   p256,
+			data:    []byte{0x04, 0x01, 0x02, 0x03, 0x04},
+			wantNil: true,
+		},
+		{
+			name:    "point valid on different curve should fail",
+			curve:   p256,
+			data:    validP384Uncompressed,
+			wantNil: true,
+		},
+		{
+			name:    "wrong format prefix",
+			curve:   p256,
+			data:    append([]byte{0x05}, validP256Uncompressed[1:]...),
+			wantNil: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := DecodeX962EcPoint(tt.curve, tt.data)
+
+			if tt.wantNil {
+				if got != nil {
+					t.Fatalf("expected nil, got %+v", got)
+				}
+				return
+			}
+
+			if got == nil {
+				t.Fatal("expected non-nil point, got nil")
+			}
+
+			if got.X == nil {
+				t.Fatal("expected X to be non-nil")
+			}
+
+			if got.Y == nil {
+				t.Fatal("expected Y to be non-nil")
+			}
+
+			if !tt.curve.IsOnCurve(got.X, got.Y) {
+				t.Fatal("decoded point is not on expected curve")
+			}
+		})
+	}
+}
+
+func TestDecodeX962EcPointReturnsExpectedCoordinates(t *testing.T) {
+	curve := elliptic.P256()
+	wantX := curve.Params().Gx
+	wantY := curve.Params().Gy
+	data := elliptic.Marshal(curve, wantX, wantY)
+
+	got := DecodeX962EcPoint(curve, data)
+	if got == nil {
+		t.Fatal("expected non-nil point, got nil")
+	}
+
+	if got.X == nil || got.X.Cmp(wantX) != 0 {
+		t.Fatalf("unexpected X: got %v, want %v", got.X, wantX)
+	}
+
+	if got.Y == nil || got.Y.Cmp(wantY) != 0 {
+		t.Fatalf("unexpected Y: got %v, want %v", got.Y, wantY)
+	}
+}
+
 func TestDoEcDh(t *testing.T) {
 	testCases := []struct {
 		ec         elliptic.Curve
