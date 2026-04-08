@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.1](https://github.com/gmrtd/gmrtd/compare/v0.22.0...v0.22.1) (2026-04-08)
+
+
+### Bug Fixes
+
+* **reader:** EF.DIR read error on US passport (fixes [#226](https://github.com/gmrtd/gmrtd/issues/226)) ([#227](https://github.com/gmrtd/gmrtd/issues/227)) ([cd6f094](https://github.com/gmrtd/gmrtd/commit/cd6f094c93fe24b45f546295e2c5b174f67b9775))
+
 ## [0.22.0](https://github.com/gmrtd/gmrtd/compare/v0.21.0...v0.22.0) (2026-04-06)
 
 
