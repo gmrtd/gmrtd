@@ -120,6 +120,22 @@ func (reader *Reader) readEfCom(nfc *iso7816.NfcSession, doc *document.Document)
 	return nil
 }
 
+// reads EF.DIR
+func (reader *Reader) readEfDir(nfc *iso7816.NfcSession, doc *document.Document) (err error) {
+	slog.Info("Read EF.DIR")
+	reader.status.Status("Reading EF.DIR")
+	efDirData, err := nfc.ReadFile(MRTDFileIdEFDIR)
+	if err != nil {
+		return fmt.Errorf("[readEfDir] Read EF.DIR error: %w", err)
+	}
+	doc.Mf.Dir, err = document.NewEFDIR(efDirData)
+	if err != nil {
+		return fmt.Errorf("[readEfDir] Parse EF.DIR error: %w", err)
+	}
+
+	return nil
+}
+
 // reads the LDS1 data-groups (DGs) based on the DG hashes present in EF.SOD
 func (reader *Reader) readLDS1dgs(nfc *iso7816.NfcSession, doc *document.Document) (err error) {
 	if doc.Mf.Lds1.Sod == nil {
@@ -255,21 +271,6 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 		docEx.Session.PaceResult, docEx.Session.PaceErr = pace.NewPace(nfc, &docEx.Document, password).DoPACE()
 	}
 
-	// NB moved after PACE as we've seen access related errors on NZ passports when done before PACE
-	slog.Info("Read EF.DIR")
-	reader.status.Status("EF.DIR")
-	efDirData, err := nfc.ReadFile(MRTDFileIdEFDIR)
-	if err != nil {
-		return docEx, fmt.Errorf("[ReadDocument] Read EF.DIR error: %w", err)
-	}
-	docEx.Document.Mf.Dir, err = document.NewEFDIR(efDirData)
-	if err != nil {
-		return docEx, fmt.Errorf("[ReadDocument] Parse EF.DIR error: %w", err)
-	}
-	if docEx.Document.Mf.Dir != nil {
-		slog.Debug("EF.DIR", "bytes", utils.BytesToHex(docEx.Document.Mf.Dir.RawData))
-	}
-
 	slog.Info("Selecting MRTD AID")
 	_, err = nfc.SelectAid(utils.HexToBytes(MRTD_AID))
 	if err != nil {
@@ -285,6 +286,13 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 		reader.status.Status("BAC")
 		// NB errors are just recorded at this point
 		docEx.Session.BacResult, docEx.Session.BacErr = bac.NewBAC(nfc, &docEx.Document, password).DoBAC()
+	}
+
+	// NB must be performed after PACE/BAC
+	// - issues observed for NZ when before PACE, and USA when before BAC (as USA does not have PACE)
+	err = reader.readEfDir(nfc, &(docEx.Document))
+	if err != nil {
+		return docEx, fmt.Errorf("[ReadDocument] readEfDir error: %w", err)
 	}
 
 	// NB legacy passport may not have BAC/PACE so we should be prepared for no SecureMessaging
