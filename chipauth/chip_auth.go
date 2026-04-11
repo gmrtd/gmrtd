@@ -30,27 +30,23 @@ func NewChipAuth(nfc *iso7816.NfcSession, doc *document.Document) *ChipAuth {
 }
 
 func (chipAuth *ChipAuth) DoChipAuth() (result *document.ChipAuthResult, err error) {
-	var algInferred bool = false
-
-	// skip if DG14 is missing
-	if (*chipAuth.document).Mf.Lds1.Dg14 == nil {
-		slog.Debug("doChipAuth - skipping CA as DG14 is not present")
-		return nil, nil
-	}
-
-	var caInfo *document.ChipAuthenticationInfo
-	var caAlgInfo *CaAlgorithmInfo
-
-	caInfo, caAlgInfo, algInferred, err = resolveCAInfo((*chipAuth.document).Mf.Lds1.Dg14.SecInfos)
-
-	if caInfo == nil || caAlgInfo == nil {
-		// cannot proceed with CA
-		slog.Info("DoChipAuth - skipping")
+	if !caAdvertised(*chipAuth.document) {
+		slog.Debug("doChipAuth - skipping CA as not advertised")
+		// NB no need to return result or error
 		return nil, nil
 	}
 
 	// setup the result (but mark as !success)
 	result = &document.ChipAuthResult{Success: false}
+
+	var caInfo *document.ChipAuthenticationInfo
+	var caAlgInfo *CaAlgorithmInfo
+	var algInferred bool = false
+
+	caInfo, caAlgInfo, algInferred, err = resolveCAInfo((*chipAuth.document).Mf.Lds1.Dg14.SecInfos)
+	if err != nil {
+		return result, fmt.Errorf("[DoChipAuth] resolveCAInfo error: %w", err)
+	}
 
 	if (*chipAuth.nfcSession).SM() != nil {
 		slog.Debug("doChipAuth", "SM(pre)", (*chipAuth.nfcSession).SM().String())
@@ -78,6 +74,23 @@ func (chipAuth *ChipAuth) DoChipAuth() (result *document.ChipAuthResult, err err
 	return result, nil
 }
 
+func caAdvertised(doc *document.Document) bool {
+	// DG14 must be present
+	if doc.Mf.Lds1.Dg14 == nil {
+		slog.Debug("caAdvertised - DG14 is not present")
+		return false
+	}
+
+	// ChipAuthInfos OR ChipAuthPubKeyInfos must be present (i.e. advertising CA)
+	if len(doc.Mf.Lds1.Dg14.SecInfos.ChipAuthInfos) < 1 &&
+		len(doc.Mf.Lds1.Dg14.SecInfos.ChipAuthPubKeyInfos) < 1 {
+		slog.Debug("caAdvertised - ChipAuthInfos/ChipAuthPubKeyInfos not present")
+		return false
+	}
+
+	return true
+}
+
 func resolveCAInfo(secInfos *document.SecurityInfos) (
 	caInfo *document.ChipAuthenticationInfo,
 	caAlgInfo *CaAlgorithmInfo,
@@ -99,7 +112,11 @@ func resolveCAInfo(secInfos *document.SecurityInfos) (
 		return nil, nil, false, fmt.Errorf("[resolveCAInfo] inferCAInfoFromKey error: %w", err)
 	}
 
-	return caInfo, caAlgInfo, true, nil
+	if caInfo != nil && caAlgInfo != nil {
+		return caInfo, caAlgInfo, true, nil
+	}
+
+	return nil, nil, false, fmt.Errorf("[resolveCAInfo] Unable to resolve caInfo/caAlgInfo")
 }
 
 func (chipAuth *ChipAuth) executeCA(
