@@ -41,17 +41,7 @@ func (chipAuth *ChipAuth) DoChipAuth() (result *document.ChipAuthResult, err err
 	var caInfo *document.ChipAuthenticationInfo
 	var caAlgInfo *CaAlgorithmInfo
 
-	caInfo, caAlgInfo, err = selectCAInfo(*chipAuth.document)
-	if err != nil {
-		return nil, fmt.Errorf("[DoChipAuth] selectCAInfo error: %w", err)
-	} else if caInfo == nil || caAlgInfo == nil {
-		// try to infer from any available CA key
-		caInfo, caAlgInfo, err = inferCAInfoFromKey(*chipAuth.document)
-		if err != nil {
-			return nil, fmt.Errorf("[DoChipAuth] inferCAInfoFromKey error: %w", err)
-		}
-		algInferred = true
-	}
+	caInfo, caAlgInfo, algInferred, err = resolveCAInfo((*chipAuth.document).Mf.Lds1.Dg14.SecInfos)
 
 	if caInfo == nil || caAlgInfo == nil {
 		// cannot proceed with CA
@@ -73,18 +63,9 @@ func (chipAuth *ChipAuth) DoChipAuth() (result *document.ChipAuthResult, err err
 		return result, fmt.Errorf("[DoChipAuth] selectCAPubKeyInfo error: %w", err)
 	}
 
-	// process based on the type of key (DH/ECDH)
-	if caPubKeyInfo.Protocol.Equal(oid.OidPkDh) {
-		// DH
-		return result, fmt.Errorf("[DoChipAuth] DH not currently supported (Raw:%x)", caPubKeyInfo.Raw)
-	} else if caPubKeyInfo.Protocol.Equal(oid.OidPkEcdh) {
-		// ECDH
-		err = chipAuth.doCaEcdh(caInfo, caAlgInfo, caPubKeyInfo, algInferred)
-		if err != nil {
-			return result, fmt.Errorf("[DoChipAuth] doCaEcdh error: %w", err)
-		}
-	} else {
-		return result, fmt.Errorf("[DoChipAuth] unsupported public key type (OID:%s)", caPubKeyInfo.Protocol.String())
+	err = chipAuth.executeCA(caInfo, caAlgInfo, caPubKeyInfo, algInferred)
+	if err != nil {
+		return result, fmt.Errorf("[DoChipAuth] executeCA error: %w", err)
 	}
 
 	// update result to indicate success
@@ -97,19 +78,68 @@ func (chipAuth *ChipAuth) DoChipAuth() (result *document.ChipAuthResult, err err
 	return result, nil
 }
 
+func resolveCAInfo(secInfos *document.SecurityInfos) (
+	caInfo *document.ChipAuthenticationInfo,
+	caAlgInfo *CaAlgorithmInfo,
+	algInferred bool,
+	err error,
+) {
+	caInfo, caAlgInfo, err = selectCAInfo(secInfos)
+	if err != nil {
+		return nil, nil, false, fmt.Errorf("[resolveCAInfo] selectCAInfo error: %w", err)
+	}
+
+	if caInfo != nil && caAlgInfo != nil {
+		return caInfo, caAlgInfo, false, nil
+	}
+
+	// try to infer from any available CA key
+	caInfo, caAlgInfo, err = inferCAInfoFromKey(secInfos.ChipAuthPubKeyInfos)
+	if err != nil {
+		return nil, nil, false, fmt.Errorf("[resolveCAInfo] inferCAInfoFromKey error: %w", err)
+	}
+
+	return caInfo, caAlgInfo, true, nil
+}
+
+func (chipAuth *ChipAuth) executeCA(
+	caInfo *document.ChipAuthenticationInfo,
+	caAlgInfo *CaAlgorithmInfo,
+	caPubKeyInfo *document.ChipAuthenticationPublicKeyInfo,
+	algInferred bool,
+) error {
+	// process based on the type of key (DH/ECDH)
+	switch {
+	case caPubKeyInfo.Protocol.Equal(oid.OidPkDh):
+		// DH
+		return fmt.Errorf("[executeCA] DH not currently supported (Raw:%x)", caPubKeyInfo.Raw)
+
+	case caPubKeyInfo.Protocol.Equal(oid.OidPkEcdh):
+		// ECDH
+		err := chipAuth.doCaEcdh(caInfo, caAlgInfo, caPubKeyInfo, algInferred)
+		if err != nil {
+			return fmt.Errorf("[executeCA] doCaEcdh error: %w", err)
+		}
+		return nil
+
+	default:
+		return fmt.Errorf("[executeCA] unsupported public key type (OID:%s)", caPubKeyInfo.Protocol.String())
+	}
+}
+
 // selects the 'preferred' CA entry (if any are present)
 // returns: nil (caAuthInfo/caAlgInfo) if none found, otherwise preferred CA entry
-func selectCAInfo(doc *document.Document) (caInfo *document.ChipAuthenticationInfo, caAlgInfo *CaAlgorithmInfo, err error) {
+func selectCAInfo(secInfos *document.SecurityInfos) (caInfo *document.ChipAuthenticationInfo, caAlgInfo *CaAlgorithmInfo, err error) {
 	slog.Debug("selectCAInfo")
 
 	var bestCaInfo *document.ChipAuthenticationInfo
 	var bestCaAlgInfo *CaAlgorithmInfo
 
-	for i := range doc.Mf.Lds1.Dg14.SecInfos.ChipAuthInfos {
+	for i := range secInfos.ChipAuthInfos {
 		var curCaInfo *document.ChipAuthenticationInfo
 		var curCaAlgInfo *CaAlgorithmInfo
 
-		curCaInfo = &(doc.Mf.Lds1.Dg14.SecInfos.ChipAuthInfos[i])
+		curCaInfo = &(secInfos.ChipAuthInfos[i])
 
 		curCaAlgInfo, err = algInfo(curCaInfo.Protocol)
 		if err != nil {
@@ -132,16 +162,16 @@ func selectCAInfo(doc *document.Document) (caInfo *document.ChipAuthenticationIn
 
 // infer the CA entry (based on available CA keys)
 // returns: nil (caAuthInfo/caAlgInfo) if none found, otherwise CA entry
-func inferCAInfoFromKey(doc *document.Document) (caInfo *document.ChipAuthenticationInfo, caAlgInfo *CaAlgorithmInfo, err error) {
+func inferCAInfoFromKey(chipAuthPubKeyInfos []document.ChipAuthenticationPublicKeyInfo) (caInfo *document.ChipAuthenticationInfo, caAlgInfo *CaAlgorithmInfo, err error) {
 	slog.Debug("inferCAInfoFromKey")
 
 	/*
 	* Some passports (e.g. FR) are missing the ca-info, so we default to 3DES
 	 */
 
-	if len(doc.Mf.Lds1.Dg14.SecInfos.ChipAuthPubKeyInfos) > 0 {
+	if len(chipAuthPubKeyInfos) > 0 {
 		// just go with the 1st key
-		var keyInfo *document.ChipAuthenticationPublicKeyInfo = &(doc.Mf.Lds1.Dg14.SecInfos.ChipAuthPubKeyInfos[0])
+		var keyInfo *document.ChipAuthenticationPublicKeyInfo = &(chipAuthPubKeyInfos[0])
 
 		caInfo, err = inferCAInfoFromKeyProtocol(keyInfo.Protocol)
 		if err != nil {
