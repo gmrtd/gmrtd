@@ -414,14 +414,15 @@ func TestInferCAInfoFromKey(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		var doc document.Document
+		//TODO - var doc document.Document
 
-		err := doc.NewDG(14, tc.dg14bytes)
+		dg14, err := document.NewDG14(tc.dg14bytes)
+		//TODO - err := doc.NewDG(14, tc.dg14bytes)
 		if err != nil {
 			t.Errorf("Unexpected error: %s", err)
 		}
 
-		caInfo, caAlgInfo, err := inferCAInfoFromKey(&doc)
+		caInfo, caAlgInfo, err := inferCAInfoFromKey(dg14.SecInfos.ChipAuthPubKeyInfos)
 
 		if tc.expError {
 			if err == nil {
