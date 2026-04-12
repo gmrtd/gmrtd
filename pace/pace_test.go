@@ -535,7 +535,7 @@ func TestDoApduMseSetATApduErr(t *testing.T) {
 		t.Fatalf("paceConfigGetByOID error: %s", err)
 	}
 
-	var domainParams *PACEDomainParams = standardisedDomainParams(13) // Brainpool P256r1
+	var domainParams *DomainParams = standardisedDomainParams(13) // Brainpool P256r1
 
 	err = pace.doApduMseSetAT(paceConfig, domainParams)
 	// NB we expect an error as we'll get an APDU error
@@ -551,7 +551,7 @@ func TestMapNonceGmEcDhApduErr(t *testing.T) {
 	var pass password.Password = *password.NewPasswordCan("123456")
 	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{}) // force APDU errors!
 	var pace *Pace = NewPace(nfc, &doc, &pass)
-	var domainParams *PACEDomainParams = standardisedDomainParams(13) // 13: Brainpool P256r1
+	var domainParams *DomainParams = standardisedDomainParams(13) // 13: Brainpool P256r1
 	var s []byte = []byte{1, 2, 3, 4}
 
 	_, _, err := pace.mapNonceGmEcDh(domainParams, s)
@@ -568,7 +568,7 @@ func TestKeyAgreementGmEcDhApduErr(t *testing.T) {
 	var pass password.Password = *password.NewPasswordCan("123456")
 	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{}) // force APDU errors!
 	var pace *Pace = NewPace(nfc, &doc, &pass)
-	var domainParams *PACEDomainParams = standardisedDomainParams(13) // 13: Brainpool P256r1
+	var domainParams *DomainParams = standardisedDomainParams(13) // 13: Brainpool P256r1
 	var g *cryptoutils.EcPoint = cryptoutils.DecodeX962EcPoint(domainParams.ec, utils.HexToBytes("043d671a984bf1767209f49d46007b1566e5371ceaa1d7e0533ba3b593248bdb1798c2e316163a1be04deefe1eb6362f5ec9d59fc3b7f4cd36029b510bb924ba19"))
 
 	_, _, _, err := pace.keyAgreementGmEcDh(domainParams, g)
@@ -585,7 +585,7 @@ func TestDoCamEcdhMappingNotCamErr(t *testing.T) {
 	var pass password.Password = *password.NewPasswordCan("123456")
 	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{}) // force APDU errors!
 	var pace *Pace = NewPace(nfc, &doc, &pass)
-	var domainParams *PACEDomainParams = standardisedDomainParams(13) // 13: Brainpool P256r1
+	var domainParams *DomainParams = standardisedDomainParams(13) // 13: Brainpool P256r1
 	var pubMapIC *cryptoutils.EcPoint = cryptoutils.DecodeX962EcPoint(domainParams.ec, utils.HexToBytes("043d671a984bf1767209f49d46007b1566e5371ceaa1d7e0533ba3b593248bdb1798c2e316163a1be04deefe1eb6362f5ec9d59fc3b7f4cd36029b510bb924ba19"))
 	var ecadIc []byte = []byte{1, 2, 3, 4, 5, 6, 7, 8, 9}
 
@@ -608,7 +608,7 @@ func TestDoCamEcdhMappingNoEcadIcErr(t *testing.T) {
 	var pass password.Password = *password.NewPasswordCan("123456")
 	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{}) // force APDU errors!
 	var pace *Pace = NewPace(nfc, &doc, &pass)
-	var domainParams *PACEDomainParams = standardisedDomainParams(13) // 13: Brainpool P256r1
+	var domainParams *DomainParams = standardisedDomainParams(13) // 13: Brainpool P256r1
 	var pubMapIC *cryptoutils.EcPoint = cryptoutils.DecodeX962EcPoint(domainParams.ec, utils.HexToBytes("043d671a984bf1767209f49d46007b1566e5371ceaa1d7e0533ba3b593248bdb1798c2e316163a1be04deefe1eb6362f5ec9d59fc3b7f4cd36029b510bb924ba19"))
 	var ecadIc []byte = []byte{} // NB empty ecad-IC (will trigger error)
 
