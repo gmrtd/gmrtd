@@ -30,7 +30,6 @@ import (
 	"crypto/elliptic"
 	"encoding/asn1"
 	"fmt"
-	"log"
 	"log/slog"
 	"math/big"
 
@@ -42,7 +41,6 @@ import (
 	"github.com/gmrtd/gmrtd/password"
 	"github.com/gmrtd/gmrtd/tlv"
 	"github.com/gmrtd/gmrtd/utils"
-	"github.com/osanderson/brainpool"
 )
 
 type Pace struct {
@@ -144,12 +142,6 @@ var paceConfig = map[string]PaceConfig{
 	oid.OidPaceEcdhCamAesCbcCmac256.String(): {oid.OidPaceEcdhCamAesCbcCmac256, CAM, cryptoutils.AES, 256, CMAC, 302},
 }
 
-type PACEDomainParams struct {
-	id     int
-	isECDH bool
-	ec     elliptic.Curve
-}
-
 func paceConfigGetByOID(oid asn1.ObjectIdentifier) (*PaceConfig, error) {
 	out, ok := paceConfig[oid.String()]
 
@@ -197,63 +189,9 @@ func selectPaceConfig(cardAccess *document.CardAccess) (*PaceConfig, *PACEDomain
 	}
 
 	domainParams := standardisedDomainParams(int(selectedPaceInfo.ParameterId.Int64()))
+	// TODO - currently above can panic... change to error and handle any errors here
 
 	return selectedConfig, domainParams, nil
-}
-
-// ICAO9303 part 11... s9.5.1 Standardized Domain Parameters
-func standardisedDomainParams(paramId int) *PACEDomainParams {
-	var ret *PACEDomainParams
-
-	// NB 3-7 and 19-31 are RFU
-	switch paramId {
-	case 0:
-		// 1024-bit MODP Group with 160-bit Prime Order Subgroup
-		log.Panicf("PACE Standard Domain Parameter (paramId:%1d) NOT IMPLEMENTED", paramId)
-	case 1:
-		// 2048-bit MODP Group with 224-bit Prime Order Subgroup
-		log.Panicf("PACE Standard Domain Parameter (paramId:%1d) NOT IMPLEMENTED", paramId)
-	case 2:
-		// 2048-bit MODP Group with 256-bit Prime Order Subgroup
-		log.Panicf("PACE Standard Domain Parameter (paramId:%1d) NOT IMPLEMENTED", paramId)
-	case 8:
-		// NIST P-192 (secp192r1)
-		ret = &PACEDomainParams{id: paramId, isECDH: true, ec: cryptoutils.EllipticP192()}
-	case 9:
-		// Brainpool P192r1
-		ret = &PACEDomainParams{id: paramId, isECDH: true, ec: brainpool.P192r1()}
-	case 10:
-		// NIST P-224 (secp224r1)
-		ret = &PACEDomainParams{id: paramId, isECDH: true, ec: elliptic.P224()}
-	case 11:
-		// Brainpool P224r1
-		ret = &PACEDomainParams{id: paramId, isECDH: true, ec: brainpool.P224r1()}
-	case 12:
-		// NIST P-256 (secp256r1)
-		ret = &PACEDomainParams{id: paramId, isECDH: true, ec: elliptic.P256()}
-	case 13:
-		// Brainpool P256r1
-		ret = &PACEDomainParams{id: paramId, isECDH: true, ec: brainpool.P256r1()}
-	case 14:
-		// Brainpool P320r1
-		ret = &PACEDomainParams{id: paramId, isECDH: true, ec: brainpool.P320r1()}
-	case 15:
-		// NIST P-384 (secp384r1)
-		ret = &PACEDomainParams{id: paramId, isECDH: true, ec: elliptic.P384()}
-	case 16:
-		// Brainpool P384r1
-		ret = &PACEDomainParams{id: paramId, isECDH: true, ec: brainpool.P384r1()}
-	case 17:
-		// Brainpool P512r1
-		ret = &PACEDomainParams{id: paramId, isECDH: true, ec: brainpool.P512r1()}
-	case 18:
-		// NIST P-521 (secp521r1)
-		ret = &PACEDomainParams{id: paramId, isECDH: true, ec: elliptic.P521()}
-	default:
-		panic(fmt.Sprintf("[standardisedDomainParams] Unsupported paramId (%1d)", paramId))
-	}
-
-	return ret
 }
 
 func (paceConfig *PaceConfig) decryptNonce(key, encryptedNonce []byte) []byte {
