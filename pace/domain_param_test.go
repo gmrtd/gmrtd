@@ -13,6 +13,10 @@ func TestStandardisedDomainParams(t *testing.T) {
 		bitSize int
 	}{
 		{
+			paramId: 8,
+			bitSize: 192,
+		},
+		{
 			paramId: 9,
 			bitSize: 192,
 		},
