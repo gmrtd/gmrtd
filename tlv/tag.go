@@ -74,8 +74,8 @@ func (tag TlvTag) Encode() []byte {
 func (tag TlvTag) IsConstructed() bool {
 	var tmp uint32 = uint32(tag)
 
-	// gracefully handle negative
-	if tmp < 0 {
+	// gracefully handle invalid tag (<1)
+	if tmp < 1 {
 		return false
 	}
 
