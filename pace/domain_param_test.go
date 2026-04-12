@@ -54,7 +54,7 @@ func TestStandardisedDomainParams(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		var domainParams *PACEDomainParams = standardisedDomainParams(tc.paramId)
+		var domainParams *DomainParams = standardisedDomainParams(tc.paramId)
 
 		if !domainParams.isECDH {
 			t.Errorf("Should be ECDH")

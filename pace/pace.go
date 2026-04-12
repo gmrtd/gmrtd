@@ -153,7 +153,7 @@ func paceConfigGetByOID(oid asn1.ObjectIdentifier) (*PaceConfig, error) {
 }
 
 // selects the preferred pace-config based on the options advertised in the card-access file
-func selectPaceConfig(cardAccess *document.CardAccess) (*PaceConfig, *PACEDomainParams, error) {
+func selectPaceConfig(cardAccess *document.CardAccess) (*PaceConfig, *DomainParams, error) {
 	slog.Debug("selectPaceConfig: evaluating PACE configs")
 
 	if cardAccess == nil || cardAccess.SecurityInfos == nil || len(cardAccess.SecurityInfos.PaceInfos) < 1 {
@@ -252,7 +252,7 @@ func encodePubicKeyTemplate7F49(paceOid, tag86data []byte) []byte {
 	return node.Encode()
 }
 
-func (pace *Pace) doApduMseSetAT(paceConfig *PaceConfig, domainParams *PACEDomainParams) (err error) {
+func (pace *Pace) doApduMseSetAT(paceConfig *PaceConfig, domainParams *DomainParams) (err error) {
 	slog.Debug("doApduMseSetAT")
 
 	paceOidBytes := oid.OidBytes(paceConfig.oid)
@@ -278,7 +278,7 @@ func (pace *Pace) doApduMseSetAT(paceConfig *PaceConfig, domainParams *PACEDomai
 //   - exchanges with chip
 //   - generates shared secret
 //   - do generic mapping (and return G)
-func (pace *Pace) mapNonceGmEcDh(domainParams *PACEDomainParams, s []byte) (mapped_g *cryptoutils.EcPoint, pubMapIC *cryptoutils.EcPoint, err error) {
+func (pace *Pace) mapNonceGmEcDh(domainParams *DomainParams, s []byte) (mapped_g *cryptoutils.EcPoint, pubMapIC *cryptoutils.EcPoint, err error) {
 	slog.Debug("mapNonceGmEcDh", "s", utils.BytesToHex(s))
 
 	// generate terminal key (private/public)
@@ -311,7 +311,7 @@ func (pace *Pace) mapNonceGmEcDh(domainParams *PACEDomainParams, s []byte) (mapp
 	return mapped_g, pubMapIC, nil
 }
 
-func (pace *Pace) keyAgreementGmEcDh(domainParams *PACEDomainParams, G *cryptoutils.EcPoint) (sharedSecret []byte, termKeypair *cryptoutils.EcKeypair, chipPub *cryptoutils.EcPoint, err error) {
+func (pace *Pace) keyAgreementGmEcDh(domainParams *DomainParams, G *cryptoutils.EcPoint) (sharedSecret []byte, termKeypair *cryptoutils.EcKeypair, chipPub *cryptoutils.EcPoint, err error) {
 	// reader and chip generate/exchange another set of public-keys
 	//			- needs to be generated using mapped-g.x/y
 	//			- new keys for terminal
@@ -364,7 +364,7 @@ func (pace *Pace) keyAgreementGmEcDh(domainParams *PACEDomainParams, G *cryptout
 
 // performs mutual authentication and sets up secure messaging
 // ecadIC: only populated for CAM
-func (pace *Pace) mutualAuthGmEcDh(paceConfig *PaceConfig, domainParams *PACEDomainParams, sharedSecret []byte, termPub *cryptoutils.EcPoint, chipPub *cryptoutils.EcPoint) (ecadIC []byte, err error) {
+func (pace *Pace) mutualAuthGmEcDh(paceConfig *PaceConfig, domainParams *DomainParams, sharedSecret []byte, termPub *cryptoutils.EcPoint, chipPub *cryptoutils.EcPoint) (ecadIC []byte, err error) {
 	// derive KSenc / KSmac
 	var ksEnc, ksMac []byte
 	ksEnc = cryptoutils.KDF(sharedSecret, cryptoutils.KDF_COUNTER_KSENC, paceConfig.cipher, paceConfig.keyLengthBits)
@@ -418,7 +418,7 @@ func (pace *Pace) mutualAuthGmEcDh(paceConfig *PaceConfig, domainParams *PACEDom
 	return ecadIC, nil
 }
 
-func icPubKeyECForCAM(domainParams *PACEDomainParams, cardSecurity *document.CardSecurity) (*cryptoutils.EcPoint, error) {
+func icPubKeyECForCAM(domainParams *DomainParams, cardSecurity *document.CardSecurity) (*cryptoutils.EcPoint, error) {
 	slog.Debug("icPubKeyECForCAM")
 
 	var caPubKeyInfos []document.ChipAuthenticationPublicKeyInfo = cardSecurity.SecurityInfos.ChipAuthPubKeyInfos
@@ -444,7 +444,7 @@ func icPubKeyECForCAM(domainParams *PACEDomainParams, cardSecurity *document.Car
 
 // pubMapIC: IC Public Key from earlier mapping operation
 // ecadIC: encrypted chip authentication data (tag:8A) from 'mutual auth' response
-func (pace *Pace) doCamEcdh(paceConfig *PaceConfig, domainParams *PACEDomainParams, pubMapIC *cryptoutils.EcPoint, ecadIC []byte) (err error) {
+func (pace *Pace) doCamEcdh(paceConfig *PaceConfig, domainParams *DomainParams, pubMapIC *cryptoutils.EcPoint, ecadIC []byte) (err error) {
 	if paceConfig.mapping != CAM {
 		return fmt.Errorf("[doCamEcdh] Unexpected mapping during CAM processing (Mapping:%d)", paceConfig.mapping)
 	}
@@ -542,7 +542,7 @@ func (pace *Pace) loadCardSecurityFile() error {
 	return nil
 }
 
-func (pace *Pace) doGenericMappingGmCam(paceConfig *PaceConfig, domainParams *PACEDomainParams, s []byte) (err error) {
+func (pace *Pace) doGenericMappingGmCam(paceConfig *PaceConfig, domainParams *DomainParams, s []byte) (err error) {
 	switch domainParams.isECDH {
 	case true: // ECDH
 		// map the nonce
@@ -601,7 +601,7 @@ func (pace *Pace) DoPACE() (result *document.PaceResult, err error) {
 	result = &document.PaceResult{Success: false}
 
 	var paceConfig *PaceConfig
-	var domainParams *PACEDomainParams
+	var domainParams *DomainParams
 
 	paceConfig, domainParams, err = selectPaceConfig(pace.document.Mf.CardAccess)
 	if err != nil {
