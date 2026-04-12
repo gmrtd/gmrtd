@@ -3,6 +3,8 @@ package chipauth
 import (
 	"crypto/elliptic"
 	"encoding/asn1"
+	"fmt"
+	"log"
 	"reflect"
 	"testing"
 
@@ -30,6 +32,65 @@ func TestChipEmptyDoc(t *testing.T) {
 
 	if result != nil {
 		t.Errorf("unexpected result")
+	}
+}
+
+func TestCaAdvertised(t *testing.T) {
+	testCases := []struct {
+		document  document.Document
+		expResult bool
+	}{
+		{
+			// false: missing DG14
+			document:  document.Document{},
+			expResult: false,
+		},
+		{
+			// false: DG14, but missing CA Info/PubKey
+			document: func() document.Document {
+				doc := document.Document{}
+				err := doc.NewDG(14, utils.HexToBytes("6E1631143012060A04007F0007020204020402010202010D"))
+				if err != nil {
+					log.Panicf("Unexpected error: %s", err)
+				}
+				return doc
+			}(),
+			expResult: false,
+		},
+		{
+			// true: nominal case
+			document: func() document.Document {
+				doc := document.Document{}
+				err := doc.NewDG(14, utils.HexToBytes("6E82017E3182017A300D060804007F0007020202020101300F060A04007F000702020302020201013012060A04007F0007020204020202010202010D30820142060904007F000702020102308201333081EC06072A8648CE3D02013081E0020101302C06072A8648CE3D0101022100A9FB57DBA1EEA9BC3E660A909D838D726E3BF623D52620282013481D1F6E5377304404207D5A0975FC2C3057EEF67530417AFFE7FB8055C126DC5C6CE94A4B44F330B5D9042026DC5C6CE94A4B44F330B5D9BBD77CBF958416295CF7E1CE6BCCDC18FF8C07B60441048BD2AEB9CB7E57CB2C4B482FFC81B7AFB9DE27E1E3BD23C23A4453BD9ACE3262547EF835C3DAC4FD97F8461A14611DC9C27745132DED8E545C1D54C72F046997022100A9FB57DBA1EEA9BC3E660A909D838D718C397AA3B561A6F7901E0E82974856A7020101034200041983917269AC877C0B61544C2C022000D2A5ABA723E2D80141E648B40911DC3459761F27480E4B57181A53D8FE1190EA86C939AC14363178CAFFC621F0F905C3"))
+				if err != nil {
+					log.Panicf("Unexpected error: %s", err)
+				}
+				return doc
+			}(),
+			expResult: true,
+		},
+		{
+			// true: missing CAInfo, but PubKey present (e.g. infer use-case for some old passports)
+			document: func() document.Document {
+				doc := document.Document{}
+				err := doc.NewDG(14, utils.HexToBytes("6E82015E3182015A30820142060904007F000702020102308201333081EC06072A8648CE3D02013081E0020101302C06072A8648CE3D0101022100FFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF30440420FFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFC04205AC635D8AA3A93E7B3EBBD55769886BC651D06B0CC53B0F63BCE3C3E27D2604B0441046B17D1F2E12C4247F8BCE6E563A440F277037D812DEB33A0F4A13945D898C2964FE342E2FE1A7F9B8EE7EB4A7C0F9E162BCE33576B315ECECBB6406837BF51F5022100FFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551020101034200048367FC170D90AD53A28C6526A9C7EC4F5C59C4F7F5D992583F951A1654B4D1D6332163A33D82CBF245154887A8812ED9A55C15AD9D5C5C463851875BBA9AEABD3012060A04007F0007020204020402010202010C"))
+				if err != nil {
+					log.Panicf("Unexpected error: %s", err)
+				}
+				return doc
+			}(),
+			expResult: true,
+		},
+	}
+	for i, tc := range testCases {
+		t.Run(fmt.Sprintf("case_%d", i), func(t *testing.T) {
+
+			result := caAdvertised(&tc.document)
+
+			if result != tc.expResult {
+				t.Errorf("Result differs to expected (act:%t, exp:%t)", result, tc.expResult)
+			}
+		})
 	}
 }
 
@@ -414,10 +475,7 @@ func TestInferCAInfoFromKey(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		//TODO - var doc document.Document
-
 		dg14, err := document.NewDG14(tc.dg14bytes)
-		//TODO - err := doc.NewDG(14, tc.dg14bytes)
 		if err != nil {
 			t.Errorf("Unexpected error: %s", err)
 		}
