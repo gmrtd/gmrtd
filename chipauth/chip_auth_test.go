@@ -5,6 +5,7 @@ import (
 	"encoding/asn1"
 	"fmt"
 	"log"
+	"math/big"
 	"reflect"
 	"testing"
 
@@ -89,6 +90,127 @@ func TestCaAdvertised(t *testing.T) {
 
 			if result != tc.expResult {
 				t.Errorf("Result differs to expected (act:%t, exp:%t)", result, tc.expResult)
+			}
+		})
+	}
+}
+
+func TestResolveCAInfo(t *testing.T) {
+	testCases := []struct {
+		secInfos       *document.SecurityInfos
+		expError       bool
+		expCaInfo      *document.ChipAuthenticationInfo
+		expCaAlgInfo   *CaAlgorithmInfo
+		expAlgInferred bool
+	}{
+		{
+			// error: empty security-infos, so nothing to resolve
+			secInfos:       &document.SecurityInfos{},
+			expError:       true,
+			expCaInfo:      nil,
+			expCaAlgInfo:   nil,
+			expAlgInferred: false,
+		},
+		{
+			// success: CAInfo - without KeyId
+			secInfos: func() *document.SecurityInfos {
+				secInfos, err := document.DecodeSecurityInfos(utils.HexToBytes("3111300F060A04007F00070202030202020101"))
+				if err != nil {
+					log.Panicf("Unexpected error: %s", err)
+				}
+				return secInfos
+			}(),
+			expError:       false,
+			expCaInfo:      &document.ChipAuthenticationInfo{Raw: utils.HexToBytes("300F060A04007F00070202030202020101"), Protocol: asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 2, 2}, Version: 1},
+			expCaAlgInfo:   &CaAlgorithmInfo{targetOid: oid.OidPkEcdh, cipherAlg: 2, keySizeBits: 128, weighting: 2128},
+			expAlgInferred: false,
+		},
+		{
+			// error: CAInfo - without KeyId - but with INVALID Protocol
+			secInfos: func() *document.SecurityInfos {
+				var secInfos document.SecurityInfos
+
+				secInfos.ChipAuthInfos = append(secInfos.ChipAuthInfos,
+					document.ChipAuthenticationInfo{Raw: utils.HexToBytes("300F060A04007F00070202030202000101"), Protocol: asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 2, 0}, Version: 1})
+
+				return &secInfos
+			}(),
+			expError:       true,
+			expCaInfo:      nil,
+			expCaAlgInfo:   nil,
+			expAlgInferred: false,
+		},
+		{
+			// success: CAInfo - with KeyId
+			secInfos: func() *document.SecurityInfos {
+				secInfos, err := document.DecodeSecurityInfos(utils.HexToBytes("31153013060A04007F00070202030202020101020200C3"))
+				if err != nil {
+					log.Panicf("Unexpected error: %s", err)
+				}
+				return secInfos
+			}(),
+			expError:       false,
+			expCaInfo:      &document.ChipAuthenticationInfo{Raw: utils.HexToBytes("3013060A04007F00070202030202020101020200C3"), Protocol: asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 2, 2}, Version: 1, KeyId: big.NewInt(195)},
+			expCaAlgInfo:   &CaAlgorithmInfo{targetOid: oid.OidPkEcdh, cipherAlg: 2, keySizeBits: 128, weighting: 2128},
+			expAlgInferred: false,
+		},
+		{
+			// success: infer CA from key
+			secInfos: func() *document.SecurityInfos {
+				secInfos, err := document.DecodeSecurityInfos(utils.HexToBytes("3182015A30820142060904007F000702020102308201333081EC06072A8648CE3D02013081E0020101302C06072A8648CE3D0101022100FFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF30440420FFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFC04205AC635D8AA3A93E7B3EBBD55769886BC651D06B0CC53B0F63BCE3C3E27D2604B0441046B17D1F2E12C4247F8BCE6E563A440F277037D812DEB33A0F4A13945D898C2964FE342E2FE1A7F9B8EE7EB4A7C0F9E162BCE33576B315ECECBB6406837BF51F5022100FFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551020101034200048367FC170D90AD53A28C6526A9C7EC4F5C59C4F7F5D992583F951A1654B4D1D6332163A33D82CBF245154887A8812ED9A55C15AD9D5C5C463851875BBA9AEABD3012060A04007F0007020204020402010202010C"))
+				if err != nil {
+					log.Panicf("Unexpected error: %s", err)
+				}
+				return secInfos
+			}(),
+			expError:       false,
+			expCaInfo:      &document.ChipAuthenticationInfo{Protocol: oid.OidCaEcdh3DesCbcCbc, Version: 1},
+			expCaAlgInfo:   &CaAlgorithmInfo{targetOid: oid.OidPkEcdh, cipherAlg: 1, keySizeBits: 112, weighting: 2112},
+			expAlgInferred: true,
+		},
+		{
+			// error: infer CA from key - but with INVALID key protocol
+			secInfos: func() *document.SecurityInfos {
+				secInfos, err := document.DecodeSecurityInfos(utils.HexToBytes("3182015A30820142060904007F000702020102308201333081EC06072A8648CE3D02013081E0020101302C06072A8648CE3D0101022100FFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF30440420FFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFC04205AC635D8AA3A93E7B3EBBD55769886BC651D06B0CC53B0F63BCE3C3E27D2604B0441046B17D1F2E12C4247F8BCE6E563A440F277037D812DEB33A0F4A13945D898C2964FE342E2FE1A7F9B8EE7EB4A7C0F9E162BCE33576B315ECECBB6406837BF51F5022100FFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551020101034200048367FC170D90AD53A28C6526A9C7EC4F5C59C4F7F5D992583F951A1654B4D1D6332163A33D82CBF245154887A8812ED9A55C15AD9D5C5C463851875BBA9AEABD3012060A04007F0007020204020402010202010C"))
+				if err != nil {
+					log.Panicf("Unexpected error: %s", err)
+				}
+				// corrupt the protocol
+				secInfos.ChipAuthPubKeyInfos[0].Protocol = oid.OidIcao
+				return secInfos
+			}(),
+			expError:       true,
+			expCaInfo:      nil,
+			expCaAlgInfo:   nil,
+			expAlgInferred: false,
+		},
+	}
+	for i, tc := range testCases {
+		t.Run(fmt.Sprintf("case_%d", i), func(t *testing.T) {
+			caInfo, caAlgInfo, algInferred, err := resolveCAInfo(tc.secInfos)
+
+			if !tc.expError {
+				// error NOT expected
+				if err != nil {
+					t.Errorf("unexpected error: %s", err)
+				}
+			} else {
+				// error expected
+				if err == nil {
+					t.Errorf("expected error")
+				}
+			}
+
+			if !reflect.DeepEqual(caInfo, tc.expCaInfo) {
+				t.Errorf("caInfo differs to expected (act:%+v, exp:%+v)", caInfo, tc.expCaInfo)
+			}
+
+			if !reflect.DeepEqual(caAlgInfo, tc.expCaAlgInfo) {
+				t.Errorf("caAlgInfo differs to expected (act:%+v, exp:%+v)", caAlgInfo, tc.expCaAlgInfo)
+			}
+
+			if algInferred != tc.expAlgInferred {
+				t.Errorf("algInferred differs to expected (act:%t, exp:%t)", algInferred, tc.expAlgInferred)
 			}
 		})
 	}
