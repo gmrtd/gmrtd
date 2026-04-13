@@ -1,10 +1,12 @@
 package document
 
 import (
+	"bytes"
 	"reflect"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/mrz"
+	"github.com/gmrtd/gmrtd/tlv"
 	"github.com/gmrtd/gmrtd/utils"
 )
 
@@ -204,5 +206,96 @@ func TestNewDG11OtherNames(t *testing.T) {
 				t.Errorf("DG11 PersonDetails differs to expected\n(Act:%+v)\n(Exp:%+v)", doc.Mf.Lds1.Dg11.Details, tc.expDetails)
 			}
 		}
+	}
+}
+
+func TestProcessTagDG11(t *testing.T) {
+	testCases := []struct {
+		name             string
+		tlvTag           tlv.TlvTag
+		tlvNode          tlv.TlvNode
+		expPersonDetails PersonDetails
+	}{
+		{
+			// 5F0E: "SMITH<<JOHN<J"
+			name:             "5F0E NameOfHolder",
+			tlvTag:           0x5F0E,
+			tlvNode:          tlv.NewTlvConstructedNode(0x6C).AddChild(tlv.NewTlvSimpleNode(0x5F0E, []byte("SMITH<<JOHN<J"))),
+			expPersonDetails: PersonDetails{NameOfHolder: &mrz.MrzName{Primary: "SMITH", Secondary: "JOHN J"}},
+		},
+		{
+			// 5F10: "12345678"
+			name:             "5F10 PersonalNumber",
+			tlvTag:           0x5F10,
+			tlvNode:          tlv.NewTlvConstructedNode(0x6C).AddChild(tlv.NewTlvSimpleNode(0x5F10, []byte("12345678"))),
+			expPersonDetails: PersonDetails{PersonalNumber: "12345678"},
+		},
+		{
+			// 5F16: <image>
+			name:             "5F16 ProofOfCitizenship",
+			tlvTag:           0x5F16,
+			tlvNode:          tlv.NewTlvConstructedNode(0x6C).AddChild(tlv.NewTlvSimpleNode(0x5F16, utils.HexToBytes("ffd8ffe000104a46494600010100000100010000ffdb004300ffdb004301010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101ffc0000b080001000101011100ffc40014000100000000000000000000000000000000ffc40014100100000000000000000000000000000000ffda0008010100003f00d2cf20ffd9"))),
+			expPersonDetails: PersonDetails{ProofOfCitizenship: utils.HexToBytes("ffd8ffe000104a46494600010100000100010000ffdb004300ffdb004301010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101ffc0000b080001000101011100ffc40014000100000000000000000000000000000000ffc40014100100000000000000000000000000000000ffda0008010100003f00d2cf20ffd9")},
+		},
+		{
+			// 5F2B (Full-date-of-birth): 4 bytes BCD 0x20210915
+			name:             "5F2B FullDateOfBirth - BCD encoded (4 bytes)",
+			tlvTag:           0x5F2B,
+			tlvNode:          tlv.NewTlvConstructedNode(0x6C).AddChild(tlv.NewTlvSimpleNode(0x5F2B, utils.HexToBytes("20210915"))),
+			expPersonDetails: PersonDetails{FullDateOfBirth: "20210915"},
+		},
+		{
+			// 5F2B (Full-date-of-birth): 8 bytes ASCII 0x3230313730393035
+			name:             "5F2B FullDateOfBirth - ASCII encoded (8 bytes)",
+			tlvTag:           0x5F2B,
+			tlvNode:          tlv.NewTlvConstructedNode(0x6C).AddChild(tlv.NewTlvSimpleNode(0x5F2B, utils.HexToBytes("3230313730393035"))),
+			expPersonDetails: PersonDetails{FullDateOfBirth: "20170905"},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var personDetails PersonDetails
+
+			err := personDetails.processTag(tc.tlvTag, tc.tlvNode)
+			if err != nil {
+				t.Errorf("Unexpected processTag error: %s", err)
+			}
+
+			// verify data
+			if !reflect.DeepEqual(tc.expPersonDetails, personDetails) {
+				t.Errorf("DocumentDetails differs to expected [Exp] %+v [Act] %+v", tc.expPersonDetails, personDetails)
+			}
+		})
+	}
+}
+
+func TestProcessTagDG11Errors(t *testing.T) {
+	testCases := []struct {
+		name          string
+		tlvTag        tlv.TlvTag
+		tlvNode       tlv.TlvNode
+		errorContains string
+	}{
+		{
+			// 5F0E: "SMITH<<JOHN<<J"
+			name:          "5F0E NameOfHolder",
+			tlvTag:        0x5F0E,
+			tlvNode:       tlv.NewTlvConstructedNode(0x6C).AddChild(tlv.NewTlvSimpleNode(0x5F0E, []byte("SMITH<<JOHN<<J"))),
+			errorContains: "[ParseName] Incorrect number of name components: 3",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var personDetails PersonDetails
+
+			err := personDetails.processTag(tc.tlvTag, tc.tlvNode)
+			if err == nil {
+				t.Fatalf("Expected error")
+			}
+
+			if !bytes.Contains([]byte(err.Error()), []byte(tc.errorContains)) {
+				t.Errorf("Expected error to contain '%s', got: %s", tc.errorContains, err.Error())
+			}
+		})
 	}
 }
