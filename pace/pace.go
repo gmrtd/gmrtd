@@ -188,8 +188,10 @@ func selectPaceConfig(cardAccess *document.CardAccess) (*PaceConfig, *DomainPara
 		return nil, nil, fmt.Errorf("[selectPaceConfig] missing ParameterId in selected PACE info")
 	}
 
-	domainParams := standardisedDomainParams(int(selectedPaceInfo.ParameterId.Int64()))
-	// TODO - currently above can panic... change to error and handle any errors here
+	domainParams, err := standardisedDomainParams(int(selectedPaceInfo.ParameterId.Int64()))
+	if err != nil {
+		return nil, nil, fmt.Errorf("[selectPaceConfig] standardisedDomainParams error: %w", err)
+	}
 
 	return selectedConfig, domainParams, nil
 }
