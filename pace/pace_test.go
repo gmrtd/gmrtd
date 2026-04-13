@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/elliptic"
 	"encoding/asn1"
+	"errors"
 	"reflect"
 	"testing"
 
@@ -328,6 +329,41 @@ func TestDoPace_GM_ECDH(t *testing.T) {
 		if !smExp.Equal(*smAct) {
 			t.Errorf("SecureMessaging differs to expected")
 		}
+	}
+}
+
+// Error-case: modified to reference an invalid standardisedDomainParam (0x0D -> 0xFF )
+// PACE test for GM (ECDH) based on worked example in ICAO9303 p11 specs (Appendix G1)
+func TestDoPace_GM_ECDH_InvalidDomainParam(t *testing.T) {
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{})
+
+	var err error
+	var doc document.Document
+
+	// PACEInfo: 3012060A 04007F00 07020204 02020201 020201FF
+	//				** NB added 3114 to start
+	doc.Mf.CardAccess, err = document.NewCardAccess(utils.HexToBytes("31143012060A04007F000702020402020201020201FF"))
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+
+	// password (MRZ)
+	var pass *password.Password
+	pass, err = password.NewPasswordMrzi("T22000129", "640812", "101031")
+	if err != nil {
+		t.Errorf("unexpected error: %s", err)
+	}
+
+	var pace *Pace = NewPace(nfc, &doc, pass)
+
+	wantErr := ErrPACEParamUnsupported
+
+	_, err = pace.DoPACE()
+	if err == nil {
+		t.Fatalf("expected error (%v) but got nil", wantErr)
+	}
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("expected error (%v) but got (%v)", wantErr, err)
 	}
 }
 
