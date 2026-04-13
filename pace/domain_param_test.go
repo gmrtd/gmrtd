@@ -1,6 +1,7 @@
 package pace
 
 import (
+	"errors"
 	"math"
 	"testing"
 
@@ -58,7 +59,13 @@ func TestStandardisedDomainParams(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		var domainParams *DomainParams = standardisedDomainParams(tc.paramId)
+		var err error
+		var domainParams *DomainParams
+
+		domainParams, err = standardisedDomainParams(tc.paramId)
+		if err != nil {
+			t.Fatalf("standardisedDomainParams error: %s", err)
+		}
 
 		if !domainParams.isECDH {
 			t.Errorf("Should be ECDH")
@@ -86,12 +93,114 @@ func TestStandardisedDomainParams(t *testing.T) {
 }
 
 func TestStandardisedDomainParamsErr(t *testing.T) {
-	// No need to check whether `recover()` is nil. Just turn off the panic.
-	defer func() { _ = recover() }()
+	testCases := []struct {
+		paramId int
+		wantErr error
+	}{
+		{
+			paramId: 0,
+			wantErr: ErrPACEParamNotImplemented,
+		},
+		{
+			paramId: 1,
+			wantErr: ErrPACEParamNotImplemented,
+		},
+		{
+			paramId: 2,
+			wantErr: ErrPACEParamNotImplemented,
+		},
 
-	// NB error as we're using an invalid paramId
-	_ = standardisedDomainParams(-1)
+		{
+			paramId: 3,
+			wantErr: ErrPACEParamRFU,
+		},
+		{
+			paramId: 4,
+			wantErr: ErrPACEParamRFU,
+		},
+		{
+			paramId: 5,
+			wantErr: ErrPACEParamRFU,
+		},
+		{
+			paramId: 6,
+			wantErr: ErrPACEParamRFU,
+		},
+		{
+			paramId: 7,
+			wantErr: ErrPACEParamRFU,
+		},
+		{
+			paramId: 19,
+			wantErr: ErrPACEParamRFU,
+		},
+		{
+			paramId: 20,
+			wantErr: ErrPACEParamRFU,
+		},
+		{
+			paramId: 21,
+			wantErr: ErrPACEParamRFU,
+		},
+		{
+			paramId: 22,
+			wantErr: ErrPACEParamRFU,
+		},
+		{
+			paramId: 23,
+			wantErr: ErrPACEParamRFU,
+		},
+		{
+			paramId: 24,
+			wantErr: ErrPACEParamRFU,
+		},
+		{
+			paramId: 25,
+			wantErr: ErrPACEParamRFU,
+		},
+		{
+			paramId: 26,
+			wantErr: ErrPACEParamRFU,
+		},
+		{
+			paramId: 27,
+			wantErr: ErrPACEParamRFU,
+		},
+		{
+			paramId: 28,
+			wantErr: ErrPACEParamRFU,
+		},
+		{
+			paramId: 29,
+			wantErr: ErrPACEParamRFU,
+		},
+		{
+			paramId: 30,
+			wantErr: ErrPACEParamRFU,
+		},
+		{
+			paramId: 31,
+			wantErr: ErrPACEParamRFU,
+		},
+		{
+			paramId: 32,
+			wantErr: ErrPACEParamUnsupported,
+		},
+		{
+			paramId: -1,
+			wantErr: ErrPACEParamUnsupported,
+		},
+	}
+	for _, tc := range testCases {
+		_, err := standardisedDomainParams(tc.paramId)
 
-	// Never reaches here if panic
-	t.Errorf("expected panic, but didn't get")
+		if err == nil {
+			t.Fatalf("expected error (%v) but got nil", tc.wantErr)
+		}
+
+		if !errors.Is(err, tc.wantErr) {
+			t.Fatalf("expected error (%v) but got (%v)", tc.wantErr, err)
+		}
+	}
+
 }
