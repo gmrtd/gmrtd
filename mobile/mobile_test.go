@@ -77,7 +77,7 @@ func TestReadDocument(t *testing.T) {
 	// attempt to get JSON data even though we expected document reading error
 	// - we should still have some document object
 	{
-		json, jsonErr := reader.DocumentJson()
+		json, jsonErr := reader.DocumentExJson()
 
 		if jsonErr != nil {
 			t.Errorf("unexpected error: %s", jsonErr)
@@ -89,12 +89,12 @@ func TestReadDocument(t *testing.T) {
 	}
 }
 
-func TestDocumentJsonError(t *testing.T) {
+func TestDocumentExJsonError(t *testing.T) {
 	// error expected as we attempt to get Document-Json before ReadDocument
 
 	reader := NewReader(&testReaderStatus{})
 
-	_, err := reader.DocumentJson()
+	_, err := reader.DocumentExJson()
 	if err == nil {
 		t.Errorf("error expected")
 	}
