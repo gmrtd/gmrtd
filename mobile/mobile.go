@@ -102,12 +102,12 @@ func (reader *Reader) ReadDocument(transceiver Transceiver, password *MrtdPasswo
 	return err
 }
 
-func (reader *Reader) DocumentJson() (jsonData []byte, err error) {
+func (reader *Reader) DocumentExJson() (jsonData []byte, err error) {
 	if reader.documentEx == nil {
 		return nil, fmt.Errorf("[DocumentJson] No document available")
 	}
 
-	jsonData, err = json.Marshal(reader.documentEx.Document)
+	jsonData, err = json.Marshal(reader.documentEx)
 
 	return jsonData, err
 }
