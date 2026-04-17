@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.0](https://github.com/gmrtd/gmrtd/compare/v0.22.1...v0.23.0) (2026-04-17)
+
+
+### Features
+
+* **csca:** update DE CSCA Master-List (fixes [#241](https://github.com/gmrtd/gmrtd/issues/241)) ([#242](https://github.com/gmrtd/gmrtd/issues/242)) ([3305b19](https://github.com/gmrtd/gmrtd/commit/3305b19806c190cb7fb4a2a2b83afda5b114fc02))
+
 ## [0.22.1](https://github.com/gmrtd/gmrtd/compare/v0.22.0...v0.22.1) (2026-04-08)
 
 
