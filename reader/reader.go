@@ -136,6 +136,23 @@ func (reader *Reader) readEfDir(doc *document.Document) (err error) {
 	return nil
 }
 
+// reads EF.CardAccess
+func (reader *Reader) readEfCardAccess(doc *document.Document) (err error) {
+	slog.Info("Read EF.CardAccess")
+	reader.status.Status("Reading EF.CardAccess")
+	// may not be present (OR may be present but not have PACE info)
+	cardAccessData, err := reader.nfc.ReadFile(MRTDFileIdCardAccess)
+	if err != nil {
+		return fmt.Errorf("[readEfCardAccess] Read Card.Access error: %w", err)
+	}
+	doc.Mf.CardAccess, err = document.NewCardAccess(cardAccessData)
+	if err != nil {
+		return fmt.Errorf("[readEfCardAccess] Parse Card.Access error: %w", err)
+	}
+
+	return nil
+}
+
 // reads the LDS1 data-groups (DGs) based on the DG hashes present in EF.SOD
 func (reader *Reader) readLDS1dgs(doc *document.Document) (err error) {
 	if doc.Mf.Lds1.Sod == nil {
@@ -237,17 +254,9 @@ func (reader *Reader) ReadDocument(password *password.Password, atr []byte, ats 
 		return docEx, fmt.Errorf("[ReadDocument] Select MF error: %w", err)
 	}
 
-	// TODO - move to a dedicated function.. like 'readEfDir'
-	slog.Info("Read CardAccess")
-	reader.status.Status("CardAccess")
-	// may not be present (OR may be present but not have PACE info)
-	cardAccessData, err := reader.nfc.ReadFile(MRTDFileIdCardAccess)
+	err = reader.readEfCardAccess(&(docEx.Document))
 	if err != nil {
-		return docEx, fmt.Errorf("[ReadDocument] Read Card.Access error: %w", err)
-	}
-	docEx.Document.Mf.CardAccess, err = document.NewCardAccess(cardAccessData)
-	if err != nil {
-		return docEx, fmt.Errorf("[ReadDocument] Parse Card.Access error: %w", err)
+		return docEx, fmt.Errorf("[ReadDocument] readEfCardAccess error: %w", err)
 	}
 
 	/*
