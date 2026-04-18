@@ -19,7 +19,8 @@ func (s *MockStatus) Status(_ string) {
 
 func TestReaderSetup(t *testing.T) {
 	var status MockStatus
-	var reader *Reader = NewReader(&status)
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.MockTransceiver{})
+	var reader *Reader = NewReader(&status, nfc)
 
 	if reader.skipPace {
 		t.Errorf("Reader should default to PACE=Yes")
@@ -30,38 +31,6 @@ func TestReaderSetup(t *testing.T) {
 	if !reader.skipPace {
 		t.Errorf("Reader should now have PACE=NO")
 	}
-
-	reader.SetApduMaxLe(65536)
-
-	if reader.apduMaxLe != 65536 {
-		t.Errorf("APDU Max Le should be 65536")
-	}
-}
-
-func TestReaderSetApduMaxLeTooSmallError(t *testing.T) {
-	// No need to check whether `recover()` is nil. Just turn off the panic.
-	defer func() { _ = recover() }()
-
-	var status MockStatus
-	var reader *Reader = NewReader(&status)
-
-	reader.SetApduMaxLe(-1) // min valid: 0
-
-	// Never reaches here if panic
-	t.Errorf("expected panic, but didn't get")
-}
-
-func TestReaderSetApduMaxLeTooBigError(t *testing.T) {
-	// No need to check whether `recover()` is nil. Just turn off the panic.
-	defer func() { _ = recover() }()
-
-	var status MockStatus
-	var reader *Reader = NewReader(&status)
-
-	reader.SetApduMaxLe(65537) // max valid: 65535
-
-	// Never reaches here if panic
-	t.Errorf("expected panic, but didn't get")
 }
 
 func TestRecordAtrAts(t *testing.T) {
@@ -85,14 +54,13 @@ func TestRecordAtrAts(t *testing.T) {
 
 func TestReadLDS1filesMissingSodError(t *testing.T) {
 	var status MockStatus
-	var reader *Reader = NewReader(&status)
-	var doc document.Document
-
 	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{utils.HexToBytes("6A82")}) // 6A82: file not found
+	var reader *Reader = NewReader(&status, nfc)
+	var doc document.Document
 
 	// NB expect error as SOD is not present ans this is a critical file
 	//	  - especially as it drives the reading of the DGs
-	err := reader.readLDS1files(nfc, &doc)
+	err := reader.readLDS1files(&doc)
 
 	if err == nil {
 		t.Errorf("Expected error")
@@ -101,12 +69,11 @@ func TestReadLDS1filesMissingSodError(t *testing.T) {
 
 func TestReadEfSod(t *testing.T) {
 	var status MockStatus
-	var reader *Reader = NewReader(&status)
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{utils.HexToBytes("6A82")}) // 6A82: file not found
+	var reader *Reader = NewReader(&status, nfc)
 	var doc document.Document
 
-	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{utils.HexToBytes("6A82")}) // 6A82: file not found
-
-	err := reader.readEfSod(nfc, &doc)
+	err := reader.readEfSod(&doc)
 
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
@@ -115,12 +82,11 @@ func TestReadEfSod(t *testing.T) {
 
 func TestReadEfCom(t *testing.T) {
 	var status MockStatus
-	var reader *Reader = NewReader(&status)
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{utils.HexToBytes("6A82")}) // 6A82: file not found
+	var reader *Reader = NewReader(&status, nfc)
 	var doc document.Document
 
-	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{utils.HexToBytes("6A82")}) // 6A82: file not found
-
-	err := reader.readEfCom(nfc, &doc)
+	err := reader.readEfCom(&doc)
 
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
@@ -148,10 +114,11 @@ func TestReadDocumentTransceiverPanicIsHandled(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			var status MockStatus
-			reader := NewReader(&status)
+			var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&PanicTransceiver{P: tc.panic})
+			reader := NewReader(&status, nfc)
 			pass := password.NewPasswordCan("123456")
 
-			_, err := reader.ReadDocument(&PanicTransceiver{P: tc.panic}, pass, nil, nil)
+			_, err := reader.ReadDocument(pass, nil, nil)
 			if err == nil {
 				t.Fatalf("expected error")
 			}

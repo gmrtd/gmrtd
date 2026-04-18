@@ -71,16 +71,16 @@ var dgToFileId = map[int]uint16{
 }
 
 // reads the LDS1 files (EF.SOD,EF.COM,EF.DGxx)
-func (reader *Reader) readLDS1files(nfc *iso7816.NfcSession, doc *document.Document) (err error) {
-	if err := reader.readEfSod(nfc, doc); err != nil {
+func (reader *Reader) readLDS1files(doc *document.Document) (err error) {
+	if err := reader.readEfSod(doc); err != nil {
 		return fmt.Errorf("[readLDS1files] readEfSod error: %w", err)
 	}
 
-	if err := reader.readEfCom(nfc, doc); err != nil {
+	if err := reader.readEfCom(doc); err != nil {
 		return fmt.Errorf("[readLDS1files] readEfCom error: %w", err)
 	}
 
-	err = reader.readLDS1dgs(nfc, doc)
+	err = reader.readLDS1dgs(doc)
 	if err != nil {
 		return fmt.Errorf("[readLDS1files] Reads LDS1 DGs error: %w", err)
 	}
@@ -89,10 +89,10 @@ func (reader *Reader) readLDS1files(nfc *iso7816.NfcSession, doc *document.Docum
 }
 
 // reads EF.SOD
-func (reader *Reader) readEfSod(nfc *iso7816.NfcSession, doc *document.Document) (err error) {
+func (reader *Reader) readEfSod(doc *document.Document) (err error) {
 	slog.Info("Read EF.SOD")
 	reader.status.Status("Reading EF.SOD")
-	sodData, err := nfc.ReadFile(MRTDFileIdEFSOD)
+	sodData, err := reader.nfc.ReadFile(MRTDFileIdEFSOD)
 	if err != nil {
 		return fmt.Errorf("[readEfSod] ReadFile error: %w", err)
 	}
@@ -105,10 +105,10 @@ func (reader *Reader) readEfSod(nfc *iso7816.NfcSession, doc *document.Document)
 }
 
 // reads EF.COM
-func (reader *Reader) readEfCom(nfc *iso7816.NfcSession, doc *document.Document) (err error) {
+func (reader *Reader) readEfCom(doc *document.Document) (err error) {
 	slog.Info("Read EF.COM")
 	reader.status.Status("Reading EF.COM")
-	efComData, err := nfc.ReadFile(MRTDFileIdEFCOM)
+	efComData, err := reader.nfc.ReadFile(MRTDFileIdEFCOM)
 	if err != nil {
 		return fmt.Errorf("[readEfCom] ReadFile error: %w", err)
 	}
@@ -121,10 +121,10 @@ func (reader *Reader) readEfCom(nfc *iso7816.NfcSession, doc *document.Document)
 }
 
 // reads EF.DIR
-func (reader *Reader) readEfDir(nfc *iso7816.NfcSession, doc *document.Document) (err error) {
+func (reader *Reader) readEfDir(doc *document.Document) (err error) {
 	slog.Info("Read EF.DIR")
 	reader.status.Status("Reading EF.DIR")
-	efDirData, err := nfc.ReadFile(MRTDFileIdEFDIR)
+	efDirData, err := reader.nfc.ReadFile(MRTDFileIdEFDIR)
 	if err != nil {
 		return fmt.Errorf("[readEfDir] Read EF.DIR error: %w", err)
 	}
@@ -137,7 +137,7 @@ func (reader *Reader) readEfDir(nfc *iso7816.NfcSession, doc *document.Document)
 }
 
 // reads the LDS1 data-groups (DGs) based on the DG hashes present in EF.SOD
-func (reader *Reader) readLDS1dgs(nfc *iso7816.NfcSession, doc *document.Document) (err error) {
+func (reader *Reader) readLDS1dgs(doc *document.Document) (err error) {
 	if doc.Mf.Lds1.Sod == nil {
 		return fmt.Errorf("[readLDS1dgs] SOD is missing")
 	}
@@ -157,7 +157,7 @@ func (reader *Reader) readLDS1dgs(nfc *iso7816.NfcSession, doc *document.Documen
 
 		var dgBytes []byte
 
-		dgBytes, err = nfc.ReadFile(uint16(fileId))
+		dgBytes, err = reader.nfc.ReadFile(uint16(fileId))
 		if err != nil {
 			return fmt.Errorf("[readLDS1dgs] ReadFile(fileId:%d) error: %w", fileId, err)
 		}
@@ -171,6 +171,7 @@ func (reader *Reader) readLDS1dgs(nfc *iso7816.NfcSession, doc *document.Documen
 	return nil
 }
 
+// TODO - why not a reader method like the others?
 func performChipAuthentication(nfc *iso7816.NfcSession, docEx *document.DocumentEx) {
 	if !docEx.Session.ChipAuthenticated() {
 		// attempt chip-authentication (if supported)
@@ -190,23 +191,16 @@ type ReaderStatus interface {
 }
 
 type Reader struct {
-	status    ReaderStatus
-	apduMaxLe int  // overrides if >0 (1..65536)
-	skipPace  bool // skip PACE
+	status   ReaderStatus
+	nfc      *iso7816.NfcSession
+	skipPace bool // skip PACE
 }
 
-func NewReader(status ReaderStatus) *Reader {
+func NewReader(status ReaderStatus, nfc *iso7816.NfcSession) *Reader {
 	var reader Reader
 	reader.status = status
+	reader.nfc = nfc
 	return &reader
-}
-
-// sets the APDU Max LE (1..65536) (0 to disable override)
-func (reader *Reader) SetApduMaxLe(maxRead int) {
-	if (maxRead < 0) || (maxRead > 65536) {
-		panic(fmt.Sprintf("Invalid APDU Max LE range (Exp:0..65536) (Act:%d)", maxRead))
-	}
-	reader.apduMaxLe = maxRead
 }
 
 func (reader *Reader) SkipPace() {
@@ -216,7 +210,7 @@ func (reader *Reader) SkipPace() {
 // reads the document using the specified transceiver and password
 // - also performs doc.Verify() and Passive Authentication!
 // NB returns partial data (docEx) in the event of an error
-func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *password.Password, atr []byte, ats []byte) (docEx *document.DocumentEx, err error) {
+func (reader *Reader) ReadDocument(password *password.Password, atr []byte, ats []byte) (docEx *document.DocumentEx, err error) {
 	defer func() {
 		if e := recover(); e != nil {
 			switch x := e.(type) {
@@ -231,13 +225,6 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 		}
 	}()
 
-	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(transceiver)
-
-	// override default (if required)
-	if reader.apduMaxLe > 0 {
-		nfc.SetMaxLe(reader.apduMaxLe)
-	}
-
 	docEx = new(document.DocumentEx)
 
 	// record ATR/ATS
@@ -246,14 +233,15 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 
 	// NB spec recommends not to use, but iOS may pre-select the MRTD AID
 	slog.Info("Selecting MF")
-	if err = nfc.SelectMF(); err != nil {
+	if err = reader.nfc.SelectMF(); err != nil {
 		return docEx, fmt.Errorf("[ReadDocument] Select MF error: %w", err)
 	}
 
+	// TODO - move to a dedicated function.. like 'readEfDir'
 	slog.Info("Read CardAccess")
 	reader.status.Status("CardAccess")
 	// may not be present (OR may be present but not have PACE info)
-	cardAccessData, err := nfc.ReadFile(MRTDFileIdCardAccess)
+	cardAccessData, err := reader.nfc.ReadFile(MRTDFileIdCardAccess)
 	if err != nil {
 		return docEx, fmt.Errorf("[ReadDocument] Read Card.Access error: %w", err)
 	}
@@ -268,11 +256,11 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 	if !reader.skipPace {
 		reader.status.Status("PACE")
 		// NB errors are just recorded at this point
-		docEx.Session.PaceResult, docEx.Session.PaceErr = pace.NewPace(nfc, &docEx.Document, password).DoPACE()
+		docEx.Session.PaceResult, docEx.Session.PaceErr = pace.NewPace(reader.nfc, &docEx.Document, password).DoPACE()
 	}
 
 	slog.Info("Selecting MRTD AID")
-	_, err = nfc.SelectAid(utils.HexToBytes(MRTD_AID))
+	_, err = reader.nfc.SelectAid(utils.HexToBytes(MRTD_AID))
 	if err != nil {
 		return docEx, fmt.Errorf("[ReadDocument] Select MRTD AID error: %w", err)
 	}
@@ -282,15 +270,15 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 	 */
 
 	// NB we only attempt BAC if we don't already have SecureMessaging (i.e. via PACE)
-	if nfc.SM() == nil {
+	if reader.nfc.SM() == nil {
 		reader.status.Status("BAC")
 		// NB errors are just recorded at this point
-		docEx.Session.BacResult, docEx.Session.BacErr = bac.NewBAC(nfc, &docEx.Document, password).DoBAC()
+		docEx.Session.BacResult, docEx.Session.BacErr = bac.NewBAC(reader.nfc, &docEx.Document, password).DoBAC()
 	}
 
 	// NB must be performed after PACE/BAC
 	// - issues observed for NZ when before PACE, and USA when before BAC (as USA does not have PACE)
-	err = reader.readEfDir(nfc, &(docEx.Document))
+	err = reader.readEfDir(&(docEx.Document))
 	if err != nil {
 		return docEx, fmt.Errorf("[ReadDocument] readEfDir error: %w", err)
 	}
@@ -300,7 +288,7 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 	/*
 	 * Read LDS1 files
 	 */
-	err = reader.readLDS1files(nfc, &docEx.Document)
+	err = reader.readLDS1files(&docEx.Document)
 	if err != nil {
 		return docEx, fmt.Errorf("[ReadDocument] Read LDS1 files error: %w", err)
 	}
@@ -311,7 +299,7 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 	 * NB requires DG data, so performed after DG read
 	 */
 	reader.status.Status("Chip Authentication (CA/AA)")
-	performChipAuthentication(nfc, docEx)
+	performChipAuthentication(reader.nfc, docEx)
 
 	// verify the document
 	reader.status.Status("Verifying Document")
@@ -338,7 +326,7 @@ func (reader *Reader) ReadDocument(transceiver iso7816.Transceiver, password *pa
 	docEx.Session.PassiveAuthResult, docEx.Session.PassiveAuthErr = passiveauth.PassiveAuth(&docEx.Document, cscaCertPool)
 
 	// copy apdu-log over to session
-	docEx.Session.ApduLog = nfc.ApduLog()
+	docEx.Session.ApduLog = reader.nfc.ApduLog()
 
 	// TODO - do final classification of the document... e.g. dataAuthenticated / chipAuthenticated??... can also record lds/unicode-version
 	reader.status.Status("Valid Document!")
