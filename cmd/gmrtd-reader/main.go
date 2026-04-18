@@ -203,12 +203,15 @@ func main() {
 
 	var status *PCSCReaderStatus = new(PCSCReaderStatus)
 
-	var reader *reader.Reader = reader.NewReader(status)
+	var nfc *iso7816.NfcSession
+	nfc = iso7816.NewNfcSession(transceiver)
 
 	// set APDU Max Read (if specified)
 	if maxRead > 0 {
-		reader.SetApduMaxLe(int(maxRead))
+		nfc.SetMaxLe(int(maxRead))
 	}
+
+	var reader *reader.Reader = reader.NewReader(status, nfc)
 
 	// skip PACE (if specified)
 	if skipPace {
@@ -216,7 +219,7 @@ func main() {
 	}
 
 	// read (and verify) the document (inc passive-authentication)
-	documentEx, err := reader.ReadDocument(transceiver, pass, atr, ats)
+	documentEx, err := reader.ReadDocument(pass, atr, ats)
 	if err != nil {
 		// output whatever we have from the document
 		outputDocument(documentEx)

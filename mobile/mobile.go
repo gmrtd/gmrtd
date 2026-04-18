@@ -8,6 +8,7 @@ import (
 
 	"github.com/gmrtd/gmrtd/document"
 	"github.com/gmrtd/gmrtd/internal/version"
+	"github.com/gmrtd/gmrtd/iso7816"
 	"github.com/gmrtd/gmrtd/password"
 	"github.com/gmrtd/gmrtd/reader"
 )
@@ -61,24 +62,27 @@ func NewPasswordCan(can string) (*MrtdPassword, error) {
 }
 
 type Reader struct {
-	gmrtdReader *reader.Reader
+	status      ReaderStatus
+	transceiver Transceiver
+	maxRead     int
 	documentEx  *document.DocumentEx
 }
 
-func NewReader(status ReaderStatus) *Reader {
+func NewReader(status ReaderStatus, transceiver Transceiver) *Reader {
 	var out Reader
-	out.gmrtdReader = reader.NewReader(status)
+	out.status = status
+	out.transceiver = transceiver
 	return &out
 }
 
 // sets the APDU Max LE (1..65536) (0 to disable override)
-func (reader *Reader) SetApduMaxLe(maxRead int) error {
-	reader.gmrtdReader.SetApduMaxLe(maxRead)
+func (r *Reader) SetApduMaxLe(maxRead int) error {
+	r.maxRead = maxRead
 	return nil
 }
 
 // reads the document (and performs passive authentication)
-func (reader *Reader) ReadDocument(transceiver Transceiver, password *MrtdPassword, atr []byte, ats []byte) (err error) {
+func (r *Reader) ReadDocument(password *MrtdPassword, atr []byte, ats []byte) (err error) {
 	defer func() {
 		if e := recover(); e != nil {
 			switch x := e.(type) {
@@ -94,20 +98,29 @@ func (reader *Reader) ReadDocument(transceiver Transceiver, password *MrtdPasswo
 	}()
 
 	// reset document (if already set)
-	reader.documentEx = nil
+	r.documentEx = nil
+
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(r.transceiver)
+
+	if r.maxRead > 0 {
+		nfc.SetMaxLe(r.maxRead)
+	}
+
+	var gmrtdReader *reader.Reader
+	gmrtdReader = reader.NewReader(r.status, nfc)
 
 	// read (and verify) the document (inc passive-authentication)
-	reader.documentEx, err = reader.gmrtdReader.ReadDocument(transceiver, password.password, atr, ats)
+	r.documentEx, err = gmrtdReader.ReadDocument(password.password, atr, ats)
 
 	return err
 }
 
-func (reader *Reader) DocumentExJson() (jsonData []byte, err error) {
-	if reader.documentEx == nil {
+func (r *Reader) DocumentExJson() (jsonData []byte, err error) {
+	if r.documentEx == nil {
 		return nil, fmt.Errorf("[DocumentJson] No document available")
 	}
 
-	jsonData, err = json.Marshal(reader.documentEx)
+	jsonData, err = json.Marshal(r.documentEx)
 
 	return jsonData, err
 }

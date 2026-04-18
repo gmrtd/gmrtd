@@ -60,7 +60,7 @@ func (status *testReaderStatus) Status(_ string) {
 
 // NB basic test that will fail quickly due to static transceiver
 func TestReadDocument(t *testing.T) {
-	reader := NewReader(&testReaderStatus{})
+	reader := NewReader(&testReaderStatus{}, &iso7816.StaticTransceiver{})
 
 	reader.SetApduMaxLe(1000)
 
@@ -69,7 +69,7 @@ func TestReadDocument(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 
-	err = reader.ReadDocument(&iso7816.StaticTransceiver{}, pass, nil, nil)
+	err = reader.ReadDocument(pass, nil, nil)
 	if err == nil {
 		t.Fatalf("expected error")
 	}
@@ -92,7 +92,7 @@ func TestReadDocument(t *testing.T) {
 func TestDocumentExJsonError(t *testing.T) {
 	// error expected as we attempt to get Document-Json before ReadDocument
 
-	reader := NewReader(&testReaderStatus{})
+	reader := NewReader(&testReaderStatus{}, &iso7816.StaticTransceiver{})
 
 	_, err := reader.DocumentExJson()
 	if err == nil {
@@ -109,11 +109,11 @@ func (t *PanicTransceiver) Transceive(cla, ins, p1, p2 int, data []byte, le int,
 
 func TestReadDocumentNilPassword(t *testing.T) {
 	// pass in invalid Password (nil) to trigger panic, should get error
-	reader := NewReader(&testReaderStatus{})
+	reader := NewReader(&testReaderStatus{}, &PanicTransceiver{})
 
 	var pass *MrtdPassword = nil
 
-	err := reader.ReadDocument(&PanicTransceiver{}, pass, nil, nil)
+	err := reader.ReadDocument(pass, nil, nil)
 	if err == nil {
 		t.Fatalf("expected error")
 	}
