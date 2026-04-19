@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"runtime/debug"
 
+	"github.com/gmrtd/gmrtd/cms"
 	"github.com/gmrtd/gmrtd/document"
 	"github.com/gmrtd/gmrtd/internal/version"
 	"github.com/gmrtd/gmrtd/iso7816"
@@ -81,6 +82,18 @@ func (r *Reader) SetApduMaxLe(maxRead int) error {
 	return nil
 }
 
+func cscaMasterList() (cms.CertPool, error) {
+	var cscaCertPool cms.CertPool
+	var err error
+
+	cscaCertPool, err = cms.DefaultMasterList()
+	if err != nil {
+		return nil, fmt.Errorf("[cscaMasterList] cms.DefaultMasterList error: %w", err)
+	}
+
+	return cscaCertPool, nil
+}
+
 // reads the document (and performs passive authentication)
 func (r *Reader) ReadDocument(password *MrtdPassword, atr []byte, ats []byte) (err error) {
 	defer func() {
@@ -106,8 +119,13 @@ func (r *Reader) ReadDocument(password *MrtdPassword, atr []byte, ats []byte) (e
 		nfc.SetMaxLe(r.maxRead)
 	}
 
+	cscaMasterList, err := cscaMasterList()
+	if err != nil {
+		return fmt.Errorf("[ReadDocument] cscaMasterList error: %w", err)
+	}
+
 	var gmrtdReader *reader.Reader
-	gmrtdReader = reader.NewReader(r.status, nfc)
+	gmrtdReader = reader.NewReader(r.status, nfc, cscaMasterList)
 
 	// read (and verify) the document (inc passive-authentication)
 	r.documentEx, err = gmrtdReader.ReadDocument(password.password, atr, ats)
