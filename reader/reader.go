@@ -208,15 +208,17 @@ type ReaderStatus interface {
 }
 
 type Reader struct {
-	status   ReaderStatus
-	nfc      *iso7816.NfcSession
-	skipPace bool // skip PACE
+	status       ReaderStatus
+	nfc          *iso7816.NfcSession
+	cscaCertPool cms.CertPool
+	skipPace     bool // skip PACE
 }
 
-func NewReader(status ReaderStatus, nfc *iso7816.NfcSession) *Reader {
+func NewReader(status ReaderStatus, nfc *iso7816.NfcSession, cscaCertPool cms.CertPool) *Reader {
 	var reader Reader
 	reader.status = status
 	reader.nfc = nfc
+	reader.cscaCertPool = cscaCertPool
 	return &reader
 }
 
@@ -318,21 +320,10 @@ func (reader *Reader) ReadDocument(password *password.Password, atr []byte, ats 
 		return docEx, fmt.Errorf("[ReadDocument] Document.Verify error: %w", err)
 	}
 
-	// TODO - should setup this earlier... e.g. Reader setup?
-	var cscaCertPool *cms.CombinedCertPool
-	{
-		var err error
-
-		cscaCertPool, err = cms.DefaultMasterList()
-		if err != nil {
-			return docEx, fmt.Errorf("[ReadDocument] DefaultMasterList error: %w", err)
-		}
-	}
-
 	// perform passive authentication
 	// NB errors are just recorded at this point
 	reader.status.Status("Passive Authentication")
-	docEx.Session.PassiveAuthResult, docEx.Session.PassiveAuthErr = passiveauth.PassiveAuth(&docEx.Document, cscaCertPool)
+	docEx.Session.PassiveAuthResult, docEx.Session.PassiveAuthErr = passiveauth.PassiveAuth(&docEx.Document, reader.cscaCertPool)
 
 	// copy apdu-log over to session
 	docEx.Session.ApduLog = reader.nfc.ApduLog()

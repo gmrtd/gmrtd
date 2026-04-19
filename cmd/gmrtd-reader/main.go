@@ -12,6 +12,7 @@ import (
 	"os"
 
 	"github.com/dumacp/smartcard/pcsc"
+	"github.com/gmrtd/gmrtd/cms"
 	"github.com/gmrtd/gmrtd/document"
 	"github.com/gmrtd/gmrtd/internal/version"
 	"github.com/gmrtd/gmrtd/iso7816"
@@ -141,6 +142,18 @@ func initLogging(debug bool) {
 	}
 }
 
+func cscaMasterList() (cms.CertPool, error) {
+	var cscaCertPool cms.CertPool
+	var err error
+
+	cscaCertPool, err = cms.DefaultMasterList()
+	if err != nil {
+		return nil, fmt.Errorf("[cscaMasterList] cms.DefaultMasterList error: %w", err)
+	}
+
+	return cscaCertPool, nil
+}
+
 func main() {
 	var pass *password.Password
 	var debug bool = false
@@ -211,7 +224,13 @@ func main() {
 		nfc.SetMaxLe(int(maxRead))
 	}
 
-	var reader *reader.Reader = reader.NewReader(status, nfc)
+	cscaCertPool, err := cscaMasterList()
+	if err != nil {
+		slog.Error("cscaMasterList error", "error", err)
+		os.Exit(1)
+	}
+
+	var reader *reader.Reader = reader.NewReader(status, nfc, cscaCertPool)
 
 	// skip PACE (if specified)
 	if skipPace {

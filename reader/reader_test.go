@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/gmrtd/gmrtd/cms"
 	"github.com/gmrtd/gmrtd/document"
 	"github.com/gmrtd/gmrtd/iso7816"
 	"github.com/gmrtd/gmrtd/password"
@@ -17,10 +18,16 @@ func (s *MockStatus) Status(_ string) {
 	// NB do nothing
 }
 
+func EmptyCscaTrustStore(t *testing.T) cms.CertPool {
+	t.Helper()
+
+	return &cms.GenericCertPool{}
+}
+
 func TestReaderSetup(t *testing.T) {
 	var status MockStatus
 	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.MockTransceiver{})
-	var reader *Reader = NewReader(&status, nfc)
+	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
 
 	if reader.skipPace {
 		t.Errorf("Reader should default to PACE=Yes")
@@ -55,7 +62,7 @@ func TestRecordAtrAts(t *testing.T) {
 func TestReadLDS1filesMissingSodError(t *testing.T) {
 	var status MockStatus
 	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{utils.HexToBytes("6A82")}) // 6A82: file not found
-	var reader *Reader = NewReader(&status, nfc)
+	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
 	var doc document.Document
 
 	// NB expect error as SOD is not present ans this is a critical file
@@ -70,7 +77,7 @@ func TestReadLDS1filesMissingSodError(t *testing.T) {
 func TestReadLDS1DgsFilesNotFound(t *testing.T) {
 	var status MockStatus
 	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{utils.HexToBytes("6A82")}) // 6A82: file not found
-	var reader *Reader = NewReader(&status, nfc)
+	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
 	var doc document.Document
 	var err error
 
@@ -92,7 +99,7 @@ func TestReadLDS1DgsFilesNotFound(t *testing.T) {
 func TestReadEfSodFileNotFound(t *testing.T) {
 	var status MockStatus
 	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{utils.HexToBytes("6A82")}) // 6A82: file not found
-	var reader *Reader = NewReader(&status, nfc)
+	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
 	var doc document.Document
 
 	err := reader.readEfSod(&doc)
@@ -105,7 +112,7 @@ func TestReadEfSodFileNotFound(t *testing.T) {
 func TestReadEfSodCardDeadError(t *testing.T) {
 	var status MockStatus
 	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{utils.HexToBytes("6FFF")}) // 6FFF: card dead
-	var reader *Reader = NewReader(&status, nfc)
+	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
 	var doc document.Document
 
 	err := reader.readEfSod(&doc)
@@ -118,7 +125,7 @@ func TestReadEfSodCardDeadError(t *testing.T) {
 func TestReadEfComFileNotFound(t *testing.T) {
 	var status MockStatus
 	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{utils.HexToBytes("6A82")}) // 6A82: file not found
-	var reader *Reader = NewReader(&status, nfc)
+	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
 	var doc document.Document
 
 	err := reader.readEfCom(&doc)
@@ -131,7 +138,7 @@ func TestReadEfComFileNotFound(t *testing.T) {
 func TestReadEfComCardDeadError(t *testing.T) {
 	var status MockStatus
 	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{utils.HexToBytes("6FFF")}) // 6FFF: card dead
-	var reader *Reader = NewReader(&status, nfc)
+	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
 	var doc document.Document
 
 	err := reader.readEfCom(&doc)
@@ -144,7 +151,7 @@ func TestReadEfComCardDeadError(t *testing.T) {
 func TestReadEfDirFileNotFound(t *testing.T) {
 	var status MockStatus
 	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{utils.HexToBytes("6A82")}) // 6A82: file not found
-	var reader *Reader = NewReader(&status, nfc)
+	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
 	var doc document.Document
 
 	err := reader.readEfDir(&doc)
@@ -157,7 +164,7 @@ func TestReadEfDirFileNotFound(t *testing.T) {
 func TestReadEfDirCardDeadError(t *testing.T) {
 	var status MockStatus
 	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{utils.HexToBytes("6FFF")}) // 6FFF: card dead
-	var reader *Reader = NewReader(&status, nfc)
+	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
 	var doc document.Document
 
 	err := reader.readEfDir(&doc)
@@ -170,7 +177,7 @@ func TestReadEfDirCardDeadError(t *testing.T) {
 func TestReadEfCardAccessFileNotFound(t *testing.T) {
 	var status MockStatus
 	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{utils.HexToBytes("6A82")}) // 6A82: file not found
-	var reader *Reader = NewReader(&status, nfc)
+	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
 	var doc document.Document
 
 	err := reader.readEfCardAccess(&doc)
@@ -183,7 +190,7 @@ func TestReadEfCardAccessFileNotFound(t *testing.T) {
 func TestReadEfCardAccessCardDeadError(t *testing.T) {
 	var status MockStatus
 	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{utils.HexToBytes("6FFF")}) // 6FFF: card dead
-	var reader *Reader = NewReader(&status, nfc)
+	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
 	var doc document.Document
 
 	err := reader.readEfCardAccess(&doc)
@@ -215,7 +222,7 @@ func TestReadDocumentTransceiverPanicIsHandled(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var status MockStatus
 			var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&PanicTransceiver{P: tc.panic})
-			reader := NewReader(&status, nfc)
+			reader := NewReader(&status, nfc, EmptyCscaTrustStore(t))
 			pass := password.NewPasswordCan("123456")
 
 			_, err := reader.ReadDocument(pass, nil, nil)
