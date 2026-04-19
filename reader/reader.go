@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"runtime/debug"
 
 	"github.com/gmrtd/gmrtd/activeauth"
 	"github.com/gmrtd/gmrtd/bac"
@@ -70,139 +69,6 @@ var dgToFileId = map[int]uint16{
 	16: MRTDFileIdDG16,
 }
 
-// reads the LDS1 files (EF.SOD,EF.COM,EF.DGxx)
-func (reader *Reader) readLDS1files(doc *document.Document) (err error) {
-	if err := reader.readEfSod(doc); err != nil {
-		return fmt.Errorf("[readLDS1files] readEfSod error: %w", err)
-	}
-
-	if err := reader.readEfCom(doc); err != nil {
-		return fmt.Errorf("[readLDS1files] readEfCom error: %w", err)
-	}
-
-	err = reader.readLDS1dgs(doc)
-	if err != nil {
-		return fmt.Errorf("[readLDS1files] Reads LDS1 DGs error: %w", err)
-	}
-
-	return nil
-}
-
-// reads EF.SOD
-func (reader *Reader) readEfSod(doc *document.Document) (err error) {
-	slog.Info("Read EF.SOD")
-	reader.status.Status("Reading EF.SOD")
-	sodData, err := reader.nfc.ReadFile(MRTDFileIdEFSOD)
-	if err != nil {
-		return fmt.Errorf("[readEfSod] ReadFile error: %w", err)
-	}
-	doc.Mf.Lds1.Sod, err = document.NewSOD(sodData)
-	if err != nil {
-		return fmt.Errorf("[readEfSod] NewSOD error: %w", err)
-	}
-
-	return nil
-}
-
-// reads EF.COM
-func (reader *Reader) readEfCom(doc *document.Document) (err error) {
-	slog.Info("Read EF.COM")
-	reader.status.Status("Reading EF.COM")
-	efComData, err := reader.nfc.ReadFile(MRTDFileIdEFCOM)
-	if err != nil {
-		return fmt.Errorf("[readEfCom] ReadFile error: %w", err)
-	}
-	doc.Mf.Lds1.Com, err = document.NewCOM(efComData)
-	if err != nil {
-		return fmt.Errorf("[readEfCom] NewCOM error: %w", err)
-	}
-
-	return nil
-}
-
-// reads EF.DIR
-func (reader *Reader) readEfDir(doc *document.Document) (err error) {
-	slog.Info("Read EF.DIR")
-	reader.status.Status("Reading EF.DIR")
-	efDirData, err := reader.nfc.ReadFile(MRTDFileIdEFDIR)
-	if err != nil {
-		return fmt.Errorf("[readEfDir] Read EF.DIR error: %w", err)
-	}
-	doc.Mf.Dir, err = document.NewEFDIR(efDirData)
-	if err != nil {
-		return fmt.Errorf("[readEfDir] Parse EF.DIR error: %w", err)
-	}
-
-	return nil
-}
-
-// reads EF.CardAccess
-func (reader *Reader) readEfCardAccess(doc *document.Document) (err error) {
-	slog.Info("Read EF.CardAccess")
-	reader.status.Status("Reading EF.CardAccess")
-	// may not be present (OR may be present but not have PACE info)
-	cardAccessData, err := reader.nfc.ReadFile(MRTDFileIdCardAccess)
-	if err != nil {
-		return fmt.Errorf("[readEfCardAccess] Read Card.Access error: %w", err)
-	}
-	doc.Mf.CardAccess, err = document.NewCardAccess(cardAccessData)
-	if err != nil {
-		return fmt.Errorf("[readEfCardAccess] Parse Card.Access error: %w", err)
-	}
-
-	return nil
-}
-
-// reads the LDS1 data-groups (DGs) based on the DG hashes present in EF.SOD
-func (reader *Reader) readLDS1dgs(doc *document.Document) (err error) {
-	if doc.Mf.Lds1.Sod == nil {
-		return fmt.Errorf("[readLDS1dgs] SOD is missing")
-	}
-
-	dgHashes := doc.Mf.Lds1.Sod.LdsSecurityObject.DataGroupHashValues
-
-	for _, dgHash := range dgHashes {
-		fileId, fileIdOk := dgToFileId[dgHash.DataGroupNumber]
-		if !fileIdOk {
-			// ignore if cannot resolve to file-id
-			slog.Info("Skipping DG", "DG", dgHash.DataGroupNumber)
-			continue
-		}
-
-		slog.Info("Reading DG", "DG", dgHash.DataGroupNumber)
-		reader.status.Status(fmt.Sprintf("Reading DG%02d", dgHash.DataGroupNumber))
-
-		var dgBytes []byte
-
-		dgBytes, err = reader.nfc.ReadFile(uint16(fileId))
-		if err != nil {
-			return fmt.Errorf("[readLDS1dgs] ReadFile(fileId:%d) error: %w", fileId, err)
-		}
-
-		err = doc.NewDG(dgHash.DataGroupNumber, dgBytes)
-		if err != nil {
-			return fmt.Errorf("[readLDS1dgs] Parse DG(fileId:%d) error: %w", dgHash.DataGroupNumber, err)
-		}
-	}
-
-	return nil
-}
-
-// TODO - why not a reader method like the others?
-func performChipAuthentication(nfc *iso7816.NfcSession, docEx *document.DocumentEx) {
-	if !docEx.Session.ChipAuthenticated() {
-		// attempt chip-authentication (if supported)
-		// NB errors are just recorded at this point
-		docEx.Session.ChipAuthResult, docEx.Session.ChipAuthErr = chipauth.NewChipAuth(nfc, &docEx.Document).DoChipAuth()
-	}
-
-	if !docEx.Session.ChipAuthenticated() {
-		// attempt active-authentication (if supported)
-		// NB errors are just recorded at this point
-		docEx.Session.ActiveAuthResult, docEx.Session.ActiveAuthErr = activeauth.NewActiveAuth(nfc, &docEx.Document).DoActiveAuth()
-	}
-}
-
 type ReaderStatus interface {
 	Status(msg string)
 }
@@ -226,6 +92,24 @@ func (reader *Reader) SkipPace() {
 	reader.skipPace = true
 }
 
+type ReaderState struct {
+	atr      []byte
+	ats      []byte
+	password *password.Password
+	docEx    *document.DocumentEx
+}
+
+func NewReaderState(atr []byte, ats []byte, password *password.Password) *ReaderState {
+	var out ReaderState
+
+	out.atr = bytes.Clone(atr)
+	out.ats = bytes.Clone(ats)
+	out.password = password
+	out.docEx = new(document.DocumentEx)
+
+	return &out
+}
+
 // reads the document using the specified transceiver and password
 // - also performs doc.Verify() and Passive Authentication!
 // NB returns partial data (docEx) in the event of an error
@@ -240,112 +124,244 @@ func (reader *Reader) ReadDocument(password *password.Password, atr []byte, ats 
 			default:
 				err = errors.New("unknown panic")
 			}
-			debug.PrintStack()
 		}
 	}()
 
-	docEx = new(document.DocumentEx)
+	var state *ReaderState = NewReaderState(atr, ats, password)
 
-	// record ATR/ATS
-	// NB we don't really do much with these today, just recording
-	recordAtrAts(atr, ats, &docEx.Session)
-
-	// NB spec recommends not to use, but iOS may pre-select the MRTD AID
-	slog.Info("Selecting MF")
-	if err = reader.nfc.SelectMF(); err != nil {
-		return docEx, fmt.Errorf("[ReadDocument] Select MF error: %w", err)
-	}
-
-	err = reader.readEfCardAccess(&(docEx.Document))
+	err = runSteps(
+		reader,
+		state,
+		recordAtrAts,
+		selectMF,
+		readEfCardAccess,
+		performPace,
+		selectMrtdApplication,
+		performBac,
+		readEfDir,
+		readEfSod,
+		readEfCom,
+		readLDS1dgs,
+		performChipAuthentication,
+		verifyDocument,
+		performPassiveAuthentication,
+	)
 	if err != nil {
-		return docEx, fmt.Errorf("[ReadDocument] readEfCardAccess error: %w", err)
+		return state.docEx, fmt.Errorf("[ReadDocument] runSteps error: %w", err)
 	}
-
-	/*
-	 * PACE
-	 */
-	if !reader.skipPace {
-		reader.status.Status("PACE")
-		// NB errors are just recorded at this point
-		docEx.Session.PaceResult, docEx.Session.PaceErr = pace.NewPace(reader.nfc, &docEx.Document, password).DoPACE()
-	}
-
-	slog.Info("Selecting MRTD AID")
-	_, err = reader.nfc.SelectAid(utils.HexToBytes(MRTD_AID))
-	if err != nil {
-		return docEx, fmt.Errorf("[ReadDocument] Select MRTD AID error: %w", err)
-	}
-
-	/*
-	 * Basic Access Control (BAC) - if required
-	 */
-
-	// NB we only attempt BAC if we don't already have SecureMessaging (i.e. via PACE)
-	if reader.nfc.SM() == nil {
-		reader.status.Status("BAC")
-		// NB errors are just recorded at this point
-		docEx.Session.BacResult, docEx.Session.BacErr = bac.NewBAC(reader.nfc, &docEx.Document, password).DoBAC()
-	}
-
-	// NB must be performed after PACE/BAC
-	// - issues observed for NZ when before PACE, and USA when before BAC (as USA does not have PACE)
-	err = reader.readEfDir(&(docEx.Document))
-	if err != nil {
-		return docEx, fmt.Errorf("[ReadDocument] readEfDir error: %w", err)
-	}
-
-	// NB legacy passport may not have BAC/PACE so we should be prepared for no SecureMessaging
-
-	/*
-	 * Read LDS1 files
-	 */
-	err = reader.readLDS1files(&docEx.Document)
-	if err != nil {
-		return docEx, fmt.Errorf("[ReadDocument] Read LDS1 files error: %w", err)
-	}
-
-	/*
-	 * Chip / Active Authentication
-	 *
-	 * NB requires DG data, so performed after DG read
-	 */
-	reader.status.Status("Chip Authentication (CA/AA)")
-	performChipAuthentication(reader.nfc, docEx)
-
-	// verify the document
-	reader.status.Status("Verifying Document")
-	err = docEx.Document.Verify()
-	if err != nil {
-		slog.Error("Document.Verify", "error", err)
-		return docEx, fmt.Errorf("[ReadDocument] Document.Verify error: %w", err)
-	}
-
-	// perform passive authentication
-	// NB errors are just recorded at this point
-	reader.status.Status("Passive Authentication")
-	docEx.Session.PassiveAuthResult, docEx.Session.PassiveAuthErr = passiveauth.PassiveAuth(&docEx.Document, reader.cscaCertPool)
 
 	// copy apdu-log over to session
-	docEx.Session.ApduLog = reader.nfc.ApduLog()
+	state.docEx.Session.ApduLog = reader.nfc.ApduLog()
 
 	// TODO - do final classification of the document... e.g. dataAuthenticated / chipAuthenticated??... can also record lds/unicode-version
 	reader.status.Status("Valid Document!")
 
-	slog.Info("** ReadDocument FINISHED **", "ChipAuthenticated", docEx.Session.ChipAuthenticated())
+	slog.Info("** ReadDocument FINISHED **", "ChipAuthenticated", state.docEx.Session.ChipAuthenticated())
 
-	return
+	return state.docEx, nil
 }
 
-func recordAtrAts(atr []byte, ats []byte, session *document.Session) {
+type ReaderStep func(*Reader, *ReaderState) error
+
+func runSteps(reader *Reader, state *ReaderState, steps ...ReaderStep) error {
+	for _, step := range steps {
+		if err := step(reader, state); err != nil {
+			return fmt.Errorf("[runSteps] error: %w", err)
+		}
+	}
+	return nil
+}
+func recordAtrAts(_ *Reader, state *ReaderState) (err error) {
+	// record ATR/ATS
+	// NB we don't really do much with these today, just recording
+
 	var chipActivationRsp document.ChipActivationRsp
 
-	chipActivationRsp.Atr = bytes.Clone(atr)
-	chipActivationRsp.Ats = bytes.Clone(ats)
+	chipActivationRsp.Atr = bytes.Clone(state.atr)
+	chipActivationRsp.Ats = bytes.Clone(state.ats)
 
-	session.ChipActivationRsp = &chipActivationRsp
+	state.docEx.Session.ChipActivationRsp = &chipActivationRsp
 
 	slog.Debug("ATR/ATS",
-		"ATR", utils.BytesToHex(session.ChipActivationRsp.Atr),
-		"ATS", utils.BytesToHex(session.ChipActivationRsp.Ats),
+		"ATR", utils.BytesToHex(state.docEx.Session.ChipActivationRsp.Atr),
+		"ATS", utils.BytesToHex(state.docEx.Session.ChipActivationRsp.Ats),
 	)
+
+	return nil
+}
+
+func selectMF(reader *Reader, _ *ReaderState) (err error) {
+	// NB spec recommends not to use, but iOS may pre-select the MRTD AID
+	slog.Info("Selecting MF")
+	if err = reader.nfc.SelectMF(); err != nil {
+		return fmt.Errorf("[selectMF] nfc.SelectMF error: %w", err)
+	}
+	return nil
+}
+
+func selectMrtdApplication(reader *Reader, _ *ReaderState) (err error) {
+	slog.Info("Selecting MRTD AID")
+	_, err = reader.nfc.SelectAid(utils.HexToBytes(MRTD_AID))
+	if err != nil {
+		return fmt.Errorf("[selectMrtdApplication] Select MRTD AID error: %w", err)
+	}
+	return nil
+}
+
+// reads EF.SOD
+func readEfSod(reader *Reader, state *ReaderState) (err error) {
+	slog.Info("Read EF.SOD")
+	reader.status.Status("Reading EF.SOD")
+	sodData, err := reader.nfc.ReadFile(MRTDFileIdEFSOD)
+	if err != nil {
+		return fmt.Errorf("[readEfSod] ReadFile error: %w", err)
+	}
+	state.docEx.Document.Mf.Lds1.Sod, err = document.NewSOD(sodData)
+	if err != nil {
+		return fmt.Errorf("[readEfSod] NewSOD error: %w", err)
+	}
+
+	return nil
+}
+
+// reads EF.COM
+func readEfCom(reader *Reader, state *ReaderState) (err error) {
+	slog.Info("Read EF.COM")
+	reader.status.Status("Reading EF.COM")
+	efComData, err := reader.nfc.ReadFile(MRTDFileIdEFCOM)
+	if err != nil {
+		return fmt.Errorf("[readEfCom] ReadFile error: %w", err)
+	}
+	state.docEx.Document.Mf.Lds1.Com, err = document.NewCOM(efComData)
+	if err != nil {
+		return fmt.Errorf("[readEfCom] NewCOM error: %w", err)
+	}
+
+	return nil
+}
+
+// reads EF.DIR
+func readEfDir(reader *Reader, state *ReaderState) (err error) {
+	slog.Info("Read EF.DIR")
+	reader.status.Status("Reading EF.DIR")
+	efDirData, err := reader.nfc.ReadFile(MRTDFileIdEFDIR)
+	if err != nil {
+		return fmt.Errorf("[readEfDir] Read EF.DIR error: %w", err)
+	}
+	state.docEx.Document.Mf.Dir, err = document.NewEFDIR(efDirData)
+	if err != nil {
+		return fmt.Errorf("[readEfDir] Parse EF.DIR error: %w", err)
+	}
+
+	return nil
+}
+
+// reads EF.CardAccess
+func readEfCardAccess(reader *Reader, state *ReaderState) (err error) {
+	slog.Info("Read EF.CardAccess")
+	reader.status.Status("Reading EF.CardAccess")
+	// may not be present (OR may be present but not have PACE info)
+	cardAccessData, err := reader.nfc.ReadFile(MRTDFileIdCardAccess)
+	if err != nil {
+		return fmt.Errorf("[readEfCardAccess] Read Card.Access error: %w", err)
+	}
+	state.docEx.Document.Mf.CardAccess, err = document.NewCardAccess(cardAccessData)
+	if err != nil {
+		return fmt.Errorf("[readEfCardAccess] Parse Card.Access error: %w", err)
+	}
+
+	return nil
+}
+
+// reads the LDS1 data-groups (DGs) based on the DG hashes present in EF.SOD
+func readLDS1dgs(reader *Reader, state *ReaderState) (err error) {
+	if state.docEx.Document.Mf.Lds1.Sod == nil {
+		return fmt.Errorf("[readLDS1dgs] SOD is missing")
+	}
+
+	dgHashes := state.docEx.Document.Mf.Lds1.Sod.LdsSecurityObject.DataGroupHashValues
+
+	for _, dgHash := range dgHashes {
+		fileId, fileIdOk := dgToFileId[dgHash.DataGroupNumber]
+		if !fileIdOk {
+			// ignore if cannot resolve to file-id
+			slog.Info("Skipping DG", "DG", dgHash.DataGroupNumber)
+			continue
+		}
+
+		slog.Info("Reading DG", "DG", dgHash.DataGroupNumber)
+		reader.status.Status(fmt.Sprintf("Reading DG%02d", dgHash.DataGroupNumber))
+
+		var dgBytes []byte
+
+		dgBytes, err = reader.nfc.ReadFile(uint16(fileId))
+		if err != nil {
+			return fmt.Errorf("[readLDS1dgs] ReadFile(fileId:%d) error: %w", fileId, err)
+		}
+
+		err = state.docEx.Document.NewDG(dgHash.DataGroupNumber, dgBytes)
+		if err != nil {
+			return fmt.Errorf("[readLDS1dgs] Parse DG(fileId:%d) error: %w", dgHash.DataGroupNumber, err)
+		}
+	}
+
+	return nil
+}
+
+func performPace(reader *Reader, state *ReaderState) error {
+	if reader.skipPace {
+		return nil
+	}
+	reader.status.Status("PACE")
+	// NB errors are just recorded at this point
+	state.docEx.Session.PaceResult, state.docEx.Session.PaceErr = pace.NewPace(reader.nfc, &state.docEx.Document, state.password).DoPACE()
+	return nil
+}
+
+func performBac(reader *Reader, state *ReaderState) error {
+	// NB we only attempt BAC if we don't already have SecureMessaging (i.e. via PACE)
+	if reader.nfc.SM() != nil {
+		return nil
+	}
+	reader.status.Status("BAC")
+	// NB errors are just recorded at this point
+	state.docEx.Session.BacResult, state.docEx.Session.BacErr = bac.NewBAC(reader.nfc, &state.docEx.Document, state.password).DoBAC()
+	return nil
+}
+
+func performChipAuthentication(reader *Reader, state *ReaderState) error {
+	slog.Info("Chip Authentication (CA/AA)")
+	reader.status.Status("Chip Authentication (CA/AA)")
+
+	if !state.docEx.Session.ChipAuthenticated() {
+		// attempt chip-authentication (if supported)
+		// NB errors are just recorded at this point
+		state.docEx.Session.ChipAuthResult, state.docEx.Session.ChipAuthErr = chipauth.NewChipAuth(reader.nfc, &state.docEx.Document).DoChipAuth()
+	}
+
+	if !state.docEx.Session.ChipAuthenticated() {
+		// attempt active-authentication (if supported)
+		// NB errors are just recorded at this point
+		state.docEx.Session.ActiveAuthResult, state.docEx.Session.ActiveAuthErr = activeauth.NewActiveAuth(reader.nfc, &state.docEx.Document).DoActiveAuth()
+	}
+
+	return nil
+}
+
+func performPassiveAuthentication(reader *Reader, state *ReaderState) error {
+	// perform passive authentication
+	// NB errors are just recorded at this point
+	reader.status.Status("Passive Authentication")
+	state.docEx.Session.PassiveAuthResult, state.docEx.Session.PassiveAuthErr = passiveauth.PassiveAuth(&state.docEx.Document, reader.cscaCertPool)
+	return nil
+}
+
+func verifyDocument(reader *Reader, state *ReaderState) (err error) {
+	reader.status.Status("Verifying Document")
+	err = state.docEx.Document.Verify()
+	if err != nil {
+		slog.Error("Document.Verify", "error", err)
+		return fmt.Errorf("[verifyDocument] Document.Verify error: %w", err)
+	}
+	return nil
 }
