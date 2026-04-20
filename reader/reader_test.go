@@ -101,6 +101,49 @@ func TestReadLDS1DgsFilesNotFound(t *testing.T) {
 	}
 }
 
+func TestSelectMrtdApplication(t *testing.T) {
+	var mockTransceiver iso7816.MockTransceiver
+	// SELECT MRTD AID command
+	mockTransceiver.AddReqRsp("00a4040c07a0000002471001", "9000")
+
+	var status MockStatus
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&mockTransceiver)
+	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
+	var password *password.Password = password.NewPasswordNil()
+	var state *ReaderState = NewReaderState(nil, nil, password)
+
+	err := selectMrtdApplication(reader, state)
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+}
+
+func TestSelectMrtdApplicationFileNotFound(t *testing.T) {
+	var status MockStatus
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{RApdu: utils.HexToBytes("6A82")}) // 6A82: file not found
+	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
+	var password *password.Password = password.NewPasswordNil()
+	var state *ReaderState = NewReaderState(nil, nil, password)
+
+	err := selectMrtdApplication(reader, state)
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+}
+
+func TestSelectMrtdApplicationCardDeadError(t *testing.T) {
+	var status MockStatus
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{RApdu: utils.HexToBytes("6FFF")}) // 6FFF: card dead
+	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
+	var password *password.Password = password.NewPasswordNil()
+	var state *ReaderState = NewReaderState(nil, nil, password)
+
+	err := selectMrtdApplication(reader, state)
+	if err == nil {
+		t.Errorf("Expected error")
+	}
+}
+
 func TestReadEfSodFileNotFound(t *testing.T) {
 	var status MockStatus
 	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{RApdu: utils.HexToBytes("6A82")}) // 6A82: file not found
