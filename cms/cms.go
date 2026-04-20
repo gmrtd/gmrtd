@@ -36,6 +36,8 @@ import (
 	"github.com/osanderson/brainpool"
 )
 
+// TODO - review and ensure that instances of asn1.ObjectIdentifier have MarshalJSON to string notation
+
 type SubjectPublicKeyInfo struct {
 	Algorithm        AlgorithmIdentifier
 	SubjectPublicKey asn1.BitString
@@ -67,8 +69,18 @@ func (ai AlgorithmIdentifier) MarshalJSON() ([]byte, error) {
 }
 
 type ContentInfo struct {
-	Type    asn1.ObjectIdentifier `json:"type"`
-	Content asn1.RawValue         `asn1:"explicit,tag:0" json:"content"`
+	Type    asn1.ObjectIdentifier
+	Content asn1.RawValue `asn1:"explicit,tag:0"`
+}
+
+func (ci ContentInfo) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type    string `json:"type,omitempty"`
+		Content []byte `json:"content,omitempty"`
+	}{
+		Type:    ci.Type.String(),
+		Content: ci.Content.FullBytes,
+	})
 }
 
 type SignedData struct {
@@ -81,6 +93,8 @@ type SignedData struct {
 	SignerInfos      []SignerInfo          `asn1:"set" json:"signerInfos"`
 }
 
+// TODO - MarshalJSON
+
 type SignerInfo struct {
 	Raw                       asn1.RawContent     `json:"raw"`
 	Version                   int                 `asn1:"default:1" json:"version"`
@@ -91,6 +105,8 @@ type SignerInfo struct {
 	EncryptedDigest           []byte              `json:"encryptedDigest"`
 	UnauthenticatedAttributes AttributeList       `asn1:"optional,tag:1" json:"unauthenticatedAttributes,omitempty"`
 }
+
+// TODO - MarshalJSON
 
 // SignerIdentifier ::= CHOICE {
 // issuerAndSerialNumber IssuerAndSerialNumber,
@@ -107,7 +123,6 @@ type Attribute struct {
 	Type   asn1.ObjectIdentifier
 	Values asn1.RawValue
 }
-type AttributeList []Attribute
 
 func (a Attribute) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
@@ -115,9 +130,11 @@ func (a Attribute) MarshalJSON() ([]byte, error) {
 		Values []byte `json:"values,omitempty"`
 	}{
 		Type:   a.Type.String(),
-		Values: a.Values.Bytes,
+		Values: a.Values.FullBytes,
 	})
 }
+
+type AttributeList []Attribute
 
 // returns: nil if no matching attribute found
 func (attributes AttributeList) ByOID(oid asn1.ObjectIdentifier) *Attribute {
@@ -153,9 +170,19 @@ func (attributes AttributeList) SetOfAsnBytes() []byte {
 }
 
 type EncapContentInfo struct {
-	Raw          asn1.RawContent       `json:"raw"`
-	EContentType asn1.ObjectIdentifier `json:"eContentType"`
-	EContent     []byte                `asn1:"explicit,tag:0" json:"eContent"` // e.g. LDSSecurityObject / SecurityInfos
+	Raw          asn1.RawContent
+	EContentType asn1.ObjectIdentifier
+	EContent     []byte `asn1:"explicit,tag:0"` // e.g. LDSSecurityObject / SecurityInfos
+}
+
+func (eci EncapContentInfo) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		EContentType string `json:"eContentType,omitempty"`
+		EContent     []byte `json:"eContent,omitempty"`
+	}{
+		EContentType: eci.EContentType.String(),
+		EContent:     eci.EContent,
+	})
 }
 
 func ParseSignedData(data []byte) (*SignedData, error) {
@@ -210,6 +237,8 @@ type Certificate struct {
 	SignatureValue     asn1.BitString      `json:"signatureValue"`
 }
 
+// TODO - MarshalJSON
+
 type Extensions []Extension
 
 type AuthorityKeyIdentifier struct {
@@ -217,6 +246,8 @@ type AuthorityKeyIdentifier struct {
 	AuthorityCertIssuer       asn1.RawContent `asn1:"optional,implicit,tag:1" json:"authorityCertIssuer"`
 	AuthorityCertSerialNumber asn1.RawContent `asn1:"optional,implicit,tag:2" json:"authorityCertSerialNumber"`
 }
+
+// TODO - MarshalJSON
 
 type SubjectKeyIdentifier []byte
 
@@ -300,10 +331,14 @@ type TBSCertificate struct {
 	Extensions           Extensions          `asn1:"explicit,optional,tag:3" json:"extensions"`
 }
 
+// TODO - MarshalJSON
+
 type Validity struct {
 	NotBefore asn1.RawValue `json:"notBefore"`
 	NotAfter  asn1.RawValue `json:"notAfter"`
 }
+
+// TODO - MarshalJSON
 
 type Extension struct {
 	Raw       asn1.RawContent       `json:"raw"`
@@ -311,6 +346,8 @@ type Extension struct {
 	Critical  asn1.Flag             `asn1:"optional,default:false" json:"critical"`
 	ExtnValue asn1.RawValue         `json:"extnValue"`
 }
+
+// TODO - MarshalJSON
 
 /*
 
