@@ -3,14 +3,121 @@ package cms
 import (
 	"crypto/elliptic"
 	"encoding/asn1"
+	"encoding/json"
 	"fmt"
 	"math/big"
+	"reflect"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
 	"github.com/gmrtd/gmrtd/oid"
 	"github.com/gmrtd/gmrtd/utils"
 )
+
+func TestSubjectPublicKeyInfoMarshalJSON(t *testing.T) {
+	t.Parallel()
+
+	spk := SubjectPublicKeyInfo{
+		Algorithm: AlgorithmIdentifier{
+			Algorithm: asn1.ObjectIdentifier{1, 2, 840, 10045, 2, 1},
+		},
+		SubjectPublicKey: asn1.BitString{
+			Bytes: []byte{0x04, 0xAA, 0xBB, 0xCC},
+		},
+	}
+
+	got, err := spk.MarshalJSON()
+	if err != nil {
+		t.Fatalf("MarshalJSON() error: %v", err)
+	}
+
+	want := []byte(`{
+		"algorithm": {
+			"algorithm": "1.2.840.10045.2.1"
+		},
+		"subjectPublicKey": "BKq7zA=="
+	}`)
+
+	var gotObj, wantObj map[string]any
+
+	if err := json.Unmarshal(got, &gotObj); err != nil {
+		t.Fatalf("unmarshal got: %v", err)
+	}
+	if err := json.Unmarshal(want, &wantObj); err != nil {
+		t.Fatalf("unmarshal want: %v", err)
+	}
+
+	if !reflect.DeepEqual(gotObj, wantObj) {
+		t.Fatalf("JSON mismatch\nwant: %s\ngot:  %s", want, got)
+	}
+}
+
+func TestEncapContentInfoMarshalJSON(t *testing.T) {
+	t.Parallel()
+
+	eci := EncapContentInfo{
+		EContentType: asn1.ObjectIdentifier{2, 23, 136, 1, 1, 1},
+		EContent:     utils.HexToBytes("3082010d020101300b06096086480165030402013081ea30250201010420b8531d522af781ebba2f78465b5beab1fcce2861dd947316a217a0f31f06598330250201020420d2fc98effeaac17d42987c48f310315086fc920054f900002df114a79ff2774b30250201030420883155f3a1ea7948bf4a416625c767ed1f4ed2eaed731f143cc8a22ceabc0cb13025020104042010500f4bc7437f061d4ce735ac0c4f35cf71adb7c5112aaf9b2ccb2c9bd20c3a302502010d0420aded95a855d5c0ac69599f46c4c464ad2aab053798aebe74c69472ff2ffbb0b4302502010e04209cda75e7b4f6168e6586ccd175c0aab3e90f47a68d68e922122937414a90622d300e1304303130381306303430303030"),
+	}
+
+	got, err := eci.MarshalJSON()
+	if err != nil {
+		t.Fatalf("MarshalJSON() error: %v", err)
+	}
+
+	want := []byte(`{
+		"eContentType": "2.23.136.1.1.1",
+		"eContent":"MIIBDQIBATALBglghkgBZQMEAgEwgeowJQIBAQQguFMdUir3geu6L3hGW1vqsfzOKGHdlHMWoheg8x8GWYMwJQIBAgQg0vyY7/6qwX1CmHxI8xAxUIb8kgBU+QAALfEUp5/yd0swJQIBAwQgiDFV86HqeUi/SkFmJcdn7R9O0urtcx8UPMiiLOq8DLEwJQIBBAQgEFAPS8dDfwYdTOc1rAxPNc9xrbfFESqvmyzLLJvSDDowJQIBDQQgre2VqFXVwKxpWZ9GxMRkrSqrBTeYrr50xpRy/y/7sLQwJQIBDgQgnNp157T2Fo5lhszRdcCqs+kPR6aNaOkiEik3QUqQYi0wDhMEMDEwOBMGMDQwMDAw"
+
+	}`)
+
+	var gotObj, wantObj map[string]any
+
+	if err := json.Unmarshal(got, &gotObj); err != nil {
+		t.Fatalf("unmarshal got: %v", err)
+	}
+	if err := json.Unmarshal(want, &wantObj); err != nil {
+		t.Fatalf("unmarshal want: %v", err)
+	}
+
+	if !reflect.DeepEqual(gotObj, wantObj) {
+		t.Fatalf("JSON mismatch\nwant: %s\ngot:  %s", want, got)
+	}
+}
+
+func TestAttributeMarshalJSON(t *testing.T) {
+	t.Parallel()
+
+	attribute := Attribute{
+		Type:   asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 3},
+		Values: asn1.RawValue{Class: 0, Tag: 17, IsCompound: true, Bytes: utils.HexToBytes("0606678108010101"), FullBytes: utils.HexToBytes("31080606678108010101")},
+	}
+
+	//	asn1.RawValue.
+
+	got, err := attribute.MarshalJSON()
+	if err != nil {
+		t.Fatalf("MarshalJSON() error: %v", err)
+	}
+
+	want := []byte(`{
+		"type":"1.2.840.113549.1.9.3",
+		"values":"MQgGBmeBCAEBAQ=="
+	}`)
+
+	var gotObj, wantObj map[string]any
+
+	if err := json.Unmarshal(got, &gotObj); err != nil {
+		t.Fatalf("unmarshal got: %v", err)
+	}
+	if err := json.Unmarshal(want, &wantObj); err != nil {
+		t.Fatalf("unmarshal want: %v", err)
+	}
+
+	if !reflect.DeepEqual(gotObj, wantObj) {
+		t.Fatalf("JSON mismatch\nwant: %s\ngot:  %s", want, got)
+	}
+}
 
 func TestVerifySignedData(t *testing.T) {
 	/*
