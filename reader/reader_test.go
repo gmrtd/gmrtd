@@ -208,7 +208,7 @@ func TestReadEfCardAccessCardDeadError(t *testing.T) {
 }
 
 func TestPerformChipAuthenticationForEmptyDocument(t *testing.T) {
-	// note: nothing in the docuyment suggest CA/AA are supported, so they will be silently skipped
+	// note: nothing in the document suggests CA/AA are supported, so they will be silently skipped
 
 	var status MockStatus
 	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&PanicTransceiver{P: "will panic if called"})
@@ -324,6 +324,23 @@ func TestPerformPassiveAuthenticationBadSignatureErr(t *testing.T) {
 
 	if state.docEx.Session.PassiveAuthResult.Success != false {
 		t.Fatalf("Expected FAILURE")
+	}
+}
+
+func TestVerifyDocumentEmptyDocErr(t *testing.T) {
+	// note: empty document will fail verification
+
+	var status MockStatus
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&PanicTransceiver{P: "will panic if called"})
+	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
+	var password *password.Password = password.NewPasswordNil()
+	var state *ReaderState = NewReaderState(nil, nil, password)
+
+	var err error
+
+	err = verifyDocument(reader, state)
+	if err == nil {
+		t.Fatalf("expected error")
 	}
 }
 
