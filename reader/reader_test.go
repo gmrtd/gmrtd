@@ -250,6 +250,112 @@ func TestReadEfCardAccessCardDeadError(t *testing.T) {
 	}
 }
 
+func TestPerformPaceEmptyDocument(t *testing.T) {
+	// note: nothing in the document suggests PACE is supported (ie missing CardAccess file), so it will be silently skipped
+
+	var status MockStatus
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&PanicTransceiver{P: "will panic if called"})
+	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
+	var password *password.Password = password.NewPasswordNil()
+	var state *ReaderState = NewReaderState(nil, nil, password)
+
+	var err error
+
+	err = performPace(reader, state)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	if state.docEx.Session.PaceErr != nil {
+		t.Fatalf("Pace error NOT expected (err: %s)", state.docEx.Session.PaceErr)
+	}
+
+	if state.docEx.Session.PaceResult != nil {
+		t.Fatalf("PaceResult NOT expected")
+	}
+}
+
+func TestPerformPaceTransceiverError(t *testing.T) {
+	// note: valid CardAccess with PACE indicated, but transceiver error occurs
+
+	var err error
+
+	var status MockStatus
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{RApdu: utils.HexToBytes("6FFF")}) // 6FFF: card dead
+	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
+
+	var pass *password.Password
+	pass, err = password.NewPasswordMrzi("123456", "100101", "301225")
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	var state *ReaderState = NewReaderState(nil, nil, pass)
+
+	// valid CardAccess from SG passport
+	var cardAccessBytes []byte = utils.HexToBytes("31143012060A04007F0007020204020402010202010D")
+
+	// setup CardAccess file that indicates PACE is supported
+	state.docEx.Document.Mf.CardAccess, err = document.NewCardAccess(cardAccessBytes)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	err = performPace(reader, state)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	if state.docEx.Session.PaceErr == nil {
+		t.Fatalf("Pace error expected")
+	}
+
+	if state.docEx.Session.PaceResult == nil {
+		t.Fatalf("PaceResult expected")
+	}
+
+	if state.docEx.Session.PaceResult.Success {
+		t.Fatalf("PaceResult FAILURE expected")
+	}
+}
+
+func TestPerformPaceSkipPace(t *testing.T) {
+	// note: skip pace indicated, even though CardAccess present and indicates PACE
+
+	var status MockStatus
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&PanicTransceiver{P: "will panic if called"})
+	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
+	var password *password.Password = password.NewPasswordNil()
+	var state *ReaderState = NewReaderState(nil, nil, password)
+
+	// valid CardAccess from SG passport
+	var cardAccessBytes []byte = utils.HexToBytes("31143012060A04007F0007020204020402010202010D")
+
+	var err error
+
+	// setup CardAccess file that indicates PACE is supported
+	state.docEx.Document.Mf.CardAccess, err = document.NewCardAccess(cardAccessBytes)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	// SKIP pace
+	reader.SkipPace()
+
+	err = performPace(reader, state)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	if state.docEx.Session.PaceErr != nil {
+		t.Fatalf("Pace error NOT expected (err: %s)", state.docEx.Session.PaceErr)
+	}
+
+	if state.docEx.Session.PaceResult != nil {
+		t.Fatalf("PaceResult NOT expected")
+	}
+}
+
 func TestPerformChipAuthenticationForEmptyDocument(t *testing.T) {
 	// note: nothing in the document suggests CA/AA are supported, so they will be silently skipped
 
