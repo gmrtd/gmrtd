@@ -412,3 +412,31 @@ func TestDecodeSmRApduData(t *testing.T) {
 		})
 	}
 }
+
+func TestCalcSmLe(t *testing.T) {
+	testCases := []struct {
+		name  string
+		cApdu *CApdu
+		expLe int
+	}{
+		{
+			name:  "Success - Select MF (le=256)",
+			cApdu: NewCApdu(0x00, INS_SELECT, 0x00, 0x0C, []byte{0x3f, 0x00}, 0),
+			expLe: 256,
+		},
+		{
+			name:  "Success - Read Binary (le=65536)",
+			cApdu: NewCApdu(0x00, INS_READ_BINARY, byte(0), byte(0), nil, 1000),
+			expLe: 65536,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			actLe := calcSmLe(tc.cApdu)
+
+			if actLe != tc.expLe {
+				t.Errorf("LE differs to expected (act:%d, exp:%d)", actLe, tc.expLe)
+			}
+		})
+	}
+}
