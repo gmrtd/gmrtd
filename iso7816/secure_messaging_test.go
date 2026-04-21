@@ -329,3 +329,86 @@ func TestSecureMessageDecode(t *testing.T) {
 		}
 	}
 }
+
+func TestDecodeSmRApduData(t *testing.T) {
+	testCases := []struct {
+		name        string
+		alg         cryptoutils.BlockCipherAlg
+		ksEnc       []byte
+		ksMac       []byte
+		ssc         []byte
+		encodedData []byte
+		wantErr     bool
+		expData     []byte
+	}{
+		{
+			name:        "Success: TDES",
+			alg:         cryptoutils.TDES,
+			ksEnc:       utils.HexToBytes("979ec13b1cbfe9dcd01ab0fed307eae5"),
+			ksMac:       utils.HexToBytes("f1cb1f1fb5adf208806b89dc579dc1f8"),
+			ssc:         utils.HexToBytes("887022120c06c22a"),
+			encodedData: utils.HexToBytes("019ff0ec34f9922651"),
+			wantErr:     false,
+			expData:     utils.HexToBytes("60145f01"),
+		},
+		{
+			name:        "Success: AES",
+			alg:         cryptoutils.AES,
+			ksEnc:       utils.HexToBytes("74b94f408bbb2cd92571fd5b6370a94cce7a2fa42ae3eb4da47b97ce6eaa24c6"),
+			ksMac:       utils.HexToBytes("9e28d5d9ff1d979be752e8926bf0e1d35a440fc0aefc4aa3bc5610055ac8b113"),
+			ssc:         utils.HexToBytes("00000000000000000000000000000026"),
+			encodedData: utils.HexToBytes("0142e919c115faf69350b01813d77a9e8d91912a7f717afd073f199070e61b79c6"),
+			wantErr:     false,
+			expData:     utils.HexToBytes("04303130385f36063034303030305c06617563766d6e"),
+		},
+		{
+			name:        "Error: Versions != 0x01",
+			alg:         cryptoutils.TDES,
+			ksEnc:       utils.HexToBytes("979ec13b1cbfe9dcd01ab0fed307eae5"),
+			ksMac:       utils.HexToBytes("f1cb1f1fb5adf208806b89dc579dc1f8"),
+			ssc:         utils.HexToBytes("887022120c06c22a"),
+			encodedData: utils.HexToBytes("ff9ff0ec34f9922651"),
+			wantErr:     true,
+			expData:     nil,
+		},
+		{
+			name:        "Error: <1 byte of data",
+			alg:         cryptoutils.TDES,
+			ksEnc:       utils.HexToBytes("979ec13b1cbfe9dcd01ab0fed307eae5"),
+			ksMac:       utils.HexToBytes("f1cb1f1fb5adf208806b89dc579dc1f8"),
+			ssc:         utils.HexToBytes("887022120c06c22a"),
+			encodedData: utils.HexToBytes(""),
+			wantErr:     true,
+			expData:     nil,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+
+			var err error
+			var sm *SecureMessaging
+
+			sm, err = NewSecureMessaging(tc.alg, tc.ksEnc, tc.ksMac)
+			if err != nil {
+				t.Fatalf("Unexpected error: %s", err)
+			}
+
+			sm.SetSSC(tc.ssc)
+
+			var actData []byte
+
+			actData, err = sm.decodeSmRApduData(tc.encodedData)
+			if tc.wantErr && err == nil {
+				t.Fatalf("Expected error")
+			} else if !tc.wantErr && err != nil {
+				t.Fatalf("Unexpected error: %s", err)
+			}
+
+			if !tc.wantErr {
+				if !bytes.Equal(tc.expData, actData) {
+					t.Fatalf("Data differs to expected (act:%x, exp:%x)", actData, tc.expData)
+				}
+			}
+		})
+	}
+}
