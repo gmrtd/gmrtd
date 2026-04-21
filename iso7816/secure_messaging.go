@@ -5,6 +5,7 @@ import (
 	"crypto/cipher"
 	"encoding/binary"
 	"fmt"
+	"log"
 	"log/slog"
 	"math/big"
 
@@ -305,13 +306,19 @@ func (sm *SecureMessaging) decodeVerifyMAC(tlv *tlv.TlvNodes) error {
 }
 
 func (sm *SecureMessaging) decodeSmRApduData(encodedData []byte) (out []byte, err error) {
+	log.Printf("SM:%s, encodedData:%x\n", sm, encodedData)
+
 	tmpBytes := bytes.Clone(encodedData)
+
+	if len(tmpBytes) < 1 {
+		return nil, fmt.Errorf("[sm.decodeSmRApduData] encodeData must be >= 1 bytes")
+	}
 
 	// field has a leading 'version' byte that needs to be removed (if field is present)
 
 	// verify that 'verison' is 0x01 before removing
 	if tmpBytes[0] != 0x01 {
-		return nil, fmt.Errorf("(sm.decodeSmRApduData) version not set to 0x01")
+		return nil, fmt.Errorf("[sm.decodeSmRApduData] version not set to 0x01")
 	}
 
 	// remove the leading 'version' byte
@@ -333,6 +340,8 @@ func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
 		return nil, fmt.Errorf("(sm.Decode) ParseRApdu error: %w", err)
 	}
 
+	// TODO - may want to re-think this... should probably only do this when error is indicated ??
+	//			- should never have this scenario for success (9000)
 	// Simply return the SM rApdu if it doesn't contain any data, as SM (TLV)
 	// decode will fail due to missing tags (e.g. 0x8E)
 	if len(smRApdu.Data) < 1 {
