@@ -52,11 +52,11 @@ func (status *PCSCReaderStatus) Status(msg string) {
 
 var tmpl *template.Template
 
-func outputDocument(documentEx *document.DocumentEx) {
+func generateDocument(documentEx *document.DocumentEx) (*bytes.Buffer, error) {
 	var err error
 
 	if documentEx == nil {
-		return
+		return nil, fmt.Errorf("[generateDocument] documentEx cannot be nil")
 	}
 
 	// TODO - is 'TlvBytesToString' still required? check others also
@@ -94,14 +94,10 @@ func outputDocument(documentEx *document.DocumentEx) {
 	// convert to HTML using template
 	err = tmpl.ExecuteTemplate(byteBuf, "output.gohtml", documentEx)
 	if err != nil {
-		log.Fatalln(err)
+		return nil, fmt.Errorf("[generateDocument] ExecuteTemplate error: %w", err)
 	}
 
-	// display in default browser
-	err = browser.OpenReader(byteBuf)
-	if err != nil {
-		log.Fatalln(err)
-	}
+	return byteBuf, nil
 }
 
 func cmdParams() (pass *password.Password, debug bool, apduMaxRead uint, skipPace bool, err error) {
@@ -240,11 +236,22 @@ func main() {
 	// read (and verify) the document (inc passive-authentication)
 	documentEx, err := reader.ReadDocument(pass, atr, ats)
 	if err != nil {
-		// output whatever we have from the document
-		outputDocument(documentEx)
-		slog.Error("ReadDocument", "error", err)
+		slog.Error("reader.ReadDocument", "error", err)
 		os.Exit(1)
 	}
 
-	outputDocument(documentEx)
+	// generate the HTML document
+	docByteBuf, err := generateDocument(documentEx)
+	if err != nil {
+		slog.Error("generateDocument", "error", err)
+		os.Exit(1)
+	}
+
+	// display in default browser
+	err = browser.OpenReader(docByteBuf)
+	if err != nil {
+		slog.Error("browser.OpenReader", "error", err)
+		os.Exit(1)
+	}
+
 }
