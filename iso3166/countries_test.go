@@ -49,7 +49,7 @@ func TestByAlpha2Errors(t *testing.T) {
 	}
 }
 
-func TesrByAlpha3(t *testing.T) {
+func TestByAlpha3(t *testing.T) {
 	testCases := []struct {
 		alpha3    string
 		expAlpha2 string
