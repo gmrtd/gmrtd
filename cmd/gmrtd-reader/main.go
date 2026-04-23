@@ -163,10 +163,9 @@ func run(args []string) error {
 
 	fmt.Printf("GMRTD:v%s\n\n", version.Version)
 
-	pass, debug, maxRead, skipPace, err = cmdParams(os.Args[1:])
+	pass, debug, maxRead, skipPace, err = cmdParams(args)
 	if err != nil {
-		log.Printf("%s", err)
-		os.Exit(1)
+		return err
 	}
 
 	initLogging(debug)
@@ -174,20 +173,20 @@ func run(args []string) error {
 	ctx, err := pcsc.NewContext()
 	if err != nil {
 		slog.Error("Unable to initialise PCSC")
-		os.Exit(1)
+		return err
 	}
 	defer ctx.Release()
 
 	readers, err := pcsc.ListReaders(ctx)
 	if err != nil {
 		slog.Error("Unable to get PCSC readers")
-		os.Exit(1)
+		return err
 	}
 	slog.Debug("PCSC", "readers", readers)
 
 	if len(readers) < 1 {
 		slog.Error("No PCSC reader found")
-		os.Exit(1)
+		return err
 	}
 
 	// NB we currently just select the 1st reader (if multiple)
@@ -196,7 +195,7 @@ func run(args []string) error {
 	card, err := pcscReader.ConnectCardPCSC()
 	if err != nil {
 		slog.Error("No chip detected")
-		os.Exit(1)
+		return err
 	}
 	defer card.DisconnectCard()
 
@@ -227,7 +226,7 @@ func run(args []string) error {
 	cscaCertPool, err := cscaMasterList()
 	if err != nil {
 		slog.Error("cscaMasterList error", "error", err)
-		os.Exit(1)
+		return err
 	}
 
 	var reader *reader.Reader = reader.NewReader(status, nfc, cscaCertPool)
@@ -241,21 +240,21 @@ func run(args []string) error {
 	documentEx, err := reader.ReadDocument(pass, atr, ats)
 	if err != nil {
 		slog.Error("reader.ReadDocument", "error", err)
-		os.Exit(1)
+		return err
 	}
 
 	// generate the HTML document
 	docByteBuf, err := generateDocument(documentEx)
 	if err != nil {
 		slog.Error("generateDocument", "error", err)
-		os.Exit(1)
+		return err
 	}
 
 	// display in default browser
 	err = browser.OpenReader(docByteBuf)
 	if err != nil {
 		slog.Error("browser.OpenReader", "error", err)
-		os.Exit(1)
+		return err
 	}
 
 	return nil
