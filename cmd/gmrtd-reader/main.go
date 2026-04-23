@@ -86,7 +86,7 @@ func generateDocument(documentEx *document.DocumentEx) (*bytes.Buffer, error) {
 
 	tmpl, err = template.New("").Funcs(funcMap).ParseFS(templateFS, "templates/*.gohtml")
 	if err != nil {
-		log.Fatalln(err)
+		return nil, fmt.Errorf("[generateDocument] ParseFS error: %w", err)
 	}
 
 	byteBuf := bytes.NewBuffer(nil)
