@@ -100,16 +100,20 @@ func generateDocument(documentEx *document.DocumentEx) (*bytes.Buffer, error) {
 	return byteBuf, nil
 }
 
-func cmdParams() (pass *password.Password, debug bool, apduMaxRead uint, skipPace bool, err error) {
-	documentNo := flag.String("doc", "", "Document Number")
-	dateOfBirth := flag.String("dob", "", "Date of Birth (YYMMDD)")
-	expiryDate := flag.String("exp", "", "Expiry Date (YYMMDD)")
-	can := flag.String("can", "", "Card Access Number")
-	debugFlag := flag.Bool("debug", false, "Debug")
-	maxRead := flag.Uint("maxRead", 0, "Maximum read amount (bytes) e.g. 1..65536")
-	skipPaceFlag := flag.Bool("skipPace", false, "Skip PACE")
+func cmdParams(args []string) (pass *password.Password, debug bool, apduMaxRead uint, skipPace bool, err error) {
+	fs := flag.NewFlagSet("gmrtd-reader", flag.ContinueOnError)
 
-	flag.Parse()
+	documentNo := fs.String("doc", "", "Document Number")
+	dateOfBirth := fs.String("dob", "", "Date of Birth (YYMMDD)")
+	expiryDate := fs.String("exp", "", "Expiry Date (YYMMDD)")
+	can := fs.String("can", "", "Card Access Number")
+	debugFlag := fs.Bool("debug", false, "Debug")
+	maxRead := fs.Uint("maxRead", 0, "Maximum read amount (bytes) e.g. 1..65536")
+	skipPaceFlag := fs.Bool("skipPace", false, "Skip PACE")
+
+	if err := fs.Parse(args); err != nil {
+		return nil, false, 0, false, err
+	}
 
 	if len(*documentNo) > 0 && len(*dateOfBirth) == 6 && len(*expiryDate) == 6 {
 		pass, err = password.NewPasswordMrzi(*documentNo, *dateOfBirth, *expiryDate)
@@ -119,7 +123,7 @@ func cmdParams() (pass *password.Password, debug bool, apduMaxRead uint, skipPac
 	} else if len(*can) > 0 {
 		pass = password.NewPasswordCan(*can)
 	} else {
-		flag.PrintDefaults()
+		fs.PrintDefaults()
 		return nil, false, 0, false, fmt.Errorf("usage: must specify either doc+dob+exp *OR* can")
 	}
 
@@ -159,7 +163,7 @@ func main() {
 
 	fmt.Printf("GMRTD:v%s\n\n", version.Version)
 
-	pass, debug, maxRead, skipPace, err = cmdParams()
+	pass, debug, maxRead, skipPace, err = cmdParams(os.Args[1:])
 	if err != nil {
 		log.Printf("%s", err)
 		os.Exit(1)
