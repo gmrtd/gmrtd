@@ -186,7 +186,7 @@ func run(args []string) error {
 
 	if len(readers) < 1 {
 		slog.Error("No PCSC reader found")
-		return err
+		return fmt.Errorf("no PCSC reader found")
 	}
 
 	// NB we currently just select the 1st reader (if multiple)
