@@ -50,8 +50,6 @@ func (status *PCSCReaderStatus) Status(msg string) {
 	slog.Info("Status", "msg", msg)
 }
 
-var tmpl *template.Template
-
 func generateDocument(documentEx *document.DocumentEx) (*bytes.Buffer, error) {
 	var err error
 
@@ -83,6 +81,8 @@ func generateDocument(documentEx *document.DocumentEx) (*bytes.Buffer, error) {
 			return totalMs
 		},
 	}
+
+	var tmpl *template.Template
 
 	tmpl, err = template.New("").Funcs(funcMap).ParseFS(templateFS, "templates/*.gohtml")
 	if err != nil {
@@ -154,7 +154,7 @@ func cscaMasterList() (cms.CertPool, error) {
 	return cscaCertPool, nil
 }
 
-func main() {
+func run(args []string) error {
 	var pass *password.Password
 	var debug bool = false
 	var maxRead uint = 0
@@ -258,4 +258,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	return nil
+}
+
+func main() {
+	if err := run(os.Args[1:]); err != nil {
+		log.Printf("%s", err)
+		os.Exit(1)
+	}
 }
