@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"strings"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/document"
@@ -31,6 +32,8 @@ func TestGenerateDocument(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpected error: %s", err)
 	}
+
+	// TODO - add in some apdu logs.. should increase test coverage for APDU output
 
 	docByteBuf, err := generateDocument(&docEx)
 	if err != nil {
@@ -65,5 +68,133 @@ func TestCscaMasterList(t *testing.T) {
 
 	if len(certPool.All()) < expCertCnt {
 		t.Errorf("Expected at least %d certs, got %d certs", expCertCnt, len(certPool.All()))
+	}
+}
+
+func TestCmdParamsSuccess(t *testing.T) {
+	tests := []struct {
+		name            string
+		args            []string
+		wantDebug       bool
+		wantApduMaxRead uint
+		wantSkipPace    bool
+	}{
+		{
+			name:            "valid CAN only",
+			args:            []string{"-can", "123456"},
+			wantDebug:       false,
+			wantApduMaxRead: 0,
+			wantSkipPace:    false,
+		},
+		{
+			name:            "valid CAN with flags",
+			args:            []string{"-can", "123456", "-debug", "-maxRead", "1024", "-skipPace"},
+			wantDebug:       true,
+			wantApduMaxRead: 1024,
+			wantSkipPace:    true,
+		},
+		{
+			name:            "valid MRZ fields",
+			args:            []string{"-doc", "D23145890", "-dob", "740812", "-exp", "120415"},
+			wantDebug:       false,
+			wantApduMaxRead: 0,
+			wantSkipPace:    false,
+		},
+		{
+			name:            "valid MRZ fields with flags",
+			args:            []string{"-doc", "D23145890", "-dob", "740812", "-exp", "120415", "-debug", "-maxRead", "2048", "-skipPace"},
+			wantDebug:       true,
+			wantApduMaxRead: 2048,
+			wantSkipPace:    true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			pass, debug, apduMaxRead, skipPace, err := cmdParams(tc.args)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if pass == nil {
+				t.Fatalf("expected non-nil password")
+			}
+			if debug != tc.wantDebug {
+				t.Fatalf("debug = %v, want %v", debug, tc.wantDebug)
+			}
+			if apduMaxRead != tc.wantApduMaxRead {
+				t.Fatalf("apduMaxRead = %d, want %d", apduMaxRead, tc.wantApduMaxRead)
+			}
+			if skipPace != tc.wantSkipPace {
+				t.Fatalf("skipPace = %v, want %v", skipPace, tc.wantSkipPace)
+			}
+		})
+	}
+}
+
+func TestCmdParamsError(t *testing.T) {
+	tests := []struct {
+		name        string
+		args        []string
+		errContains string
+	}{
+		{
+			name:        "missing all required args",
+			args:        []string{},
+			errContains: "must specify either doc+dob+exp *OR* can",
+		},
+		{
+			name:        "doc only missing dob and exp",
+			args:        []string{"-doc", "D23145890"},
+			errContains: "must specify either doc+dob+exp *OR* can",
+		},
+		{
+			name:        "doc and dob only missing exp",
+			args:        []string{"-doc", "D23145890", "-dob", "740812"},
+			errContains: "must specify either doc+dob+exp *OR* can",
+		},
+		{
+			name:        "dob wrong length falls through to usage error",
+			args:        []string{"-doc", "D23145890", "-dob", "74081", "-exp", "120415"},
+			errContains: "must specify either doc+dob+exp *OR* can",
+		},
+		{
+			name:        "unknown flag",
+			args:        []string{"-unknown"},
+			errContains: "flag provided but not defined",
+		},
+		{
+			name:        "invalid maxRead value",
+			args:        []string{"-can", "123456", "-maxRead", "abc"},
+			errContains: "invalid value",
+		},
+		{
+			name:        "invalid MRZ doc",
+			args:        []string{"-doc", "D231.45890", "-dob", "740812", "-exp", "120415"},
+			errContains: "Invalid character",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			pass, debug, apduMaxRead, skipPace, err := cmdParams(tc.args)
+			if err == nil {
+				t.Fatalf("expected error, got nil")
+			}
+			if !strings.Contains(err.Error(), tc.errContains) {
+				t.Fatalf("expected error containing %q, got %q", tc.errContains, err.Error())
+			}
+			if pass != nil {
+				t.Fatalf("expected nil password on error")
+			}
+			if debug != false {
+				t.Fatalf("debug = %v, want false on error", debug)
+			}
+			if apduMaxRead != 0 {
+				t.Fatalf("apduMaxRead = %d, want 0 on error", apduMaxRead)
+			}
+			if skipPace != false {
+				t.Fatalf("skipPace = %v, want false on error", skipPace)
+			}
+		})
 	}
 }
