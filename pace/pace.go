@@ -196,17 +196,23 @@ func selectPaceConfig(cardAccess *document.CardAccess) (*PaceConfig, *DomainPara
 	return selectedConfig, domainParams, nil
 }
 
-func (paceConfig *PaceConfig) decryptNonce(key, encryptedNonce []byte) []byte {
+func (paceConfig *PaceConfig) decryptNonce(key, encryptedNonce []byte) ([]byte, error) {
 	var err error
 	var bcipher cipher.Block
 
-	if bcipher, err = cryptoutils.CipherForKey(paceConfig.cipher, key); err != nil {
-		panic(fmt.Sprintf("[decryptNonce] CipherForKey error: %s", err))
+	bcipher, err = cryptoutils.CipherForKey(paceConfig.cipher, key)
+	if err != nil {
+		return nil, fmt.Errorf("[decryptNonce] CipherForKey error: %w", err)
 	}
 
 	iv := make([]byte, bcipher.BlockSize()) // 0'd IV
 
-	return cryptoutils.CryptCBC(bcipher, iv, encryptedNonce, false)
+	tmpDecryptedNonce, err := cryptoutils.CryptCBC(bcipher, iv, encryptedNonce, false)
+	if err != nil {
+		return nil, fmt.Errorf("[decryptNonce] CryptCBC error: %w", err)
+	}
+
+	return tmpDecryptedNonce, nil
 }
 
 // s: nonce (from chip)
@@ -478,8 +484,13 @@ func (pace *Pace) doCamEcdh(paceConfig *PaceConfig, domainParams *DomainParams, 
 	blockCipher.Encrypt(iv, bytes.Repeat([]byte{0xff}, blockCipher.BlockSize())) // NOSONAR
 
 	// decrypt the data we got earlier...
+	tmpDecryptedValue, err := cryptoutils.CryptCBC(blockCipher, iv, ecadIC, false)
+	if err != nil {
+		return fmt.Errorf("[doCamEcdh] CryptCBC error: %w", err)
+	}
+
 	var caIC []byte
-	caIC, err = cryptoutils.ISO9797Method2Unpad(cryptoutils.CryptCBC(blockCipher, iv, ecadIC, false))
+	caIC, err = cryptoutils.ISO9797Method2Unpad(tmpDecryptedValue)
 	if err != nil {
 		return fmt.Errorf("[doCamEcdh] ISO9797Method2Unpad error: %w", err)
 	}
@@ -536,7 +547,12 @@ func (pace *Pace) getNonce(paceConfig *PaceConfig, kKdf []byte) ([]byte, error) 
 	}
 
 	// decrypt the nonce (s)
-	return paceConfig.decryptNonce(kKdf, nonceE), nil
+	tmpDecryptedNonce, err := paceConfig.decryptNonce(kKdf, nonceE)
+	if err != nil {
+		return nil, fmt.Errorf("[getNonce] decryptNonce error: %w", err)
+	}
+
+	return tmpDecryptedNonce, nil
 }
 
 // loads the Card Security file and stores it within the Document

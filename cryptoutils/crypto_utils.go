@@ -154,14 +154,14 @@ func tdesKey(key []byte) ([]byte, error) {
 	return out, nil
 }
 
-func CryptCBC(blockCipher cipher.Block, iv []byte, data []byte, encrypt bool) []byte {
+func CryptCBC(blockCipher cipher.Block, iv []byte, data []byte, encrypt bool) ([]byte, error) {
 	// check that the IV length matches the block-size
 	if len(iv) != blockCipher.BlockSize() {
-		panic(fmt.Sprintf("[CryptCBC] IV length must match block-size (Act:%d, Exp:%d)", len(iv), blockCipher.BlockSize()))
+		return nil, fmt.Errorf("[CryptCBC] IV length must match block-size (Act:%d, Exp:%d)", len(iv), blockCipher.BlockSize())
 	}
 	// check that data length is a multiple of the block-size
 	if len(data)%blockCipher.BlockSize() != 0 {
-		panic(fmt.Sprintf("[CryptCBC] Data must be a multiple of block-size (Data-len: %d) (Block-size: %d)", len(data), blockCipher.BlockSize()))
+		return nil, fmt.Errorf("[CryptCBC] Data must be a multiple of block-size (Data-len: %d) (Block-size: %d)", len(data), blockCipher.BlockSize())
 	}
 
 	out := make([]byte, len(data))
@@ -178,7 +178,7 @@ func CryptCBC(blockCipher cipher.Block, iv []byte, data []byte, encrypt bool) []
 	}
 	mode.CryptBlocks(out, data)
 
-	return out
+	return out, nil
 
 }
 
