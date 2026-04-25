@@ -192,7 +192,7 @@ var oidHashAlgorithmToCryptoHash = map[string]crypto.Hash{
 	oid.OidHashAlgorithmSHA512.String(): crypto.SHA512,
 }
 
-// panics if hash algorithm is not supported
+// error if hash algorithm is not supported
 func CryptoHashOidToAlg(oid asn1.ObjectIdentifier) (crypto.Hash, error) {
 	hash, ok := oidHashAlgorithmToCryptoHash[oid.String()]
 
@@ -204,7 +204,7 @@ func CryptoHashOidToAlg(oid asn1.ObjectIdentifier) (crypto.Hash, error) {
 }
 
 // hashes the data using the hash algorithm specified by oid
-// panics if hash algorithm is not supported
+// error if hash algorithm is not supported
 func CryptoHashByOid(oid asn1.ObjectIdentifier, data []byte) ([]byte, error) {
 	hashAlg, err := CryptoHashOidToAlg(oid)
 	if err != nil {
@@ -328,9 +328,9 @@ func DoEcDh(localPrivate []byte, remotePublic *EcPoint, ec elliptic.Curve) *EcPo
 	return &point
 }
 
-func RsaDecryptWithPublicKey(ciphertext []byte, publicKey RsaPublicKey) []byte {
+func RsaDecryptWithPublicKey(ciphertext []byte, publicKey RsaPublicKey) ([]byte, error) {
 	if len(ciphertext) < 1 {
-		panic(fmt.Sprintf("[RsaDecryptWithPublicKey] ciphertext too short (len:%01d)", len(ciphertext)))
+		return nil, fmt.Errorf("[RsaDecryptWithPublicKey] ciphertext too short (len:%01d)", len(ciphertext))
 	}
 
 	m := new(big.Int).SetBytes(ciphertext)
@@ -346,10 +346,10 @@ func RsaDecryptWithPublicKey(ciphertext []byte, publicKey RsaPublicKey) []byte {
 	if len(result) < keyWidth {
 		padded := make([]byte, keyWidth)
 		copy(padded[keyWidth-len(result):], result)
-		return padded
+		return padded, nil
 	}
 
-	return result
+	return result, nil
 }
 
 func CryptoHashFromEcPubKey(pub *ecdsa.PublicKey) crypto.Hash {

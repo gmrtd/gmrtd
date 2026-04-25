@@ -650,3 +650,20 @@ func TestParseEcdsaSignatureDER(t *testing.T) {
 		}
 	})
 }
+
+func TestValidateActiveAuthSignatureRsaEmptyAuthRspBytes(t *testing.T) {
+	var dg15bytes []byte = utils.HexToBytes("6f8201023081ff300d06092a864886f70d01010105000381ed003081e90281e100bb8f93f4dc95e205cda17c6927ab1e365b13065d03cd12e0fce95d96840529453202f56cc4c13f77cd062930c8bc89a2873b257045c286e601cf3c09323a53103314902804aa10a314628ce222206a8866946a36b442041bb54ac81e6855dd1d6e16101833d65a191c20ac8b33b8a1a32920f46043f8031cf2bc17417030865fc5be5a39dee423bcba3ca8177168eb23cfe01ba43ec87711b1cfff85db46f300dd8ae317b50d543b573e119e23af7070d0b2fed6a3b2313a5ec02a531aaed1741f4390d1013e2a0f081eac5dc8b0a1b2c6bdb1206f08d30e3643e1e5bdf536110203010001")
+	// NB empty authRspBytes to trigger RSA decrypt error
+	var authRspBytes []byte
+	var rndIfd []byte = utils.HexToBytes("96302b0f3d7e7864")
+
+	dg15, err := document.NewDG15(dg15bytes)
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+
+	_, err = ValidateActiveAuthSignature(dg15, authRspBytes, rndIfd)
+	if err == nil {
+		t.Fatalf("Expected error")
+	}
+}

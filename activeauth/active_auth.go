@@ -226,7 +226,10 @@ func ValidateActiveAuthSignature(dg15 *document.DG15, intAuthRspBytes, rndIfd []
 			keyWidth := (pubKey.N.BitLen() + 7) / 8
 			errContext = fmt.Sprintf("sigLen:%d,keyWidth:%d,sig:%x", len(s), keyWidth, s)
 
-			f := cryptoutils.RsaDecryptWithPublicKey(s, *pubKey)
+			f, err := cryptoutils.RsaDecryptWithPublicKey(s, *pubKey)
+			if err != nil {
+				return result, fmt.Errorf("[ValidateActiveAuthSignature] RsaDecryptWithPublicKey error: %w", err)
+			}
 
 			// Log decrypted data for debugging
 			slog.Debug("ValidateActiveAuthSignature", "f_len", len(f), "f", utils.BytesToHex(f))
