@@ -79,13 +79,19 @@ func TestTypeAndKey1(t *testing.T) {
 	var expType byte = 1
 	var expKey []byte = utils.HexToBytes("0ec557e7048cc90d31ec67599524b297adc33082")
 
-	actType := pass.Type()
+	actType, err := pass.Type()
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
 
 	if actType != expType {
 		t.Errorf("Password Type differs to expected (exp:%d, act:%d)", expType, actType)
 	}
 
-	actKey := pass.Key()
+	actKey, err := pass.Key()
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
 
 	if !bytes.Equal(actKey, expKey) {
 		t.Errorf("Password Key differs to expected (exp:%x, act:%x)", expKey, actKey)
@@ -98,13 +104,19 @@ func TestTypeAndKey2(t *testing.T) {
 	var expType byte = 2
 	var expKey []byte = []byte("123456")
 
-	actType := pass.Type()
+	actType, err := pass.Type()
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
 
 	if actType != expType {
 		t.Errorf("Password Type differs to expected (exp:%d, act:%d)", expType, actType)
 	}
 
-	actKey := pass.Key()
+	actKey, err := pass.Key()
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
 
 	if !bytes.Equal(actKey, expKey) {
 		t.Errorf("Password Key differs to expected (exp:%x, act:%x)", expKey, actKey)
@@ -112,27 +124,21 @@ func TestTypeAndKey2(t *testing.T) {
 }
 
 func TestTypeBadTypeErr(t *testing.T) {
-	// No need to check whether `recover()` is nil. Just turn off the panic.
-	defer func() { _ = recover() }()
-
 	// trigger an error with an invalid password-type (99)
 	var pass *Password = &Password{PasswordType: 99, Password: "BadPasswordType"}
 
-	_ = pass.Type()
-
-	// Never reaches here if panic
-	t.Errorf("expected panic, but didn't get")
+	_, err := pass.Type()
+	if err == nil {
+		t.Fatalf("Expected error")
+	}
 }
 
 func TestKeyBadTypeErr(t *testing.T) {
-	// No need to check whether `recover()` is nil. Just turn off the panic.
-	defer func() { _ = recover() }()
-
 	// trigger an error with an invalid password-type (99)
 	var pass *Password = &Password{PasswordType: 99, Password: "BadPasswordType"}
 
-	_ = pass.Key()
-
-	// Never reaches here if panic
-	t.Errorf("expected panic, but didn't get")
+	_, err := pass.Key()
+	if err == nil {
+		t.Fatalf("Expected error")
+	}
 }

@@ -2,6 +2,7 @@ package bac
 
 import (
 	"bytes"
+	"errors"
 	"reflect"
 	"testing"
 
@@ -28,10 +29,37 @@ func TestGenerateKseed(t *testing.T) {
 
 	exp := utils.HexToBytes("239AB9CB282DAF66231DC5A4DF6BFBAE")
 
-	out := NewBAC(nfc, doc, pass).generateKseed(pass)
+	out, err := NewBAC(nfc, doc, pass).generateKseed(pass)
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
 
 	if !bytes.Equal(exp, out) {
 		t.Errorf("Kseed failed (Exp:%x) (Act:%x)", exp, out)
+	}
+}
+
+func TestGenerateKseedPassTypeError(t *testing.T) {
+	// as per TestGenerateKseed, but with password.type changed to invalid value
+
+	nfc := iso7816.NewNfcSession(&iso7816.MockTransceiver{})
+	doc := &document.Document{}
+	pass, err := password.NewPasswordMrzi("L898902C", "690806", "940623")
+	if err != nil {
+		t.Errorf("unexpected error: %s", err)
+	}
+
+	// change password.type to be *INVALID*
+	pass.PasswordType = 99
+
+	wantErr := password.ErrPasswordTypeUnsupported
+
+	_, err = NewBAC(nfc, doc, pass).generateKseed(pass)
+	if err == nil {
+		t.Fatalf("Expected error")
+	}
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("expected error (%v) but got (%v)", wantErr, err)
 	}
 }
 

@@ -31,10 +31,14 @@ func NewBAC(nfc *iso7816.NfcSession, doc *document.Document, pass *password.Pass
 
 }
 
-func (bac *BAC) generateKseed(password *password.Password) []byte {
-	tmpKey := password.Key()
+func (bac *BAC) generateKseed(password *password.Password) ([]byte, error) {
+	key, err := password.Key()
+	if err != nil {
+		return nil, fmt.Errorf("[generateKseed] password.Key error: %w", err)
+	}
+
 	// NB only use first 16 bytes
-	return tmpKey[0:16]
+	return key[0:16], nil
 }
 
 // generates kEnc/kMac
@@ -174,7 +178,12 @@ func (bac *BAC) DoBAC() (result *document.BacResult, err error) {
 	// setup the result (but mark as !success)
 	result = &document.BacResult{Success: false}
 
-	kEnc, kMac := bac.generateKeys(bac.generateKseed(bac.password))
+	kSeed, err := bac.generateKseed(bac.password)
+	if err != nil {
+		return result, fmt.Errorf("[DoBAC] generateKseed error: %w", err)
+	}
+
+	kEnc, kMac := bac.generateKeys(kSeed)
 
 	// request challenge (RND.IC) from the chip
 	var rndIcc []byte
