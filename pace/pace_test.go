@@ -367,6 +367,43 @@ func TestDoPace_GM_ECDH_InvalidDomainParam(t *testing.T) {
 	}
 }
 
+// Error-case: modified to have an invalid password.type
+// PACE test for GM (ECDH) based on worked example in ICAO9303 p11 specs (Appendix G1)
+func TestDoPace_GM_ECDH_InvalidPasswordType(t *testing.T) {
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{})
+
+	var err error
+	var doc document.Document
+
+	// PACEInfo: 3012060A 04007F00 07020204 02020201 0202010D
+	//				** NB added 3114 to start
+	doc.Mf.CardAccess, err = document.NewCardAccess(utils.HexToBytes("31143012060A04007F0007020204020202010202010D"))
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+
+	// password (MRZ)
+	var pass *password.Password
+	pass, err = password.NewPasswordMrzi("T22000129", "640812", "101031")
+	if err != nil {
+		t.Errorf("unexpected error: %s", err)
+	}
+	// update password.type to *INVALID* value
+	pass.PasswordType = 99
+
+	var pace *Pace = NewPace(nfc, &doc, pass)
+
+	wantErr := password.ErrPasswordTypeUnsupported
+
+	_, err = pace.DoPACE()
+	if err == nil {
+		t.Fatalf("expected error (%v) but got nil", wantErr)
+	}
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("expected error (%v) but got (%v)", wantErr, err)
+	}
+}
+
 // PACE test for GM (ECDH) using TDES/CBC (NZ)
 func TestDoPace_GM_ECDH_TDES_CBC_NZ(t *testing.T) {
 	var nfc *iso7816.NfcSession

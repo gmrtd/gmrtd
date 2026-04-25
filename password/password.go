@@ -4,11 +4,15 @@ package password
 import (
 	"bytes"
 	"crypto"
+	"errors"
 	"fmt"
-	"log"
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
 	"github.com/gmrtd/gmrtd/mrz"
+)
+
+var (
+	ErrPasswordTypeUnsupported = errors.New("Password.Type is unsupported")
 )
 
 type PasswordType int
@@ -75,7 +79,7 @@ func NewPasswordCan(can string) *Password {
 	return &out
 }
 
-func (password *Password) Type() byte {
+func (password *Password) Type() (byte, error) {
 	// manually convert value to reduce reliance on iota values!
 	var passwordTypeValue byte
 
@@ -85,13 +89,13 @@ func (password *Password) Type() byte {
 	case PASSWORD_TYPE_CAN:
 		passwordTypeValue = 2
 	default:
-		log.Panicf("unsupported PACE Password-Type (%x)", password.PasswordType)
+		return 0, fmt.Errorf("%w: %d", ErrPasswordTypeUnsupported, password.PasswordType)
 	}
 
-	return passwordTypeValue
+	return passwordTypeValue, nil
 }
 
-func (password *Password) Key() []byte {
+func (password *Password) Key() ([]byte, error) {
 	// generate K
 	var key []byte
 
@@ -105,8 +109,8 @@ func (password *Password) Key() []byte {
 		//    - we're ignoring this as we don't expect extended characters
 		key = bytes.Clone([]byte(password.Password))
 	default:
-		panic(fmt.Sprintf("[Key] Unsupported password-type (type:%d)", password.PasswordType))
+		return nil, fmt.Errorf("%w: %d", ErrPasswordTypeUnsupported, password.PasswordType)
 	}
 
-	return key
+	return key, nil
 }

@@ -259,9 +259,16 @@ func (pace *Pace) doApduMseSetAT(paceConfig *PaceConfig, domainParams *DomainPar
 
 	paceOidBytes := oid.OidBytes(paceConfig.oid)
 
+	var passType byte
+
+	passType, err = pace.password.Type()
+	if err != nil {
+		return fmt.Errorf("[doApduMseSetAT] password.Type error: %w", err)
+	}
+
 	var nodes *tlv.TlvNodes = &tlv.TlvNodes{}
 	nodes.AddNode(tlv.NewTlvSimpleNode(0x80, paceOidBytes))
-	nodes.AddNode(tlv.NewTlvSimpleNode(0x83, []byte{pace.password.Type()}))
+	nodes.AddNode(tlv.NewTlvSimpleNode(0x83, []byte{passType}))
 	// this should be CONDITIONAL and only provided where there is ambiguity, but
 	// we've seen some passports that always expect this to be provided
 	nodes.AddNode(tlv.NewTlvSimpleNode(0x84, []byte{byte(domainParams.id)}))
@@ -504,8 +511,13 @@ func (pace *Pace) doCamEcdh(paceConfig *PaceConfig, domainParams *DomainParams, 
 	return nil
 }
 
-func keyForPassword(paceConfig *PaceConfig, pass *password.Password) []byte {
-	return cryptoutils.KDF(pass.Key(), cryptoutils.KDF_COUNTER_PACE, paceConfig.cipher, paceConfig.keyLengthBits)
+func keyForPassword(paceConfig *PaceConfig, pass *password.Password) ([]byte, error) {
+	key, err := pass.Key()
+	if err != nil {
+		return nil, fmt.Errorf("[keyForPassword] password.Key error: %w", err)
+	}
+
+	return cryptoutils.KDF(key, cryptoutils.KDF_COUNTER_PACE, paceConfig.cipher, paceConfig.keyLengthBits), nil
 }
 
 func (pace *Pace) getNonce(paceConfig *PaceConfig, kKdf []byte) ([]byte, error) {
@@ -616,7 +628,12 @@ func (pace *Pace) DoPACE() (result *document.PaceResult, err error) {
 
 	slog.Debug("DoPace", "selected paceConfig", paceConfig.String())
 
-	var kKdf []byte = keyForPassword(paceConfig, pace.password)
+	var kKdf []byte
+
+	kKdf, err = keyForPassword(paceConfig, pace.password)
+	if err != nil {
+		return result, fmt.Errorf("[DoPACE] keyForPassword error: %w", err)
+	}
 
 	// init PACE (via 'MSE:Set AT' command)
 	if err = pace.doApduMseSetAT(paceConfig, domainParams); err != nil {
