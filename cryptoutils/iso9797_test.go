@@ -2,6 +2,9 @@ package cryptoutils
 
 import (
 	"bytes"
+	"crypto/cipher"
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/utils"
@@ -154,5 +157,146 @@ func TestISO9797RetailMacDes(t *testing.T) {
 		} else if !bytes.Equal(mac, tc.expMac) {
 			t.Errorf("MAC differs to expected (exp:%x) (act:%x)", tc.expMac, mac)
 		}
+	}
+}
+
+func TestISO9797RetailMacDesWithDepsErrorCases(t *testing.T) {
+	validKey := make([]byte, 16)
+	validData := make([]byte, DES_BLOCK_SIZE_BYTES)
+
+	errBoom := errors.New("boom")
+
+	tests := []struct {
+		name          string
+		key           []byte
+		data          []byte
+		cipherForKey  blockCipherFactory
+		cryptCBC      cbcCryptFunc
+		wantErr       error
+		wantErrString string
+	}{
+		{
+			name:          "invalid key length",
+			key:           make([]byte, 15),
+			data:          validData,
+			cipherForKey:  nil,
+			cryptCBC:      nil,
+			wantErrString: "key must be 16 bytes",
+		},
+		{
+			name:          "data less than one block",
+			key:           validKey,
+			data:          make([]byte, DES_BLOCK_SIZE_BYTES-1),
+			cipherForKey:  nil,
+			cryptCBC:      nil,
+			wantErrString: "data must consist of 1 or more blocks",
+		},
+		{
+			name:          "data not block aligned",
+			key:           validKey,
+			data:          make([]byte, DES_BLOCK_SIZE_BYTES+1),
+			cipherForKey:  nil,
+			cryptCBC:      nil,
+			wantErrString: "data must consist of 1 or more blocks",
+		},
+		{
+			name: "cipherForKey K1 error",
+			key:  validKey,
+			data: validData,
+			cipherForKey: func(alg BlockCipherAlg, key []byte) (cipher.Block, error) {
+				return nil, errBoom
+			},
+			cryptCBC:      nil,
+			wantErr:       errBoom,
+			wantErrString: "cipherForKey(K1) error",
+		},
+		{
+			name: "cipherForKey K2 error",
+			key:  validKey,
+			data: validData,
+			cipherForKey: func() blockCipherFactory {
+				calls := 0
+				return func(alg BlockCipherAlg, key []byte) (cipher.Block, error) {
+					calls++
+					if calls == 2 {
+						return nil, errBoom
+					}
+					return CipherForKey(alg, key)
+				}
+			}(),
+			cryptCBC:      nil,
+			wantErr:       errBoom,
+			wantErrString: "cipherForKey(K2) error",
+		},
+		{
+			name:         "cryptCBC 1 error",
+			key:          validKey,
+			data:         validData,
+			cipherForKey: CipherForKey,
+			cryptCBC: func(block cipher.Block, iv []byte, data []byte, encrypt bool) ([]byte, error) {
+				return nil, errBoom
+			},
+			wantErr:       errBoom,
+			wantErrString: "cryptCBC(1) error",
+		},
+		{
+			name:         "cryptCBC 2 error",
+			key:          validKey,
+			data:         validData,
+			cipherForKey: CipherForKey,
+			cryptCBC: func() cbcCryptFunc {
+				calls := 0
+				return func(block cipher.Block, iv []byte, data []byte, encrypt bool) ([]byte, error) {
+					calls++
+					if calls == 2 {
+						return nil, errBoom
+					}
+					return CryptCBC(block, iv, data, encrypt)
+				}
+			}(),
+			wantErr:       errBoom,
+			wantErrString: "cryptCBC(2) error",
+		},
+		{
+			name:         "cryptCBC 3 error",
+			key:          validKey,
+			data:         validData,
+			cipherForKey: CipherForKey,
+			cryptCBC: func() cbcCryptFunc {
+				calls := 0
+				return func(block cipher.Block, iv []byte, data []byte, encrypt bool) ([]byte, error) {
+					calls++
+					if calls == 3 {
+						return nil, errBoom
+					}
+					return CryptCBC(block, iv, data, encrypt)
+				}
+			}(),
+			wantErr:       errBoom,
+			wantErrString: "cryptCBC(3) error",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := iso9797RetailMacDesWithDeps(
+				tc.key,
+				tc.data,
+				tc.cipherForKey,
+				tc.cryptCBC,
+			)
+
+			if err == nil {
+				t.Fatalf("Error expected")
+			}
+
+			if tc.wantErr != nil && !errors.Is(err, tc.wantErr) {
+				t.Fatalf("Wanted '%s' got '%s'", tc.wantErr, err)
+			}
+
+			if !strings.Contains(err.Error(), tc.wantErrString) {
+				t.Fatalf("expected error containing %q, got %q", tc.wantErrString, err.Error())
+			}
+		})
 	}
 }

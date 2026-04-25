@@ -27,10 +27,27 @@ func ISO9797Method2Unpad(data []byte) ([]byte, error) {
 	return nil, fmt.Errorf("[ISO9797Method2Unpad] Data is not padded (%x -> %x)", data, out)
 }
 
+type blockCipherFactory func(alg BlockCipherAlg, key []byte) (cipher.Block, error)
+
+type cbcCryptFunc func(
+	block cipher.Block,
+	iv []byte,
+	data []byte,
+	encrypt bool,
+) ([]byte, error)
+
 // ISO-9797 Retail MAC (DES)
 // key: 16 bytes (double) DES key
 // error: if invalid key length (not 16 bytes) or data not aligned to block boundary (8 bytes)
-func ISO9797RetailMacDes(key, data []byte) (mac []byte, err error) {
+func ISO9797RetailMacDes(key, data []byte) ([]byte, error) {
+	return iso9797RetailMacDesWithDeps(key, data, CipherForKey, CryptCBC)
+}
+
+func iso9797RetailMacDesWithDeps(
+	key, data []byte,
+	cipherForKey blockCipherFactory,
+	cryptCBC cbcCryptFunc,
+) ([]byte, error) {
 	if len(key) != 16 {
 		return nil, fmt.Errorf("key must be 16 bytes (act:%d)", len(key))
 	}
@@ -39,38 +56,41 @@ func ISO9797RetailMacDes(key, data []byte) (mac []byte, err error) {
 	}
 
 	k1 := make([]byte, 8)
-	k2 := make([]byte, 8)
-
 	copy(k1, key[0:8])
+
+	k2 := make([]byte, 8)
 	copy(k2, key[8:16])
 
+	var err error
+
 	var cipherK1 cipher.Block
+	if cipherK1, err = cipherForKey(DES, k1); err != nil {
+		return nil, fmt.Errorf("[iso9797RetailMacDesWithDeps] cipherForKey(K1) error: %w", err)
+	}
+
 	var cipherK2 cipher.Block
-
-	if cipherK1, err = CipherForKey(DES, k1); err != nil {
-		return nil, err
-	}
-	if cipherK2, err = CipherForKey(DES, k2); err != nil {
-		return nil, err
+	if cipherK2, err = cipherForKey(DES, k2); err != nil {
+		return nil, fmt.Errorf("[iso9797RetailMacDesWithDeps] cipherForKey(K2) error: %w", err)
 	}
 
-	tmp, err := CryptCBC(cipherK1, make([]byte, DES_BLOCK_SIZE_BYTES), data, true)
+	tmp, err := cryptCBC(cipherK1, make([]byte, DES_BLOCK_SIZE_BYTES), data, true)
 	if err != nil {
-		return nil, fmt.Errorf("[ISO9797RetailMacDes] CryptCBC error: %w", err)
+		return nil, fmt.Errorf("[iso9797RetailMacDesWithDeps] cryptCBC(1) error: %w", err)
 	}
 
 	// get last block (8 bytes)
 	cbcBlock1 := make([]byte, DES_BLOCK_SIZE_BYTES)
 	copy(cbcBlock1, tmp[len(tmp)-DES_BLOCK_SIZE_BYTES:])
 
-	cbcBlock2, err := CryptCBC(cipherK2, make([]byte, DES_BLOCK_SIZE_BYTES), cbcBlock1, false)
+	cbcBlock2, err := cryptCBC(cipherK2, make([]byte, DES_BLOCK_SIZE_BYTES), cbcBlock1, false)
 	if err != nil {
-		return nil, fmt.Errorf("[ISO9797RetailMacDes] CryptCBC error: %w", err)
+		return nil, fmt.Errorf("[iso9797RetailMacDesWithDeps] cryptCBC(2) error: %w", err)
 	}
 
-	mac, err = CryptCBC(cipherK1, make([]byte, DES_BLOCK_SIZE_BYTES), cbcBlock2, true)
+	var mac []byte
+	mac, err = cryptCBC(cipherK1, make([]byte, DES_BLOCK_SIZE_BYTES), cbcBlock2, true)
 	if err != nil {
-		return nil, fmt.Errorf("[ISO9797RetailMacDes] CryptCBC error: %w", err)
+		return nil, fmt.Errorf("[iso9797RetailMacDesWithDeps] cryptCBC(3) error: %w", err)
 	}
 
 	return mac, nil
