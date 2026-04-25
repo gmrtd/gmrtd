@@ -749,7 +749,12 @@ func TestRsaDecryptWithPublicKey(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		var plaintext []byte = RsaDecryptWithPublicKey(tc.ciphertext, tc.publicKey)
+		var plaintext []byte
+
+		plaintext, err := RsaDecryptWithPublicKey(tc.ciphertext, tc.publicKey)
+		if err != nil {
+			t.Fatalf("Unexpected error: %s", err)
+		}
 
 		if !bytes.Equal(plaintext, tc.expPlaintext) {
 			t.Errorf("Decryption error (Exp:%x) (Act:%x)", tc.expPlaintext, plaintext)
@@ -758,17 +763,14 @@ func TestRsaDecryptWithPublicKey(t *testing.T) {
 }
 
 func TestRsaDecryptWithPublicKeyErr(t *testing.T) {
-	// No need to check whether `recover()` is nil. Just turn off the panic.
-	defer func() { _ = recover() }()
-
 	var data []byte = []byte{}
 	var rsaPubKey RsaPublicKey = RsaPublicKey{E: 65537, N: new(big.Int).SetBytes(utils.HexToBytes("a5a5964e7b8e9d8c623bda63760d1406374026d81f21e34f6b06c6f47774d9df7a0e9d7979ba2c72d4eacc45d1a58a4c5fc20bad8ae23fdc4024c8e53a8acdc2b083ec55b63d44d557e048ed1b843cd2b99c147b350c6fb9b67fd02076bec134c785f4de58a1aa137196d6fb7eefd47a03f25996841345a4daab7754b047dab57e5786d54de5cde5faf553f44de67069f84c2c38e57d0fd13255c814629bafb2c8932ec8e7029d9ec59d640982f89545e30f22036e0bc58e3e8d4ac8e43c3429bdd9bd545ce6ad1045b28d839169060d93af72f59bbfa0687c8a90d12bad51481cc991df9855dd7aa8fa31250b39ab52563b211362f539a47c167ca496fcbd51"))}
 
 	// NB will fail due to zero-length data
-	_ = RsaDecryptWithPublicKey(data, rsaPubKey)
-
-	// Never reaches here if panic
-	t.Errorf("expected panic, but didn't get")
+	_, err := RsaDecryptWithPublicKey(data, rsaPubKey)
+	if err == nil {
+		t.Fatalf("Error expected")
+	}
 }
 
 func TestRsaDecryptWithPublicKeyLeadingZeros(t *testing.T) {
@@ -780,7 +782,10 @@ func TestRsaDecryptWithPublicKeyLeadingZeros(t *testing.T) {
 	ciphertext := utils.HexToBytes("3593195e884103297dfe628dc10230063bcef6edf13369499ece259ae1f70c1a59cce9f1b444b2f9d12c7c2c877d7be1b81b61a36827862a596853412d1849ca36e6e5de095c7a8d505784955ad321cbccbe7a6f5172bc26e32c9f01c8c5d7cf38cf33aa53a4e174cbc86d5e18a9312a2d5377027a274d002a5ab4f5fedfb3cc5af9eb4b7d6158a8bef16a627be88058342683699e72b3e2f35f5a7e41451d458ae92a6d26da693df4bd4d9d8a498a07323934fb50c9b9bcca013e98e872937ae3875fba6665e3b92cf22f33a1087c5cb655724a1fff183f4be5980e3bc19a46f9656ef81ad2ed6ee3f0e74dc91ec71c1a82fc1db4e1ed8dd5eef9a6361cb849")
 	publicKey := RsaPublicKey{E: 65537, N: new(big.Int).SetBytes(utils.HexToBytes("c0287bde6240e37aec9741d64947758b2bbbcd58a87429442fa6c14ee6481f94d2a221352e663d4c1eaec896f18c235160d47b548e5b445948c976614d263c6568ea9d08ea504fd930d9775d9ce82a3a834c4efde2d6bab04c499045a3c25dcf29c8e9ba4c58958300c687323066a2ad9ea54c8a23d4aa75dbcaf0ae5cfc8176a94b891ad97c328ca03186c1151d4eb3dcbbcabef8a9f77f50959bfe30891605a7725bf6de59240dd1818c6cbd4b71c9a41c8d0a8c77eca1559b3ca124a09f75bb44178a17e29d5c871da0dc5a50dad2873321fdefe8374abfe41fb0fc2cc2cb4f255aa5fb3d614b18fee3fe3346c8e0f9f73de66348e011a17be8851c59d325"))}
 
-	plaintext := RsaDecryptWithPublicKey(ciphertext, publicKey)
+	plaintext, err := RsaDecryptWithPublicKey(ciphertext, publicKey)
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
 
 	// Calculate expected byte width from RSA modulus (should be 256 bytes for 2048-bit key)
 	keyWidth := (publicKey.N.BitLen() + 7) / 8
