@@ -127,7 +127,7 @@ func (sm *SecureMessaging) sscIncrement() {
 	}
 }
 
-func (sm *SecureMessaging) cbcCrypt(data []byte, encrypt bool) []byte {
+func (sm *SecureMessaging) cbcCrypt(data []byte, encrypt bool) ([]byte, error) {
 	// create 0'd IV
 	iv := make([]byte, sm.encCipher.BlockSize())
 
@@ -139,9 +139,12 @@ func (sm *SecureMessaging) cbcCrypt(data []byte, encrypt bool) []byte {
 		sm.encCipher.Encrypt(iv, sm.ssc) // NOSONAR
 	}
 
-	out := cryptoutils.CryptCBC(sm.encCipher, iv, data, encrypt)
+	out, err := cryptoutils.CryptCBC(sm.encCipher, iv, data, encrypt)
+	if err != nil {
+		return nil, fmt.Errorf("[cbcCrypt] CryptCBC error: %w", err)
+	}
 
-	return out
+	return out, nil
 }
 
 // NB data must be padded to block boundary before calling
@@ -183,7 +186,7 @@ func (sm *SecureMessaging) cryptoUnpad(data []byte) []byte {
 
 // builds tag 85/87 (depending on Ins)
 // adds the tag (if any) to 'nodes'
-func (sm *SecureMessaging) buildTag85or87(cApdu *CApdu, nodes *tlv.TlvNodes) {
+func (sm *SecureMessaging) buildTag85or87(cApdu *CApdu, nodes *tlv.TlvNodes) error {
 	if cApdu.HaveData() {
 		var tag tlv.TlvTag
 		if cApdu.ins%2 == 0 {
@@ -192,11 +195,18 @@ func (sm *SecureMessaging) buildTag85or87(cApdu *CApdu, nodes *tlv.TlvNodes) {
 			tag = 0x85
 		}
 
+		tmpEncryptedValue, err := sm.cbcCrypt(sm.cryptoPad(cApdu.data), true)
+		if err != nil {
+			return fmt.Errorf("[buildTag85or87] cbcCrypt error: %w", err)
+		}
+
 		value := []byte{0x01}
-		value = append(value, sm.cbcCrypt(sm.cryptoPad(cApdu.data), true)...)
+		value = append(value, tmpEncryptedValue...)
 
 		nodes.AddNode(tlv.NewTlvSimpleNode(tlv.TlvTag(tag), value))
 	}
+
+	return nil
 }
 
 // builds tag 97 (depending on presence of Le)
@@ -324,7 +334,12 @@ func (sm *SecureMessaging) decodeSmRApduData(encodedData []byte) (out []byte, er
 	// remove the leading 'version' byte
 	tmpBytes = tmpBytes[1:]
 
-	out = sm.cryptoUnpad(sm.cbcCrypt(tmpBytes, false))
+	tmpDecryptedValue, err := sm.cbcCrypt(tmpBytes, false)
+	if err != nil {
+		return nil, fmt.Errorf("[sm.decodeSmRApduData] cbcCrypt error: %w", err)
+	}
+
+	out = sm.cryptoUnpad(tmpDecryptedValue)
 
 	return out, nil
 }

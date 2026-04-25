@@ -54,15 +54,24 @@ func ISO9797RetailMacDes(key, data []byte) (mac []byte, err error) {
 		return nil, err
 	}
 
-	tmp := CryptCBC(cipherK1, make([]byte, DES_BLOCK_SIZE_BYTES), data, true)
+	tmp, err := CryptCBC(cipherK1, make([]byte, DES_BLOCK_SIZE_BYTES), data, true)
+	if err != nil {
+		return nil, fmt.Errorf("[ISO9797RetailMacDes] CryptCBC error: %w", err)
+	}
 
 	// get last block (8 bytes)
 	cbcBlock1 := make([]byte, DES_BLOCK_SIZE_BYTES)
 	copy(cbcBlock1, tmp[len(tmp)-DES_BLOCK_SIZE_BYTES:])
 
-	cbcBlock2 := CryptCBC(cipherK2, make([]byte, DES_BLOCK_SIZE_BYTES), cbcBlock1, false)
+	cbcBlock2, err := CryptCBC(cipherK2, make([]byte, DES_BLOCK_SIZE_BYTES), cbcBlock1, false)
+	if err != nil {
+		return nil, fmt.Errorf("[ISO9797RetailMacDes] CryptCBC error: %w", err)
+	}
 
-	mac = CryptCBC(cipherK1, make([]byte, DES_BLOCK_SIZE_BYTES), cbcBlock2, true)
+	mac, err = CryptCBC(cipherK1, make([]byte, DES_BLOCK_SIZE_BYTES), cbcBlock2, true)
+	if err != nil {
+		return nil, fmt.Errorf("[ISO9797RetailMacDes] CryptCBC error: %w", err)
+	}
 
 	return mac, nil
 }

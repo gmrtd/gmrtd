@@ -249,7 +249,10 @@ func TestCryptCBC(t *testing.T) {
 			t.Errorf("Unexpected error: %s", err)
 		}
 
-		act := CryptCBC(cipher, tc.iv, tc.in, tc.encrypt)
+		act, err := CryptCBC(cipher, tc.iv, tc.in, tc.encrypt)
+		if err != nil {
+			t.Fatalf("Unexpected error: %s", err)
+		}
 
 		if !bytes.Equal(act, tc.out) {
 			t.Errorf("CryptCBC failed (Exp:%x) (Act:%x)", tc.out, act)
@@ -261,10 +264,6 @@ func TestCryptCBC(t *testing.T) {
 func TestCryptCBCIVLengthErr(t *testing.T) {
 	// IV length must match the block size, which for TDES is 8 bytes
 	// - we trigger panic by providing a 7 byte IV instead
-
-	// No need to check whether `recover()` is nil. Just turn off the panic.
-	defer func() { _ = recover() }()
-
 	var tdesKey []byte = utils.HexToBytes("AB94FDECF2674FDFB9B391F85D7F76F2")
 
 	var err error
@@ -278,19 +277,15 @@ func TestCryptCBCIVLengthErr(t *testing.T) {
 	var iv []byte = utils.HexToBytes("0123456789abcd")
 	var data []byte = utils.HexToBytes("0000000000000000")
 
-	_ = CryptCBC(cipher, iv, data, true)
-
-	// Never reaches here if panic
-	t.Errorf("expected panic, but didn't get")
+	_, err = CryptCBC(cipher, iv, data, true)
+	if err == nil {
+		t.Fatalf("Expected error")
+	}
 }
 
 func TestCryptCBCDataLengthErr(t *testing.T) {
 	// data length must be an exact multiple of the block size, which for TDES is 8 bytes
 	// - we trigger panic by providing a 17 bytes of data
-
-	// No need to check whether `recover()` is nil. Just turn off the panic.
-	defer func() { _ = recover() }()
-
 	var tdesKey []byte = utils.HexToBytes("AB94FDECF2674FDFB9B391F85D7F76F2")
 
 	var err error
@@ -304,10 +299,10 @@ func TestCryptCBCDataLengthErr(t *testing.T) {
 	var iv []byte = utils.HexToBytes("0123456789abcdef")
 	var data []byte = utils.HexToBytes("0000000000000000000000000000000000")
 
-	_ = CryptCBC(cipher, iv, data, true)
-
-	// Never reaches here if panic
-	t.Errorf("expected panic, but didn't get")
+	_, err = CryptCBC(cipher, iv, data, true)
+	if err == nil {
+		t.Fatalf("Expected error")
+	}
 }
 
 func TestCryptoHashOidToAlgErr(t *testing.T) {

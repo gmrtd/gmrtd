@@ -75,7 +75,10 @@ func (bac *BAC) buildRequest(rndIfd, rndIcc, kIfd, kEnc, kMac []byte) (cmd []byt
 		return nil, fmt.Errorf("[buildRequest] CipherForKey error: %w", err)
 	}
 
-	eIfd := cryptoutils.CryptCBC(cipher, make([]byte, cryptoutils.DES_BLOCK_SIZE_BYTES), s, true)
+	eIfd, err := cryptoutils.CryptCBC(cipher, make([]byte, cryptoutils.DES_BLOCK_SIZE_BYTES), s, true)
+	if err != nil {
+		return nil, fmt.Errorf("[buildRequest] CryptCBC error: %w", err)
+	}
 
 	// mifd = mac over eifd with kmac
 	var mIfd []byte
@@ -124,7 +127,10 @@ func (bac *BAC) processResponse(data, kEnc, kMac, rndIfd, rndIcc []byte) (kIcc [
 		return nil, fmt.Errorf("[processResponse] CipherForKey error: %w", err)
 	}
 
-	rspPlaintext := cryptoutils.CryptCBC(cipher, make([]byte, 8), rspCiphertext, false)
+	rspPlaintext, err := cryptoutils.CryptCBC(cipher, make([]byte, 8), rspCiphertext, false)
+	if err != nil {
+		return nil, fmt.Errorf("[processResponse] CryptCBC error: %w", err)
+	}
 
 	rspRndIcc := make([]byte, 8)
 	copy(rspRndIcc, rspPlaintext[0:8])
