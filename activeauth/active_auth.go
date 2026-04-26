@@ -21,48 +21,65 @@ import (
 // TODO - does this currently make any use of DG14.ActiveAuthInfos? (eg NL passport)
 //			- not a big deal, as we currently drive AA primarily from DG15
 
+// TODO - verify-signature has similar code for parsing ECDSA signature... should unify
+//			- parseEcdsaSignaturePlain / parseEcdsaSignatureDER... with similar code in CMS
+
 // ecdsaSignature represents an ASN.1/DER encoded ECDSA signature
-type ecdsaSignature struct {
+type EcdsaSignature struct {
 	R, S *big.Int
+}
+
+func (sig EcdsaSignature) isWellFormed() bool {
+	if sig.R == nil || sig.R.Sign() <= 0 || sig.S == nil || sig.S.Sign() <= 0 {
+		return false
+	}
+	return true
 }
 
 // parseEcdsaSignaturePlain parses an ECDSA signature in plain r||s format
 // (TR-03110 "ecdsa-plain" style, used by ICAO 9303 passports)
-func parseEcdsaSignaturePlain(sigBytes []byte) (r, s *big.Int, err error) {
+func parseEcdsaSignaturePlain(sigBytes []byte) (sig *EcdsaSignature, err error) {
 	if len(sigBytes) == 0 {
-		return nil, nil, fmt.Errorf("empty signature")
+		return nil, fmt.Errorf("empty signature")
 	}
 
 	if len(sigBytes)%2 != 0 {
-		return nil, nil, fmt.Errorf("plain signature must have even length, got %d", len(sigBytes))
+		return nil, fmt.Errorf("plain signature must have even length, got %d", len(sigBytes))
 	}
 
 	half := len(sigBytes) / 2
-	r = new(big.Int).SetBytes(sigBytes[:half])
-	s = new(big.Int).SetBytes(sigBytes[half:])
+	sig = &EcdsaSignature{}
+	sig.R = new(big.Int).SetBytes(sigBytes[:half])
+	sig.S = new(big.Int).SetBytes(sigBytes[half:])
 
-	return r, s, nil
+	if !sig.isWellFormed() {
+		return nil, fmt.Errorf("[parseEcdsaSignaturePlain] EcdsaSignature.isWellFormed failed")
+	}
+
+	return sig, nil
 }
 
 // parseEcdsaSignatureDER parses an ECDSA signature in ASN.1/DER format
 // (X9.62 standard, used by some national ID cards like Portuguese Cartão de Cidadão)
-func parseEcdsaSignatureDER(sigBytes []byte) (r, s *big.Int, err error) {
+func parseEcdsaSignatureDER(sigBytes []byte) (sig *EcdsaSignature, err error) {
 	if len(sigBytes) == 0 {
-		return nil, nil, fmt.Errorf("empty signature")
+		return nil, fmt.Errorf("empty signature")
 	}
 
-	var sig ecdsaSignature
-	rest, err := asn1.Unmarshal(sigBytes, &sig)
+	sig = &EcdsaSignature{}
+	rest, err := asn1.Unmarshal(sigBytes, sig)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to parse DER-encoded ECDSA signature: %w", err)
+		return nil, fmt.Errorf("failed to parse DER-encoded ECDSA signature: %w", err)
 	}
 	if len(rest) > 0 {
 		slog.Debug("parseEcdsaSignatureDER", "trailing_bytes", len(rest))
 	}
-	if sig.R == nil || sig.S == nil {
-		return nil, nil, fmt.Errorf("DER-encoded signature has nil R or S")
+
+	if !sig.isWellFormed() {
+		return nil, fmt.Errorf("[parseEcdsaSignatureDER] EcdsaSignature.isWellFormed failed")
 	}
-	return sig.R, sig.S, nil
+
+	return sig, nil
 }
 
 type ActiveAuth struct {
@@ -285,10 +302,10 @@ func ValidateActiveAuthSignature(dg15 *document.DG15, intAuthRspBytes, rndIfd []
 			var hash = cryptoutils.CryptoHash(alg, rndIfd)
 
 			// Try plain r||s format first (TR-03110, used by most passports)
-			r, s, plainErr := parseEcdsaSignaturePlain(intAuthRspBytes)
+			sig, plainErr := parseEcdsaSignaturePlain(intAuthRspBytes)
 			if plainErr == nil {
 				slog.Debug("ValidateActiveAuthSignature", "format", "plain r||s")
-				if ecdsa.Verify(pub, hash, r, s) {
+				if ecdsa.Verify(pub, hash, sig.R, sig.S) {
 					// Success with plain format
 					result.Success = true
 					return result, nil
@@ -298,9 +315,9 @@ func ValidateActiveAuthSignature(dg15 *document.DG15, intAuthRspBytes, rndIfd []
 			// If plain format failed or didn't verify, and signature starts with 0x30, try DER format
 			if len(intAuthRspBytes) > 0 && intAuthRspBytes[0] == 0x30 {
 				slog.Debug("ValidateActiveAuthSignature", "format", "trying DER/ASN.1 fallback")
-				r, s, derErr := parseEcdsaSignatureDER(intAuthRspBytes)
+				sig, derErr := parseEcdsaSignatureDER(intAuthRspBytes)
 				if derErr == nil {
-					if ecdsa.Verify(pub, hash, r, s) {
+					if ecdsa.Verify(pub, hash, sig.R, sig.S) {
 						// Success with DER format
 						slog.Debug("ValidateActiveAuthSignature", "format", "DER/ASN.1 succeeded")
 						result.Success = true
