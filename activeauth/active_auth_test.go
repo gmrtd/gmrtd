@@ -574,20 +574,20 @@ func TestParseEcdsaSignaturePlain(t *testing.T) {
 
 	t.Run("valid plain format", func(t *testing.T) {
 		plainSig := concatRSFixed(curve, r, s)
-		parsedR, parsedS, err := parseEcdsaSignaturePlain(plainSig)
+		sig, err := parseEcdsaSignaturePlain(plainSig)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
-		if parsedR.Cmp(r) != 0 {
-			t.Errorf("R mismatch: got %v, want %v", parsedR, r)
+		if sig.R.Cmp(r) != 0 {
+			t.Errorf("R mismatch: got %v, want %v", sig.R, r)
 		}
-		if parsedS.Cmp(s) != 0 {
-			t.Errorf("S mismatch: got %v, want %v", parsedS, s)
+		if sig.S.Cmp(s) != 0 {
+			t.Errorf("S mismatch: got %v, want %v", sig.S, s)
 		}
 	})
 
 	t.Run("empty signature", func(t *testing.T) {
-		_, _, err := parseEcdsaSignaturePlain([]byte{})
+		_, err := parseEcdsaSignaturePlain([]byte{})
 		if err == nil {
 			t.Error("expected error for empty signature")
 		}
@@ -595,11 +595,20 @@ func TestParseEcdsaSignaturePlain(t *testing.T) {
 
 	t.Run("odd length rejected", func(t *testing.T) {
 		oddSig := make([]byte, curveByteLen*2+1)
-		_, _, err := parseEcdsaSignaturePlain(oddSig)
+		_, err := parseEcdsaSignaturePlain(oddSig)
 		if err == nil {
 			t.Error("expected error for odd-length signature")
 		}
 	})
+
+	t.Run("invalid 0 values", func(t *testing.T) {
+		zeroSig := []byte{0, 0}
+		_, err := parseEcdsaSignaturePlain(zeroSig)
+		if err == nil {
+			t.Errorf("expected error for 0 values")
+		}
+	})
+
 }
 
 // TestParseEcdsaSignatureDER tests the parseEcdsaSignatureDER function
@@ -623,20 +632,20 @@ func TestParseEcdsaSignatureDER(t *testing.T) {
 		if err != nil {
 			t.Fatalf("DER encode: %v", err)
 		}
-		parsedR, parsedS, err := parseEcdsaSignatureDER(derSig)
+		sig, err := parseEcdsaSignatureDER(derSig)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
-		if parsedR.Cmp(r) != 0 {
-			t.Errorf("R mismatch: got %v, want %v", parsedR, r)
+		if sig.R.Cmp(r) != 0 {
+			t.Errorf("R mismatch: got %v, want %v", sig.R, r)
 		}
-		if parsedS.Cmp(s) != 0 {
-			t.Errorf("S mismatch: got %v, want %v", parsedS, s)
+		if sig.S.Cmp(s) != 0 {
+			t.Errorf("S mismatch: got %v, want %v", sig.S, s)
 		}
 	})
 
 	t.Run("empty signature", func(t *testing.T) {
-		_, _, err := parseEcdsaSignatureDER([]byte{})
+		_, err := parseEcdsaSignatureDER([]byte{})
 		if err == nil {
 			t.Error("expected error for empty signature")
 		}
@@ -644,9 +653,25 @@ func TestParseEcdsaSignatureDER(t *testing.T) {
 
 	t.Run("invalid DER", func(t *testing.T) {
 		invalidDer := []byte{0x30, 0x05, 0x01, 0x02, 0x03}
-		_, _, err := parseEcdsaSignatureDER(invalidDer)
+		_, err := parseEcdsaSignatureDER(invalidDer)
 		if err == nil {
 			t.Error("expected error for invalid DER")
+		}
+	})
+
+	t.Run("DER with remaining data - no error expected", func(t *testing.T) {
+		invalidDer := []byte{0x30, 0x06, 0x02, 0x01, 0x01, 0x02, 0x01, 0x01, 0x03, 0x03, 0x02, 0x01, 0x01}
+		_, err := parseEcdsaSignatureDER(invalidDer)
+		if err != nil {
+			t.Errorf("expected error for invalid DER: %s", err)
+		}
+	})
+
+	t.Run("invalid 0 values", func(t *testing.T) {
+		invalidDer := []byte{0x30, 0x06, 0x02, 0x01, 0x00, 0x02, 0x01, 0x00}
+		_, err := parseEcdsaSignatureDER(invalidDer)
+		if err == nil {
+			t.Errorf("expected error for 0 values")
 		}
 	})
 }
@@ -665,5 +690,103 @@ func TestValidateActiveAuthSignatureRsaEmptyAuthRspBytes(t *testing.T) {
 	_, err = ValidateActiveAuthSignature(dg15, authRspBytes, rndIfd)
 	if err == nil {
 		t.Fatalf("Expected error")
+	}
+}
+
+func TestEcdsaSignatureIsWellFormed(t *testing.T) {
+	tests := []struct {
+		name string
+		sig  EcdsaSignature
+		want bool
+	}{
+		{
+			name: "valid signature",
+			sig: EcdsaSignature{
+				R: big.NewInt(1),
+				S: big.NewInt(1),
+			},
+			want: true,
+		},
+		{
+			name: "nil R",
+			sig: EcdsaSignature{
+				R: nil,
+				S: big.NewInt(1),
+			},
+			want: false,
+		},
+		{
+			name: "nil S",
+			sig: EcdsaSignature{
+				R: big.NewInt(1),
+				S: nil,
+			},
+			want: false,
+		},
+		{
+			name: "R is zero",
+			sig: EcdsaSignature{
+				R: big.NewInt(0),
+				S: big.NewInt(1),
+			},
+			want: false,
+		},
+		{
+			name: "S is zero",
+			sig: EcdsaSignature{
+				R: big.NewInt(1),
+				S: big.NewInt(0),
+			},
+			want: false,
+		},
+		{
+			name: "R is negative",
+			sig: EcdsaSignature{
+				R: big.NewInt(-1),
+				S: big.NewInt(1),
+			},
+			want: false,
+		},
+		{
+			name: "S is negative",
+			sig: EcdsaSignature{
+				R: big.NewInt(1),
+				S: big.NewInt(-1),
+			},
+			want: false,
+		},
+		{
+			name: "both nil",
+			sig: EcdsaSignature{
+				R: nil,
+				S: nil,
+			},
+			want: false,
+		},
+		{
+			name: "both zero",
+			sig: EcdsaSignature{
+				R: big.NewInt(0),
+				S: big.NewInt(0),
+			},
+			want: false,
+		},
+		{
+			name: "large valid values",
+			sig: EcdsaSignature{
+				R: new(big.Int).SetBytes(make([]byte, 32)),
+				S: big.NewInt(123456789),
+			},
+			want: false, // R == 0 because bytes are all zero
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.sig.isWellFormed()
+			if got != tt.want {
+				t.Errorf("validate() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
