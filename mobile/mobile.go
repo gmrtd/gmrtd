@@ -66,7 +66,10 @@ type Reader struct {
 	status      ReaderStatus
 	transceiver Transceiver
 	maxRead     int
-	documentEx  *document.DocumentEx
+}
+
+type Document struct {
+	documentEx *document.DocumentEx
 }
 
 func NewReader(status ReaderStatus, transceiver Transceiver) *Reader {
@@ -95,7 +98,7 @@ func cscaMasterList() (cms.CertPool, error) {
 }
 
 // reads the document (and performs passive authentication)
-func (r *Reader) ReadDocument(password *MrtdPassword, atr []byte, ats []byte) (err error) {
+func (r *Reader) ReadDocument(password *MrtdPassword, atr []byte, ats []byte) (doc *Document, err error) {
 	defer func() {
 		if e := recover(); e != nil {
 			switch x := e.(type) {
@@ -110,8 +113,7 @@ func (r *Reader) ReadDocument(password *MrtdPassword, atr []byte, ats []byte) (e
 		}
 	}()
 
-	// reset document (if already set)
-	r.documentEx = nil
+	doc = &Document{}
 
 	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(r.transceiver)
 
@@ -121,24 +123,24 @@ func (r *Reader) ReadDocument(password *MrtdPassword, atr []byte, ats []byte) (e
 
 	cscaMasterList, err := cscaMasterList()
 	if err != nil {
-		return fmt.Errorf("[ReadDocument] cscaMasterList error: %w", err)
+		return nil, fmt.Errorf("[ReadDocument] cscaMasterList error: %w", err)
 	}
 
 	var gmrtdReader *reader.Reader
 	gmrtdReader = reader.NewReader(r.status, nfc, cscaMasterList)
 
 	// read (and verify) the document (inc passive-authentication)
-	r.documentEx, err = gmrtdReader.ReadDocument(password.password, atr, ats)
+	doc.documentEx, err = gmrtdReader.ReadDocument(password.password, atr, ats)
 
-	return err
+	return doc, err
 }
 
-func (r *Reader) DocumentExJson() (jsonData []byte, err error) {
-	if r.documentEx == nil {
+func (doc *Document) DocumentExJson() (jsonData []byte, err error) {
+	if doc.documentEx == nil {
 		return nil, fmt.Errorf("[DocumentJson] No document available")
 	}
 
-	jsonData, err = json.Marshal(r.documentEx)
+	jsonData, err = json.Marshal(doc.documentEx)
 
 	return jsonData, err
 }

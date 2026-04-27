@@ -69,7 +69,7 @@ func TestReadDocument(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 
-	err = reader.ReadDocument(pass, nil, nil)
+	doc, err := reader.ReadDocument(pass, nil, nil)
 	if err == nil {
 		t.Fatalf("expected error")
 	}
@@ -77,7 +77,7 @@ func TestReadDocument(t *testing.T) {
 	// attempt to get JSON data even though we expected document reading error
 	// - we should still have some document object
 	{
-		json, jsonErr := reader.DocumentExJson()
+		json, jsonErr := doc.DocumentExJson()
 
 		if jsonErr != nil {
 			t.Errorf("unexpected error: %s", jsonErr)
@@ -92,9 +92,9 @@ func TestReadDocument(t *testing.T) {
 func TestDocumentExJsonError(t *testing.T) {
 	// error expected as we attempt to get Document-Json before ReadDocument
 
-	reader := NewReader(&testReaderStatus{}, &iso7816.StaticTransceiver{})
+	doc := &Document{}
 
-	_, err := reader.DocumentExJson()
+	_, err := doc.DocumentExJson()
 	if err == nil {
 		t.Errorf("error expected")
 	}
@@ -113,7 +113,7 @@ func TestReadDocumentNilPassword(t *testing.T) {
 
 	var pass *MrtdPassword = nil
 
-	err := reader.ReadDocument(pass, nil, nil)
+	_, err := reader.ReadDocument(pass, nil, nil)
 	if err == nil {
 		t.Fatalf("expected error")
 	}
