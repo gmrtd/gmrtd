@@ -39,7 +39,11 @@ func (certPool *GenericCertPool) BySKI(ski []byte) []Certificate {
 
 	for i := range certPool.certificates {
 		var cert *Certificate = &certPool.certificates[i]
-		tmpSki := cert.TbsCertificate.Extensions.SubjectKeyIdentifier()
+		tmpSki, err := cert.TbsCertificate.Extensions.SubjectKeyIdentifier()
+		if err != nil {
+			slog.Warn("SubjectKeyIdentifier error", "error", err)
+			continue
+		}
 
 		if bytes.Equal(*tmpSki, ski) {
 			slog.Debug("CertPool.BySki - found matching cert", "Idx", i, "SKI", utils.BytesToHex(ski))
@@ -61,10 +65,24 @@ func (certPool *GenericCertPool) ByIssuerCountry(countryAlpha2 string) []Certifi
 	for i := range certPool.certificates {
 		var cert *Certificate = &certPool.certificates[i]
 
-		tmpCountry := cert.TbsCertificate.IssuerRDN().ByOID(oid.OidCountryName)
+		issuerRdn, err := cert.TbsCertificate.IssuerRDN()
+		if err != nil {
+			slog.Warn("IssuerRDN error", "error", err)
+			continue
+		}
+
+		tmpCountry := issuerRdn.ByOID(oid.OidCountryName)
 
 		if strings.EqualFold(string(tmpCountry), countryAlpha2) {
-			var sub *SubjectKeyIdentifier = cert.TbsCertificate.Extensions.SubjectKeyIdentifier()
+			var sub *SubjectKeyIdentifier
+			var err error
+
+			sub, err = cert.TbsCertificate.Extensions.SubjectKeyIdentifier()
+			if err != nil {
+				slog.Warn("SubjectKeyIdentifier error", "error", err)
+				continue
+			}
+
 			slog.Debug("CertPool.ByIssuerCountry - found matching cert", "Idx", i, "Country", countryAlpha2, "SKI", utils.BytesToHex(*sub))
 			matchingCerts = append(matchingCerts, *cert)
 		}
