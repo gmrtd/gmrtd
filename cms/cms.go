@@ -24,7 +24,6 @@ import (
 	"encoding/asn1"
 	"encoding/json"
 	"fmt"
-	"log"
 	"log/slog"
 	"math/big"
 	"slices"
@@ -251,38 +250,74 @@ type AuthorityKeyIdentifier struct {
 
 type SubjectKeyIdentifier []byte
 
-func (extensions Extensions) AuthorityKeyIdentifier() *AuthorityKeyIdentifier {
+// AuthorityKeyIdentifier locates and parses the Authority Key Identifier (AKI)
+// extension from the Extensions collection.
+//
+// It iterates through the extensions and returns the first extension whose
+// ObjectId matches the Authority Key Identifier OID (oid.OidAuthorityKeyIdentifier).
+// The extension value is decoded from ASN.1 into an AuthorityKeyIdentifier struct.
+//
+// Returns:
+//   - *AuthorityKeyIdentifier: the parsed AKI structure if present
+//   - error: if ASN.1 decoding fails
+//
+// If no Authority Key Identifier extension is found, the function returns (nil, nil).
+//
+// Notes:
+//   - The function assumes at most one AKI extension is relevant and returns
+//     the first match.
+//   - The ExtnValue is expected to be a valid ASN.1-encoded AKI structure.
+//   - A nil result with no error indicates absence of the extension, not failure.
+func (extensions Extensions) AuthorityKeyIdentifier() (*AuthorityKeyIdentifier, error) {
 	for i := range extensions {
 		if extensions[i].ObjectId.Equal(oid.OidAuthorityKeyIdentifier) {
 			var out AuthorityKeyIdentifier
 
 			err := utils.ParseAsn1(extensions[i].ExtnValue.Bytes, false, &out)
 			if err != nil {
-				log.Panicf("error: %s", err)
+				return nil, fmt.Errorf("[AuthorityKeyIdentifier] ParseAsn1 error: %w", err)
 			}
 
-			return &out
+			return &out, nil
 		}
 	}
 
-	return nil
+	return nil, nil
 }
 
-func (extensions Extensions) SubjectKeyIdentifier() *SubjectKeyIdentifier {
+// SubjectKeyIdentifier locates and parses the Subject Key Identifier (SKI)
+// extension from the Extensions collection.
+//
+// It iterates through the extensions and returns the first extension whose
+// ObjectId matches the Subject Key Identifier OID (oid.OidSubjectKeyIdentifier).
+// The extension value is decoded from ASN.1 into a SubjectKeyIdentifier struct.
+//
+// Returns:
+//   - *SubjectKeyIdentifier: the parsed SKI structure if present
+//   - error: if ASN.1 decoding fails
+//
+// If no Subject Key Identifier extension is found, the function returns (nil, nil).
+//
+// Notes:
+//   - The function assumes at most one SKI extension is relevant and returns
+//     the first match.
+//   - The ExtnValue is expected to be a valid ASN.1-encoded SKI structure.
+//   - A nil result with no error indicates absence of the extension, not failure.
+func (extensions Extensions) SubjectKeyIdentifier() (*SubjectKeyIdentifier, error) {
 	for i := range extensions {
 		if extensions[i].ObjectId.Equal(oid.OidSubjectKeyIdentifier) {
 			var out SubjectKeyIdentifier
 
 			err := utils.ParseAsn1(extensions[i].ExtnValue.Bytes, false, &out)
 			if err != nil {
-				log.Panicf("error: %s", err)
+				return nil, fmt.Errorf("[SubjectKeyIdentifier] ParseAsn1 error: %w", err)
 			}
 
-			return &out
+			return &out, nil
 		}
 	}
 
-	return nil
+	return nil, nil
 }
 
 // TODO - handlers for other extensions... key-usage (sign,..)... CSCA: privateKeyUsagePeriod, id-ce-keyUsage (for CA detection?)
@@ -290,15 +325,15 @@ func (extensions Extensions) SubjectKeyIdentifier() *SubjectKeyIdentifier {
 type RDNSequence []RelativeDistinguishedNameSET
 type RelativeDistinguishedNameSET AttributeList
 
-func ParseRDNSequence(rdnSeq []byte) RDNSequence {
+func ParseRDNSequence(rdnSeq []byte) (*RDNSequence, error) {
 	var out RDNSequence
 
 	err := utils.ParseAsn1(rdnSeq, false, &out)
 	if err != nil {
-		log.Panicf("ParseRDNSequence error: %s", err)
+		return nil, fmt.Errorf("[ParseRDNSequence] ParseAsn1 error: %w", err)
 	}
 
-	return out
+	return &out, nil
 }
 
 func (rdnSet RDNSequence) ByOID(oid asn1.ObjectIdentifier) []byte {
@@ -313,7 +348,7 @@ func (rdnSet RDNSequence) ByOID(oid asn1.ObjectIdentifier) []byte {
 	return []byte{}
 }
 
-func (cert TBSCertificate) IssuerRDN() RDNSequence {
+func (cert TBSCertificate) IssuerRDN() (*RDNSequence, error) {
 	return ParseRDNSequence(cert.Issuer.FullBytes)
 }
 
@@ -437,8 +472,17 @@ func (si *SignerInfo) Verify(sd *SignedData, trustedCerts CertPool) (certChain [
 			return nil, fmt.Errorf("[Verify] Expected Authenticated-Attribute(s) missing (Content-Type, Message-Digest) %v", si)
 		}
 
-		var aaContentTypeOID asn1.ObjectIdentifier = asn1decodeOid(aaContentType.Values.Bytes)
-		var aaMessageDigestHash []byte = asn1decodeBytes(aaMessageDigest.Values.Bytes)
+		var aaContentTypeOID asn1.ObjectIdentifier
+		aaContentTypeOID, err = asn1decodeOid(aaContentType.Values.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("[Verify] asn1decodeOid error: %w", err)
+		}
+
+		var aaMessageDigestHash []byte
+		aaMessageDigestHash, err = asn1decodeBytes(aaMessageDigest.Values.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("[Verify] asn1decodeBytes error: %w", err)
+		}
 
 		slog.Debug("Verify", "AA Content-Type", aaContentTypeOID.String())
 		slog.Debug("Verify", "AA Message-Digest", utils.BytesToHex(aaMessageDigestHash))
@@ -572,7 +616,11 @@ func (cert *Certificate) Verify(trustedCerts CertPool) (certChain [][]byte, err 
 	slog.Debug("CERT.Verify", "Cert(hex)", utils.BytesToHex(cert.Raw))
 
 	// get the parent certificate (authority) key identifier
-	var aki *AuthorityKeyIdentifier = cert.TbsCertificate.Extensions.AuthorityKeyIdentifier()
+	var aki *AuthorityKeyIdentifier
+	aki, err = cert.TbsCertificate.Extensions.AuthorityKeyIdentifier()
+	if err != nil {
+		return certChain, fmt.Errorf("[Certificate.Verify] AuthorityKeyIdentifier error: %w", err)
+	}
 	if aki == nil {
 		return certChain, fmt.Errorf("[Certificate.Verify] AKI missing from cert (%x)", cert.Raw)
 	}
@@ -622,22 +670,26 @@ func (cert *Certificate) Verify(trustedCerts CertPool) (certChain [][]byte, err 
 	return certChain, fmt.Errorf("[Certificate.Verify] signature not verified against matched certificates (matchCnt:%d,aki:%x,cert:%x)", len(parentCerts), aki.KeyIdentifier, cert.Raw)
 }
 
-func asn1decodeOid(data []byte) asn1.ObjectIdentifier {
+func asn1decodeOid(data []byte) (asn1.ObjectIdentifier, error) {
 	var out asn1.ObjectIdentifier
+
 	err := utils.ParseAsn1(data, false, &out)
 	if err != nil {
-		log.Panicf("(asn1decodeOid) Unexpected ASN1 parsing error: %s", err)
+		return nil, fmt.Errorf("[asn1decodeOid] ParseAsn1 error: %w", err)
 	}
-	return out
+
+	return out, nil
 }
 
-func asn1decodeBytes(data []byte) []byte {
+func asn1decodeBytes(data []byte) ([]byte, error) {
 	var out []byte
+
 	err := utils.ParseAsn1(data, false, &out)
 	if err != nil {
-		log.Panicf("(asn1decodeBytes) Unexpected ASN1 parsing error: %s", err)
+		return nil, fmt.Errorf("[asn1decodeBytes] ParseAsn1 error: %w", err)
 	}
-	return out
+
+	return out, nil
 }
 
 func Asn1decodeSubjectPublicKeyInfo(data []byte) (SubjectPublicKeyInfo, error) {

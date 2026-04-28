@@ -46,11 +46,17 @@ func TestCscaCertPool(t *testing.T) {
 	for i := 0; i < len(certificates); i++ {
 		cert := certificates[i]
 
-		ski := cert.TbsCertificate.Extensions.SubjectKeyIdentifier()
+		ski, err := cert.TbsCertificate.Extensions.SubjectKeyIdentifier()
+		if err != nil {
+			t.Fatalf("Unexpected error: %s", err)
+		}
 
 		// NB 'aki' is missing for some certs
 		// - this typically indicates that it is a self-signed cert
-		aki := cert.TbsCertificate.Extensions.AuthorityKeyIdentifier()
+		aki, err := cert.TbsCertificate.Extensions.AuthorityKeyIdentifier()
+		if err != nil {
+			t.Fatalf("Unexpected error: %s", err)
+		}
 
 		{
 			digestAlg, err := cert.SignatureAlgorithm.DetermineDigestAlgFromSigAlg()
@@ -110,6 +116,9 @@ func TestCscaCertPool(t *testing.T) {
 				}
 
 				var parentCerts []Certificate = certPool.BySKI(aki.KeyIdentifier)
+
+				// TODO - should check how many of these are link certs where the original parent is no longer present
+				//			- maybe we should ignore link certs... especially for populating the cert pool also
 
 				/*
 				* Note: we have some certificates that reference a parent (aki) which is not found in

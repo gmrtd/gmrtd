@@ -207,7 +207,11 @@ func (sod SOD) CertCountryAlpha2() (string, error) {
 	countries := make(map[string]struct{})
 
 	for i := range certs {
-		tmpCountry := certs[i].TbsCertificate.IssuerRDN().ByOID(oid.OidCountryName)
+		issuerRdn, err := certs[i].TbsCertificate.IssuerRDN()
+		if err != nil {
+			return "", fmt.Errorf("[CertCountryAlpha2] IssuerRDN error: %w", err)
+		}
+		tmpCountry := issuerRdn.ByOID(oid.OidCountryName)
 		countries[string(tmpCountry)] = struct{}{}
 	}
 
