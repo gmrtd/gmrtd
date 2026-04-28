@@ -412,7 +412,10 @@ func TestDoBAC(t *testing.T) {
 			t.Errorf("Unexpected error: %s", err)
 		}
 
-		smExp.SetSSC(utils.HexToBytes("887022120C06C226"))
+		err = smExp.SetSSC(utils.HexToBytes("887022120C06C226"))
+		if err != nil {
+			t.Fatalf("Unexpected error: %s", err)
+		}
 
 		var smAct *iso7816.SecureMessaging = nfc.SM().(*iso7816.SecureMessaging)
 

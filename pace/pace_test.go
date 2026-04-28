@@ -585,7 +585,10 @@ func TestDoPace_CAM_ECDH_DE(t *testing.T) {
 			t.Errorf("Unexpected error: %s", err)
 		}
 
-		smExp.SetSSC(utils.HexToBytes("00000000000000000000000000000016"))
+		err = smExp.SetSSC(utils.HexToBytes("00000000000000000000000000000016"))
+		if err != nil {
+			t.Fatalf("Unexpected error: %s", err)
+		}
 
 		var smAct *iso7816.SecureMessaging = nfc.SM().(*iso7816.SecureMessaging)
 

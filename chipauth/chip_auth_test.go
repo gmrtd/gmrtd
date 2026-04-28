@@ -252,7 +252,12 @@ func TestChipAuthAT(t *testing.T) {
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
-	sm.SetSSC(utils.HexToBytes("000000000000000000000000000000F0"))
+
+	err = sm.SetSSC(utils.HexToBytes("000000000000000000000000000000F0"))
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+
 	nfc.SetSecureMessaging(sm)
 
 	// setup static EC keys for test
@@ -296,7 +301,11 @@ func TestChipAuthAT(t *testing.T) {
 		if err != nil {
 			t.Errorf("Unable to setup smExp")
 		}
-		smExp.SetSSC(utils.HexToBytes("00000000000000000000000000000002"))
+
+		err = smExp.SetSSC(utils.HexToBytes("00000000000000000000000000000002"))
+		if err != nil {
+			t.Fatalf("Unexpected error: %s", err)
+		}
 	}
 
 	// verify the post Secure-Messaging state (as this truly indicates whether it worked)
@@ -342,7 +351,12 @@ func TestChipAuthDE(t *testing.T) {
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
-	sm.SetSSC(utils.HexToBytes("000000000000000000000000000000BA"))
+
+	err = sm.SetSSC(utils.HexToBytes("000000000000000000000000000000BA"))
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+
 	nfc.SetSecureMessaging(sm)
 
 	// setup static EC keys for test
@@ -386,7 +400,11 @@ func TestChipAuthDE(t *testing.T) {
 		if err != nil {
 			t.Errorf("Unable to setup smExp")
 		}
-		smExp.SetSSC(utils.HexToBytes("00000000000000000000000000000002"))
+
+		err = smExp.SetSSC(utils.HexToBytes("00000000000000000000000000000002"))
+		if err != nil {
+			t.Fatalf("Unexpected error: %s", err)
+		}
 	}
 
 	// verify the post Secure-Messaging state (as this truly indicates whether it worked)
@@ -432,7 +450,12 @@ func TestChipAuthMY(t *testing.T) {
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
-	sm.SetSSC(utils.HexToBytes("9646c154bfb7be79"))
+
+	err = sm.SetSSC(utils.HexToBytes("9646c154bfb7be79"))
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+
 	nfc.SetSecureMessaging(sm)
 
 	// setup static EC keys for test
@@ -476,7 +499,11 @@ func TestChipAuthMY(t *testing.T) {
 		if err != nil {
 			t.Errorf("Unable to setup smExp")
 		}
-		smExp.SetSSC(utils.HexToBytes("0000000000000002"))
+
+		err = smExp.SetSSC(utils.HexToBytes("0000000000000002"))
+		if err != nil {
+			t.Fatalf("Unexpected error: %s", err)
+		}
 	}
 
 	// verify the post Secure-Messaging state (as this truly indicates whether it worked)
@@ -520,7 +547,12 @@ func TestChipAuthFR(t *testing.T) {
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
-	sm.SetSSC(utils.HexToBytes("000000000000000000000000000000c6"))
+
+	err = sm.SetSSC(utils.HexToBytes("000000000000000000000000000000c6"))
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+
 	nfc.SetSecureMessaging(sm)
 
 	// setup static EC keys for test
@@ -564,7 +596,11 @@ func TestChipAuthFR(t *testing.T) {
 		if err != nil {
 			t.Errorf("Unable to setup smExp")
 		}
-		smExp.SetSSC(utils.HexToBytes("0000000000000002"))
+
+		err = smExp.SetSSC(utils.HexToBytes("0000000000000002"))
+		if err != nil {
+			t.Fatalf("Unexpected error: %s", err)
+		}
 	}
 
 	// verify the post Secure-Messaging state (as this truly indicates whether it worked)
