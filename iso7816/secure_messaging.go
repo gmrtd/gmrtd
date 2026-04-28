@@ -38,7 +38,7 @@ const CLA_MASK byte = 0x0C
 
 type SecureMessenger interface {
 	SSC() []byte
-	SetSSC([]byte)
+	SetSSC([]byte) error
 	KsEnc() []byte
 	String() string
 	Encode(*CApdu) (*CApdu, error)
@@ -100,12 +100,14 @@ func NewSecureMessaging(alg cryptoutils.BlockCipherAlg, ksEnc []byte, ksMac []by
 	return sm, nil
 }
 
-func (sm *SecureMessaging) SetSSC(ssc []byte) {
+func (sm *SecureMessaging) SetSSC(ssc []byte) error {
 	if len(ssc) != len(sm.ssc) {
-		panic(fmt.Sprintf("[SetSSC] length mismatch (exp:%d, act:%d)", len(sm.ssc), len(ssc)))
+		return fmt.Errorf("[SetSSC] length mismatch (exp:%d, act:%d)", len(sm.ssc), len(ssc))
 	}
 	copy(sm.ssc, ssc)
 	slog.Debug("SetSSC", "SSC", utils.BytesToHex(sm.ssc))
+
+	return nil
 }
 
 func (sm SecureMessaging) String() string {
@@ -175,13 +177,13 @@ func (sm *SecureMessaging) cryptoPad(data []byte) []byte {
 }
 
 // NB fails if empty data passed in (as doesn't qualify the padding rules)
-func (sm *SecureMessaging) cryptoUnpad(data []byte) []byte {
+func (sm *SecureMessaging) cryptoUnpad(data []byte) ([]byte, error) {
 	data, err := cryptoutils.ISO9797Method2Unpad(data)
 	if err != nil {
-		panic(fmt.Sprintf("[cryptoUnpad] ISO9797Method2Unpad error: %s", err))
+		return nil, fmt.Errorf("[cryptoUnpad] ISO9797Method2Unpad error: %w", err)
 	}
 
-	return data
+	return data, nil
 }
 
 // builds tag 85/87 (depending on Ins)
@@ -339,7 +341,10 @@ func (sm *SecureMessaging) decodeSmRApduData(encodedData []byte) (out []byte, er
 		return nil, fmt.Errorf("[sm.decodeSmRApduData] cbcCrypt error: %w", err)
 	}
 
-	out = sm.cryptoUnpad(tmpDecryptedValue)
+	out, err = sm.cryptoUnpad(tmpDecryptedValue)
+	if err != nil {
+		return nil, fmt.Errorf("[sm.decodeSmRApduData] cryptoUnpad error: %w", err)
+	}
 
 	return out, nil
 }

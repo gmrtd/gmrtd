@@ -58,7 +58,10 @@ func TestNfcSessionSecureMessagingTDES(t *testing.T) {
 	}
 	nfc.SetSecureMessaging(sm)
 
-	nfc.SM().SetSSC(utils.HexToBytes("887022120C06C226"))
+	err = nfc.SM().SetSSC(utils.HexToBytes("887022120C06C226"))
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
 
 	// Read EF.COM
 	actEfComData, err := nfc.ReadFile(0x011e)
@@ -99,7 +102,10 @@ func TestNfcSessionSecureMessagingAES(t *testing.T) {
 	}
 	nfc.SetSecureMessaging(sm)
 
-	nfc.SM().SetSSC(utils.HexToBytes("00000000000000000000000000000020"))
+	err = nfc.SM().SetSSC(utils.HexToBytes("00000000000000000000000000000020"))
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
 
 	// Read EF.COM
 	actEfComData, err := nfc.ReadFile(0x011e)

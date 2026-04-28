@@ -50,7 +50,12 @@ func TestDoActiveAuth(t *testing.T) {
 		if err != nil {
 			t.Errorf("Unexpected error: %s", err)
 		}
-		sm.SetSSC(utils.HexToBytes("00000000000000cc"))
+
+		err = sm.SetSSC(utils.HexToBytes("00000000000000cc"))
+		if err != nil {
+			t.Fatalf("Unexpected error: %s", err)
+		}
+
 		nfc.SetSecureMessaging(sm)
 	}
 
@@ -113,7 +118,10 @@ func TestDoActiveAuth(t *testing.T) {
 			t.Errorf("Unexpected error: %s", err)
 		}
 
-		smExp.SetSSC(utils.HexToBytes("00000000000000ce"))
+		err = smExp.SetSSC(utils.HexToBytes("00000000000000ce"))
+		if err != nil {
+			t.Fatalf("Unexpected error: %s", err)
+		}
 
 		var smAct *iso7816.SecureMessaging = nfc.SM().(*iso7816.SecureMessaging)
 		if !smExp.Equal(*smAct) {

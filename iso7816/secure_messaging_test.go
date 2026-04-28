@@ -100,9 +100,6 @@ func TestNewSecureMessagingErrors(t *testing.T) {
 }
 
 func TestSetSSCLengthError(t *testing.T) {
-	// No need to check whether `recover()` is nil. Just turn off the panic.
-	defer func() { _ = recover() }()
-
 	// setup SM to a good starting point
 	var alg cryptoutils.BlockCipherAlg = cryptoutils.TDES
 	var ksEnc []byte = utils.HexToBytes("979ec13b1cbfe9dcd01ab0fed307eae5")
@@ -116,11 +113,11 @@ func TestSetSSCLengthError(t *testing.T) {
 	// NB we trigger error by trying to set an invalid SSC (i.e. 9 bytes instead of 8)
 	var badSSC []byte = utils.HexToBytes("000000000000000000") // 9 bytes!
 
-	// trigger the panic
-	sm.SetSSC(badSSC)
-
-	// Never reaches here if panic
-	t.Errorf("expected panic, but didn't get")
+	// trigger the error
+	err = sm.SetSSC(badSSC)
+	if err == nil {
+		t.Fatalf("Expected error")
+	}
 }
 
 func TestSSCIncrement(t *testing.T) {
@@ -193,7 +190,10 @@ func TestSSCIncrement(t *testing.T) {
 		if err != nil {
 			t.Errorf("Unexpected error: %s", err)
 		} else {
-			sm.SetSSC(tc.ssc)
+			err = sm.SetSSC(tc.ssc)
+			if err != nil {
+				t.Fatalf("Unexpected error: %s", err)
+			}
 			sm.sscIncrement()
 
 			// verify SSC
@@ -253,7 +253,10 @@ func TestSecureMessageEncode(t *testing.T) {
 			t.Errorf("Unexpected error: %s", err)
 		}
 
-		sm.SetSSC(tc.ssc)
+		err = sm.SetSSC(tc.ssc)
+		if err != nil {
+			t.Fatalf("Unexpected error: %s", err)
+		}
 
 		outCApdu, err := sm.Encode(tc.cApdu)
 		if err != nil {
@@ -311,7 +314,10 @@ func TestSecureMessageDecode(t *testing.T) {
 			t.Errorf("Unexpected error: %s", err)
 		}
 
-		sm.SetSSC(tc.ssc)
+		err = sm.SetSSC(tc.ssc)
+		if err != nil {
+			t.Fatalf("Unexpected error: %s", err)
+		}
 
 		out, err := sm.Decode(tc.rApduBytes)
 		if err != nil {
@@ -393,7 +399,10 @@ func TestDecodeSmRApduData(t *testing.T) {
 				t.Fatalf("Unexpected error: %s", err)
 			}
 
-			sm.SetSSC(tc.ssc)
+			err = sm.SetSSC(tc.ssc)
+			if err != nil {
+				t.Fatalf("Unexpected error: %s", err)
+			}
 
 			var actData []byte
 

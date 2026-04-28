@@ -167,7 +167,10 @@ func (bac *BAC) setupSecureMessaging(kEnc, kMac, rndIc, rndIfd []byte) (err erro
 	ssc := make([]byte, 8)
 	copy(ssc[0:4], rndIc[4:8])  // ls 4 bytes
 	copy(ssc[4:8], rndIfd[4:8]) // ls 4 bytes
-	bac.nfcSession.SM().SetSSC(ssc)
+	err = bac.nfcSession.SM().SetSSC(ssc)
+	if err != nil {
+		return fmt.Errorf("[setupSecureMessaging] SetSSC error: %w", err)
+	}
 
 	return nil
 }
