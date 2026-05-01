@@ -326,9 +326,9 @@ func (sm *SecureMessaging) decodeSmRApduData(encodedData []byte) (out []byte, er
 		return nil, fmt.Errorf("[sm.decodeSmRApduData] encodeData must be >= 1 bytes")
 	}
 
-	// field has a leading 'version' byte that needs to be removed (if field is present)
+	// field has a MANDATORY leading 'version' byte that needs to be removed
 
-	// verify that 'verison' is 0x01 before removing
+	// verify that 'version' is 0x01 before removing
 	if tmpBytes[0] != 0x01 {
 		return nil, fmt.Errorf("[sm.decodeSmRApduData] version not set to 0x01")
 	}
@@ -392,6 +392,11 @@ func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
 	// verify the MAC
 	if err = sm.decodeVerifyMAC(tlv); err != nil {
 		return nil, fmt.Errorf("(sm.Decode) verify MAC error: %w", err)
+	}
+
+	// verify status is 2 bytes
+	if len(tag99.Value()) != 2 {
+		return nil, fmt.Errorf("[sm.Decode] Protected status (tag 99) must be 2 bytes (act-len:%1d)", len(tag99.Value()))
 	}
 
 	// set the status
