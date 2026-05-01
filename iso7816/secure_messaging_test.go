@@ -336,6 +336,106 @@ func TestSecureMessageDecode(t *testing.T) {
 	}
 }
 
+func TestSecureMessageDecodeErrors(t *testing.T) {
+	testCases := []struct {
+		name          string
+		alg           cryptoutils.BlockCipherAlg
+		ksEnc         []byte
+		ksMac         []byte
+		ssc           []byte
+		rApduBytes    []byte
+		errorContains string
+	}{
+		{
+			name:          "R-Apdu too short (<2 bytes)",
+			alg:           cryptoutils.TDES,
+			ksEnc:         utils.HexToBytes("979EC13B1CBFE9DCD01AB0FED307EAE5"),
+			ksMac:         utils.HexToBytes("F1CB1F1FB5ADF208806B89DC579DC1F8"),
+			ssc:           utils.HexToBytes("887022120C06C227"),
+			rApduBytes:    utils.HexToBytes("99"),
+			errorContains: "rApdu length must be >= 2",
+		},
+		{
+			name:          "R-Apdu contains invalid TLV (990290..)",
+			alg:           cryptoutils.TDES,
+			ksEnc:         utils.HexToBytes("979EC13B1CBFE9DCD01AB0FED307EAE5"),
+			ksMac:         utils.HexToBytes("F1CB1F1FB5ADF208806B89DC579DC1F8"),
+			ssc:           utils.HexToBytes("887022120C06C227"),
+			rApduBytes:    utils.HexToBytes("9902909000"),
+			errorContains: "ByteBuffer error",
+		},
+		{
+			name:          "R-Apdu is missing tag 8E (MAC)",
+			alg:           cryptoutils.TDES,
+			ksEnc:         utils.HexToBytes("979EC13B1CBFE9DCD01AB0FED307EAE5"),
+			ksMac:         utils.HexToBytes("F1CB1F1FB5ADF208806B89DC579DC1F8"),
+			ssc:           utils.HexToBytes("887022120C06C227"),
+			rApduBytes:    utils.HexToBytes("990290009000"),
+			errorContains: "tag 0x8E must be present",
+		},
+		{
+			name:          "R-Apdu has incorrect MAC",
+			alg:           cryptoutils.TDES,
+			ksEnc:         utils.HexToBytes("979EC13B1CBFE9DCD01AB0FED307EAE5"),
+			ksMac:         utils.HexToBytes("F1CB1F1FB5ADF208806B89DC579DC1F8"),
+			ssc:           utils.HexToBytes("887022120C06C227"),
+			rApduBytes:    utils.HexToBytes("990290008E080123456789ABCDEF9000"),
+			errorContains: "verify MAC error",
+		},
+		{
+			name:          "R-Apdu status differs to protected status (tag:99) - 9000(unprotected) vs 6200(protected)",
+			alg:           cryptoutils.TDES,
+			ksEnc:         utils.HexToBytes("979EC13B1CBFE9DCD01AB0FED307EAE5"),
+			ksMac:         utils.HexToBytes("F1CB1F1FB5ADF208806B89DC579DC1F8"),
+			ssc:           utils.HexToBytes("887022120C06C227"),
+			rApduBytes:    utils.HexToBytes("990262008E08ff6c6324850369b29000"),
+			errorContains: "rapdu status value mismatch",
+		},
+		{
+			name:          "R-Apdu protected status is too short (1 byte)",
+			alg:           cryptoutils.TDES,
+			ksEnc:         utils.HexToBytes("979EC13B1CBFE9DCD01AB0FED307EAE5"),
+			ksMac:         utils.HexToBytes("F1CB1F1FB5ADF208806B89DC579DC1F8"),
+			ssc:           utils.HexToBytes("887022120C06C227"),
+			rApduBytes:    utils.HexToBytes("9901908E08a7d7fe48de4ab7fa9000"),
+			errorContains: "Protected status (tag 99) must be 2 bytes",
+		},
+		{
+			name:          "R-Apdu data invalid, so can't be decrypted (tag:85)",
+			alg:           cryptoutils.TDES,
+			ksEnc:         utils.HexToBytes("979EC13B1CBFE9DCD01AB0FED307EAE5"),
+			ksMac:         utils.HexToBytes("F1CB1F1FB5ADF208806B89DC579DC1F8"),
+			ssc:           utils.HexToBytes("887022120C06C227"),
+			rApduBytes:    utils.HexToBytes("99029000850201008E08194723b5965aa0819000"),
+			errorContains: "error decoding rApduData",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var err error
+			var sm *SecureMessaging
+
+			sm, err = NewSecureMessaging(tc.alg, tc.ksEnc, tc.ksMac)
+			if err != nil {
+				t.Errorf("Unexpected error: %s", err)
+			}
+
+			err = sm.SetSSC(tc.ssc)
+			if err != nil {
+				t.Fatalf("Unexpected error: %s", err)
+			}
+
+			_, err = sm.Decode(tc.rApduBytes)
+			if err == nil {
+				t.Errorf("Expected error")
+			}
+			if !bytes.Contains([]byte(err.Error()), []byte(tc.errorContains)) {
+				t.Errorf("Expected error to contain '%s', got: %s", tc.errorContains, err.Error())
+			}
+		})
+	}
+}
+
 func TestDecodeSmRApduData(t *testing.T) {
 	testCases := []struct {
 		name        string
@@ -390,7 +490,6 @@ func TestDecodeSmRApduData(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-
 			var err error
 			var sm *SecureMessaging
 
