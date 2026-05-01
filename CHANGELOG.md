@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.1](https://github.com/gmrtd/gmrtd/compare/v0.23.0...v0.23.1) (2026-05-01)
+
+
+### Bug Fixes
+
+* **secure-messaging:** prevent panic if protected status (tag99) is in… ([#274](https://github.com/gmrtd/gmrtd/issues/274)) ([62b27c5](https://github.com/gmrtd/gmrtd/commit/62b27c574ecaf3d862bad09c45ae3d1910490693))
+
 ## [0.23.0](https://github.com/gmrtd/gmrtd/compare/v0.22.1...v0.23.0) (2026-04-17)
 
 
