@@ -2,6 +2,7 @@ package reader
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"reflect"
 	"testing"
@@ -80,6 +81,20 @@ func TestRecordAtrAts(t *testing.T) {
 	}
 }
 
+func TestReadLDS1DgsMissingSOD(t *testing.T) {
+	var status MockStatus
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&PanicTransceiver{P: "will panic if called"})
+	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
+	var password *password.Password = password.NewPasswordNil()
+	var state *ReaderState = NewReaderState(nil, nil, password)
+	var err error
+
+	err = readLDS1dgs(reader, state)
+	if err == nil {
+		t.Errorf("Expected error")
+	}
+}
+
 func TestReadLDS1DgsFilesNotFound(t *testing.T) {
 	var status MockStatus
 	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{RApdu: utils.HexToBytes("6A82")}) // 6A82: file not found
@@ -98,6 +113,36 @@ func TestReadLDS1DgsFilesNotFound(t *testing.T) {
 	err = readLDS1dgs(reader, state)
 	if err != nil {
 		t.Errorf("Unexpected error: readLDS1files: %s", err)
+	}
+}
+
+func TestSelectMF(t *testing.T) {
+	var mockTransceiver iso7816.MockTransceiver
+	// SELECT MF command
+	mockTransceiver.AddReqRsp("00a4000c023f00", "9000")
+
+	var status MockStatus
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&mockTransceiver)
+	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
+	var password *password.Password = password.NewPasswordNil()
+	var state *ReaderState = NewReaderState(nil, nil, password)
+
+	err := selectMF(reader, state)
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+}
+
+func TestSelectMFCardDeadError(t *testing.T) {
+	var status MockStatus
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{RApdu: utils.HexToBytes("6FFF")}) // 6FFF: card dead
+	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
+	var password *password.Password = password.NewPasswordNil()
+	var state *ReaderState = NewReaderState(nil, nil, password)
+
+	err := selectMF(reader, state)
+	if err == nil {
+		t.Errorf("Expected error")
 	}
 }
 
@@ -523,5 +568,66 @@ func TestReadDocumentTransceiverPanicIsHandled(t *testing.T) {
 				t.Fatalf("expected error")
 			}
 		})
+	}
+}
+
+func TestRunSteps(t *testing.T) {
+	called := 0
+
+	step := func(r *Reader, s *ReaderState) error {
+		called++
+		return nil
+	}
+
+	err := runSteps(&Reader{}, &ReaderState{}, step, step, step)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	// Ensure steps were executed
+	if called != 3 {
+		t.Fatalf("expected 3 steps to run, got %d", called)
+	}
+}
+
+func TestRunStepsError(t *testing.T) {
+	expectedErr := errors.New("step failed")
+
+	called := 0
+
+	step1 := func(r *Reader, s *ReaderState) error {
+		called++
+		return nil
+	}
+
+	step2 := func(r *Reader, s *ReaderState) error {
+		called++
+		return expectedErr
+	}
+
+	step3 := func(r *Reader, s *ReaderState) error {
+		called++
+		return nil // should never be called
+	}
+
+	err := runSteps(&Reader{}, &ReaderState{}, step1, step2, step3)
+
+	if err == nil {
+		t.Fatalf("expected error, got nil")
+	}
+
+	// Verify wrapping
+	if !errors.Is(err, expectedErr) {
+		t.Fatalf("expected wrapped error to contain %v, got %v", expectedErr, err)
+	}
+
+	// Optional: verify prefix
+	if got := err.Error(); got != "[runSteps] error: step failed" {
+		t.Fatalf("unexpected error message: %s", got)
+	}
+
+	// Ensure step3 was NOT executed
+	if called != 2 {
+		t.Fatalf("expected 2 steps to run, got %d", called)
 	}
 }
