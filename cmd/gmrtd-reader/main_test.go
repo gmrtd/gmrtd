@@ -1,10 +1,13 @@
 package main
 
 import (
+	"errors"
+	"html/template"
 	"log"
 	"strings"
 	"testing"
 
+	"github.com/gmrtd/gmrtd/cms"
 	"github.com/gmrtd/gmrtd/document"
 	"github.com/gmrtd/gmrtd/utils"
 )
@@ -168,6 +171,11 @@ func TestCmdParamsError(t *testing.T) {
 			errContains: "invalid value",
 		},
 		{
+			name:        "maxRead above maximum",
+			args:        []string{"-can", "123456", "-maxRead", "65537"},
+			errContains: "maxRead must be 0 or between 1 and 65536",
+		},
+		{
 			name:        "invalid MRZ doc",
 			args:        []string{"-doc", "D231.45890", "-dob", "740812", "-exp", "120415"},
 			errContains: "Invalid character",
@@ -196,5 +204,103 @@ func TestCmdParamsError(t *testing.T) {
 				t.Fatalf("skipPace = %v, want false on error", skipPace)
 			}
 		})
+	}
+}
+
+func TestGenerateDocumentNilDocument(t *testing.T) {
+	out, err := generateDocument(nil)
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	if out != nil {
+		t.Fatalf("expected nil output")
+	}
+	if !strings.Contains(err.Error(), "documentEx cannot be nil") {
+		t.Fatalf("unexpected error: %s", err)
+	}
+}
+
+func TestExecuteDocumentTemplateError(t *testing.T) {
+	tmpl := template.Must(template.New("not-output").Parse(`hello`))
+
+	out, err := executeDocumentTemplate(tmpl, &document.DocumentEx{})
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	if out != nil {
+		t.Fatalf("expected nil output")
+	}
+	if !strings.Contains(err.Error(), "ExecuteTemplate") {
+		t.Fatalf("unexpected error: %s", err)
+	}
+}
+
+func TestRunWithDepsRejectsInvalidMaxReadBeforePCSC(t *testing.T) {
+	err := runWithDeps([]string{"-can", "123456", "-maxRead", "65537"}, appDeps{})
+
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	if !strings.Contains(err.Error(), "maxRead must be 0 or between 1 and 65536") {
+		t.Fatalf("unexpected error: %s", err)
+	}
+}
+
+// TODO
+/*
+func TestRunWithDepsCscaMasterListError(t *testing.T) {
+	wantErr := errors.New("csca boom")
+
+	deps := defaultAppDeps()
+	deps.cscaMasterList = func() (cms.CertPool, error) {
+		return nil, wantErr
+	}
+
+	err := runWithDeps([]string{"-can", "123456"}, deps)
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("got %v, want %v", err, wantErr)
+	}
+}
+*/
+
+type fakeCard struct {
+	disconnectCalled bool
+}
+
+func (c *fakeCard) ATR() ([]byte, error)        { return []byte{0x01}, nil }
+func (c *fakeCard) ATS() ([]byte, error)        { return []byte{0x02}, nil }
+func (c *fakeCard) Apdu([]byte) ([]byte, error) { return nil, nil }
+func (c *fakeCard) DisconnectCard() error {
+	c.disconnectCalled = true
+	return nil
+}
+
+type fakeCardProvider struct {
+	card *fakeCard
+	err  error
+}
+
+func (p fakeCardProvider) ConnectCard() (smartCard, error) {
+	return p.card, p.err
+}
+
+func TestRunWithDepsCscaMasterListError(t *testing.T) {
+	wantErr := errors.New("csca boom")
+	card := &fakeCard{}
+
+	deps := defaultAppDeps()
+	deps.cardProvider = func() (cardProvider, error) {
+		return fakeCardProvider{card: card}, nil
+	}
+	deps.cscaMasterList = func() (cms.CertPool, error) {
+		return nil, wantErr
+	}
+
+	err := runWithDeps([]string{"-can", "123456"}, deps)
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("got %v, want %v", err, wantErr)
+	}
+	if !card.disconnectCalled {
+		t.Fatalf("expected card to be disconnected")
 	}
 }
