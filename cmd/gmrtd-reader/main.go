@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"html/template"
+	"io"
 	"log"
 	"log/slog"
 	"os"
@@ -28,7 +29,7 @@ import (
 var templateFS embed.FS
 
 type PCSCTransceiver struct {
-	card pcsc.Card
+	card smartCard
 }
 
 func (transceiver *PCSCTransceiver) Transceive(_ int, _ int, _ int, _ int, _ []byte, _ int, encodedData []byte) (rApduBytes []byte) {
@@ -50,15 +51,9 @@ func (status *PCSCReaderStatus) Status(msg string) {
 	slog.Info("Status", "msg", msg)
 }
 
-func generateDocument(documentEx *document.DocumentEx) (*bytes.Buffer, error) {
-	var err error
-
-	if documentEx == nil {
-		return nil, fmt.Errorf("[generateDocument] documentEx cannot be nil")
-	}
-
+func templateFuncMap() template.FuncMap {
 	// TODO - is 'TlvBytesToString' still required? check others also
-	funcMap := template.FuncMap{
+	return template.FuncMap{
 		"GmrtdVersion":     func() string { return version.Version },
 		"BytesToHex":       func(bytes []byte) string { return fmt.Sprintf("%X", bytes) },
 		"BytesToStr":       func(bytes []byte) string { return string(bytes) },
@@ -81,20 +76,39 @@ func generateDocument(documentEx *document.DocumentEx) (*bytes.Buffer, error) {
 			return totalMs
 		},
 	}
+}
 
-	var tmpl *template.Template
+func parseDocumentTemplates() (*template.Template, error) {
+	return template.New("").Funcs(templateFuncMap()).ParseFS(templateFS, "templates/*.gohtml")
+}
 
-	tmpl, err = template.New("").Funcs(funcMap).ParseFS(templateFS, "templates/*.gohtml")
+func executeDocumentTemplate(tmpl *template.Template, documentEx *document.DocumentEx) (*bytes.Buffer, error) {
+	byteBuf := bytes.NewBuffer(nil)
+
+	// convert to HTML using template
+	err := tmpl.ExecuteTemplate(byteBuf, "output.gohtml", documentEx)
+	if err != nil {
+		return nil, fmt.Errorf("[generateDocument] ExecuteTemplate error: %w", err)
+	}
+
+	return byteBuf, nil
+}
+
+func generateDocument(documentEx *document.DocumentEx) (*bytes.Buffer, error) {
+	var err error
+
+	if documentEx == nil {
+		return nil, fmt.Errorf("[generateDocument] documentEx cannot be nil")
+	}
+
+	tmpl, err := parseDocumentTemplates()
 	if err != nil {
 		return nil, fmt.Errorf("[generateDocument] ParseFS error: %w", err)
 	}
 
-	byteBuf := bytes.NewBuffer(nil)
-
-	// convert to HTML using template
-	err = tmpl.ExecuteTemplate(byteBuf, "output.gohtml", documentEx)
+	byteBuf, err := executeDocumentTemplate(tmpl, documentEx)
 	if err != nil {
-		return nil, fmt.Errorf("[generateDocument] ExecuteTemplate error: %w", err)
+		return nil, fmt.Errorf("[generateDocument] executeDocumentTemplate error: %w", err)
 	}
 
 	return byteBuf, nil
@@ -127,6 +141,10 @@ func cmdParams(args []string) (pass *password.Password, debug bool, apduMaxRead 
 		return nil, false, 0, false, fmt.Errorf("usage: must specify either doc+dob+exp *OR* can")
 	}
 
+	if *maxRead > 65536 {
+		return nil, false, 0, false, fmt.Errorf("maxRead must be 0 or between 1 and 65536")
+	}
+
 	return pass, *debugFlag, *maxRead, *skipPaceFlag, nil
 }
 
@@ -154,7 +172,74 @@ func cscaMasterList() (cms.CertPool, error) {
 	return cscaCertPool, nil
 }
 
+type smartCard interface {
+	ATR() ([]byte, error)
+	ATS() ([]byte, error)
+	Apdu([]byte) ([]byte, error)
+	DisconnectCard() error
+}
+
+type cardProvider interface {
+	ConnectCard() (smartCard, error)
+}
+
+type pcscCardProvider struct {
+	ctx *pcsc.Context
+}
+
+func newPCSCCardProvider() (cardProvider, error) {
+	ctx, err := pcsc.NewContext()
+	if err != nil {
+		return nil, err
+	}
+
+	readers, err := pcsc.ListReaders(ctx)
+	if err != nil {
+		ctx.Release()
+		return nil, err
+	}
+
+	if len(readers) < 1 {
+		ctx.Release()
+		return nil, fmt.Errorf("no PCSC reader found")
+	}
+
+	return &pcscCardProvider{ctx: ctx}, nil
+}
+
+func (p *pcscCardProvider) ConnectCard() (smartCard, error) {
+	readers, err := pcsc.ListReaders(p.ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	pcscReader := pcsc.NewReader(p.ctx, readers[0])
+	return pcscReader.ConnectCardPCSC()
+}
+
+type appDeps struct {
+	cardProvider         func() (cardProvider, error)
+	cscaMasterList       func() (cms.CertPool, error)
+	generateDocument     func(*document.DocumentEx) (*bytes.Buffer, error)
+	openBrowser          func(io.Reader) error
+	readDocumentFromCard func(pass *password.Password, maxRead uint, skipPace bool, card smartCard, cscaCertPool cms.CertPool) (*document.DocumentEx, error)
+}
+
+func defaultAppDeps() appDeps {
+	return appDeps{
+		cardProvider:         newPCSCCardProvider,
+		cscaMasterList:       cscaMasterList,
+		generateDocument:     generateDocument,
+		openBrowser:          browser.OpenReader,
+		readDocumentFromCard: readDocumentFromCard,
+	}
+}
+
 func run(args []string) error {
+	return runWithDeps(args, defaultAppDeps())
+}
+
+func runWithDeps(args []string, deps appDeps) error {
 	var pass *password.Password
 	var debug bool = false
 	var maxRead uint = 0
@@ -170,35 +255,53 @@ func run(args []string) error {
 
 	initLogging(debug)
 
-	ctx, err := pcsc.NewContext()
+	provider, err := deps.cardProvider()
 	if err != nil {
-		slog.Error("Unable to initialise PCSC")
 		return err
 	}
-	defer ctx.Release()
 
-	readers, err := pcsc.ListReaders(ctx)
+	card, err := provider.ConnectCard()
 	if err != nil {
-		slog.Error("Unable to get PCSC readers")
-		return err
-	}
-	slog.Debug("PCSC", "readers", readers)
-
-	if len(readers) < 1 {
-		slog.Error("No PCSC reader found")
-		return fmt.Errorf("no PCSC reader found")
-	}
-
-	// NB we currently just select the 1st reader (if multiple)
-	pcscReader := pcsc.NewReader(ctx, readers[0])
-
-	card, err := pcscReader.ConnectCardPCSC()
-	if err != nil {
-		slog.Error("No chip detected")
 		return err
 	}
 	defer card.DisconnectCard()
 
+	cscaCertPool, err := deps.cscaMasterList()
+	if err != nil {
+		slog.Error("cscaMasterList error", "error", err)
+		return err
+	}
+
+	documentEx, err := deps.readDocumentFromCard(pass, maxRead, skipPace, card, cscaCertPool)
+	if err != nil {
+		slog.Error("readDocumentFromCard", "error", err)
+		return err
+	}
+
+	// generate the HTML document
+	docByteBuf, err := deps.generateDocument(documentEx)
+	if err != nil {
+		slog.Error("generateDocument", "error", err)
+		return err
+	}
+
+	// display in default browser
+	err = deps.openBrowser(docByteBuf)
+	if err != nil {
+		slog.Error("browser.OpenReader", "error", err)
+		return err
+	}
+
+	return nil
+}
+
+func readDocumentFromCard(
+	pass *password.Password,
+	maxRead uint,
+	skipPace bool,
+	card smartCard,
+	cscaCertPool cms.CertPool,
+) (*document.DocumentEx, error) {
 	atr, err := card.ATR()
 	if err != nil {
 		slog.Warn("ATR error", "error", err)
@@ -209,55 +312,20 @@ func run(args []string) error {
 		slog.Warn("ATS error", "error", err)
 	}
 
-	var transceiver *PCSCTransceiver = new(PCSCTransceiver)
+	transceiver := &PCSCTransceiver{card: card}
+	status := &PCSCReaderStatus{}
 
-	transceiver.card = card
-
-	var status *PCSCReaderStatus = new(PCSCReaderStatus)
-
-	var nfc *iso7816.NfcSession
-	nfc = iso7816.NewNfcSession(transceiver)
-
-	// set APDU Max Read (if specified)
+	nfc := iso7816.NewNfcSession(transceiver)
 	if maxRead > 0 {
 		nfc.SetMaxLe(int(maxRead))
 	}
 
-	cscaCertPool, err := cscaMasterList()
-	if err != nil {
-		slog.Error("cscaMasterList error", "error", err)
-		return err
-	}
-
-	var reader *reader.Reader = reader.NewReader(status, nfc, cscaCertPool)
-
-	// skip PACE (if specified)
+	r := reader.NewReader(status, nfc, cscaCertPool)
 	if skipPace {
-		reader.SkipPace()
+		r.SkipPace()
 	}
 
-	// read (and verify) the document (inc passive-authentication)
-	documentEx, err := reader.ReadDocument(pass, atr, ats)
-	if err != nil {
-		slog.Error("reader.ReadDocument", "error", err)
-		return err
-	}
-
-	// generate the HTML document
-	docByteBuf, err := generateDocument(documentEx)
-	if err != nil {
-		slog.Error("generateDocument", "error", err)
-		return err
-	}
-
-	// display in default browser
-	err = browser.OpenReader(docByteBuf)
-	if err != nil {
-		slog.Error("browser.OpenReader", "error", err)
-		return err
-	}
-
-	return nil
+	return r.ReadDocument(pass, atr, ats)
 }
 
 func main() {
