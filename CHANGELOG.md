@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.24.0](https://github.com/gmrtd/gmrtd/compare/v0.23.1...v0.24.0) (2026-05-03)
+
+
+### Features
+
+* **reader:** add summary to document session ([#283](https://github.com/gmrtd/gmrtd/issues/283)) ([1d57212](https://github.com/gmrtd/gmrtd/commit/1d57212f1662923f509a5004dcdc1ff34d191f40))
+
 ## [0.23.1](https://github.com/gmrtd/gmrtd/compare/v0.23.0...v0.23.1) (2026-05-01)
 
 
