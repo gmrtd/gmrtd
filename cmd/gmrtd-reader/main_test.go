@@ -1,14 +1,17 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"html/template"
+	"io"
 	"log"
 	"strings"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/cms"
 	"github.com/gmrtd/gmrtd/document"
+	"github.com/gmrtd/gmrtd/password"
 	"github.com/gmrtd/gmrtd/utils"
 )
 
@@ -284,6 +287,34 @@ func (p fakeCardProvider) ConnectCard() (smartCard, error) {
 	return p.card, p.err
 }
 
+func TestRunWithDepsCardProviderError(t *testing.T) {
+	wantErr := errors.New("card provider boom")
+
+	deps := defaultAppDeps()
+	deps.cardProvider = func() (cardProvider, error) {
+		return nil, wantErr
+	}
+
+	err := runWithDeps([]string{"-can", "123456"}, deps)
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("got %v, want %v", err, wantErr)
+	}
+}
+
+func TestRunWithDepsConnectCardError(t *testing.T) {
+	wantErr := errors.New("connect card boom")
+
+	deps := defaultAppDeps()
+	deps.cardProvider = func() (cardProvider, error) {
+		return fakeCardProvider{err: wantErr}, nil
+	}
+
+	err := runWithDeps([]string{"-can", "123456"}, deps)
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("got %v, want %v", err, wantErr)
+	}
+}
+
 func TestRunWithDepsCscaMasterListError(t *testing.T) {
 	wantErr := errors.New("csca boom")
 	card := &fakeCard{}
@@ -302,5 +333,177 @@ func TestRunWithDepsCscaMasterListError(t *testing.T) {
 	}
 	if !card.disconnectCalled {
 		t.Fatalf("expected card to be disconnected")
+	}
+}
+
+func TestRunWithDepsReadDocumentFromCardError(t *testing.T) {
+	wantErr := errors.New("read document boom")
+	card := &fakeCard{}
+
+	deps := defaultAppDeps()
+	deps.cardProvider = func() (cardProvider, error) {
+		return fakeCardProvider{card: card}, nil
+	}
+	deps.cscaMasterList = func() (cms.CertPool, error) {
+		return &cms.GenericCertPool{}, nil
+	}
+	deps.readDocumentFromCard = func(
+		pass *password.Password,
+		maxRead uint,
+		skipPace bool,
+		card smartCard,
+		cscaCertPool cms.CertPool,
+	) (*document.DocumentEx, error) {
+		return nil, wantErr
+	}
+
+	err := runWithDeps([]string{"-can", "123456"}, deps)
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("got %v, want %v", err, wantErr)
+	}
+	if !card.disconnectCalled {
+		t.Fatalf("expected card to be disconnected")
+	}
+}
+
+func TestRunWithDepsGenerateDocumentError(t *testing.T) {
+	wantErr := errors.New("generate document boom")
+	card := &fakeCard{}
+
+	deps := defaultAppDeps()
+	deps.cardProvider = func() (cardProvider, error) {
+		return fakeCardProvider{card: card}, nil
+	}
+	deps.cscaMasterList = func() (cms.CertPool, error) {
+		return &cms.GenericCertPool{}, nil
+	}
+	deps.readDocumentFromCard = func(
+		pass *password.Password,
+		maxRead uint,
+		skipPace bool,
+		card smartCard,
+		cscaCertPool cms.CertPool,
+	) (*document.DocumentEx, error) {
+		return &document.DocumentEx{}, nil
+	}
+	deps.generateDocument = func(*document.DocumentEx) (*bytes.Buffer, error) {
+		return nil, wantErr
+	}
+
+	err := runWithDeps([]string{"-can", "123456"}, deps)
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("got %v, want %v", err, wantErr)
+	}
+	if !card.disconnectCalled {
+		t.Fatalf("expected card to be disconnected")
+	}
+}
+
+func TestRunWithDepsOpenBrowserError(t *testing.T) {
+	wantErr := errors.New("browser boom")
+	card := &fakeCard{}
+
+	deps := defaultAppDeps()
+	deps.cardProvider = func() (cardProvider, error) {
+		return fakeCardProvider{card: card}, nil
+	}
+	deps.cscaMasterList = func() (cms.CertPool, error) {
+		return &cms.GenericCertPool{}, nil
+	}
+	deps.readDocumentFromCard = func(
+		pass *password.Password,
+		maxRead uint,
+		skipPace bool,
+		card smartCard,
+		cscaCertPool cms.CertPool,
+	) (*document.DocumentEx, error) {
+		return &document.DocumentEx{}, nil
+	}
+	deps.generateDocument = func(*document.DocumentEx) (*bytes.Buffer, error) {
+		return bytes.NewBufferString("html"), nil
+	}
+	deps.openBrowser = func(io.Reader) error {
+		return wantErr
+	}
+
+	err := runWithDeps([]string{"-can", "123456"}, deps)
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("got %v, want %v", err, wantErr)
+	}
+	if !card.disconnectCalled {
+		t.Fatalf("expected card to be disconnected")
+	}
+}
+
+func TestReadDocumentFromCardReturnsReaderError(t *testing.T) {
+	card := &fakeCard{}
+
+	_, err := readDocumentFromCard(
+		password.NewPasswordCan("123456"),
+		0,
+		false,
+		card,
+		&cms.GenericCertPool{},
+	)
+
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+}
+
+type fakeCardWithAtrAtsError struct {
+	fakeCard
+}
+
+func (c *fakeCardWithAtrAtsError) ATR() ([]byte, error) {
+	return nil, errors.New("atr boom")
+}
+
+func (c *fakeCardWithAtrAtsError) ATS() ([]byte, error) {
+	return nil, errors.New("ats boom")
+}
+
+func TestReadDocumentFromCardIgnoresAtrAtsErrors(t *testing.T) {
+	card := &fakeCardWithAtrAtsError{}
+
+	_, err := readDocumentFromCard(
+		password.NewPasswordCan("123456"),
+		0,
+		false,
+		card,
+		&cms.GenericCertPool{},
+	)
+
+	if err == nil {
+		t.Fatalf("expected reader error, not ATR/ATS error")
+	}
+
+	if strings.Contains(err.Error(), "atr boom") ||
+		strings.Contains(err.Error(), "ats boom") {
+		t.Fatalf("ATR/ATS errors should only be logged, got: %s", err)
+	}
+}
+
+type fakeCardApduError struct {
+	fakeCard
+}
+
+func (c *fakeCardApduError) Apdu([]byte) ([]byte, error) {
+	return nil, errors.New("apdu boom")
+}
+
+func TestReadDocumentFromCardPropagatesReaderFailureFromApdu(t *testing.T) {
+	card := &fakeCardApduError{}
+
+	_, err := readDocumentFromCard(
+		password.NewPasswordCan("123456"),
+		1000,
+		true,
+		card,
+		&cms.GenericCertPool{},
+	)
+
+	if err == nil {
+		t.Fatalf("expected error")
 	}
 }
