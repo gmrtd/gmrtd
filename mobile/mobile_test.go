@@ -52,6 +52,80 @@ func TestNewPasswordCan(t *testing.T) {
 	}
 }
 
+func TestSetApduMaxLe(t *testing.T) {
+	tests := []struct {
+		name        string
+		maxRead     int
+		wantErr     bool
+		wantMaxRead int
+	}{
+		{
+			name:        "zero disables override",
+			maxRead:     0,
+			wantErr:     false,
+			wantMaxRead: 0,
+		},
+		{
+			name:        "minimum valid value",
+			maxRead:     1,
+			wantErr:     false,
+			wantMaxRead: 1,
+		},
+		{
+			name:        "typical valid value",
+			maxRead:     1000,
+			wantErr:     false,
+			wantMaxRead: 1000,
+		},
+		{
+			name:        "maximum valid value",
+			maxRead:     65536,
+			wantErr:     false,
+			wantMaxRead: 65536,
+		},
+		{
+			name:        "negative value rejected",
+			maxRead:     -1,
+			wantErr:     true,
+			wantMaxRead: 0,
+		},
+		{
+			name:        "above maximum rejected",
+			maxRead:     65537,
+			wantErr:     true,
+			wantMaxRead: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reader := &Reader{}
+
+			err := reader.SetApduMaxLe(tt.maxRead)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error")
+				}
+
+				if reader.maxRead != tt.wantMaxRead {
+					t.Fatalf("maxRead changed on error: got %d, want %d", reader.maxRead, tt.wantMaxRead)
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+
+			if reader.maxRead != tt.wantMaxRead {
+				t.Fatalf("maxRead mismatch: got %d, want %d", reader.maxRead, tt.wantMaxRead)
+			}
+		})
+	}
+}
+
 type testReaderStatus struct {
 }
 
@@ -108,9 +182,10 @@ func (t *PanicTransceiver) Transceive(cla, ins, p1, p2 int, data []byte, le int,
 }
 
 func TestReadDocumentNilPassword(t *testing.T) {
-	// pass in invalid Password (nil) to trigger panic, should get error
+	// panicTranseiver should never fire, as we won't get that far
 	reader := NewReader(&testReaderStatus{}, &PanicTransceiver{})
 
+	// pass in invalid Password (nil) to trigger panic, should get error
 	var pass *MrtdPassword = nil
 
 	_, err := reader.ReadDocument(pass, nil, nil)

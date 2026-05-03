@@ -81,6 +81,9 @@ func NewReader(status ReaderStatus, transceiver Transceiver) *Reader {
 
 // sets the APDU Max LE (1..65536) (0 to disable override)
 func (r *Reader) SetApduMaxLe(maxRead int) error {
+	if maxRead < 0 || maxRead > 65536 {
+		return fmt.Errorf("[SetApduMaxLe] maxRead must be 0 or between 1 and 65536")
+	}
 	r.maxRead = maxRead
 	return nil
 }
