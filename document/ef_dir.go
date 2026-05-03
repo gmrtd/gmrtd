@@ -40,7 +40,12 @@ func NewEFDIR(data []byte) (efDir *EFDIR, err error) {
 				break
 			}
 
-			out.Application = append(out.Application, EfDirApplication{aid: node.NodeByTag(0x4F).Value()})
+			tag4f := node.NodeByTag(0x4F)
+			if !tag4f.IsValidNode() {
+				return nil, fmt.Errorf("[NewEFDIR] Tag 4F(AID) missing (occur:%1d)", occur)
+			}
+
+			out.Application = append(out.Application, EfDirApplication{aid: tag4f.Value()})
 
 			occur++
 		}
