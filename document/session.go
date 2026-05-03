@@ -31,6 +31,9 @@ type Session struct {
 	PassiveAuthErr    error              `json:"passiveAuthErr,omitempty"`
 	PassiveAuthResult *PassiveAuthResult `json:"passiveAuthResult,omitempty"`
 
+	// Summary (generated from above data)
+	Summary *DocumentSummary `json:"summary,omitempty"`
+
 	ApduLog *iso7816.ApduLog `json:"apduLog,omitempty"`
 }
 
@@ -159,4 +162,11 @@ type PassiveAuth struct {
 
 func NewPassiveAuth(certChain [][]byte) *PassiveAuth {
 	return &PassiveAuth{CertChain: certChain}
+}
+
+type DocumentSummary struct {
+	DataTrusted      bool           `json:"dataTrusted"`
+	ChipAuthenticity ChipAuthStatus `json:"chipAuthenticity"`
+	LdsVersion       string         `json:"ldsVersion,omitempty"`
+	UnicodeVersion   string         `json:"unicodeVersion,omitempty"`
 }
