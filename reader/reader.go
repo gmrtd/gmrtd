@@ -145,6 +145,7 @@ func (reader *Reader) ReadDocument(password *password.Password, atr []byte, ats 
 		performChipAuthentication,
 		verifyDocument,
 		performPassiveAuthentication,
+		calculateDocumentSummary,
 	)
 	if err != nil {
 		return state.docEx, fmt.Errorf("[ReadDocument] runSteps error: %w", err)
@@ -153,9 +154,8 @@ func (reader *Reader) ReadDocument(password *password.Password, atr []byte, ats 
 	// copy apdu-log over to session
 	state.docEx.Session.ApduLog = reader.nfc.ApduLog()
 
-	// TODO - do final classification of the document... e.g. dataAuthenticated / chipAuthenticated??... can also record lds/unicode-version
+	// TODO - should get from summary...
 	reader.status.Status("Valid Document!")
-
 	slog.Info("** ReadDocument FINISHED **", "ChipAuthenticated", state.docEx.Session.ChipAuthenticated())
 
 	return state.docEx, nil
@@ -242,6 +242,9 @@ func readEfCom(reader *Reader, state *ReaderState) (err error) {
 
 // reads EF.DIR
 func readEfDir(reader *Reader, state *ReaderState) (err error) {
+	// TODO - ReadFile won't work correctly here, as the file may contain
+	//        consecutive tag 61 entries, but ReadFile will only read the 1st!
+	//        - not a big deal as this file is not used for any processing
 	slog.Info("Read EF.DIR")
 	reader.status.Status("Reading EF.DIR")
 	efDirData, err := reader.nfc.ReadFile(MRTDFileIdEFDIR)
@@ -363,5 +366,17 @@ func verifyDocument(reader *Reader, state *ReaderState) (err error) {
 		slog.Error("Document.Verify", "error", err)
 		return fmt.Errorf("[verifyDocument] Document.Verify error: %w", err)
 	}
+	return nil
+}
+
+func calculateDocumentSummary(_ *Reader, state *ReaderState) error {
+	state.docEx.Session.Summary = &document.DocumentSummary{
+		DataTrusted: state.docEx.Session.PassiveAuthResult != nil &&
+			state.docEx.Session.PassiveAuthResult.Success,
+		ChipAuthenticity: state.docEx.Session.ChipAuthStatus(),
+		LdsVersion:       state.docEx.Document.LdsVersion(),
+		UnicodeVersion:   state.docEx.Document.UnicodeVersion(),
+	}
+
 	return nil
 }

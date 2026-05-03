@@ -26,19 +26,6 @@ func EmptyCscaTrustStore(t *testing.T) cms.CertPool {
 	return &cms.GenericCertPool{}
 }
 
-/*
-func DefaultCscaTrustStore(t *testing.T) cms.CertPool {
-	t.Helper()
-
-	out, err := cms.DefaultMasterList()
-	if err != nil {
-		log.Panicf("unexpected error: %s", err)
-	}
-
-	return out
-}
-*/
-
 func TestReaderSetup(t *testing.T) {
 	var status MockStatus
 	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.MockTransceiver{})
@@ -664,6 +651,28 @@ func TestPerformPassiveAuthenticationBadSignatureErr(t *testing.T) {
 
 	if state.docEx.Session.PassiveAuthResult.Success != false {
 		t.Fatalf("Expected FAILURE")
+	}
+}
+
+func TestCalculateDocumentSummaryEmptyDoc(t *testing.T) {
+	var status MockStatus
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&PanicTransceiver{P: "will panic if called"})
+	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
+	var password *password.Password = password.NewPasswordNil()
+	var state *ReaderState = NewReaderState(nil, nil, password)
+
+	var err error
+
+	err = calculateDocumentSummary(reader, state)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	// note: summary should be generated even for empty document, but will indicate no trust for data/chip
+	expSummary := &document.DocumentSummary{DataTrusted: false, ChipAuthenticity: document.CHIP_AUTH_STATUS_NONE}
+
+	if !reflect.DeepEqual(expSummary, state.docEx.Session.Summary) {
+		t.Fatalf("Summary differs to expected [Exp] %+v [Act] %+v", expSummary, state.docEx.Session.Summary)
 	}
 }
 

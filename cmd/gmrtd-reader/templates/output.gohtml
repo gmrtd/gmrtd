@@ -602,6 +602,40 @@ document.addEventListener('DOMContentLoaded', () => {
 <div id="session">
 <h1>Session</h1>
 
+<h2>Summary</h2>
+{{if .Session.Summary}}
+<div>
+<table class="striped">
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Value</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Trusted Data</td>
+      <td>{{.Session.Summary.DataTrusted}}</td>
+    </tr>
+    <tr>
+      <td>Authentic Chip</td>
+      <td>{{.Session.Summary.ChipAuthenticity}}</td>
+    </tr>
+    <tr>
+      <td>LDS version</td>
+      <td>{{.Session.Summary.LdsVersion}}</td>
+    </tr>
+    <tr>
+      <td>Unicode version</td>
+      <td>{{.Session.Summary.UnicodeVersion}}</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+{{else}}
+<i>Missing Summary! DO NOT TRUST this Document!</i>
+{{end}}
+
 <h2>Chip Activation Response</h2>
 {{if .Session.ChipActivationRsp}}
 <div>
@@ -809,30 +843,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 <div id="document">
 <h1>Document</h1>
-
-<h2>Overview</h2>
-<div>
-<table class="striped">
-  <thead>
-    <tr>
-      <th>Field</th>
-      <th>Value</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>LDS version</td>
-      <td>{{.Document.LdsVersion}}</td>
-    </tr>
-    <tr>
-      <td>Unicode version</td>
-      <td>{{.Document.UnicodeVersion}}</td>
-    </tr>
-  </tbody>
-</table>
-</div>
-
-<br/>
 
 {{template "cardAccess" .Document.Mf.CardAccess}}
 {{template "cardSecurity" .Document.Mf.CardSecurity}}
