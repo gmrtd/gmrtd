@@ -5,7 +5,6 @@ import (
 	"crypto/cipher"
 	"encoding/binary"
 	"fmt"
-	"log"
 	"log/slog"
 	"math/big"
 
@@ -318,8 +317,6 @@ func (sm *SecureMessaging) decodeVerifyMAC(tlv *tlv.TlvNodes) error {
 }
 
 func (sm *SecureMessaging) decodeSmRApduData(encodedData []byte) (out []byte, err error) {
-	log.Printf("SM:%s, encodedData:%x\n", sm, encodedData)
-
 	tmpBytes := bytes.Clone(encodedData)
 
 	if len(tmpBytes) < 1 {
