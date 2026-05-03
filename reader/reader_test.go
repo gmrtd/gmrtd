@@ -215,6 +215,42 @@ func TestReadEfSodCardDeadError(t *testing.T) {
 	}
 }
 
+func TestReadEfSodInvalidFileContent(t *testing.T) {
+	var transceiver iso7816.MockTransceiver
+
+	// setup the transceiver to allow the file to be selected, and read
+	// - however, the file does not contain valid data
+
+	// select file
+	transceiver.AddReqRsp(
+		"00a4020c02011d",
+		"9000",
+	)
+
+	// read binary (first 4 bytes)
+	transceiver.AddReqRsp(
+		"00b0000004",
+		"011000019000",
+	)
+
+	// read binary (next 12 bytes, from offset 4)
+	transceiver.AddReqRsp(
+		"00b000040e",
+		"02030405060708090A0B0C0D0E0F9000",
+	)
+
+	var status MockStatus
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&transceiver)
+	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
+	var password *password.Password = password.NewPasswordNil()
+	var state *ReaderState = NewReaderState(nil, nil, password)
+
+	err := readEfSod(reader, state)
+	if err == nil {
+		t.Errorf("Expected error")
+	}
+}
+
 func TestReadEfComFileNotFound(t *testing.T) {
 	var status MockStatus
 	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{RApdu: utils.HexToBytes("6A82")}) // 6A82: file not found
@@ -231,6 +267,42 @@ func TestReadEfComFileNotFound(t *testing.T) {
 func TestReadEfComCardDeadError(t *testing.T) {
 	var status MockStatus
 	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{RApdu: utils.HexToBytes("6FFF")}) // 6FFF: card dead
+	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
+	var password *password.Password = password.NewPasswordNil()
+	var state *ReaderState = NewReaderState(nil, nil, password)
+
+	err := readEfCom(reader, state)
+	if err == nil {
+		t.Errorf("Expected error")
+	}
+}
+
+func TestReadEfComInvalidFileContent(t *testing.T) {
+	var transceiver iso7816.MockTransceiver
+
+	// setup the transceiver to allow the file to be selected, and read
+	// - however, the file does not contain valid data
+
+	// select file
+	transceiver.AddReqRsp(
+		"00a4020c02011e",
+		"9000",
+	)
+
+	// read binary (first 4 bytes)
+	transceiver.AddReqRsp(
+		"00b0000004",
+		"011000019000",
+	)
+
+	// read binary (next 12 bytes, from offset 4)
+	transceiver.AddReqRsp(
+		"00b000040e",
+		"02030405060708090A0B0C0D0E0F9000",
+	)
+
+	var status MockStatus
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&transceiver)
 	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
 	var password *password.Password = password.NewPasswordNil()
 	var state *ReaderState = NewReaderState(nil, nil, password)
@@ -267,6 +339,44 @@ func TestReadEfDirCardDeadError(t *testing.T) {
 	}
 }
 
+func TestReadEfDirInvalidFileContent(t *testing.T) {
+	var transceiver iso7816.MockTransceiver
+
+	// setup the transceiver to allow the file to be selected, and read
+	// - however, the file does not contain valid data
+
+	// select file
+	transceiver.AddReqRsp(
+		"00a4020c022f00",
+		"9000",
+	)
+
+	// read binary (first 4 bytes)
+	// note: different to other similar tests as EF.DIR does not have a root tag
+	//       - instead we use tag-61 without a child tag-4F(AID) to trigger an error
+	transceiver.AddReqRsp(
+		"00b0000004",
+		"611000019000",
+	)
+
+	// read binary (next 12 bytes, from offset 4)
+	transceiver.AddReqRsp(
+		"00b000040e",
+		"02030405060708090A0B0C0D0E0F9000",
+	)
+
+	var status MockStatus
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&transceiver)
+	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
+	var password *password.Password = password.NewPasswordNil()
+	var state *ReaderState = NewReaderState(nil, nil, password)
+
+	err := readEfDir(reader, state)
+	if err == nil {
+		t.Errorf("Expected error")
+	}
+}
+
 func TestReadEfCardAccessFileNotFound(t *testing.T) {
 	var status MockStatus
 	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{RApdu: utils.HexToBytes("6A82")}) // 6A82: file not found
@@ -290,6 +400,42 @@ func TestReadEfCardAccessCardDeadError(t *testing.T) {
 
 	err := readEfCardAccess(reader, state)
 
+	if err == nil {
+		t.Errorf("Expected error")
+	}
+}
+
+func TestReadEfCardAccessInvalidFileContent(t *testing.T) {
+	var transceiver iso7816.MockTransceiver
+
+	// setup the transceiver to allow the file to be selected, and read
+	// - however, the file does not contain valid data
+
+	// select file
+	transceiver.AddReqRsp(
+		"00a4020c02011c",
+		"9000",
+	)
+
+	// read binary (first 4 bytes)
+	transceiver.AddReqRsp(
+		"00b0000004",
+		"011000019000",
+	)
+
+	// read binary (next 12 bytes, from offset 4)
+	transceiver.AddReqRsp(
+		"00b000040e",
+		"02030405060708090A0B0C0D0E0F9000",
+	)
+
+	var status MockStatus
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&transceiver)
+	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
+	var password *password.Password = password.NewPasswordNil()
+	var state *ReaderState = NewReaderState(nil, nil, password)
+
+	err := readEfCardAccess(reader, state)
 	if err == nil {
 		t.Errorf("Expected error")
 	}
