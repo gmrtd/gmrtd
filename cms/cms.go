@@ -35,6 +35,106 @@ import (
 	"github.com/osanderson/brainpool"
 )
 
+// Interfaces for testability
+type CryptoHasher interface {
+	CryptoHashByOid(oid asn1.ObjectIdentifier, data []byte) ([]byte, error)
+}
+
+type Asn1Parser interface {
+	ParseAsn1(data []byte, allowExtraData bool, v interface{}) error
+}
+
+type CurveLookup interface {
+	GetNamedCurves() []EcNamedCurve
+	GetLookupCurves() []elliptic.Curve
+}
+
+// Default implementations
+type DefaultCryptoHasher struct{}
+
+func (d DefaultCryptoHasher) CryptoHashByOid(oid asn1.ObjectIdentifier, data []byte) ([]byte, error) {
+	return cryptoutils.CryptoHashByOid(oid, data)
+}
+
+type DefaultAsn1Parser struct{}
+
+func (d DefaultAsn1Parser) ParseAsn1(data []byte, allowExtraData bool, v interface{}) error {
+	rest, err := asn1.Unmarshal(data, v)
+	if err != nil {
+		return fmt.Errorf("(ParseAsn1) %w", err)
+	}
+
+	if !allowExtraData && len(rest) > 0 {
+		return fmt.Errorf("unexpected data remaining after ASN1 parsing (Data:%x) (Remaining:%x)", data, rest)
+	}
+
+	return nil
+}
+
+type DefaultCurveLookup struct{}
+
+func (d DefaultCurveLookup) GetNamedCurves() []EcNamedCurve {
+	return []EcNamedCurve{
+		{oid: oid.OidPrime192v1, curve: cryptoutils.EllipticP192()},
+		{oid: oid.OidSecp224r1, curve: elliptic.P224()},
+		{oid: oid.OidPrime256v1, curve: elliptic.P256()},
+		{oid: oid.OidSecp384r1, curve: elliptic.P384()},
+		{oid: oid.OidSecp521r1, curve: elliptic.P521()},
+		{oid: oid.OidBrainpoolP192r1, curve: brainpool.P192r1()},
+		{oid: oid.OidBrainpoolP224r1, curve: brainpool.P224r1()},
+		{oid: oid.OidBrainpoolP256r1, curve: brainpool.P256r1()},
+		{oid: oid.OidBrainpoolP320r1, curve: brainpool.P320r1()},
+		{oid: oid.OidBrainpoolP384r1, curve: brainpool.P384r1()},
+		{oid: oid.OidBrainpoolP512r1, curve: brainpool.P512r1()},
+	}
+}
+
+func (d DefaultCurveLookup) GetLookupCurves() []elliptic.Curve {
+	return []elliptic.Curve{
+		cryptoutils.EllipticP192(),
+		elliptic.P224(),
+		elliptic.P256(),
+		elliptic.P384(),
+		elliptic.P521(),
+		brainpool.P160r1(),
+		brainpool.P192r1(),
+		brainpool.P224r1(),
+		brainpool.P256r1(),
+		brainpool.P320r1(),
+		brainpool.P384r1(),
+		brainpool.P512r1(),
+	}
+}
+
+// CMSConfig holds configurable dependencies for CMS operations
+type CMSConfig struct {
+	Hasher      CryptoHasher
+	Parser      Asn1Parser
+	CurveLookup CurveLookup
+	SigAlgMap   map[string]asn1.ObjectIdentifier
+}
+
+// NewDefaultCMSConfig creates a config with default implementations
+func NewDefaultCMSConfig() *CMSConfig {
+	return &CMSConfig{
+		Hasher:      DefaultCryptoHasher{},
+		Parser:      DefaultAsn1Parser{},
+		CurveLookup: DefaultCurveLookup{},
+		SigAlgMap: map[string]asn1.ObjectIdentifier{
+			oid.OidEcdsaWithSHA1.String():           oid.OidHashAlgorithmSHA1,
+			oid.OidEcdsaWithSHA224.String():         oid.OidHashAlgorithmSHA224,
+			oid.OidEcdsaWithSHA256.String():         oid.OidHashAlgorithmSHA256,
+			oid.OidEcdsaWithSHA384.String():         oid.OidHashAlgorithmSHA384,
+			oid.OidEcdsaWithSHA512.String():         oid.OidHashAlgorithmSHA512,
+			oid.OidSha1WithRsaEncryption.String():   oid.OidHashAlgorithmSHA1,
+			oid.OidSha224WithRSAEncryption.String(): oid.OidHashAlgorithmSHA224,
+			oid.OidSha256WithRSAEncryption.String(): oid.OidHashAlgorithmSHA256,
+			oid.OidSha384WithRSAEncryption.String(): oid.OidHashAlgorithmSHA384,
+			oid.OidSha512WithRSAEncryption.String(): oid.OidHashAlgorithmSHA512,
+		},
+	}
+}
+
 // TODO - review and ensure that instances of asn1.ObjectIdentifier have MarshalJSON to string notation
 
 type SubjectPublicKeyInfo struct {
@@ -444,7 +544,7 @@ RFC 5280            PKIX Certificate and CRL Profile            May 2008
 			}
 */
 
-func (si *SignerInfo) Verify(sd *SignedData, trustedCerts CertPool) (certChain [][]byte, err error) {
+func (si *SignerInfo) VerifyWithConfig(config *CMSConfig, sd *SignedData, trustedCerts CertPool) (certChain [][]byte, err error) {
 	var dataToHash []byte
 	var digestAlg *asn1.ObjectIdentifier
 	var signatureAlg *asn1.ObjectIdentifier
@@ -460,97 +560,22 @@ func (si *SignerInfo) Verify(sd *SignedData, trustedCerts CertPool) (certChain [
 			- cert(chain) validation of the signer-info signature
 	*/
 
-	/*
-	* proceed based on whether or not 'authenticated attributes' are present
-	 */
-	if len(si.AuthenticatedAttributes) < 1 {
-		return nil, fmt.Errorf("[Verify] SignedInfo without AuthenticatedAttributes is NOT supported")
-	} else {
-		aaContentType := si.AuthenticatedAttributes.ByOID(oid.OidContentType)
-		aaMessageDigest := si.AuthenticatedAttributes.ByOID(oid.OidMessageDigest)
-		if aaContentType == nil || aaMessageDigest == nil {
-			return nil, fmt.Errorf("[Verify] Expected Authenticated-Attribute(s) missing (Content-Type, Message-Digest) %v", si)
-		}
-
-		var aaContentTypeOID asn1.ObjectIdentifier
-		aaContentTypeOID, err = asn1decodeOid(aaContentType.Values.Bytes)
-		if err != nil {
-			return nil, fmt.Errorf("[Verify] asn1decodeOid error: %w", err)
-		}
-
-		var aaMessageDigestHash []byte
-		aaMessageDigestHash, err = asn1decodeBytes(aaMessageDigest.Values.Bytes)
-		if err != nil {
-			return nil, fmt.Errorf("[Verify] asn1decodeBytes error: %w", err)
-		}
-
-		slog.Debug("Verify", "AA Content-Type", aaContentTypeOID.String())
-		slog.Debug("Verify", "AA Message-Digest", utils.BytesToHex(aaMessageDigestHash))
-
-		// verify Content OID matches Authenticated-Attribute (Content Type)
-		if !aaContentTypeOID.Equal(sd.Content.EContentType) {
-			return nil, fmt.Errorf("[Verify] Content-Type-OID (%s) differs to Authenticated-Attribute (%s)", sd.Content.EContentType.String(), aaContentTypeOID.String())
-		}
-
-		var contentHash []byte
-		contentHash, err = cryptoutils.CryptoHashByOid(si.DigestAlgorithm.Algorithm, sd.Content.EContent)
-		if err != nil {
-			return nil, fmt.Errorf("[Verify] CryptoHashByOid error: %w", err)
-		}
-
-		slog.Debug("Verify", "ContentHash", utils.BytesToHex(contentHash))
-
-		//	5.4.  Message Digest Calculation Process (RFC5652)
-		if !bytes.Equal(contentHash, aaMessageDigestHash) {
-			// invalid content hash
-			slog.Debug("Verify - invalid content hash", "contentHash", utils.BytesToHex(contentHash), "aaMessageDigestHash", utils.BytesToHex(aaMessageDigestHash))
-			return nil, fmt.Errorf("[Verify] Invalid content hash (contentHash:%x, aaMessageDigestHash:%x)", contentHash, aaMessageDigestHash)
-		}
-
-		dataToHash = si.AuthenticatedAttributes.SetOfAsnBytes()
-
-		digestAlg = &(si.DigestAlgorithm.Algorithm)
-
-		signatureAlg = &(si.DigestEncryptionAlgorithm.Algorithm)
-		signature = si.EncryptedDigest
+	dataToHash, digestAlg, signatureAlg, signature, err = si.prepareVerificationData(config, sd)
+	if err != nil {
+		return nil, fmt.Errorf("[Verify] prepareVerificationData error: %w", err)
 	}
 
 	var digest []byte
-	digest, err = cryptoutils.CryptoHashByOid(*digestAlg, dataToHash)
+	digest, err = config.Hasher.CryptoHashByOid(*digestAlg, dataToHash)
 	if err != nil {
 		return nil, fmt.Errorf("[Verify] CryptoHashByOid error: %w", err)
 	}
 
 	slog.Debug("Verify", "digestAlg", digestAlg.String(), "digest", utils.BytesToHex(digest))
 
-	/*
-	* Select certificate from signed-data
-	 */
-	var cert *Certificate
-	{
-		var sdCerts *GenericCertPool = &GenericCertPool{}
-
-		err = sdCerts.Add(sd.Certificates.Bytes)
-		if err != nil {
-			return nil, fmt.Errorf("[Verify] CertPool.Add error: %w", err)
-		}
-
-		var tmpCerts []Certificate
-
-		if sdCerts.Count() == 1 {
-			// if we only have 1 certificate in the signed-data then we'll just use that
-			tmpCerts = append(tmpCerts, sdCerts.certificates...)
-		} else if sdCerts.Count() > 1 {
-			// pick the certificate(s) if multiple exist
-			// TODO - should support other variants also (e.g. issuer+serialNumber).. sid is not always aki
-			tmpCerts = sdCerts.BySKI(si.Sid.Bytes)
-		}
-
-		if len(tmpCerts) != 1 {
-			return nil, fmt.Errorf("[Verify] Expected a single matching Cert from within the SignedData (got:%d) (sid:%x)", len(tmpCerts), si.Sid.FullBytes)
-		}
-
-		cert = &tmpCerts[0]
+	cert, err := si.selectCertificate(sd)
+	if err != nil {
+		return nil, fmt.Errorf("[Verify] selectCertificate error: %w", err)
 	}
 
 	/*
@@ -569,7 +594,7 @@ func (si *SignerInfo) Verify(sd *SignedData, trustedCerts CertPool) (certChain [
 	* so far we've just verified the signedData and enveloped-data we haven't actually verified that the certificate is signed by someone we trust
 	 */
 	{
-		tmpCertChain, err := cert.Verify(trustedCerts)
+		tmpCertChain, err := cert.VerifyWithConfig(config, trustedCerts)
 		if err != nil {
 			return nil, fmt.Errorf("[Verify] cert.Verify error: %w", err)
 		}
@@ -581,7 +606,93 @@ func (si *SignerInfo) Verify(sd *SignedData, trustedCerts CertPool) (certChain [
 	return certChain, nil
 }
 
-func (sd *SignedData) Verify(trustedCerts CertPool) (certChain [][]byte, err error) {
+func (si *SignerInfo) Verify(sd *SignedData, trustedCerts CertPool) (certChain [][]byte, err error) {
+	return si.VerifyWithConfig(NewDefaultCMSConfig(), sd, trustedCerts)
+}
+
+// prepareVerificationData extracts and validates authenticated attributes
+func (si *SignerInfo) prepareVerificationData(config *CMSConfig, sd *SignedData) (dataToHash []byte, digestAlg, signatureAlg *asn1.ObjectIdentifier, signature []byte, err error) {
+	if len(si.AuthenticatedAttributes) < 1 {
+		return nil, nil, nil, nil, fmt.Errorf("[prepareVerificationData] SignedInfo without AuthenticatedAttributes is NOT supported")
+	}
+
+	aaContentType := si.AuthenticatedAttributes.ByOID(oid.OidContentType)
+	aaMessageDigest := si.AuthenticatedAttributes.ByOID(oid.OidMessageDigest)
+	if aaContentType == nil || aaMessageDigest == nil {
+		return nil, nil, nil, nil, fmt.Errorf("[prepareVerificationData] Expected Authenticated-Attribute(s) missing (Content-Type, Message-Digest)")
+	}
+
+	var aaContentTypeOID asn1.ObjectIdentifier
+	aaContentTypeOID, err = asn1decodeOid(config, aaContentType.Values.Bytes)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("[prepareVerificationData] asn1decodeOid error: %w", err)
+	}
+
+	var aaMessageDigestHash []byte
+	aaMessageDigestHash, err = asn1decodeBytes(config, aaMessageDigest.Values.Bytes)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("[prepareVerificationData] asn1decodeBytes error: %w", err)
+	}
+
+	slog.Debug("prepareVerificationData", "AA Content-Type", aaContentTypeOID.String())
+	slog.Debug("prepareVerificationData", "AA Message-Digest", utils.BytesToHex(aaMessageDigestHash))
+
+	// verify Content OID matches Authenticated-Attribute (Content Type)
+	if !aaContentTypeOID.Equal(sd.Content.EContentType) {
+		return nil, nil, nil, nil, fmt.Errorf("[prepareVerificationData] Content-Type-OID (%s) differs to Authenticated-Attribute (%s)", sd.Content.EContentType.String(), aaContentTypeOID.String())
+	}
+
+	var contentHash []byte
+	contentHash, err = config.Hasher.CryptoHashByOid(si.DigestAlgorithm.Algorithm, sd.Content.EContent)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("[prepareVerificationData] CryptoHashByOid error: %w", err)
+	}
+
+	slog.Debug("prepareVerificationData", "ContentHash", utils.BytesToHex(contentHash))
+
+	//	5.4.  Message Digest Calculation Process (RFC5652)
+	if !bytes.Equal(contentHash, aaMessageDigestHash) {
+		// invalid content hash
+		slog.Debug("prepareVerificationData - invalid content hash", "contentHash", utils.BytesToHex(contentHash), "aaMessageDigestHash", utils.BytesToHex(aaMessageDigestHash))
+		return nil, nil, nil, nil, fmt.Errorf("[prepareVerificationData] Invalid content hash (contentHash:%x, aaMessageDigestHash:%x)", contentHash, aaMessageDigestHash)
+	}
+
+	dataToHash = si.AuthenticatedAttributes.SetOfAsnBytes()
+	digestAlg = &(si.DigestAlgorithm.Algorithm)
+	signatureAlg = &(si.DigestEncryptionAlgorithm.Algorithm)
+	signature = si.EncryptedDigest
+
+	return dataToHash, digestAlg, signatureAlg, signature, nil
+}
+
+// selectCertificate finds the appropriate certificate from the signed data
+func (si *SignerInfo) selectCertificate(sd *SignedData) (*Certificate, error) {
+	var sdCerts *GenericCertPool = &GenericCertPool{}
+
+	err := sdCerts.Add(sd.Certificates.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("[selectCertificate] CertPool.Add error: %w", err)
+	}
+
+	var tmpCerts []Certificate
+
+	if sdCerts.Count() == 1 {
+		// if we only have 1 certificate in the signed-data then we'll just use that
+		tmpCerts = append(tmpCerts, sdCerts.certificates...)
+	} else if sdCerts.Count() > 1 {
+		// pick the certificate(s) if multiple exist
+		// TODO - should support other variants also (e.g. issuer+serialNumber).. sid is not always aki
+		tmpCerts = sdCerts.BySKI(si.Sid.Bytes)
+	}
+
+	if len(tmpCerts) != 1 {
+		return nil, fmt.Errorf("[selectCertificate] Expected a single matching Cert from within the SignedData (got:%d) (sid:%x)", len(tmpCerts), si.Sid.FullBytes)
+	}
+
+	return &tmpCerts[0], nil
+}
+
+func (sd *SignedData) VerifyWithConfig(config *CMSConfig, trustedCerts CertPool) (certChain [][]byte, err error) {
 	slog.Debug("SignedData.Verify")
 
 	slog.Debug("Verify", "SignerInfo(cnt)", len(sd.SignerInfos))
@@ -595,7 +706,7 @@ func (sd *SignedData) Verify(trustedCerts CertPool) (certChain [][]byte, err err
 	for siIdx := range sd.SignerInfos {
 		var tmpCertChain [][]byte
 
-		tmpCertChain, err = sd.SignerInfos[siIdx].Verify(sd, trustedCerts)
+		tmpCertChain, err = sd.SignerInfos[siIdx].VerifyWithConfig(config, sd, trustedCerts)
 		if err != nil {
 			return nil, fmt.Errorf("[Verify] si.Verify(idx:%d) error: %w", siIdx, err)
 		}
@@ -606,9 +717,13 @@ func (sd *SignedData) Verify(trustedCerts CertPool) (certChain [][]byte, err err
 	return certChain, nil
 }
 
+func (sd *SignedData) Verify(trustedCerts CertPool) (certChain [][]byte, err error) {
+	return sd.VerifyWithConfig(NewDefaultCMSConfig(), trustedCerts)
+}
+
 // verifies that the certificate was signed by one of the certificates in 'trustedCerts'
 // NB considers all entries in 'trustedCerts' to be valid signers, so doesn't walk the chain to a root-cert
-func (cert *Certificate) Verify(trustedCerts CertPool) (certChain [][]byte, err error) {
+func (cert *Certificate) VerifyWithConfig(config *CMSConfig, trustedCerts CertPool) (certChain [][]byte, err error) {
 	// TODO - currently just verifies the signature... doesn't check anything else... e.g. signing-time-validity...
 	//			see 9303p10 5.1 Passive Authentication for detailed overview
 	// - for MRTD, country is indirectly validated by passive-auth as it will only provide 'trustedCerts' for the country based on the MRZ
@@ -627,14 +742,14 @@ func (cert *Certificate) Verify(trustedCerts CertPool) (certChain [][]byte, err 
 
 	// determine the digest-alg for the cert
 	var certDigestAlg *asn1.ObjectIdentifier
-	certDigestAlg, err = cert.SignatureAlgorithm.DetermineDigestAlgFromSigAlg()
+	certDigestAlg, err = cert.SignatureAlgorithm.DetermineDigestAlgFromSigAlgWithConfig(config)
 	if err != nil {
 		return certChain, fmt.Errorf("[Certificate.Verify] unable to determine digest-alg from signature-alg: %w", err)
 	}
 
 	// calculate the cert digest
 	var certDigest []byte
-	certDigest, err = cryptoutils.CryptoHashByOid(*certDigestAlg, cert.TbsCertificate.Raw)
+	certDigest, err = config.Hasher.CryptoHashByOid(*certDigestAlg, cert.TbsCertificate.Raw)
 	if err != nil {
 		return nil, fmt.Errorf("[Certificate.Verify] CryptoHashByOid error: %w", err)
 	}
@@ -670,10 +785,14 @@ func (cert *Certificate) Verify(trustedCerts CertPool) (certChain [][]byte, err 
 	return certChain, fmt.Errorf("[Certificate.Verify] signature not verified against matched certificates (matchCnt:%d,aki:%x,cert:%x)", len(parentCerts), aki.KeyIdentifier, cert.Raw)
 }
 
-func asn1decodeOid(data []byte) (asn1.ObjectIdentifier, error) {
+func (cert *Certificate) Verify(trustedCerts CertPool) (certChain [][]byte, err error) {
+	return cert.VerifyWithConfig(NewDefaultCMSConfig(), trustedCerts)
+}
+
+func asn1decodeOid(config *CMSConfig, data []byte) (asn1.ObjectIdentifier, error) {
 	var out asn1.ObjectIdentifier
 
-	err := utils.ParseAsn1(data, false, &out)
+	err := config.Parser.ParseAsn1(data, false, &out)
 	if err != nil {
 		return nil, fmt.Errorf("[asn1decodeOid] ParseAsn1 error: %w", err)
 	}
@@ -681,10 +800,10 @@ func asn1decodeOid(data []byte) (asn1.ObjectIdentifier, error) {
 	return out, nil
 }
 
-func asn1decodeBytes(data []byte) ([]byte, error) {
+func asn1decodeBytes(config *CMSConfig, data []byte) ([]byte, error) {
 	var out []byte
 
-	err := utils.ParseAsn1(data, false, &out)
+	err := config.Parser.ParseAsn1(data, false, &out)
 	if err != nil {
 		return nil, fmt.Errorf("[asn1decodeBytes] ParseAsn1 error: %w", err)
 	}
@@ -708,20 +827,6 @@ type EcNamedCurve struct {
 	curve elliptic.Curve
 }
 
-var ecNamedCurveArr []EcNamedCurve = []EcNamedCurve{
-	{oid: oid.OidPrime192v1, curve: cryptoutils.EllipticP192()},
-	{oid: oid.OidSecp224r1, curve: elliptic.P224()},
-	{oid: oid.OidPrime256v1, curve: elliptic.P256()},
-	{oid: oid.OidSecp384r1, curve: elliptic.P384()},
-	{oid: oid.OidSecp521r1, curve: elliptic.P521()},
-	{oid: oid.OidBrainpoolP192r1, curve: brainpool.P192r1()},
-	{oid: oid.OidBrainpoolP224r1, curve: brainpool.P224r1()},
-	{oid: oid.OidBrainpoolP256r1, curve: brainpool.P256r1()},
-	{oid: oid.OidBrainpoolP320r1, curve: brainpool.P320r1()},
-	{oid: oid.OidBrainpoolP384r1, curve: brainpool.P384r1()},
-	{oid: oid.OidBrainpoolP512r1, curve: brainpool.P512r1()},
-}
-
 func (subPubKeyInfo *SubjectPublicKeyInfo) IsEC() bool {
 	// verify Algorithm OID
 	var expOid asn1.ObjectIdentifier = oid.OidEcPublicKey
@@ -732,7 +837,7 @@ func (subPubKeyInfo *SubjectPublicKeyInfo) IsEC() bool {
 	return true
 }
 
-func (subPubKeyInfo *SubjectPublicKeyInfo) EcCurve() (curve *elliptic.Curve, err error) {
+func (subPubKeyInfo *SubjectPublicKeyInfo) EcCurveWithConfig(config *CMSConfig) (curve *elliptic.Curve, err error) {
 	/*
 	* Note: We avoid using 'ParsePKIXPublicKey' as it follows PKIX standard and only allows names curves,
 	*       but passports tend to use specified curves (i.e. curve parameters, even if corresponding to well-known curves)
@@ -746,7 +851,7 @@ func (subPubKeyInfo *SubjectPublicKeyInfo) EcCurve() (curve *elliptic.Curve, err
 	var specDomain *ECSpecifiedDomain
 	specDomain, err = ParseECSpecifiedDomain(&subPubKeyInfo.Algorithm)
 	if err == nil {
-		curve, err = specDomain.EcCurve()
+		curve, err = specDomain.EcCurve(config)
 		if err != nil {
 			return nil, fmt.Errorf("[EcCurve] EcCurve error: %w", err)
 		}
@@ -756,15 +861,16 @@ func (subPubKeyInfo *SubjectPublicKeyInfo) EcCurve() (curve *elliptic.Curve, err
 		 */
 		var tmpOid asn1.ObjectIdentifier
 
-		err = utils.ParseAsn1(subPubKeyInfo.Algorithm.Parameters.FullBytes, false, &tmpOid)
+		err = config.Parser.ParseAsn1(subPubKeyInfo.Algorithm.Parameters.FullBytes, false, &tmpOid)
 		if err != nil {
 			return nil, fmt.Errorf("[EcCurve] ParseAsn1 error: %w", err)
 		}
 
-		for i := range ecNamedCurveArr {
-			if ecNamedCurveArr[i].oid.Equal(tmpOid) {
+		namedCurves := config.CurveLookup.GetNamedCurves()
+		for i := range namedCurves {
+			if namedCurves[i].oid.Equal(tmpOid) {
 				// found
-				curve = &(ecNamedCurveArr[i].curve)
+				curve = &(namedCurves[i].curve)
 				break
 			}
 		}
@@ -776,6 +882,10 @@ func (subPubKeyInfo *SubjectPublicKeyInfo) EcCurve() (curve *elliptic.Curve, err
 	}
 
 	return curve, nil
+}
+
+func (subPubKeyInfo *SubjectPublicKeyInfo) EcCurve() (curve *elliptic.Curve, err error) {
+	return subPubKeyInfo.EcCurveWithConfig(NewDefaultCMSConfig())
 }
 
 // EcPubKeyForCurve extracts and decodes the EC public key from the SubjectPublicKeyInfo
@@ -841,13 +951,13 @@ func (subPubKeyInfo *SubjectPublicKeyInfo) EcPubKeyForCurve(curve elliptic.Curve
 // or malicious inputs. Callers SHOULD carefully configure or disable fallback
 // depending on their trust model. In high-assurance contexts, strict enforcement
 // of the advertised curve is typically preferred.
-func (subPubKeyInfo *SubjectPublicKeyInfo) EcCurveAndPubKey(allowCurveFallback bool) (curve *elliptic.Curve, pubKey *cryptoutils.EcPoint, err error) {
+func (subPubKeyInfo *SubjectPublicKeyInfo) EcCurveAndPubKeyWithConfig(config *CMSConfig, allowCurveFallback bool) (curve *elliptic.Curve, pubKey *cryptoutils.EcPoint, err error) {
 	// verify this is an EC key
 	if !subPubKeyInfo.IsEC() {
 		return nil, nil, fmt.Errorf("[EcCurveAndPubKey] Not an EC key")
 	}
 
-	curve, err = subPubKeyInfo.EcCurve()
+	curve, err = subPubKeyInfo.EcCurveWithConfig(config)
 	if err != nil {
 		return nil, nil, fmt.Errorf("[EcCurveAndPubKey] EcCurve error: %w", err)
 	}
@@ -887,6 +997,10 @@ func (subPubKeyInfo *SubjectPublicKeyInfo) EcCurveAndPubKey(allowCurveFallback b
 	}
 
 	return nil, nil, fmt.Errorf("[EcCurveAndPubKey] Unable to get PublicKey")
+}
+
+func (subPubKeyInfo *SubjectPublicKeyInfo) EcCurveAndPubKey(allowCurveFallback bool) (curve *elliptic.Curve, pubKey *cryptoutils.EcPoint, err error) {
+	return subPubKeyInfo.EcCurveAndPubKeyWithConfig(NewDefaultCMSConfig(), allowCurveFallback)
 }
 
 func (subPubKeyInfo *SubjectPublicKeyInfo) IsRSA() bool {
@@ -984,21 +1098,6 @@ func ParseECSpecifiedDomain(algIdentifier *AlgorithmIdentifier) (out *ECSpecifie
 	return out, nil
 }
 
-var ecLookupArr []elliptic.Curve = []elliptic.Curve{
-	cryptoutils.EllipticP192(),
-	elliptic.P224(),
-	elliptic.P256(),
-	elliptic.P384(),
-	elliptic.P521(),
-	brainpool.P160r1(),
-	brainpool.P192r1(),
-	brainpool.P224r1(),
-	brainpool.P256r1(),
-	brainpool.P320r1(),
-	brainpool.P384r1(),
-	brainpool.P512r1(),
-}
-
 // Technically we should support 'total' cryptographic agility and allow the MRTD to
 // dictate any DH/ECDH parameters of its choosing. However, it's more likely that MRTDs
 // are referencing well-known parameters instead of using random (and potentially unsafe)
@@ -1017,7 +1116,7 @@ var ecLookupArr []elliptic.Curve = []elliptic.Curve{
 //	SubjectPublicKeyInfo  ::=  SEQUENCE  {
 //	   algorithm            AlgorithmIdentifier,
 //	   subjectPublicKey     BIT STRING  }
-func (specDomain ECSpecifiedDomain) EcCurve() (*elliptic.Curve, error) {
+func (specDomain ECSpecifiedDomain) EcCurve(config *CMSConfig) (*elliptic.Curve, error) {
 	slog.Debug("EcCurve", "Params", utils.BytesToHex(specDomain.FieldId.Parameters.Bytes))
 
 	// NB sometimes there can be leading zero
@@ -1025,8 +1124,9 @@ func (specDomain ECSpecifiedDomain) EcCurve() (*elliptic.Curve, error) {
 
 	// look for matching 'standard' curve
 	// NB we currently expect the use of standard curve, we may need to support custom curves in the future (but hopefully not)
-	for i := 0; i < len(ecLookupArr); i++ {
-		var ec elliptic.Curve = ecLookupArr[i]
+	lookupCurves := config.CurveLookup.GetLookupCurves()
+	for i := 0; i < len(lookupCurves); i++ {
+		var ec elliptic.Curve = lookupCurves[i]
 
 		// match using the 'prime field' (P)
 		if slices.Equal(ec.Params().P.Bytes(), specDomainPBytes) {
@@ -1056,25 +1156,9 @@ type RsaSsaPssParams struct {
 	TrailerField     *big.Int            `asn1:"explicit,optional,tag:3" json:"trailerField"`
 }
 
-// Maps signature algorithm OIDs to digest algorithm OIDs
-// NB extra processing is required for RSA-PSS, so clients should use AlgorithmIdentifier.DetermineDigestAlgFromSigAlg()
-var oidSignatureAlgToDigestAlg = map[string]asn1.ObjectIdentifier{
-	oid.OidEcdsaWithSHA1.String():           oid.OidHashAlgorithmSHA1,
-	oid.OidEcdsaWithSHA224.String():         oid.OidHashAlgorithmSHA224,
-	oid.OidEcdsaWithSHA256.String():         oid.OidHashAlgorithmSHA256,
-	oid.OidEcdsaWithSHA384.String():         oid.OidHashAlgorithmSHA384,
-	oid.OidEcdsaWithSHA512.String():         oid.OidHashAlgorithmSHA512,
-	oid.OidSha1WithRsaEncryption.String():   oid.OidHashAlgorithmSHA1,
-	oid.OidSha224WithRSAEncryption.String(): oid.OidHashAlgorithmSHA224,
-	oid.OidSha256WithRSAEncryption.String(): oid.OidHashAlgorithmSHA256,
-	oid.OidSha384WithRSAEncryption.String(): oid.OidHashAlgorithmSHA384,
-	oid.OidSha512WithRSAEncryption.String(): oid.OidHashAlgorithmSHA512,
-	// NB RSA-PSS has to be managed separately, so not included here
-}
-
 // determines the digest algorithm from the provided signature algorithm
 // e.g. OidSha512WithRSAEncryption -> OidHashAlgorithmSHA512
-func (signature AlgorithmIdentifier) DetermineDigestAlgFromSigAlg() (*asn1.ObjectIdentifier, error) {
+func (signature AlgorithmIdentifier) DetermineDigestAlgFromSigAlgWithConfig(config *CMSConfig) (*asn1.ObjectIdentifier, error) {
 	var digestAlg asn1.ObjectIdentifier
 
 	if signature.Algorithm.Equal(oid.OidRsaSsaPss) {
@@ -1083,7 +1167,7 @@ func (signature AlgorithmIdentifier) DetermineDigestAlgFromSigAlg() (*asn1.Objec
 		 */
 		var tmpParams RsaSsaPssParams
 
-		err := utils.ParseAsn1(signature.Parameters.FullBytes, false, &tmpParams)
+		err := config.Parser.ParseAsn1(signature.Parameters.FullBytes, false, &tmpParams)
 		if err != nil {
 			return nil, fmt.Errorf("(AlgorithmIdentifier.DetermineDigestAlg) error: %s", err)
 		}
@@ -1095,7 +1179,7 @@ func (signature AlgorithmIdentifier) DetermineDigestAlgFromSigAlg() (*asn1.Objec
 		 */
 		var ok bool
 
-		digestAlg, ok = oidSignatureAlgToDigestAlg[signature.Algorithm.String()]
+		digestAlg, ok = config.SigAlgMap[signature.Algorithm.String()]
 
 		if !ok {
 			return nil, fmt.Errorf("(AlgorithmIdentifier.DetermineDigestAlg) unable to resolve digest algorithm from signature algorithm (sig-oid: %s)", signature.Algorithm.String())
@@ -1103,4 +1187,8 @@ func (signature AlgorithmIdentifier) DetermineDigestAlgFromSigAlg() (*asn1.Objec
 	}
 
 	return &digestAlg, nil
+}
+
+func (signature AlgorithmIdentifier) DetermineDigestAlgFromSigAlg() (*asn1.ObjectIdentifier, error) {
+	return signature.DetermineDigestAlgFromSigAlgWithConfig(NewDefaultCMSConfig())
 }
