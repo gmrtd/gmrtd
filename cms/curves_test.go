@@ -9,6 +9,18 @@ import (
 	"github.com/osanderson/brainpool"
 )
 
+func TestGetCurveNameUnknown(t *testing.T) {
+	// A curve with an empty name and an order that doesn't match any brainpool curve
+	// should return "Unknown".
+	custom := &elliptic.CurveParams{
+		Name: "",
+		N:    big.NewInt(999999999999),
+	}
+	if got := getCurveName(custom); got != "Unknown" {
+		t.Fatalf("expected 'Unknown', got %q", got)
+	}
+}
+
 func TestGetCurveName(t *testing.T) {
 	testCases := []struct {
 		curve    elliptic.Curve

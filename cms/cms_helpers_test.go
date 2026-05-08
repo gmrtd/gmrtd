@@ -2,9 +2,13 @@ package cms
 
 import (
 	"encoding/asn1"
+	"errors"
 	"fmt"
+	"math/big"
+	"strings"
 	"testing"
 
+	"github.com/gmrtd/gmrtd/cryptoutils"
 	"github.com/gmrtd/gmrtd/oid"
 	"github.com/gmrtd/gmrtd/utils"
 )
@@ -271,6 +275,186 @@ func TestHelperMethodsUseConfig(t *testing.T) {
 				t.Fatal("config fields are nil")
 			}
 		})
+	}
+}
+
+// TestEcCurveWithConfigSpecifiedDomainUnsupportedPrime covers the error path where
+// ParseECSpecifiedDomain succeeds but EcCurve fails due to no matching curve in lookup.
+func TestEcCurveWithConfigSpecifiedDomainUnsupportedPrime(t *testing.T) {
+	t.Parallel()
+
+	type testField struct {
+		FieldType  asn1.ObjectIdentifier
+		Parameters asn1.RawValue
+	}
+	type testCurveParams struct {
+		A []byte
+		B []byte
+	}
+	type testDomain struct {
+		Version  int
+		FieldId  testField
+		Curve    testCurveParams
+		Base     []byte
+		Order    *big.Int
+		Cofactor *big.Int
+	}
+
+	// Build a valid ECSpecifiedDomain with a tiny prime that won't match any real curve.
+	domBytes, err := asn1.Marshal(testDomain{
+		Version: 1,
+		FieldId: testField{
+			FieldType:  oid.OidPrimeField,
+			Parameters: asn1.RawValue{Class: asn1.ClassUniversal, Tag: asn1.TagInteger, Bytes: []byte{0x07}},
+		},
+		Curve:    testCurveParams{A: []byte{0x01}, B: []byte{0x01}},
+		Base:     []byte{0x04, 0x01, 0x01},
+		Order:    big.NewInt(7),
+		Cofactor: big.NewInt(1),
+	})
+	if err != nil {
+		t.Fatalf("marshal test domain: %v", err)
+	}
+
+	spki := SubjectPublicKeyInfo{
+		Algorithm: AlgorithmIdentifier{
+			Algorithm:  oid.OidEcPublicKey,
+			Parameters: asn1.RawValue{FullBytes: domBytes},
+		},
+		SubjectPublicKey: asn1.BitString{Bytes: []byte{0x04, 0x01, 0x01}, BitLength: 24},
+	}
+
+	config := &CMSConfig{
+		CurveLookup: NewEmptyCurveLookup(),
+		Parser:      &DefaultAsn1Parser{},
+		Hasher:      &DefaultCryptoHasher{},
+	}
+
+	_, err = spki.EcCurveWithConfig(config)
+	if err == nil {
+		t.Fatal("expected error for EC specified domain with unsupported prime")
+	}
+}
+
+// TestEcCurveWithConfigNamedCurveParserError covers the error path where
+// ParseECSpecifiedDomain fails (named curve) and the config parser then also fails.
+func TestEcCurveWithConfigNamedCurveParserError(t *testing.T) {
+	t.Parallel()
+
+	// P-384 SPKI with named curve OID in Parameters (not ECSpecifiedDomain).
+	spkiData := utils.HexToBytes("3076301006072a8648ce3d020106052b81040022036200042da57dda1089276a543f9ffdac0bff0d976cad71eb7280e7d9bfd9fee4bdb2f20f47ff888274389772d98cc5752138aa4b6d054d69dcf3e25ec49df870715e34883b1836197d76f8ad962e78f6571bbc7407b0d6091f9e4d88f014274406174f")
+
+	spki, err := Asn1decodeSubjectPublicKeyInfo(spkiData)
+	if err != nil {
+		t.Fatalf("Asn1decodeSubjectPublicKeyInfo: %v", err)
+	}
+
+	config := &CMSConfig{
+		Hasher:      &DefaultCryptoHasher{},
+		Parser:      NewErrorParser(errors.New("injected parse error")),
+		CurveLookup: &DefaultCurveLookup{},
+	}
+
+	_, err = spki.EcCurveWithConfig(config)
+	if err == nil {
+		t.Fatal("expected error for parser failure on named curve OID")
+	}
+	if !strings.Contains(err.Error(), "ParseAsn1 error") {
+		t.Errorf("unexpected error text: %v", err)
+	}
+}
+
+// TestEcCurveAndPubKeyWithConfigNoFallback covers the error path where
+// EcPubKeyForCurve fails and allowCurveFallback is false.
+func TestEcCurveAndPubKeyWithConfigNoFallback(t *testing.T) {
+	t.Parallel()
+
+	// Valid P-256 named curve but with an all-zero point that is not on the curve.
+	invalidPoint := make([]byte, 65)
+	invalidPoint[0] = 0x04 // uncompressed point prefix
+
+	keyDER := buildECPublicKeyDERWithRawPoint(t, oid.OidPrime256v1, invalidPoint)
+	spki, err := Asn1decodeSubjectPublicKeyInfo(keyDER)
+	if err != nil {
+		t.Fatalf("Asn1decodeSubjectPublicKeyInfo: %v", err)
+	}
+
+	_, _, err = spki.EcCurveAndPubKeyWithConfig(NewDefaultCMSConfig(), false)
+	if err == nil {
+		t.Fatal("expected error when fallback disabled and point is invalid")
+	}
+}
+
+// TestECSpecifiedDomainEcCurveUnsupportedPrime covers the error return in EcCurve
+// when the prime field does not match any curve in the lookup.
+func TestECSpecifiedDomainEcCurveUnsupportedPrime(t *testing.T) {
+	t.Parallel()
+
+	specDomain := ECSpecifiedDomain{
+		FieldId: cryptoutils.ECField{
+			Parameters: asn1.RawValue{Bytes: []byte{0x07}}, // prime = 7 (no real curve)
+		},
+	}
+
+	config := &CMSConfig{
+		CurveLookup: NewEmptyCurveLookup(),
+		Parser:      &DefaultAsn1Parser{},
+		Hasher:      &DefaultCryptoHasher{},
+	}
+
+	_, err := specDomain.EcCurve(config)
+	if err == nil {
+		t.Fatal("expected error for unsupported curve prime")
+	}
+	if !strings.Contains(err.Error(), "unsupported CA EC") {
+		t.Errorf("unexpected error text: %v", err)
+	}
+}
+
+// TestDetermineDigestAlgFromSigAlgPSSParseError covers the PSS parameter parse error path.
+func TestDetermineDigestAlgFromSigAlgPSSParseError(t *testing.T) {
+	t.Parallel()
+
+	sigAlg := AlgorithmIdentifier{
+		Algorithm:  oid.OidRsaSsaPss,
+		Parameters: asn1.RawValue{FullBytes: []byte{0x30, 0x02, 0x05, 0x00}},
+	}
+
+	config := &CMSConfig{
+		Hasher:      &DefaultCryptoHasher{},
+		Parser:      NewErrorParser(errors.New("injected parse error")),
+		CurveLookup: &DefaultCurveLookup{},
+		SigAlgMap:   NewDefaultCMSConfig().SigAlgMap,
+	}
+
+	_, err := sigAlg.DetermineDigestAlgFromSigAlgWithConfig(config)
+	if err == nil {
+		t.Fatal("expected error for PSS parameter parse failure")
+	}
+}
+
+// TestDetermineDigestAlgFromSigAlgUnknownAlg covers the case where the signature
+// algorithm OID is not present in the SigAlgMap.
+func TestDetermineDigestAlgFromSigAlgUnknownAlg(t *testing.T) {
+	t.Parallel()
+
+	sigAlg := AlgorithmIdentifier{
+		Algorithm: asn1.ObjectIdentifier{9, 9, 9, 9},
+	}
+
+	config := &CMSConfig{
+		Hasher:      &DefaultCryptoHasher{},
+		Parser:      &DefaultAsn1Parser{},
+		CurveLookup: &DefaultCurveLookup{},
+		SigAlgMap:   map[string]asn1.ObjectIdentifier{},
+	}
+
+	_, err := sigAlg.DetermineDigestAlgFromSigAlgWithConfig(config)
+	if err == nil {
+		t.Fatal("expected error for unknown signature algorithm")
+	}
+	if !strings.Contains(err.Error(), "unable to resolve digest algorithm") {
+		t.Errorf("unexpected error text: %v", err)
 	}
 }
 
