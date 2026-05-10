@@ -174,7 +174,7 @@ func evaluateECDSASignatureRange(curve elliptic.Curve, r, s *big.Int) ecdsaRange
 	curveOrder := curve.Params().N
 
 	return ecdsaRangeCheck{
-		curveName:   getCurveName(curve),
+		curveName:   GetCurveName(curve),
 		curveOrder:  curveOrder,
 		orderBits:   curveOrder.BitLen(),
 		rOutOfRange: r.Sign() <= 0 || r.Cmp(curveOrder) >= 0,
@@ -186,7 +186,7 @@ func tryAlternativeECDSACurves(pub *ecdsa.PublicKey, digest, sig []byte, r, s *b
 	slog.Warn("VerifySignature attempting curve fallback due to out-of-range signature values")
 
 	for _, altCurve := range getAlternativeCurvesFn(pub.Curve) {
-		altCurveName := getCurveName(altCurve)
+		altCurveName := GetCurveName(altCurve)
 		slog.Info("VerifySignature trying alternative curve", "curve", altCurveName)
 
 		altCheck := evaluateECDSASignatureRange(altCurve, r, s)

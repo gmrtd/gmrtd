@@ -7,8 +7,8 @@ import (
 	"github.com/osanderson/brainpool"
 )
 
-// getCurveName returns a human-readable name for the curve
-func getCurveName(curve elliptic.Curve) string {
+// GetCurveName returns a human-readable name for the curve
+func GetCurveName(curve elliptic.Curve) string {
 	params := curve.Params()
 
 	// Check NIST curves

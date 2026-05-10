@@ -452,6 +452,10 @@ func (cert TBSCertificate) IssuerRDN() (*RDNSequence, error) {
 	return ParseRDNSequence(cert.Issuer.FullBytes)
 }
 
+func (cert TBSCertificate) SubjectRDN() (*RDNSequence, error) {
+	return ParseRDNSequence(cert.Subject.FullBytes)
+}
+
 type TBSCertificate struct {
 	Raw                  asn1.RawContent     `json:"raw"`
 	Version              int                 `asn1:"explicit,default:1,tag:0" json:"version"`
@@ -968,7 +972,7 @@ func (subPubKeyInfo *SubjectPublicKeyInfo) EcCurveAndPubKeyWithConfig(config *CM
 			return nil, nil, fmt.Errorf("[EcCurveAndPubKey] EcPubKeyForCurve error: %w", err)
 		} else {
 			// log warning AND reset error, as we'll be attempting alternative curves
-			slog.Warn("[EcCurveAndPubKey] unable to get PublicKey for Curve, possible Curve mismatch, trying alternative curves", "origCurve", getCurveName(*curve), "subjectPublicKey", utils.BytesToHex(subPubKeyInfo.SubjectPublicKey.Bytes))
+			slog.Warn("[EcCurveAndPubKey] unable to get PublicKey for Curve, possible Curve mismatch, trying alternative curves", "origCurve", GetCurveName(*curve), "subjectPublicKey", utils.BytesToHex(subPubKeyInfo.SubjectPublicKey.Bytes))
 			err = nil
 		}
 	} else {
@@ -981,7 +985,7 @@ func (subPubKeyInfo *SubjectPublicKeyInfo) EcCurveAndPubKeyWithConfig(config *CM
 		slog.Debug("[EcCurveAndPubKey] evaluating alternative curves...")
 
 		for _, altCurve := range getAlternativeCurvesFn(*curve) {
-			altCurveName := getCurveName(altCurve)
+			altCurveName := GetCurveName(altCurve)
 			slog.Debug("[EcCurveAndPubKey] trying alternative curve", "curve", altCurveName)
 
 			pubKey, err := subPubKeyInfo.EcPubKeyForCurve(altCurve)
@@ -990,7 +994,7 @@ func (subPubKeyInfo *SubjectPublicKeyInfo) EcCurveAndPubKeyWithConfig(config *CM
 			}
 
 			if pubKey != nil {
-				slog.Warn("[EcCurveAndPubKey] valid alternative curve found", "origCurve", getCurveName(*curve), "altCurve", altCurveName, "subjectPublicKey", utils.BytesToHex(subPubKeyInfo.SubjectPublicKey.Bytes))
+				slog.Warn("[EcCurveAndPubKey] valid alternative curve found", "origCurve", GetCurveName(*curve), "altCurve", altCurveName, "subjectPublicKey", utils.BytesToHex(subPubKeyInfo.SubjectPublicKey.Bytes))
 				return &altCurve, pubKey, nil
 			}
 		}
