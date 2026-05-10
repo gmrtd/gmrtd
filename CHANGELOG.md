@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.26.0](https://github.com/gmrtd/gmrtd/compare/v0.25.0...v0.26.0) (2026-05-10)
+
+
+### Features
+
+* **csca:** update to latest DE Master List (5/5/2026) ([#293](https://github.com/gmrtd/gmrtd/issues/293)) ([aee8204](https://github.com/gmrtd/gmrtd/commit/aee8204ad567a80445c26cfe872fb0a320a8b768))
+
 ## [0.25.0](https://github.com/gmrtd/gmrtd/compare/v0.24.0...v0.25.0) (2026-05-10)
 
 
