@@ -106,6 +106,17 @@ go run ./cmd/gmrtd-reader --can <CAN>
 > - `--doc/--dob/--exp` and `--can` are mutually exclusive.
 > - Requires a PC/SC-compatible NFC reader and a working PC/SC stack.
 
+# 🔍 CSCA Inspection Tool
+A command-line utility for auditing the built-in CSCA trust stores is included at `cmd/gmrtd-csca`.
+
+It lists every CSCA and link certificate across all bundled trust stores, grouped by country, showing key type, validity period, SKI/AKI, and which source(s) each certificate appears in. Broken link certificates (whose parent CSCA is absent from the master lists) are flagged separately.
+
+No NFC hardware is required — useful for trust-store audits before shipping.
+
+```bash
+go run ./cmd/gmrtd-csca
+```
+
 # 📊 Sample Documents
 The following documents have been successfully read using gmrtd:
 
@@ -148,12 +159,12 @@ In these cases:
 Cloneability does not imply that the physical document can be trivially forged.
 
 # 🛡 CSCA Trust Stores
-For convenience and interoperability testing, gmrtd includes built-in CSCA trust anchors as standard for:
+For convenience and interoperability testing, gmrtd includes built-in CSCA trust anchors sourced from:
 - [Germany (DE)](https://www.bsi.bund.de/SharedDocs/Downloads/DE/BSI/ElekAusweise/CSCA/GermanMasterList.html)
 - [Netherlands (NL)](https://www.npkd.nl/masterlist.html)
 - [Indonesia – 2010 CSCA series](https://www.imigrasi.go.id/csca)
 
-These defaults can be replaced, extended, or disabled depending on your trust model.
+Together these cover **121 countries**. These defaults can be replaced, extended, or disabled depending on your trust model.
 
 # 📌 Compatibility
 - Go: 1.19+
