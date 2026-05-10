@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.25.0](https://github.com/gmrtd/gmrtd/compare/v0.24.0...v0.25.0) (2026-05-10)
+
+
+### Features
+
+* **csca:** CSCA utility (fixes [#289](https://github.com/gmrtd/gmrtd/issues/289)) ([#290](https://github.com/gmrtd/gmrtd/issues/290)) ([31f3b22](https://github.com/gmrtd/gmrtd/commit/31f3b22dfa2443b7aebaae3aaa2d9de2c432876c))
+
 ## [0.24.0](https://github.com/gmrtd/gmrtd/compare/v0.23.1...v0.24.0) (2026-05-03)
 
 
