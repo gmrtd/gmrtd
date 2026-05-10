@@ -16,7 +16,7 @@ func TestGetCurveNameUnknown(t *testing.T) {
 		Name: "",
 		N:    big.NewInt(999999999999),
 	}
-	if got := getCurveName(custom); got != "Unknown" {
+	if got := GetCurveName(custom); got != "Unknown" {
 		t.Fatalf("expected 'Unknown', got %q", got)
 	}
 }
@@ -39,9 +39,9 @@ func TestGetCurveName(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		result := getCurveName(tc.curve)
+		result := GetCurveName(tc.curve)
 		if result != tc.expected {
-			t.Errorf("getCurveName failed: expected %s, got %s", tc.expected, result)
+			t.Errorf("GetCurveName failed: expected %s, got %s", tc.expected, result)
 		}
 	}
 }
@@ -118,7 +118,7 @@ func TestGetAlternativeCurves(t *testing.T) {
 		alternatives := getAlternativeCurves(tc.curve)
 		if len(alternatives) != tc.expectedCount {
 			t.Errorf("getAlternativeCurves for %s: expected %d alternatives, got %d",
-				getCurveName(tc.curve), tc.expectedCount, len(alternatives))
+				GetCurveName(tc.curve), tc.expectedCount, len(alternatives))
 		}
 
 		// Verify all alternatives have the same bit length
@@ -217,11 +217,11 @@ func TestSignatureRangeCheck(t *testing.T) {
 
 			if rInRange != tc.rExpected {
 				t.Errorf("R range check failed for %s: expected %v, got %v",
-					getCurveName(tc.curve), tc.rExpected, rInRange)
+					GetCurveName(tc.curve), tc.rExpected, rInRange)
 			}
 			if sInRange != tc.sExpected {
 				t.Errorf("S range check failed for %s: expected %v, got %v",
-					getCurveName(tc.curve), tc.sExpected, sInRange)
+					GetCurveName(tc.curve), tc.sExpected, sInRange)
 			}
 		})
 	}
