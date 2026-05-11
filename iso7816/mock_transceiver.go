@@ -2,6 +2,7 @@ package iso7816
 
 import (
 	"bytes"
+	"log"
 
 	"github.com/gmrtd/gmrtd/utils"
 )
@@ -30,6 +31,8 @@ func (transceiver *MockTransceiver) Transceive(_ int, _ int, _ int, _ int, _ []b
 			return bytes.Clone(transceiver.reqRspArr[i].rsp)
 		}
 	}
+
+	log.Printf("unknown CApdu: %x\n", encodedData)
 
 	// if we got here then we couldn't match the C-APDU
 	return []byte{}
