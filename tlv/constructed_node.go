@@ -11,6 +11,8 @@ type TlvConstructedNode struct {
 	children TlvNodes
 }
 
+var _ TlvNode = (*TlvConstructedNode)(nil)
+
 func (node TlvConstructedNode) IsValidNode() bool {
 	return true
 }

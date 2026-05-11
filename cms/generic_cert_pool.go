@@ -14,6 +14,8 @@ type GenericCertPool struct {
 	certificates []Certificate
 }
 
+var _ CertPool = (*GenericCertPool)(nil)
+
 // adds one or more certificates to the CertPool
 func (certPool *GenericCertPool) Add(certificates []byte) error {
 	var certs []Certificate

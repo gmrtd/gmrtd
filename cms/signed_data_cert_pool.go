@@ -14,6 +14,8 @@ type SignedDataCertPool struct {
 	lock            sync.Mutex
 }
 
+var _ CertPool = (*SignedDataCertPool)(nil)
+
 type CscaMasterList struct {
 	Version int
 	Certs   []CscaMasterListCert `asn1:"set"`

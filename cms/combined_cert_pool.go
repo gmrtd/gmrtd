@@ -4,6 +4,8 @@ type CombinedCertPool struct {
 	certPools []CertPool
 }
 
+var _ CertPool = (*CombinedCertPool)(nil)
+
 func (cp *CombinedCertPool) AddCertPool(certPool CertPool) {
 	cp.certPools = append(cp.certPools, certPool)
 }

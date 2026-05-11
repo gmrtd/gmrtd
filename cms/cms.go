@@ -52,11 +52,15 @@ type CurveLookup interface {
 // Default implementations
 type DefaultCryptoHasher struct{}
 
+var _ CryptoHasher = DefaultCryptoHasher{}
+
 func (d DefaultCryptoHasher) CryptoHashByOid(oid asn1.ObjectIdentifier, data []byte) ([]byte, error) {
 	return cryptoutils.CryptoHashByOid(oid, data)
 }
 
 type DefaultAsn1Parser struct{}
+
+var _ Asn1Parser = DefaultAsn1Parser{}
 
 func (d DefaultAsn1Parser) ParseAsn1(data []byte, allowExtraData bool, v interface{}) error {
 	rest, err := asn1.Unmarshal(data, v)
@@ -72,6 +76,8 @@ func (d DefaultAsn1Parser) ParseAsn1(data []byte, allowExtraData bool, v interfa
 }
 
 type DefaultCurveLookup struct{}
+
+var _ CurveLookup = DefaultCurveLookup{}
 
 func (d DefaultCurveLookup) GetNamedCurves() []EcNamedCurve {
 	return []EcNamedCurve{

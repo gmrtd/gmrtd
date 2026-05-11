@@ -14,6 +14,8 @@ type TlvSimpleNode struct {
 	value []byte
 }
 
+var _ TlvNode = (*TlvSimpleNode)(nil)
+
 func (node TlvSimpleNode) IsValidNode() bool {
 	return true
 }
