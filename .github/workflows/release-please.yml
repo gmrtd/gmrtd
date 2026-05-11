@@ -76,6 +76,7 @@ jobs:
     if: ${{ needs.release.outputs.release_created == 'true' }}
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - name: Download iOS artifact
         uses: actions/download-artifact@v4
         with:
