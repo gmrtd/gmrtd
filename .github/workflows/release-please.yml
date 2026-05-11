@@ -13,6 +13,86 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
       - name: Release Please
+        id: release
         uses: googleapis/release-please-action@v4
+
+  build-ios:
+    needs: release
+    if: ${{ needs.release.outputs.release_created == 'true' }}
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Install gomobile
+        run: |
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          go install golang.org/x/mobile/cmd/gobind@latest
+      - name: gomobile init
+        run: gomobile init
+      - name: Build iOS XCFramework
+        run: make ios
+      - name: Zip XCFramework
+        run: cd dist/ios && zip -qr Gmrtd.xcframework.zip Gmrtd.xcframework
+      - name: Save iOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-xcframework
+          path: dist/ios/Gmrtd.xcframework.zip
+
+  build-android:
+    needs: release
+    if: ${{ needs.release.outputs.release_created == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Install gomobile
+        run: |
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          go install golang.org/x/mobile/cmd/gobind@latest
+      - name: gomobile init
+        run: gomobile init
+      - name: Build Android AAR
+        run: make android
+        env:
+          ANDROID_NDK: ${{ env.ANDROID_NDK_LATEST_HOME }}
+      - name: Save Android artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-aar
+          path: dist/android/gmrtd.aar
+
+  upload-assets:
+    needs: [release, build-ios, build-android]
+    if: ${{ needs.release.outputs.release_created == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download iOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ios-xcframework
+          path: dist/ios
+      - name: Download Android artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: android-aar
+          path: dist/android
+      - name: Generate checksums
+        run: cd dist && sha256sum ios/Gmrtd.xcframework.zip android/gmrtd.aar > checksums.txt
+      - name: Upload release assets
+        run: |
+          gh release upload ${{ needs.release.outputs.tag_name }} \
+            dist/ios/Gmrtd.xcframework.zip \
+            dist/android/gmrtd.aar \
+            dist/checksums.txt
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
