@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.27.3](https://github.com/gmrtd/gmrtd/compare/v0.27.2...v0.27.3) (2026-05-11)
+
+
+### Bug Fixes
+
+* add missing checkout for mobile artifact upload ([#304](https://github.com/gmrtd/gmrtd/issues/304)) ([bfe065c](https://github.com/gmrtd/gmrtd/commit/bfe065cf3d52222a130d9ab5d0b54ba321a206d0))
+
 ## [0.27.2](https://github.com/gmrtd/gmrtd/compare/v0.27.1...v0.27.2) (2026-05-11)
 
 
