@@ -2,6 +2,8 @@ package tlv
 
 type TlvNilNode struct{}
 
+var _ TlvNode = (*TlvNilNode)(nil)
+
 func (node TlvNilNode) IsValidNode() bool {
 	return false
 }

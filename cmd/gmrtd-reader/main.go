@@ -32,6 +32,8 @@ type PCSCTransceiver struct {
 	card smartCard
 }
 
+var _ iso7816.Transceiver = (*PCSCTransceiver)(nil)
+
 func (transceiver *PCSCTransceiver) Transceive(_ int, _ int, _ int, _ int, _ []byte, _ int, encodedData []byte) (rApduBytes []byte) {
 	rApduBytes, err := transceiver.card.Apdu(encodedData)
 	if err != nil {
@@ -46,6 +48,8 @@ func (transceiver *PCSCTransceiver) Transceive(_ int, _ int, _ int, _ int, _ []b
 
 type PCSCReaderStatus struct {
 }
+
+var _ reader.ReaderStatus = (*PCSCReaderStatus)(nil)
 
 func (status *PCSCReaderStatus) Status(msg string) {
 	slog.Info("Status", "msg", msg)
