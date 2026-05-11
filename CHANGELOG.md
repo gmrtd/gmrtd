@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.27.2](https://github.com/gmrtd/gmrtd/compare/v0.27.1...v0.27.2) (2026-05-11)
+
+
+### Bug Fixes
+
+* ci mobile release artifact creation ([#302](https://github.com/gmrtd/gmrtd/issues/302)) ([a45461d](https://github.com/gmrtd/gmrtd/commit/a45461daaf1ea1ab0caae67d4c105863bc945dd6))
+
 ## [0.27.1](https://github.com/gmrtd/gmrtd/compare/v0.27.0...v0.27.1) (2026-05-11)
 
 
