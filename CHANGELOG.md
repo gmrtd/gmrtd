@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.27.1](https://github.com/gmrtd/gmrtd/compare/v0.27.0...v0.27.1) (2026-05-11)
+
+
+### Bug Fixes
+
+* test release artifacts ([#300](https://github.com/gmrtd/gmrtd/issues/300)) ([cb74bee](https://github.com/gmrtd/gmrtd/commit/cb74beec68923e02b8e2163a937ab23795f429dc))
+
 ## [0.27.0](https://github.com/gmrtd/gmrtd/compare/v0.26.0...v0.27.0) (2026-05-10)
 
 
