@@ -91,12 +91,23 @@ func (p PaceInfo) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// TODO - add JSON marshal (PaceDomainParameterInfo)
 type PaceDomainParameterInfo struct {
 	Raw             asn1.RawContent
 	Protocol        asn1.ObjectIdentifier
 	DomainParameter cms.AlgorithmIdentifier
 	ParameterId     *big.Int `asn1:"optional"` // nil if not present
+}
+
+func (p PaceDomainParameterInfo) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Protocol        string                  `json:"protocol,omitempty"`
+		DomainParameter cms.AlgorithmIdentifier `json:"domainParameter,omitempty"`
+		ParameterId     *big.Int                `json:"parameterId,omitempty"`
+	}{
+		Protocol:        p.Protocol.String(),
+		DomainParameter: p.DomainParameter,
+		ParameterId:     p.ParameterId,
+	})
 }
 
 type ActiveAuthenticationInfo struct {
@@ -118,6 +129,7 @@ func (aa ActiveAuthenticationInfo) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// TODO - maybe we shouldn't use this in chipAuth.. as Raw is not set
 type ChipAuthenticationInfo struct {
 	Raw      asn1.RawContent
 	Protocol asn1.ObjectIdentifier

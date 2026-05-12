@@ -342,8 +342,6 @@ type Certificate struct {
 	SignatureValue     asn1.BitString      `json:"signatureValue"`
 }
 
-// TODO - MarshalJSON
-
 type Extensions []Extension
 
 type AuthorityKeyIdentifier struct {
@@ -352,7 +350,17 @@ type AuthorityKeyIdentifier struct {
 	AuthorityCertSerialNumber asn1.RawContent `asn1:"optional,implicit,tag:2" json:"authorityCertSerialNumber"`
 }
 
-// TODO - MarshalJSON
+func (aki AuthorityKeyIdentifier) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		KeyIdentifier             []byte `json:"keyIdentifier,omitempty"`
+		AuthorityCertIssuer       []byte `json:"authorityCertIssuer,omitempty"`
+		AuthorityCertSerialNumber []byte `json:"authorityCertSerialNumber,omitempty"`
+	}{
+		KeyIdentifier:             aki.KeyIdentifier,
+		AuthorityCertIssuer:       []byte(aki.AuthorityCertIssuer),
+		AuthorityCertSerialNumber: []byte(aki.AuthorityCertSerialNumber),
+	})
+}
 
 type SubjectKeyIdentifier []byte
 
@@ -476,14 +484,20 @@ type TBSCertificate struct {
 	Extensions           Extensions          `asn1:"explicit,optional,tag:3" json:"extensions"`
 }
 
-// TODO - MarshalJSON
-
 type Validity struct {
 	NotBefore asn1.RawValue `json:"notBefore"`
 	NotAfter  asn1.RawValue `json:"notAfter"`
 }
 
-// TODO - MarshalJSON
+func (v Validity) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		NotBefore string `json:"notBefore,omitempty"`
+		NotAfter  string `json:"notAfter,omitempty"`
+	}{
+		NotBefore: string(v.NotBefore.Bytes),
+		NotAfter:  string(v.NotAfter.Bytes),
+	})
+}
 
 type Extension struct {
 	Raw       asn1.RawContent       `json:"raw"`
@@ -492,7 +506,17 @@ type Extension struct {
 	ExtnValue asn1.RawValue         `json:"extnValue"`
 }
 
-// TODO - MarshalJSON
+func (e Extension) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		ObjectId  string `json:"objectId,omitempty"`
+		Critical  bool   `json:"critical,omitempty"`
+		ExtnValue []byte `json:"extnValue,omitempty"`
+	}{
+		ObjectId:  e.ObjectId.String(),
+		Critical:  bool(e.Critical),
+		ExtnValue: e.ExtnValue.FullBytes,
+	})
+}
 
 /*
 
