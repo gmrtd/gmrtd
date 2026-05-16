@@ -9,6 +9,7 @@ import (
 	"github.com/gmrtd/gmrtd/cms"
 	"github.com/gmrtd/gmrtd/document"
 	"github.com/gmrtd/gmrtd/internal/version"
+	"github.com/gmrtd/gmrtd/iso3166"
 	"github.com/gmrtd/gmrtd/iso7816"
 	"github.com/gmrtd/gmrtd/password"
 	"github.com/gmrtd/gmrtd/reader"
@@ -136,6 +137,22 @@ func (r *Reader) ReadDocument(password *MrtdPassword, atr []byte, ats []byte) (d
 	doc.documentEx, err = gmrtdReader.ReadDocument(password.password, atr, ats)
 
 	return doc, err
+}
+
+// CountryName returns the country name for an MRZ alpha-3 country code.
+// Handles ICAO 9303 quirks such as Germany's special code "D" (mapped to "DEU").
+func CountryName(mrzAlpha3 string) (string, error) {
+	// special handling for Germany per ICAO9303p3 (5. CODES FOR NATIONALITY...)
+	if mrzAlpha3 == "D" {
+		mrzAlpha3 = "DEU"
+	}
+
+	country := iso3166.ByAlpha3(mrzAlpha3)
+	if country == nil {
+		return "", fmt.Errorf("[CountryName] unable to resolve alpha-3 country code (%s)", mrzAlpha3)
+	}
+
+	return country.Name, nil
 }
 
 func (doc *Document) DocumentExJson() (jsonData []byte, err error) {

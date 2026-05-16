@@ -194,6 +194,42 @@ func TestReadDocumentNilPassword(t *testing.T) {
 	}
 }
 
+func TestCountryName(t *testing.T) {
+	tests := []struct {
+		name        string
+		mrzAlpha3   string
+		wantName    string
+		wantErr     bool
+	}{
+		{name: "standard alpha-3", mrzAlpha3: "GBR", wantName: "United Kingdom"},
+		{name: "standard alpha-3 lowercase", mrzAlpha3: "gbr", wantName: "United Kingdom"},
+		{name: "germany special code D", mrzAlpha3: "D", wantName: "Germany"},
+		{name: "germany standard DEU", mrzAlpha3: "DEU", wantName: "Germany"},
+		{name: "unknown code", mrzAlpha3: "XXX", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := CountryName(tt.mrzAlpha3)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+
+			if got != tt.wantName {
+				t.Fatalf("got %q, want %q", got, tt.wantName)
+			}
+		})
+	}
+}
+
 func TestVersion(t *testing.T) {
 	version := Version()
 
