@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.28.0](https://github.com/gmrtd/gmrtd/compare/v0.27.3...v0.28.0) (2026-05-16)
+
+
+### Features
+
+* **mobile:** add CountryName helper ([#308](https://github.com/gmrtd/gmrtd/issues/308)) ([e2514df](https://github.com/gmrtd/gmrtd/commit/e2514df5a604f21a9ea5a132ea3316b5564dcc22))
+
 ## [0.27.3](https://github.com/gmrtd/gmrtd/compare/v0.27.2...v0.27.3) (2026-05-11)
 
 
