@@ -67,6 +67,7 @@ type Reader struct {
 	status      ReaderStatus
 	transceiver Transceiver
 	maxRead     int
+	skipPace    bool
 }
 
 type Document struct {
@@ -87,6 +88,11 @@ func (r *Reader) SetApduMaxLe(maxRead int) error {
 	}
 	r.maxRead = maxRead
 	return nil
+}
+
+// SkipPace configures the reader to skip PACE during document reading
+func (r *Reader) SkipPace() {
+	r.skipPace = true
 }
 
 func cscaMasterList() (cms.CertPool, error) {
@@ -132,6 +138,10 @@ func (r *Reader) ReadDocument(password *MrtdPassword, atr []byte, ats []byte) (d
 
 	var gmrtdReader *reader.Reader
 	gmrtdReader = reader.NewReader(r.status, nfc, cscaMasterList)
+
+	if r.skipPace {
+		gmrtdReader.SkipPace()
+	}
 
 	// read (and verify) the document (inc passive-authentication)
 	doc.documentEx, err = gmrtdReader.ReadDocument(password.password, atr, ats)
