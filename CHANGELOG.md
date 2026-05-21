@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.29.0](https://github.com/gmrtd/gmrtd/compare/v0.28.0...v0.29.0) (2026-05-21)
+
+
+### Features
+
+* **mobile:** add SkipPace ([#310](https://github.com/gmrtd/gmrtd/issues/310)) ([a308158](https://github.com/gmrtd/gmrtd/commit/a3081587b3940f5a5bf7f8c751f718fc47e2cb77))
+* **mobile:** init CSCA master-list before ReadDocument ([#312](https://github.com/gmrtd/gmrtd/issues/312)) ([78fa0d2](https://github.com/gmrtd/gmrtd/commit/78fa0d2901fe3864144db06d8d7a5064311daad5))
+
 ## [0.28.0](https://github.com/gmrtd/gmrtd/compare/v0.27.3...v0.28.0) (2026-05-16)
 
 
