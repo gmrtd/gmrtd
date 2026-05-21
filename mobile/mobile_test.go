@@ -126,6 +126,20 @@ func TestSetApduMaxLe(t *testing.T) {
 	}
 }
 
+func TestSkipPace(t *testing.T) {
+	reader := &Reader{}
+
+	if reader.skipPace {
+		t.Fatalf("skipPace should default to false")
+	}
+
+	reader.SkipPace()
+
+	if !reader.skipPace {
+		t.Fatalf("skipPace should be true after calling SkipPace()")
+	}
+}
+
 type testReaderStatus struct {
 }
 
