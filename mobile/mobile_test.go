@@ -177,6 +177,44 @@ func TestReadDocument(t *testing.T) {
 	}
 }
 
+func TestNewDefaultCscaMasterList(t *testing.T) {
+	ml, err := NewDefaultCscaMasterList()
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if ml == nil {
+		t.Fatalf("expected non-nil CscaMasterList")
+	}
+	if ml.certPool == nil {
+		t.Fatalf("expected non-nil certPool")
+	}
+}
+
+func TestSetCscaMasterList(t *testing.T) {
+	ml, err := NewDefaultCscaMasterList()
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	r := &Reader{}
+	if r.cscaCertPool != nil {
+		t.Fatalf("cscaCertPool should be nil initially")
+	}
+
+	r.SetCscaMasterList(ml)
+	if r.cscaCertPool == nil {
+		t.Fatalf("cscaCertPool should be set after SetCscaMasterList")
+	}
+}
+
+func TestSetCscaMasterListNil(t *testing.T) {
+	r := &Reader{}
+	r.SetCscaMasterList(nil)
+	if r.cscaCertPool != nil {
+		t.Fatalf("cscaCertPool should remain nil when nil is passed")
+	}
+}
+
 func TestDocumentExJsonError(t *testing.T) {
 	// error expected as we attempt to get Document-Json before ReadDocument
 

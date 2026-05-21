@@ -63,11 +63,29 @@ func NewPasswordCan(can string) (*MrtdPassword, error) {
 	return &MrtdPassword{password: password.NewPasswordCan(can)}, nil
 }
 
+// CscaMasterList holds a pre-initialised CSCA trust store for use with Reader.
+// Callers can create one via NewDefaultCscaMasterList and pass it to
+// Reader.SetCscaMasterList to avoid the initialisation cost inside ReadDocument.
+type CscaMasterList struct {
+	certPool cms.CertPool
+}
+
+// NewDefaultCscaMasterList builds a CscaMasterList from the bundled default
+// master lists (DE, NL, and Indonesian 2010-series certificates).
+func NewDefaultCscaMasterList() (*CscaMasterList, error) {
+	certPool, err := cms.DefaultMasterList()
+	if err != nil {
+		return nil, fmt.Errorf("[NewDefaultCscaMasterList] error: %w", err)
+	}
+	return &CscaMasterList{certPool: certPool}, nil
+}
+
 type Reader struct {
-	status      ReaderStatus
-	transceiver Transceiver
-	maxRead     int
-	skipPace    bool
+	status       ReaderStatus
+	transceiver  Transceiver
+	maxRead      int
+	skipPace     bool
+	cscaCertPool cms.CertPool
 }
 
 type Document struct {
@@ -93,6 +111,16 @@ func (r *Reader) SetApduMaxLe(maxRead int) error {
 // SkipPace configures the reader to skip PACE during document reading
 func (r *Reader) SkipPace() {
 	r.skipPace = true
+}
+
+// SetCscaMasterList sets a pre-initialised trust store on the reader.
+// When set, ReadDocument uses this pool directly instead of initialising
+// one itself. Callers can use this to amortise the initialisation cost
+// across multiple ReadDocument calls.
+func (r *Reader) SetCscaMasterList(ml *CscaMasterList) {
+	if ml != nil {
+		r.cscaCertPool = ml.certPool
+	}
 }
 
 func cscaMasterList() (cms.CertPool, error) {
@@ -131,13 +159,15 @@ func (r *Reader) ReadDocument(password *MrtdPassword, atr []byte, ats []byte) (d
 		nfc.SetMaxLe(r.maxRead)
 	}
 
-	cscaMasterList, err := cscaMasterList()
-	if err != nil {
-		return nil, fmt.Errorf("[ReadDocument] cscaMasterList error: %w", err)
+	if r.cscaCertPool == nil {
+		r.cscaCertPool, err = cscaMasterList()
+		if err != nil {
+			return nil, fmt.Errorf("[ReadDocument] cscaMasterList error: %w", err)
+		}
 	}
 
 	var gmrtdReader *reader.Reader
-	gmrtdReader = reader.NewReader(r.status, nfc, cscaMasterList)
+	gmrtdReader = reader.NewReader(r.status, nfc, r.cscaCertPool)
 
 	if r.skipPace {
 		gmrtdReader.SkipPace()
