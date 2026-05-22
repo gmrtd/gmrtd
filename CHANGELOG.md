@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.30.0](https://github.com/gmrtd/gmrtd/compare/v0.29.0...v0.30.0) (2026-05-22)
+
+
+### Features
+
+* **mobile:** Add OidDesc for OID description lookup ([#313](https://github.com/gmrtd/gmrtd/issues/313)) ([050f82a](https://github.com/gmrtd/gmrtd/commit/050f82aa2a1e4e2d8a5302734e8d5d6f0e5118d6))
+
 ## [0.29.0](https://github.com/gmrtd/gmrtd/compare/v0.28.0...v0.29.0) (2026-05-21)
 
 
