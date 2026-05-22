@@ -11,6 +11,7 @@ import (
 	"github.com/gmrtd/gmrtd/internal/version"
 	"github.com/gmrtd/gmrtd/iso3166"
 	"github.com/gmrtd/gmrtd/iso7816"
+	"github.com/gmrtd/gmrtd/oid"
 	"github.com/gmrtd/gmrtd/password"
 	"github.com/gmrtd/gmrtd/reader"
 )
@@ -193,6 +194,12 @@ func CountryName(mrzAlpha3 string) (string, error) {
 	}
 
 	return country.Name, nil
+}
+
+// OidDesc returns the description associated with an OID string (e.g. "0.4.0.127.0.7").
+// Returns an empty string if the OID is unknown.
+func OidDesc(oidStr string) string {
+	return oid.OidDescStr(oidStr)
 }
 
 func (doc *Document) DocumentExJson() (jsonData []byte, err error) {

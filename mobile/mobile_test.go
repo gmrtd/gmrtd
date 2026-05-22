@@ -282,6 +282,28 @@ func TestCountryName(t *testing.T) {
 	}
 }
 
+func TestOidDesc(t *testing.T) {
+	tests := []struct {
+		name     string
+		oidStr   string
+		wantName string
+	}{
+		{name: "known OID", oidStr: "2.23.136.1.1.1", wantName: "ldsSecurityObject"},
+		{name: "known OID bsi-de", oidStr: "0.4.0.127.0.7", wantName: "bsi-de"},
+		{name: "unknown OID", oidStr: "1.2.3.4.5.6.7.8.9", wantName: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := OidDesc(tt.oidStr)
+
+			if got != tt.wantName {
+				t.Fatalf("got %q, want %q", got, tt.wantName)
+			}
+		})
+	}
+}
+
 func TestVersion(t *testing.T) {
 	version := Version()
 

@@ -82,6 +82,46 @@ func TestDecodeAsn1objectId(t *testing.T) {
 	}
 }
 
+func TestOidDesc(t *testing.T) {
+	testCases := []struct {
+		oid     asn1.ObjectIdentifier
+		expDesc string
+	}{
+		{OidPaceEcdhGmAesCbcCmac128, "id-PACE-ECDH-GM-AES-CBC-CMAC-128"},
+		{OidHashAlgorithmSHA256, "sha256"},
+		{OidCountryName, "countryName"},
+		{OidRsaEncryption, "rsaEncryption"},
+		{asn1.ObjectIdentifier{9, 9, 9}, ""},
+	}
+	for _, tc := range testCases {
+		actDesc := OidDesc(tc.oid)
+
+		if actDesc != tc.expDesc {
+			t.Errorf("OidDesc result differs (oid:%s, exp:%q, act:%q)", tc.oid, tc.expDesc, actDesc)
+		}
+	}
+}
+
+func TestOidDescStr(t *testing.T) {
+	testCases := []struct {
+		oidStr  string
+		expDesc string
+	}{
+		{OidPaceEcdhGmAesCbcCmac128.String(), "id-PACE-ECDH-GM-AES-CBC-CMAC-128"},
+		{OidHashAlgorithmSHA256.String(), "sha256"},
+		{OidCountryName.String(), "countryName"},
+		{OidRsaEncryption.String(), "rsaEncryption"},
+		{"9.9.9", ""},
+	}
+	for _, tc := range testCases {
+		actDesc := OidDescStr(tc.oidStr)
+
+		if actDesc != tc.expDesc {
+			t.Errorf("OidDescStr result differs (oidStr:%s, exp:%q, act:%q)", tc.oidStr, tc.expDesc, actDesc)
+		}
+	}
+}
+
 func TestDecodeAsn1objectIdErr(t *testing.T) {
 	// No need to check whether `recover()` is nil. Just turn off the panic.
 	defer func() { _ = recover() }()
