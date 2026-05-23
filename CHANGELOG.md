@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.31.0](https://github.com/gmrtd/gmrtd/compare/v0.30.0...v0.31.0) (2026-05-23)
+
+
+### Features
+
+* **dg1:** added raw-mrz ([#316](https://github.com/gmrtd/gmrtd/issues/316)) ([bb7d1bd](https://github.com/gmrtd/gmrtd/commit/bb7d1bdb2ce88d1789c5732b21cc52a70f32d323))
+
 ## [0.30.0](https://github.com/gmrtd/gmrtd/compare/v0.29.0...v0.30.0) (2026-05-22)
 
 
