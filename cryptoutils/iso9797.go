@@ -15,7 +15,6 @@ func ISO9797Method2Pad(data []byte, blockSize int) []byte {
 	return out
 }
 
-// panics if data is not padded
 func ISO9797Method2Unpad(data []byte) ([]byte, error) {
 	out := bytes.TrimRight(data, string([]byte{0}))
 	if len(out) > 0 {
@@ -23,7 +22,6 @@ func ISO9797Method2Unpad(data []byte) ([]byte, error) {
 			return out[:len(out)-1], nil
 		}
 	}
-
 	return nil, fmt.Errorf("[ISO9797Method2Unpad] Data is not padded (%x -> %x)", data, out)
 }
 
