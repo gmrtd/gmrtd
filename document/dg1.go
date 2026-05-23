@@ -12,8 +12,9 @@ import (
 const DG1Tag = 0x61
 
 type DG1 struct {
-	RawData []byte   `json:"rawData,omitempty"`
-	Mrz     *mrz.MRZ `json:"mrz,omitempty"`
+	RawData []byte    `json:"rawData,omitempty"`
+	RawMrz  string    `json:"rawMrz,omitempty"`
+	Mrz     *mrz.MRZ  `json:"mrz,omitempty"`
 }
 
 func NewDG1(data []byte) (dg1 *DG1, err error) {
@@ -42,7 +43,9 @@ func NewDG1(data []byte) (dg1 *DG1, err error) {
 			return nil, fmt.Errorf("MRZ Tag (5F1F) missing")
 		}
 
-		dg1.Mrz, err = mrz.MrzDecode(string(mrzBytes))
+		dg1.RawMrz = string(mrzBytes)
+
+		dg1.Mrz, err = mrz.MrzDecode(dg1.RawMrz)
 		if err != nil {
 			return nil, err
 		}
