@@ -103,6 +103,32 @@ func TestReadLDS1DgsFilesNotFound(t *testing.T) {
 	}
 }
 
+func TestReadLDS1DgsSkipImages(t *testing.T) {
+	// verify that DG2/DG7 are not read when skipImages is set
+	// PanicTransceiver panics on any APDU, so if any file read is attempted the test fails
+	var status MockStatus
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&PanicTransceiver{P: "no file reads expected when skipImages is set"})
+	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
+	var password *password.Password = password.NewPasswordNil()
+	var state *ReaderState = NewReaderState(nil, nil, password)
+
+	state.docEx.Document.Mf.Lds1.Sod = &document.SOD{
+		LdsSecurityObject: &document.LDSSecurityObject{
+			DataGroupHashValues: []document.DataGroupHash{
+				{DataGroupNumber: 2},
+				{DataGroupNumber: 7},
+			},
+		},
+	}
+
+	reader.SkipImages()
+
+	err := readLDS1dgs(reader, state)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+}
+
 func TestSelectMF(t *testing.T) {
 	var mockTransceiver iso7816.MockTransceiver
 	// SELECT MF command

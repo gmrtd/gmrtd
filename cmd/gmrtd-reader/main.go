@@ -118,7 +118,7 @@ func generateDocument(documentEx *document.DocumentEx) (*bytes.Buffer, error) {
 	return byteBuf, nil
 }
 
-func cmdParams(args []string) (pass *password.Password, debug bool, apduMaxRead uint, skipPace bool, err error) {
+func cmdParams(args []string) (pass *password.Password, debug bool, apduMaxRead uint, skipPace bool, skipImages bool, err error) {
 	fs := flag.NewFlagSet("gmrtd-reader", flag.ContinueOnError)
 
 	documentNo := fs.String("doc", "", "Document Number")
@@ -128,28 +128,29 @@ func cmdParams(args []string) (pass *password.Password, debug bool, apduMaxRead 
 	debugFlag := fs.Bool("debug", false, "Debug")
 	maxRead := fs.Uint("maxRead", 0, "Maximum read amount (bytes) e.g. 1..65536")
 	skipPaceFlag := fs.Bool("skipPace", false, "Skip PACE")
+	skipImagesFlag := fs.Bool("skipImages", false, "Skip image data groups (DG2, DG7)")
 
 	if err := fs.Parse(args); err != nil {
-		return nil, false, 0, false, err
+		return nil, false, 0, false, false, err
 	}
 
 	if len(*documentNo) > 0 && len(*dateOfBirth) == 6 && len(*expiryDate) == 6 {
 		pass, err = password.NewPasswordMrzi(*documentNo, *dateOfBirth, *expiryDate)
 		if err != nil {
-			return nil, false, 0, false, err
+			return nil, false, 0, false, false, err
 		}
 	} else if len(*can) > 0 {
 		pass = password.NewPasswordCan(*can)
 	} else {
 		fs.PrintDefaults()
-		return nil, false, 0, false, fmt.Errorf("usage: must specify either doc+dob+exp *OR* can")
+		return nil, false, 0, false, false, fmt.Errorf("usage: must specify either doc+dob+exp *OR* can")
 	}
 
 	if *maxRead > 65536 {
-		return nil, false, 0, false, fmt.Errorf("maxRead must be 0 or between 1 and 65536")
+		return nil, false, 0, false, false, fmt.Errorf("maxRead must be 0 or between 1 and 65536")
 	}
 
-	return pass, *debugFlag, *maxRead, *skipPaceFlag, nil
+	return pass, *debugFlag, *maxRead, *skipPaceFlag, *skipImagesFlag, nil
 }
 
 func initLogging(debug bool) {
@@ -226,7 +227,7 @@ type appDeps struct {
 	cscaMasterList       func() (cms.CertPool, error)
 	generateDocument     func(*document.DocumentEx) (*bytes.Buffer, error)
 	openBrowser          func(io.Reader) error
-	readDocumentFromCard func(pass *password.Password, maxRead uint, skipPace bool, card smartCard, cscaCertPool cms.CertPool) (*document.DocumentEx, error)
+	readDocumentFromCard func(pass *password.Password, maxRead uint, skipPace bool, skipImages bool, card smartCard, cscaCertPool cms.CertPool) (*document.DocumentEx, error)
 }
 
 func defaultAppDeps() appDeps {
@@ -248,11 +249,12 @@ func runWithDeps(args []string, deps appDeps) error {
 	var debug bool = false
 	var maxRead uint = 0
 	var skipPace bool = false
+	var skipImages bool = false
 	var err error
 
 	fmt.Printf("GMRTD:v%s\n\n", version.Version)
 
-	pass, debug, maxRead, skipPace, err = cmdParams(args)
+	pass, debug, maxRead, skipPace, skipImages, err = cmdParams(args)
 	if err != nil {
 		return err
 	}
@@ -276,7 +278,7 @@ func runWithDeps(args []string, deps appDeps) error {
 		return err
 	}
 
-	documentEx, err := deps.readDocumentFromCard(pass, maxRead, skipPace, card, cscaCertPool)
+	documentEx, err := deps.readDocumentFromCard(pass, maxRead, skipPace, skipImages, card, cscaCertPool)
 	if err != nil {
 		slog.Error("readDocumentFromCard", "error", err)
 		return err
@@ -303,6 +305,7 @@ func readDocumentFromCard(
 	pass *password.Password,
 	maxRead uint,
 	skipPace bool,
+	skipImages bool,
 	card smartCard,
 	cscaCertPool cms.CertPool,
 ) (*document.DocumentEx, error) {
@@ -327,6 +330,10 @@ func readDocumentFromCard(
 	r := reader.NewReader(status, nfc, cscaCertPool)
 	if skipPace {
 		r.SkipPace()
+	}
+
+	if skipImages {
+		r.SkipImages()
 	}
 
 	return r.ReadDocument(pass, atr, ats)

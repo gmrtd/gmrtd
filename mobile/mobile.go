@@ -86,6 +86,7 @@ type Reader struct {
 	transceiver  Transceiver
 	maxRead      int
 	skipPace     bool
+	skipImages   bool
 	cscaCertPool cms.CertPool
 }
 
@@ -112,6 +113,11 @@ func (r *Reader) SetApduMaxLe(maxRead int) error {
 // SkipPace configures the reader to skip PACE during document reading
 func (r *Reader) SkipPace() {
 	r.skipPace = true
+}
+
+// SkipImages configures the reader to skip image data groups (DG2, DG7)
+func (r *Reader) SkipImages() {
+	r.skipImages = true
 }
 
 // SetCscaMasterList sets a pre-initialised trust store on the reader.
@@ -172,6 +178,10 @@ func (r *Reader) ReadDocument(password *MrtdPassword, atr []byte, ats []byte) (d
 
 	if r.skipPace {
 		gmrtdReader.SkipPace()
+	}
+
+	if r.skipImages {
+		gmrtdReader.SkipImages()
 	}
 
 	// read (and verify) the document (inc passive-authentication)

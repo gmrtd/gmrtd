@@ -201,9 +201,10 @@ func (doc *Document) Verify() error {
 	// TODO - these are quite strict and based more on direct NFC read... may need a relaxed version for docs loaded from other sources
 
 	// TODO - not sure why we enforce presence of EF.COM
-	// verify that the mandatory files (COM,DG1,DG2,SOD) are present
-	if (doc.Mf.Lds1.Com == nil) || (doc.Mf.Lds1.Dg1 == nil) || (doc.Mf.Lds1.Dg2 == nil) || (doc.Mf.Lds1.Sod == nil) {
-		return fmt.Errorf("(doc.Verify) One or more mandatory files are missing (COM,SOD,DG1,DG2)")
+	// verify that the mandatory files (COM,DG1,SOD) are present
+	// NB we don't require DG2 as caller may choose to skip reading the image
+	if (doc.Mf.Lds1.Com == nil) || (doc.Mf.Lds1.Dg1 == nil) || (doc.Mf.Lds1.Sod == nil) {
+		return fmt.Errorf("(doc.Verify) One or more mandatory files are missing (COM,SOD,DG1)")
 	}
 
 	// error if DG14 is not present, but is referenced by SOD
