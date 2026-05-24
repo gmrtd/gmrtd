@@ -78,6 +78,7 @@ type Reader struct {
 	nfc          *iso7816.NfcSession
 	cscaCertPool cms.CertPool
 	skipPace     bool // skip PACE
+	skipImages   bool // skip image DGs (DG2, DG7)
 }
 
 func NewReader(status ReaderStatus, nfc *iso7816.NfcSession, cscaCertPool cms.CertPool) *Reader {
@@ -90,6 +91,10 @@ func NewReader(status ReaderStatus, nfc *iso7816.NfcSession, cscaCertPool cms.Ce
 
 func (reader *Reader) SkipPace() {
 	reader.skipPace = true
+}
+
+func (reader *Reader) SkipImages() {
+	reader.skipImages = true
 }
 
 type ReaderState struct {
@@ -289,6 +294,11 @@ func readLDS1dgs(reader *Reader, state *ReaderState) (err error) {
 		if !fileIdOk {
 			// ignore if cannot resolve to file-id
 			slog.Info("Skipping DG", "DG", dgHash.DataGroupNumber)
+			continue
+		}
+
+		if reader.skipImages && (dgHash.DataGroupNumber == 2 || dgHash.DataGroupNumber == 7) {
+			slog.Info("Skipping image DG", "DG", dgHash.DataGroupNumber)
 			continue
 		}
 

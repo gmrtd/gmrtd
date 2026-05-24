@@ -140,6 +140,20 @@ func TestSkipPace(t *testing.T) {
 	}
 }
 
+func TestSkipImages(t *testing.T) {
+	reader := &Reader{}
+
+	if reader.skipImages {
+		t.Fatalf("skipImages should default to false")
+	}
+
+	reader.SkipImages()
+
+	if !reader.skipImages {
+		t.Fatalf("skipImages should be true after calling SkipImages()")
+	}
+}
+
 type testReaderStatus struct {
 }
 

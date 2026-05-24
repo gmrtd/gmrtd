@@ -79,11 +79,12 @@ func TestCscaMasterList(t *testing.T) {
 
 func TestCmdParamsSuccess(t *testing.T) {
 	tests := []struct {
-		name            string
-		args            []string
-		wantDebug       bool
-		wantApduMaxRead uint
-		wantSkipPace    bool
+		name             string
+		args             []string
+		wantDebug        bool
+		wantApduMaxRead  uint
+		wantSkipPace     bool
+		wantSkipImages   bool
 	}{
 		{
 			name:            "valid CAN only",
@@ -91,6 +92,7 @@ func TestCmdParamsSuccess(t *testing.T) {
 			wantDebug:       false,
 			wantApduMaxRead: 0,
 			wantSkipPace:    false,
+			wantSkipImages:  false,
 		},
 		{
 			name:            "valid CAN with flags",
@@ -98,6 +100,7 @@ func TestCmdParamsSuccess(t *testing.T) {
 			wantDebug:       true,
 			wantApduMaxRead: 1024,
 			wantSkipPace:    true,
+			wantSkipImages:  false,
 		},
 		{
 			name:            "valid MRZ fields",
@@ -105,6 +108,7 @@ func TestCmdParamsSuccess(t *testing.T) {
 			wantDebug:       false,
 			wantApduMaxRead: 0,
 			wantSkipPace:    false,
+			wantSkipImages:  false,
 		},
 		{
 			name:            "valid MRZ fields with flags",
@@ -112,12 +116,21 @@ func TestCmdParamsSuccess(t *testing.T) {
 			wantDebug:       true,
 			wantApduMaxRead: 2048,
 			wantSkipPace:    true,
+			wantSkipImages:  false,
+		},
+		{
+			name:            "valid CAN with skipImages",
+			args:            []string{"-can", "123456", "-skipImages"},
+			wantDebug:       false,
+			wantApduMaxRead: 0,
+			wantSkipPace:    false,
+			wantSkipImages:  true,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			pass, debug, apduMaxRead, skipPace, err := cmdParams(tc.args)
+			pass, debug, apduMaxRead, skipPace, skipImages, err := cmdParams(tc.args)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -132,6 +145,9 @@ func TestCmdParamsSuccess(t *testing.T) {
 			}
 			if skipPace != tc.wantSkipPace {
 				t.Fatalf("skipPace = %v, want %v", skipPace, tc.wantSkipPace)
+			}
+			if skipImages != tc.wantSkipImages {
+				t.Fatalf("skipImages = %v, want %v", skipImages, tc.wantSkipImages)
 			}
 		})
 	}
@@ -187,7 +203,7 @@ func TestCmdParamsError(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			pass, debug, apduMaxRead, skipPace, err := cmdParams(tc.args)
+			pass, debug, apduMaxRead, skipPace, _, err := cmdParams(tc.args)
 			if err == nil {
 				t.Fatalf("expected error, got nil")
 			}
@@ -351,6 +367,7 @@ func TestRunWithDepsReadDocumentFromCardError(t *testing.T) {
 		pass *password.Password,
 		maxRead uint,
 		skipPace bool,
+		skipImages bool,
 		card smartCard,
 		cscaCertPool cms.CertPool,
 	) (*document.DocumentEx, error) {
@@ -381,6 +398,7 @@ func TestRunWithDepsGenerateDocumentError(t *testing.T) {
 		pass *password.Password,
 		maxRead uint,
 		skipPace bool,
+		skipImages bool,
 		card smartCard,
 		cscaCertPool cms.CertPool,
 	) (*document.DocumentEx, error) {
@@ -414,6 +432,7 @@ func TestRunWithDepsOpenBrowserError(t *testing.T) {
 		pass *password.Password,
 		maxRead uint,
 		skipPace bool,
+		skipImages bool,
 		card smartCard,
 		cscaCertPool cms.CertPool,
 	) (*document.DocumentEx, error) {
@@ -442,6 +461,7 @@ func TestReadDocumentFromCardReturnsReaderError(t *testing.T) {
 		password.NewPasswordCan("123456"),
 		0,
 		false,
+		false,
 		card,
 		&cms.GenericCertPool{},
 	)
@@ -469,6 +489,7 @@ func TestReadDocumentFromCardIgnoresAtrAtsErrors(t *testing.T) {
 	_, err := readDocumentFromCard(
 		password.NewPasswordCan("123456"),
 		0,
+		false,
 		false,
 		card,
 		&cms.GenericCertPool{},
@@ -499,6 +520,7 @@ func TestReadDocumentFromCardPropagatesReaderFailureFromApdu(t *testing.T) {
 		password.NewPasswordCan("123456"),
 		1000,
 		true,
+		false,
 		card,
 		&cms.GenericCertPool{},
 	)
