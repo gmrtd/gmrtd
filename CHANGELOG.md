@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.32.0](https://github.com/gmrtd/gmrtd/compare/v0.31.0...v0.32.0) (2026-05-24)
+
+
+### Features
+
+* add SkipImages option during NFC read ([#318](https://github.com/gmrtd/gmrtd/issues/318)) ([922c41f](https://github.com/gmrtd/gmrtd/commit/922c41f9722474f2d5c43eb9e0c2a704c822d842))
+
 ## [0.31.0](https://github.com/gmrtd/gmrtd/compare/v0.30.0...v0.31.0) (2026-05-23)
 
 
