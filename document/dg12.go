@@ -8,7 +8,6 @@ import (
 
 	"github.com/gmrtd/gmrtd/mrz"
 	"github.com/gmrtd/gmrtd/tlv"
-	"github.com/gmrtd/gmrtd/utils"
 )
 
 const DG12Tag = 0x6C
@@ -82,9 +81,28 @@ func (details *DocumentDetails) processTag(tag tlv.TlvTag, node tlv.TlvNode) err
 		details.IssuingAuthority = string(node.NodeByTag(tag).Value())
 	case 0x5F1A:
 		// special handling as 'Other Persons' are nested within tag A0 and there can be multiple instances
-		numOtherPersons := utils.BytesToInt(node.NodeByTag(0xA0).NodeByTag(0x02).Value())
+		numOtherPersonsNode := node.NodeByTag(0xA0).NodeByTag(0x02)
+		if !numOtherPersonsNode.IsValidNode() {
+			break
+		}
+
+		numOtherPersonsBytes := numOtherPersonsNode.Value()
+		if len(numOtherPersonsBytes) != 1 {
+			return fmt.Errorf("[processTag] tag A0->02 length must be 1 byte (act:%d)", len(numOtherPersonsBytes))
+		}
+
+		numOtherPersons := int(numOtherPersonsBytes[0])
+		if numOtherPersons < 1 || numOtherPersons > 99 {
+			return fmt.Errorf("[processTag] tag A0->02 must be 1-99 (act:%d)", numOtherPersons)
+		}
+
 		for occur := 1; occur <= numOtherPersons; occur++ {
-			tmpName, err := mrz.ParseName(mrz.DecodeValue(string(node.NodeByTag(0xA0).NodeByTagOccur(tag, occur).Value())))
+			otherPersonNode := node.NodeByTag(0xA0).NodeByTagOccur(tag, occur)
+			if !otherPersonNode.IsValidNode() {
+				break
+			}
+
+			tmpName, err := mrz.ParseName(mrz.DecodeValue(string(otherPersonNode.Value())))
 			if err != nil {
 				return fmt.Errorf("[processTag] mrz.ParseName error: %w", err)
 			}

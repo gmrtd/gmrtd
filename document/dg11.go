@@ -9,7 +9,6 @@ import (
 
 	"github.com/gmrtd/gmrtd/mrz"
 	"github.com/gmrtd/gmrtd/tlv"
-	"github.com/gmrtd/gmrtd/utils"
 )
 
 const DG11Tag = 0x6B
@@ -97,10 +96,23 @@ func (details *PersonDetails) processTag5F0F(parentNode tlv.TlvNode) error {
 
 	if numOtherNamesNode.IsValidNode() {
 		// special handling as 'Other Names' are nested within tag A0 and there can be multiple instances
-		numOtherNames := utils.BytesToInt(numOtherNamesNode.Value())
+		numOtherNamesBytes := numOtherNamesNode.Value()
+		if len(numOtherNamesBytes) != 1 {
+			return fmt.Errorf("[processTag5F0F] tag A0->02 length must be 1 byte (act:%d)", len(numOtherNamesBytes))
+		}
+
+		numOtherNames := int(numOtherNamesBytes[0])
+		if numOtherNames < 1 || numOtherNames > 99 {
+			return fmt.Errorf("[processTag5F0F] tag A0->02 must be 1-99 (act:%d)", numOtherNames)
+		}
 
 		for occur := 1; occur <= numOtherNames; occur++ {
-			tmpName, err := mrz.ParseName(mrz.DecodeValue(string(parentNode.NodeByTag(0xA0).NodeByTagOccur(0x5F0F, occur).Value())))
+			otherNameNode := parentNode.NodeByTag(0xA0).NodeByTagOccur(0x5F0F, occur)
+			if !otherNameNode.IsValidNode() {
+				break
+			}
+
+			tmpName, err := mrz.ParseName(mrz.DecodeValue(string(otherNameNode.Value())))
 			if err != nil {
 				return fmt.Errorf("[processTag5F0F] mrz.ParseName error: %w", err)
 			}

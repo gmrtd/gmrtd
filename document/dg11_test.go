@@ -209,6 +209,71 @@ func TestNewDG11OtherNames(t *testing.T) {
 	}
 }
 
+func TestNewDG11OtherNamesCountValidation(t *testing.T) {
+	testCases := []struct {
+		name          string
+		dg11bytes     []byte
+		expError      bool
+		errorContains string
+		expDetails    PersonDetails
+	}{
+		{
+			// Count is 2 bytes (0x0002) — must be rejected as length != 1
+			name:          "multi-byte count",
+			dg11bytes:     utils.HexToBytes("6b135c025f0fa00d020200025f0f06414141413c3c"),
+			expError:      true,
+			errorContains: "length must be 1 byte",
+		},
+		{
+			// Count is 0 — out of range (must be 1-99)
+			name:          "count zero",
+			dg11bytes:     utils.HexToBytes("6b125c025f0fa00c0201005f0f06414141413c3c"),
+			expError:      true,
+			errorContains: "must be 1-99",
+		},
+		{
+			// Count is 100 (0x64) — out of range
+			name:          "count 100",
+			dg11bytes:     utils.HexToBytes("6b125c025f0fa00c0201645f0f06414141413c3c"),
+			expError:      true,
+			errorContains: "must be 1-99",
+		},
+		{
+			// Count says 2, but only 1 node present — should gracefully return 1 name (break on nil)
+			name:       "count exceeds actual nodes",
+			dg11bytes:  utils.HexToBytes("6b125c025f0fa00c0201025f0f06414141413c3c"),
+			expDetails: PersonDetails{OtherNames: []mrz.MrzName{{Primary: "AAAA"}}},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			dg11, err := NewDG11(tc.dg11bytes)
+
+			if tc.expError {
+				if err == nil {
+					t.Fatalf("Expected error containing '%s'", tc.errorContains)
+				}
+				if !bytes.Contains([]byte(err.Error()), []byte(tc.errorContains)) {
+					t.Errorf("Expected error to contain '%s', got: %s", tc.errorContains, err.Error())
+				}
+				if dg11 != nil {
+					t.Errorf("DG11 not expected for error case")
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("Unexpected error: %s", err)
+				}
+				if dg11 == nil {
+					t.Fatalf("DG11 expected")
+				}
+				if !reflect.DeepEqual(dg11.Details, tc.expDetails) {
+					t.Errorf("Details differ\n(Act:%+v)\n(Exp:%+v)", dg11.Details, tc.expDetails)
+				}
+			}
+		})
+	}
+}
+
 func TestProcessTagDG11(t *testing.T) {
 	testCases := []struct {
 		name             string
