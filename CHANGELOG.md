@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.32.3](https://github.com/gmrtd/gmrtd/compare/v0.32.2...v0.32.3) (2026-06-02)
+
+
+### Bug Fixes
+
+* **cms:** SOD/Cert validation enhancements (fixes [#326](https://github.com/gmrtd/gmrtd/issues/326)) ([#327](https://github.com/gmrtd/gmrtd/issues/327)) ([a41d338](https://github.com/gmrtd/gmrtd/commit/a41d338a0abda52a9cf8f9c813ef4768e2169c49))
+
 ## [0.32.2](https://github.com/gmrtd/gmrtd/compare/v0.32.1...v0.32.2) (2026-06-02)
 
 
