@@ -3,14 +3,12 @@ package main
 import (
 	"bytes"
 	"crypto"
-	"encoding/asn1"
 	"fmt"
 	"io"
 	"os"
 	"sort"
 	"strings"
 	"text/tabwriter"
-	"time"
 
 	"github.com/gmrtd/gmrtd/cms"
 	"github.com/gmrtd/gmrtd/cryptoutils"
@@ -120,17 +118,9 @@ func isLinkCert(cert *cms.Certificate) bool {
 	return true
 }
 
-func parseTime(raw asn1.RawValue) (time.Time, error) {
-	var t time.Time
-	_, err := asn1.Unmarshal(raw.FullBytes, &t)
-	return t, err
-}
-
 func formatValidity(validity cms.Validity) string {
-	notBefore, err1 := parseTime(validity.NotBefore)
-	notAfter, err2 := parseTime(validity.NotAfter)
-
-	if err1 != nil || err2 != nil {
+	notBefore, notAfter, err := validity.Parse()
+	if err != nil {
 		return "?..?"
 	}
 

@@ -27,6 +27,7 @@ import (
 	"log/slog"
 	"math/big"
 	"slices"
+	"time"
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
 	"github.com/gmrtd/gmrtd/oid"
@@ -114,10 +115,11 @@ func (d DefaultCurveLookup) GetLookupCurves() []elliptic.Curve {
 
 // CMSConfig holds configurable dependencies for CMS operations
 type CMSConfig struct {
-	Hasher      CryptoHasher
-	Parser      Asn1Parser
-	CurveLookup CurveLookup
-	SigAlgMap   map[string]asn1.ObjectIdentifier
+	Hasher        CryptoHasher
+	Parser        Asn1Parser
+	CurveLookup   CurveLookup
+	SigAlgMap     map[string]asn1.ObjectIdentifier
+	ReferenceTime *time.Time
 }
 
 // NewDefaultCMSConfig creates a config with default implementations
@@ -636,6 +638,18 @@ func (v Validity) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func (v Validity) Parse() (notBefore time.Time, notAfter time.Time, err error) {
+	_, err = asn1.Unmarshal(v.NotBefore.FullBytes, &notBefore)
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("NotBefore: %w", err)
+	}
+	_, err = asn1.Unmarshal(v.NotAfter.FullBytes, &notAfter)
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("NotAfter: %w", err)
+	}
+	return notBefore, notAfter, nil
+}
+
 type Extension struct {
 	Raw       asn1.RawContent       `json:"raw"`
 	ObjectId  asn1.ObjectIdentifier `json:"objectId"`
@@ -727,13 +741,29 @@ func (si *SignerInfo) VerifyWithConfig(config *CMSConfig, sd *SignedData, truste
 			- determine the context type that is hashed (e.g. ldsSecurityObject for SOD)
 			- get the data that is hashed
 			- verify siHash matches the original data (content)
-			- verify other info (?TBC?)										<---------------- TODO (e.g. key-perms, signing-time)
+			- extract signing-time for cert validity checks
+			- verify cert validity (NotBefore/NotAfter) against signing-time
 			- cert(chain) validation of the signer-info signature
 	*/
 
 	dataToHash, digestAlg, signatureAlg, signature, err = si.prepareVerificationData(config, sd)
 	if err != nil {
 		return nil, fmt.Errorf("[Verify] prepareVerificationData error: %w", err)
+	}
+
+	// extract signing-time as the reference time for certificate validity checks
+	// (only if not already set externally via config)
+	if config.ReferenceTime == nil {
+		if aaSigningTime := si.AuthenticatedAttributes.ByOID(oid.OidSigningTime); aaSigningTime != nil {
+			var st time.Time
+			if _, stErr := asn1.Unmarshal(aaSigningTime.Values.Bytes, &st); stErr == nil {
+				config.ReferenceTime = &st
+			} else {
+				slog.Warn("Verify - unable to parse signingTime, skipping validity check", "err", stErr)
+			}
+		} else {
+			slog.Warn("Verify - signingTime attribute absent, skipping validity check")
+		}
 	}
 
 	var digest []byte
@@ -769,6 +799,21 @@ func (si *SignerInfo) VerifyWithConfig(config *CMSConfig, sd *SignedData, truste
 	// validate EKU if present (parse to confirm well-formed)
 	if _, ekuErr := cert.TbsCertificate.Extensions.ExtKeyUsage(); ekuErr != nil {
 		return nil, fmt.Errorf("[Verify] DS cert ExtKeyUsage parse error: %w", ekuErr)
+	}
+
+	// enforce DS cert validity period against reference time (ICAO 9303 Part 11 §5.1)
+	if config.ReferenceTime != nil {
+		refTime := *config.ReferenceTime
+		notBefore, notAfter, vErr := cert.TbsCertificate.Validity.Parse()
+		if vErr != nil {
+			return nil, fmt.Errorf("[Verify] DS cert validity parse error: %w", vErr)
+		}
+		if refTime.Before(notBefore) {
+			return nil, fmt.Errorf("[Verify] DS cert not yet valid (notBefore: %s, refTime: %s)", notBefore.UTC(), refTime.UTC())
+		}
+		if refTime.After(notAfter) {
+			return nil, fmt.Errorf("[Verify] DS cert expired (notAfter: %s, refTime: %s)", notAfter.UTC(), refTime.UTC())
+		}
 	}
 
 	/*
@@ -924,6 +969,21 @@ func (cert *Certificate) VerifyWithConfig(config *CMSConfig, trustedCerts CertPo
 		return certChain, fmt.Errorf("[Certificate.Verify] cert has unrecognized critical extension: %v", unrecognized[0].ObjectId)
 	}
 
+	// enforce cert validity period (ICAO 9303 Part 11 §5.1)
+	if config.ReferenceTime != nil {
+		refTime := *config.ReferenceTime
+		notBefore, notAfter, vErr := cert.TbsCertificate.Validity.Parse()
+		if vErr != nil {
+			return certChain, fmt.Errorf("[Certificate.Verify] cert validity parse error: %w", vErr)
+		}
+		if refTime.Before(notBefore) {
+			return certChain, fmt.Errorf("[Certificate.Verify] cert not yet valid (notBefore: %s, refTime: %s)", notBefore.UTC(), refTime.UTC())
+		}
+		if refTime.After(notAfter) {
+			return certChain, fmt.Errorf("[Certificate.Verify] cert expired (notAfter: %s, refTime: %s)", notAfter.UTC(), refTime.UTC())
+		}
+	}
+
 	// get the parent certificate (authority) key identifier
 	var aki *AuthorityKeyIdentifier
 	aki, err = cert.TbsCertificate.Extensions.AuthorityKeyIdentifier()
@@ -1010,6 +1070,24 @@ func (cert *Certificate) VerifyWithConfig(config *CMSConfig, trustedCerts CertPo
 		if eku != nil && parentCerts[i].TbsCertificate.Extensions.ExtKeyUsageIsCritical() {
 			if !eku.HasOID(oid.OidAnyExtendedKeyUsage) {
 				slog.Warn("Certificate.Verify - skipping parent cert, critical EKU without anyExtendedKeyUsage", "idx", i)
+				continue
+			}
+		}
+
+		// parent cert must be within validity period at reference time (ICAO 9303 Part 11 §5.1)
+		if config.ReferenceTime != nil {
+			refTime := *config.ReferenceTime
+			pNotBefore, pNotAfter, pVErr := parentCerts[i].TbsCertificate.Validity.Parse()
+			if pVErr != nil {
+				slog.Warn("Certificate.Verify - skipping parent cert, Validity parse error", "idx", i, "err", pVErr)
+				continue
+			}
+			if refTime.Before(pNotBefore) {
+				slog.Debug("Certificate.Verify - skipping parent cert, not yet valid", "idx", i, "notBefore", pNotBefore)
+				continue
+			}
+			if refTime.After(pNotAfter) {
+				slog.Debug("Certificate.Verify - skipping parent cert, expired", "idx", i, "notAfter", pNotAfter)
 				continue
 			}
 		}
