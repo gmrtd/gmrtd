@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.32.2](https://github.com/gmrtd/gmrtd/compare/v0.32.1...v0.32.2) (2026-06-02)
+
+
+### Bug Fixes
+
+* **document:** unbounded count parsing for DG11/DG12 names (fixes [#323](https://github.com/gmrtd/gmrtd/issues/323)) ([#324](https://github.com/gmrtd/gmrtd/issues/324)) ([1ad42f6](https://github.com/gmrtd/gmrtd/commit/1ad42f60a128d740df9ab17c411eba8155c545d5))
+
 ## [0.32.1](https://github.com/gmrtd/gmrtd/compare/v0.32.0...v0.32.1) (2026-06-02)
 
 
