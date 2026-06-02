@@ -357,12 +357,9 @@ func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
 		return nil, fmt.Errorf("(sm.Decode) ParseRApdu error: %w", err)
 	}
 
-	// TODO - may want to re-think this... should probably only do this when error is indicated ??
-	//			- should never have this scenario for success (9000)
-	// Simply return the SM rApdu if it doesn't contain any data, as SM (TLV)
-	// decode will fail due to missing tags (e.g. 0x8E)
+	// Return error if the rApdu doesn't contain any data, as this is mandatory for an SM response
 	if len(smRApdu.Data) < 1 {
-		return smRApdu, nil
+		return nil, fmt.Errorf("[SM.Decode] Unable to decode SM-RApdu due to missing data. Advertised(insecure) status:%4x", smRApdu.Status)
 	}
 
 	/*
