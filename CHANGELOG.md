@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.32.4](https://github.com/gmrtd/gmrtd/compare/v0.32.3...v0.32.4) (2026-06-02)
+
+
+### Bug Fixes
+
+* **cms:** enforce sod/certificate validity (fixes [#329](https://github.com/gmrtd/gmrtd/issues/329)) ([#330](https://github.com/gmrtd/gmrtd/issues/330)) ([1b5c48c](https://github.com/gmrtd/gmrtd/commit/1b5c48cc3027f0700ede1bf3b6762f8509aae4ca))
+
 ## [0.32.3](https://github.com/gmrtd/gmrtd/compare/v0.32.2...v0.32.3) (2026-06-02)
 
 
