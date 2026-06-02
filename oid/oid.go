@@ -129,6 +129,8 @@ var (
 	OidCeCRLDistributionPoints          = asn1.ObjectIdentifier{2, 5, 29, 31}
 	OidCertificatePolicies              = asn1.ObjectIdentifier{2, 5, 29, 32}
 	OidAuthorityKeyIdentifier           = asn1.ObjectIdentifier{2, 5, 29, 35}
+	OidCeExtKeyUsage                    = asn1.ObjectIdentifier{2, 5, 29, 37}
+	OidAnyExtendedKeyUsage              = asn1.ObjectIdentifier{2, 5, 29, 37, 0}
 	OidHashAlgorithmSHA256              = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 2, 1}
 	OidHashAlgorithmSHA384              = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 2, 2}
 	OidHashAlgorithmSHA512              = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 2, 3}
@@ -247,6 +249,8 @@ var oidLookup = map[string]string{
 	OidCeCRLDistributionPoints.String():          "id-ce-cRLDistributionPoints",
 	OidCertificatePolicies.String():              "certificatePolicies",
 	OidAuthorityKeyIdentifier.String():           "authorityKeyIdentifier",
+	OidCeExtKeyUsage.String():                    "id-ce-extKeyUsage",
+	OidAnyExtendedKeyUsage.String():              "anyExtendedKeyUsage",
 	OidHashAlgorithmSHA256.String():              "sha256",
 	OidHashAlgorithmSHA384.String():              "sha384",
 	OidHashAlgorithmSHA512.String():              "sha512",

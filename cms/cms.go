@@ -434,7 +434,144 @@ func (extensions Extensions) SubjectKeyIdentifier() (*SubjectKeyIdentifier, erro
 	return nil, nil
 }
 
-// TODO - handlers for other extensions... key-usage (sign,..)... CSCA: privateKeyUsagePeriod, id-ce-keyUsage (for CA detection?)
+// BasicConstraints represents the X.509 basicConstraints extension (RFC 5280 4.2.1.9)
+type BasicConstraints struct {
+	IsCA       bool `asn1:"optional"`
+	MaxPathLen int  `asn1:"optional,default:-1"`
+}
+
+// KeyUsage bit positions (RFC 5280 4.2.1.3)
+const (
+	KeyUsageDigitalSignature = 0
+	KeyUsageKeyCertSign      = 5
+	KeyUsageCRLSign          = 6
+)
+
+// KeyUsage represents the X.509 keyUsage extension as a bit string
+type KeyUsage asn1.BitString
+
+// HasBit returns true if the specified key usage bit is set
+func (ku KeyUsage) HasBit(bit int) bool {
+	return asn1.BitString(ku).At(bit) == 1
+}
+
+// BasicConstraints locates and parses the basicConstraints extension.
+// Returns (nil, nil) if the extension is not present.
+func (extensions Extensions) BasicConstraints() (*BasicConstraints, error) {
+	for i := range extensions {
+		if extensions[i].ObjectId.Equal(oid.OidCeBasicConstraints) {
+			var out BasicConstraints
+
+			err := utils.ParseAsn1(extensions[i].ExtnValue.Bytes, false, &out)
+			if err != nil {
+				return nil, fmt.Errorf("[BasicConstraints] ParseAsn1 error: %w", err)
+			}
+
+			return &out, nil
+		}
+	}
+
+	return nil, nil
+}
+
+// KeyUsage locates and parses the keyUsage extension.
+// Returns (nil, nil) if the extension is not present.
+func (extensions Extensions) KeyUsage() (*KeyUsage, error) {
+	for i := range extensions {
+		if extensions[i].ObjectId.Equal(oid.OidCeKeyUsage) {
+			var bs asn1.BitString
+
+			err := utils.ParseAsn1(extensions[i].ExtnValue.Bytes, false, &bs)
+			if err != nil {
+				return nil, fmt.Errorf("[KeyUsage] ParseAsn1 error: %w", err)
+			}
+
+			ku := KeyUsage(bs)
+			return &ku, nil
+		}
+	}
+
+	return nil, nil
+}
+
+// ExtKeyUsage represents the X.509 extendedKeyUsage extension as a list of OIDs
+type ExtKeyUsage []asn1.ObjectIdentifier
+
+// HasOID returns true if the EKU list contains the specified OID
+func (eku ExtKeyUsage) HasOID(target asn1.ObjectIdentifier) bool {
+	for _, o := range eku {
+		if o.Equal(target) {
+			return true
+		}
+	}
+	return false
+}
+
+// ExtKeyUsage locates and parses the extendedKeyUsage extension.
+// Returns (nil, nil) if the extension is not present.
+func (extensions Extensions) ExtKeyUsage() (ExtKeyUsage, error) {
+	for i := range extensions {
+		if extensions[i].ObjectId.Equal(oid.OidCeExtKeyUsage) {
+			var oids []asn1.ObjectIdentifier
+
+			err := utils.ParseAsn1(extensions[i].ExtnValue.Bytes, false, &oids)
+			if err != nil {
+				return nil, fmt.Errorf("[ExtKeyUsage] ParseAsn1 error: %w", err)
+			}
+
+			return ExtKeyUsage(oids), nil
+		}
+	}
+
+	return nil, nil
+}
+
+// ExtKeyUsageIsCritical returns true if the EKU extension is marked critical.
+func (extensions Extensions) ExtKeyUsageIsCritical() bool {
+	for i := range extensions {
+		if extensions[i].ObjectId.Equal(oid.OidCeExtKeyUsage) {
+			return bool(extensions[i].Critical)
+		}
+	}
+	return false
+}
+
+// recognizedExtensionOIDs lists the extension OIDs that this implementation handles.
+// Per RFC 5280, certificates with unrecognized critical extensions MUST be rejected.
+var recognizedExtensionOIDs = []asn1.ObjectIdentifier{
+	oid.OidAuthorityKeyIdentifier,
+	oid.OidSubjectKeyIdentifier,
+	oid.OidCeKeyUsage,
+	oid.OidCeBasicConstraints,
+	oid.OidCeExtKeyUsage,
+	oid.OidPrivateKeyUsagePeriod,
+	oid.OidSubjectAltName,
+	oid.OidCeIssuerAltName,
+	oid.OidCeCRLDistributionPoints,
+	oid.OidCertificatePolicies,
+}
+
+// UnrecognizedCriticalExtensions returns any critical extensions whose OIDs
+// are not in the set recognized by this implementation.
+func (extensions Extensions) UnrecognizedCriticalExtensions() []Extension {
+	var unrecognized []Extension
+	for i := range extensions {
+		if !bool(extensions[i].Critical) {
+			continue
+		}
+		recognized := false
+		for _, recOid := range recognizedExtensionOIDs {
+			if extensions[i].ObjectId.Equal(recOid) {
+				recognized = true
+				break
+			}
+		}
+		if !recognized {
+			unrecognized = append(unrecognized, extensions[i])
+		}
+	}
+	return unrecognized
+}
 
 type RDNSequence []RelativeDistinguishedNameSET
 type RelativeDistinguishedNameSET AttributeList
@@ -612,6 +749,28 @@ func (si *SignerInfo) VerifyWithConfig(config *CMSConfig, sd *SignedData, truste
 		return nil, fmt.Errorf("[Verify] selectCertificate error: %w", err)
 	}
 
+	// reject DS cert with unrecognized critical extensions (RFC 5280 4.2)
+	if unrecognized := cert.TbsCertificate.Extensions.UnrecognizedCriticalExtensions(); len(unrecognized) > 0 {
+		return nil, fmt.Errorf("[Verify] DS cert has unrecognized critical extension: %v", unrecognized[0].ObjectId)
+	}
+
+	// DS cert must have keyUsage with digitalSignature (ICAO 9303 Part 12)
+	ku, kuErr := cert.TbsCertificate.Extensions.KeyUsage()
+	if kuErr != nil {
+		return nil, fmt.Errorf("[Verify] DS cert KeyUsage parse error: %w", kuErr)
+	}
+	if ku == nil {
+		return nil, fmt.Errorf("[Verify] DS cert missing keyUsage extension")
+	}
+	if !ku.HasBit(KeyUsageDigitalSignature) {
+		return nil, fmt.Errorf("[Verify] DS cert missing digitalSignature keyUsage")
+	}
+
+	// validate EKU if present (parse to confirm well-formed)
+	if _, ekuErr := cert.TbsCertificate.Extensions.ExtKeyUsage(); ekuErr != nil {
+		return nil, fmt.Errorf("[Verify] DS cert ExtKeyUsage parse error: %w", ekuErr)
+	}
+
 	/*
 	* Verify the SignedInfo signature (against the PublicKey in the Certificate)
 	 */
@@ -755,14 +914,15 @@ func (sd *SignedData) Verify(trustedCerts CertPool) (certChain [][]byte, err err
 	return sd.VerifyWithConfig(NewDefaultCMSConfig(), trustedCerts)
 }
 
-// verifies that the certificate was signed by one of the certificates in 'trustedCerts'
-// NB considers all entries in 'trustedCerts' to be valid signers, so doesn't walk the chain to a root-cert
+// VerifyWithConfig verifies that the certificate was signed by a valid CA in 'trustedCerts'.
+// Enforces basicConstraints, keyUsage, pathLen, and unrecognized critical extension checks per RFC 5280.
 func (cert *Certificate) VerifyWithConfig(config *CMSConfig, trustedCerts CertPool) (certChain [][]byte, err error) {
-	// TODO - currently just verifies the signature... doesn't check anything else... e.g. signing-time-validity...
-	//			see 9303p10 5.1 Passive Authentication for detailed overview
-	// - for MRTD, country is indirectly validated by passive-auth as it will only provide 'trustedCerts' for the country based on the MRZ
-
 	slog.Debug("CERT.Verify", "Cert(hex)", utils.BytesToHex(cert.Raw))
+
+	// reject cert with unrecognized critical extensions (RFC 5280 4.2)
+	if unrecognized := cert.TbsCertificate.Extensions.UnrecognizedCriticalExtensions(); len(unrecognized) > 0 {
+		return certChain, fmt.Errorf("[Certificate.Verify] cert has unrecognized critical extension: %v", unrecognized[0].ObjectId)
+	}
 
 	// get the parent certificate (authority) key identifier
 	var aki *AuthorityKeyIdentifier
@@ -790,7 +950,7 @@ func (cert *Certificate) VerifyWithConfig(config *CMSConfig, trustedCerts CertPo
 
 	// get any matching parent certificates
 	// NB often >1 due to cross-signing in master-list
-	parentCerts := trustedCerts.BySKI(aki.KeyIdentifier) // TODO - other variants? eg issuer/serial
+	parentCerts := trustedCerts.BySKI(aki.KeyIdentifier)
 
 	slog.Debug("Certificate.Verify", "parentCerts(cnt)", len(parentCerts))
 
@@ -799,11 +959,64 @@ func (cert *Certificate) VerifyWithConfig(config *CMSConfig, trustedCerts CertPo
 		return certChain, fmt.Errorf("[Certificate.Verify] unable to locate parent certificate (SKI:%x)", aki.KeyIdentifier)
 	}
 
-	// test each parent cert until we find one that validates the cert signature
+	// test each parent cert until we find one that passes all checks
 	for i := range parentCerts {
+		// reject parent with unrecognized critical extensions
+		if unrecognized := parentCerts[i].TbsCertificate.Extensions.UnrecognizedCriticalExtensions(); len(unrecognized) > 0 {
+			slog.Warn("Certificate.Verify - skipping parent cert with unrecognized critical extension", "idx", i, "oid", unrecognized[0].ObjectId)
+			continue
+		}
+
+		// parent must have basicConstraints CA:TRUE
+		bc, bcErr := parentCerts[i].TbsCertificate.Extensions.BasicConstraints()
+		if bcErr != nil {
+			slog.Warn("Certificate.Verify - skipping parent cert, BasicConstraints parse error", "idx", i, "err", bcErr)
+			continue
+		}
+		if bc == nil || !bc.IsCA {
+			slog.Warn("Certificate.Verify - skipping parent cert, not a CA", "idx", i)
+			continue
+		}
+
+		// enforce pathLenConstraint: MaxPathLen >= 0 limits intermediate CAs below this CA.
+		// intermediateDepth is 0 here (DS is directly issued by CSCA, no intermediates).
+		const intermediateDepth = 0
+		if bc.MaxPathLen >= 0 && intermediateDepth > bc.MaxPathLen {
+			slog.Debug("Certificate.Verify - skipping parent cert, pathLen exceeded", "idx", i, "maxPathLen", bc.MaxPathLen)
+			continue
+		}
+
+		// parent must have keyUsage with keyCertSign (ICAO 9303 Part 12)
+		ku, kuErr := parentCerts[i].TbsCertificate.Extensions.KeyUsage()
+		if kuErr != nil {
+			slog.Warn("Certificate.Verify - skipping parent cert, KeyUsage parse error", "idx", i, "err", kuErr)
+			continue
+		}
+		if ku == nil {
+			slog.Warn("Certificate.Verify - skipping parent cert, missing keyUsage extension", "idx", i)
+			continue
+		}
+		if !ku.HasBit(KeyUsageKeyCertSign) {
+			slog.Warn("Certificate.Verify - skipping parent cert, missing keyCertSign", "idx", i)
+			continue
+		}
+
+		// if parent has critical EKU, it must include anyExtendedKeyUsage (RFC 5280 4.2.1.12)
+		eku, ekuErr := parentCerts[i].TbsCertificate.Extensions.ExtKeyUsage()
+		if ekuErr != nil {
+			slog.Warn("Certificate.Verify - skipping parent cert, ExtKeyUsage parse error", "idx", i, "err", ekuErr)
+			continue
+		}
+		if eku != nil && parentCerts[i].TbsCertificate.Extensions.ExtKeyUsageIsCritical() {
+			if !eku.HasOID(oid.OidAnyExtendedKeyUsage) {
+				slog.Warn("Certificate.Verify - skipping parent cert, critical EKU without anyExtendedKeyUsage", "idx", i)
+				continue
+			}
+		}
+
+		// verify the cryptographic signature
 		tmpErr := VerifySignature(parentCerts[i].TbsCertificate.SubjectPublicKeyInfo.FullBytes, *certDigestAlg, certDigest, cert.SignatureAlgorithm.Algorithm, cert.SignatureValue.Bytes)
 		if tmpErr != nil {
-			// ignore error and try other parent certs
 			slog.Debug("Certificate.Verify - skipping parent cert as it failed to verify the signature", "idx", i)
 			continue
 		}
@@ -811,12 +1024,10 @@ func (cert *Certificate) VerifyWithConfig(config *CMSConfig, trustedCerts CertPo
 		// record cert
 		certChain = append(certChain, bytes.Clone(parentCerts[i].Raw))
 
-		// TODO - if we wanted to process to official root, the parent cert verification would be here, if parentCert is not CA-Cert
-
 		return certChain, nil
 	}
 
-	return certChain, fmt.Errorf("[Certificate.Verify] signature not verified against matched certificates (matchCnt:%d,aki:%x,cert:%x)", len(parentCerts), aki.KeyIdentifier, cert.Raw)
+	return certChain, fmt.Errorf("[Certificate.Verify] no valid CA parent found (matchCnt:%d,aki:%x)", len(parentCerts), aki.KeyIdentifier)
 }
 
 func (cert *Certificate) Verify(trustedCerts CertPool) (certChain [][]byte, err error) {
