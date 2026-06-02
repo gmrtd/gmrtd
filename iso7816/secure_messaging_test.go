@@ -321,17 +321,17 @@ func TestSecureMessageDecode(t *testing.T) {
 
 		out, err := sm.Decode(tc.rApduBytes)
 		if err != nil {
-			t.Errorf("Unexpected error: %s", err)
+			t.Fatalf("Unexpected error: %s", err)
 		}
 
 		if !bytes.Equal(sm.ssc, tc.expSsc) {
-			t.Errorf("Incorrect SSC (Exp:%x) (Act:%x)", tc.expSsc, sm.ssc)
+			t.Fatalf("Incorrect SSC (Exp:%x) (Act:%x)", tc.expSsc, sm.ssc)
 		}
 
 		// NB we re-encode before comparing as slices.Equal doesn't play well with empty slices (i.e. rApdu without data)
 		//    - not an issue as we're primarily testing the 'Secure Messaging' decode (i.e. the encryption parts)
 		if !slices.Equal(out.Encode(), tc.expRApdu.Encode()) {
-			t.Errorf("Incorrect rApdu (Exp:%s) (Act:%s)", tc.expRApdu, out)
+			t.Fatalf("Incorrect rApdu (Exp:%s) (Act:%s)", tc.expRApdu, out)
 		}
 	}
 }
@@ -408,6 +408,15 @@ func TestSecureMessageDecodeErrors(t *testing.T) {
 			ssc:           utils.HexToBytes("887022120C06C227"),
 			rApduBytes:    utils.HexToBytes("99029000850201008E08194723b5965aa0819000"),
 			errorContains: "error decoding rApduData",
+		},
+		{
+			name:          "Plain R-Apdu response, with only insecure status=9000 (possible SM downgrade attack)",
+			alg:           cryptoutils.AES,
+			ksEnc:         utils.HexToBytes("a8e85e938514ec67ae33cda3d43d3c48"),
+			ksMac:         utils.HexToBytes("27f1adeb705a049a305b0c619b14b9b3"),
+			ssc:           utils.HexToBytes("0000000000000000000000000000000b"),
+			rApduBytes:    utils.HexToBytes("9000"),
+			errorContains: "Unable to decode SM-RApdu due to missing data",
 		},
 	}
 	for _, tc := range testCases {
