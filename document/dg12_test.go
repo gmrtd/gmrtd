@@ -154,6 +154,79 @@ func TestNewDG12UnknownTagErr(t *testing.T) {
 	}
 }
 
+func TestProcessTagDG12OtherPersonsCountValidation(t *testing.T) {
+	testCases := []struct {
+		name          string
+		tlvTag        tlv.TlvTag
+		tlvNode       tlv.TlvNode
+		expError      bool
+		errorContains string
+		expDocDetails DocumentDetails
+	}{
+		{
+			// Count is 2 bytes (0x0001) — must be rejected as length != 1
+			name:          "multi-byte count",
+			tlvTag:        0x5F1A,
+			tlvNode:       tlv.NewTlvConstructedNode(0x6C).AddChild(tlv.NewTlvConstructedNode(0xA0).AddChild(tlv.NewTlvSimpleNode(0x02, []byte{0x00, 0x01})).AddChild(tlv.NewTlvSimpleNode(0x5F1A, utils.HexToBytes("534D4954483C3C4252454E44413C50")))),
+			expError:      true,
+			errorContains: "length must be 1 byte",
+		},
+		{
+			// Count is 0 — out of range (must be 1-99)
+			name:          "count zero",
+			tlvTag:        0x5F1A,
+			tlvNode:       tlv.NewTlvConstructedNode(0x6C).AddChild(tlv.NewTlvConstructedNode(0xA0).AddChild(tlv.NewTlvSimpleNode(0x02, []byte{0x00})).AddChild(tlv.NewTlvSimpleNode(0x5F1A, utils.HexToBytes("534D4954483C3C4252454E44413C50")))),
+			expError:      true,
+			errorContains: "must be 1-99",
+		},
+		{
+			// Count is 100 (0x64) — out of range
+			name:          "count 100",
+			tlvTag:        0x5F1A,
+			tlvNode:       tlv.NewTlvConstructedNode(0x6C).AddChild(tlv.NewTlvConstructedNode(0xA0).AddChild(tlv.NewTlvSimpleNode(0x02, []byte{0x64})).AddChild(tlv.NewTlvSimpleNode(0x5F1A, utils.HexToBytes("534D4954483C3C4252454E44413C50")))),
+			expError:      true,
+			errorContains: "must be 1-99",
+		},
+		{
+			// Count says 2 but only 1 node present — should gracefully return 1 person (break on nil)
+			name:          "count exceeds actual nodes",
+			tlvTag:        0x5F1A,
+			tlvNode:       tlv.NewTlvConstructedNode(0x6C).AddChild(tlv.NewTlvConstructedNode(0xA0).AddChild(tlv.NewTlvSimpleNode(0x02, []byte{0x02})).AddChild(tlv.NewTlvSimpleNode(0x5F1A, utils.HexToBytes("534D4954483C3C4252454E44413C50")))),
+			expDocDetails: DocumentDetails{OtherPersons: []mrz.MrzName{{Primary: "SMITH", Secondary: "BRENDA P"}}},
+		},
+		{
+			// A0 node exists but tag 02 (count) is missing — should be no-op
+			name:          "missing count node",
+			tlvTag:        0x5F1A,
+			tlvNode:       tlv.NewTlvConstructedNode(0x6C).AddChild(tlv.NewTlvConstructedNode(0xA0).AddChild(tlv.NewTlvSimpleNode(0x5F1A, utils.HexToBytes("534D4954483C3C4252454E44413C50")))),
+			expDocDetails: DocumentDetails{},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var docDetails DocumentDetails
+
+			err := docDetails.processTag(tc.tlvTag, tc.tlvNode)
+
+			if tc.expError {
+				if err == nil {
+					t.Fatalf("Expected error containing '%s'", tc.errorContains)
+				}
+				if !bytes.Contains([]byte(err.Error()), []byte(tc.errorContains)) {
+					t.Errorf("Expected error to contain '%s', got: %s", tc.errorContains, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("Unexpected error: %s", err)
+				}
+				if !reflect.DeepEqual(tc.expDocDetails, docDetails) {
+					t.Errorf("DocumentDetails differs to expected [Exp] %+v [Act] %+v", tc.expDocDetails, docDetails)
+				}
+			}
+		})
+	}
+}
+
 func TestProcessTag(t *testing.T) {
 	testCases := []struct {
 		name          string
