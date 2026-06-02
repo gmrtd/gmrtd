@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.32.1](https://github.com/gmrtd/gmrtd/compare/v0.32.0...v0.32.1) (2026-06-02)
+
+
+### Bug Fixes
+
+* **iso7816:** SM.Decode downgrade attack vuln (fixes [#320](https://github.com/gmrtd/gmrtd/issues/320)) ([#321](https://github.com/gmrtd/gmrtd/issues/321)) ([c949ef0](https://github.com/gmrtd/gmrtd/commit/c949ef02273ef84245908baf3d300b68900eebfd))
+
 ## [0.32.0](https://github.com/gmrtd/gmrtd/compare/v0.31.0...v0.32.0) (2026-05-24)
 
 
