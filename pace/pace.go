@@ -238,12 +238,23 @@ func encodeDynAuthData(tag byte, data []byte) []byte {
 }
 
 // dynamic authentication data - (TLV) 7C <tag> <data>
-func decodeDynAuthData(tag byte, data []byte) []byte {
-	tmpNodes, err := tlv.Decode(data)
+func decodeDynAuthData(tag byte, data []byte) ([]byte, error) {
+	nodes, err := tlv.Decode(data)
 	if err != nil {
-		panic(fmt.Sprintf("[decodeDynAuthData] tlv.Decode error: %s", err))
+		return nil, fmt.Errorf("decodeDynAuthData: TLV decode error: %w", err)
 	}
-	return tmpNodes.NodeByTag(0x7C).NodeByTag(tlv.TlvTag(tag)).Value()
+
+	node7C := nodes.NodeByTag(0x7C)
+	if !node7C.IsValidNode() {
+		return nil, fmt.Errorf("decodeDynAuthData: missing tag 7C")
+	}
+
+	nodeTag := node7C.NodeByTag(tlv.TlvTag(tag))
+	if !nodeTag.IsValidNode() {
+		return nil, fmt.Errorf("decodeDynAuthData: missing tag %02X within 7C", tag)
+	}
+
+	return nodeTag.Value(), nil
 }
 
 // encodes a public-key template (7F49) containing the OID and the public-key (86)
@@ -308,7 +319,11 @@ func (pace *Pace) mapNonceGmEcDh(domainParams *DomainParams, s []byte) (mapped_g
 			return nil, nil, fmt.Errorf("[mapNonceGmEcDh] GeneralAuthenticate error: %w", err)
 		}
 
-		pubMapIC = cryptoutils.DecodeX962EcPoint(domainParams.ec, decodeDynAuthData(0x82, rApduBytes))
+		dynAuthBytes, err := decodeDynAuthData(0x82, rApduBytes)
+		if err != nil {
+			return nil, nil, fmt.Errorf("[mapNonceGmEcDh] %w", err)
+		}
+		pubMapIC = cryptoutils.DecodeX962EcPoint(domainParams.ec, dynAuthBytes)
 		slog.Debug("mapNonceGmEcDh", "pubMapIC", pubMapIC.String())
 	}
 
@@ -356,7 +371,11 @@ func (pace *Pace) keyAgreementGmEcDh(domainParams *DomainParams, G *cryptoutils.
 			return nil, nil, nil, fmt.Errorf("[keyAgreementGmEcDh] GeneralAuthenticate error: %w", err)
 		}
 
-		chipPub = cryptoutils.DecodeX962EcPoint(domainParams.ec, decodeDynAuthData(0x84, rApduBytes))
+		dynAuthBytes, err := decodeDynAuthData(0x84, rApduBytes)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("[keyAgreementGmEcDh] %w", err)
+		}
+		chipPub = cryptoutils.DecodeX962EcPoint(domainParams.ec, dynAuthBytes)
 	}
 
 	// verify the terminal and chip public-keys are not the same
@@ -402,7 +421,10 @@ func (pace *Pace) mutualAuthGmEcDh(paceConfig *PaceConfig, domainParams *DomainP
 			return nil, fmt.Errorf("[mutualAuthGmEcDh] GeneralAuthenticate error: %w", err)
 		}
 
-		tIc2 := decodeDynAuthData(0x86, rApduBytes)
+		tIc2, err := decodeDynAuthData(0x86, rApduBytes)
+		if err != nil {
+			return nil, fmt.Errorf("[mutualAuthGmEcDh] %w", err)
+		}
 
 		// verify that chip responded with the expected 'tIC' value
 		if !bytes.Equal(tIc2, tIc) {
@@ -412,9 +434,9 @@ func (pace *Pace) mutualAuthGmEcDh(paceConfig *PaceConfig, domainParams *DomainP
 		// get Encrypted Chip Authentication Data' (tag:8A) if CAM
 		// Encrypted Chip Authentication Data (cf. Section 4.4.3.5) MUST be present if Chip Authentication Mapping is used and MUST NOT be present otherwise.
 		if paceConfig.mapping == CAM {
-			ecadIC = decodeDynAuthData(0x8A, rApduBytes)
-			if len(ecadIC) < 1 {
-				return nil, fmt.Errorf("[mutualAuthGmEcDh] Encrypted Chip Authentication Data (Tag:8A) is mandatory for PACE CAM")
+			ecadIC, err = decodeDynAuthData(0x8A, rApduBytes)
+			if err != nil {
+				return nil, fmt.Errorf("[mutualAuthGmEcDh] Encrypted Chip Authentication Data (Tag:8A) is mandatory for PACE CAM: %w", err)
 			}
 		}
 	}
@@ -543,7 +565,10 @@ func (pace *Pace) getNonce(paceConfig *PaceConfig, kKdf []byte) ([]byte, error) 
 			return nil, fmt.Errorf("[getNonce] GeneralAuthenticate error: %s", err)
 		}
 
-		nonceE = decodeDynAuthData(0x80, rApduBytes)
+		nonceE, err = decodeDynAuthData(0x80, rApduBytes)
+		if err != nil {
+			return nil, fmt.Errorf("[getNonce] %w", err)
+		}
 	}
 
 	// decrypt the nonce (s)
