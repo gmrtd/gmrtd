@@ -79,6 +79,24 @@ func TestGetLengthBadLengthErr(t *testing.T) {
 	}
 }
 
+func TestParseLengthMaxUint32NoPanic(t *testing.T) {
+	// 0x84 prefix + 0xFFFFFFFF = max uint32 length
+	// On 32-bit platforms this must return an error (exceeds math.MaxInt).
+	// On 64-bit platforms this is valid. Either way it must not panic.
+	var buf *bytes.Buffer = bytes.NewBuffer(utils.HexToBytes("84FFFFFFFF"))
+
+	length, err := ParseLength(buf)
+
+	// math.MaxInt differs by platform, so just verify no panic and consistent result
+	if err != nil {
+		// expected on 32-bit
+		return
+	}
+	if length != TlvLength(0xFFFFFFFF) {
+		t.Errorf("Expected length 0xFFFFFFFF, got %x", length)
+	}
+}
+
 func TestEncodeLengthBadLengthErr(t *testing.T) {
 	defer func() { _ = recover() }()
 

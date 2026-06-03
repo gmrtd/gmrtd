@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"math"
 
 	"github.com/gmrtd/gmrtd/utils"
 )
@@ -38,7 +39,11 @@ func ParseLength(buf *bytes.Buffer) (length TlvLength, err error) {
 		}
 		uint32bytes := make([]byte, 4)
 		copy(uint32bytes[4-byteLen:], bytes)
-		length = TlvLength(binary.BigEndian.Uint32(uint32bytes))
+		rawLen := binary.BigEndian.Uint32(uint32bytes)
+		if uint64(rawLen) > uint64(math.MaxInt) {
+			return 0, fmt.Errorf("[ParseLength] Length exceeds platform int size (length:%d)", rawLen)
+		}
+		length = TlvLength(rawLen)
 	} else {
 		return 0, fmt.Errorf("[ParseLength] Unsupported length (b1:%02x) (remBytes:%x)", b1, buf.Bytes())
 	}
