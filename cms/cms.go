@@ -1238,9 +1238,9 @@ func (subPubKeyInfo *SubjectPublicKeyInfo) EcPubKeyForCurve(curve elliptic.Curve
 
 	// get the chip's public key
 	var chipPubKeyBytes []byte = subPubKeyInfo.SubjectPublicKey.Bytes
-	pubKey = cryptoutils.DecodeX962EcPoint(curve, chipPubKeyBytes)
-	if pubKey == nil {
-		return nil, fmt.Errorf("[EcPubKeyForCurve] DecodeX962EcPoint failed to return pubKey")
+	pubKey, err = cryptoutils.DecodeX962EcPoint(curve, chipPubKeyBytes)
+	if err != nil {
+		return nil, fmt.Errorf("[EcPubKeyForCurve] %w", err)
 	}
 
 	return pubKey, nil

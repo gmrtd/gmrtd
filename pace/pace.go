@@ -323,7 +323,10 @@ func (pace *Pace) mapNonceGmEcDh(domainParams *DomainParams, s []byte) (mapped_g
 		if err != nil {
 			return nil, nil, fmt.Errorf("[mapNonceGmEcDh] %w", err)
 		}
-		pubMapIC = cryptoutils.DecodeX962EcPoint(domainParams.ec, dynAuthBytes)
+		pubMapIC, err = cryptoutils.DecodeX962EcPoint(domainParams.ec, dynAuthBytes)
+		if err != nil {
+			return nil, nil, fmt.Errorf("[mapNonceGmEcDh] %w", err)
+		}
 		slog.Debug("mapNonceGmEcDh", "pubMapIC", pubMapIC.String())
 	}
 
@@ -375,7 +378,10 @@ func (pace *Pace) keyAgreementGmEcDh(domainParams *DomainParams, G *cryptoutils.
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("[keyAgreementGmEcDh] %w", err)
 		}
-		chipPub = cryptoutils.DecodeX962EcPoint(domainParams.ec, dynAuthBytes)
+		chipPub, err = cryptoutils.DecodeX962EcPoint(domainParams.ec, dynAuthBytes)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("[keyAgreementGmEcDh] %w", err)
+		}
 	}
 
 	// verify the terminal and chip public-keys are not the same
@@ -471,7 +477,11 @@ func icPubKeyECForCAM(domainParams *DomainParams, cardSecurity *document.CardSec
 		if subjectPubKeyInfo.Algorithm.Algorithm.Equal(oid.OidBsiDeEcKeyType) {
 			if utils.BytesToInt(subjectPubKeyInfo.Algorithm.Parameters.Bytes) == domainParams.id {
 				var tmpKey []byte = subjectPubKeyInfo.SubjectPublicKey.Bytes
-				return cryptoutils.DecodeX962EcPoint(domainParams.ec, tmpKey), nil
+				point, err := cryptoutils.DecodeX962EcPoint(domainParams.ec, tmpKey)
+				if err != nil {
+					return nil, fmt.Errorf("[icPubKeyECForCAM] %w", err)
+				}
+				return point, nil
 			}
 		}
 	}
