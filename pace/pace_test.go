@@ -599,18 +599,34 @@ func TestDoPace_CAM_ECDH_DE(t *testing.T) {
 }
 
 func TestDecodeDynAuthDataError(t *testing.T) {
-	// NB we expect an exception when invalid TLV data is passed
-
-	// No need to check whether `recover()` is nil. Just turn off the panic.
-	defer func() { _ = recover() }()
-
-	var badTlvData []byte = utils.HexToBytes("0104123456") // indicates len=4, but only has 3 bytes of data
 	var tag byte = 0x82
 
-	_ = decodeDynAuthData(tag, badTlvData)
+	// invalid TLV data
+	{
+		badTlvData := utils.HexToBytes("0104123456") // indicates len=4, but only has 3 bytes of data
+		_, err := decodeDynAuthData(tag, badTlvData)
+		if err == nil {
+			t.Errorf("expected error for invalid TLV data")
+		}
+	}
 
-	// Never reaches here if panic
-	t.Errorf("expected panic, but didn't get")
+	// missing tag 7C
+	{
+		noTag7C := utils.HexToBytes("0100") // valid TLV but no 7C tag
+		_, err := decodeDynAuthData(tag, noTag7C)
+		if err == nil {
+			t.Errorf("expected error for missing tag 7C")
+		}
+	}
+
+	// missing inner tag
+	{
+		no82 := utils.HexToBytes("7C028000") // 7C containing tag 80 (not 82)
+		_, err := decodeDynAuthData(tag, no82)
+		if err == nil {
+			t.Errorf("expected error for missing inner tag")
+		}
+	}
 }
 
 func TestDoApduMseSetATApduErr(t *testing.T) {
