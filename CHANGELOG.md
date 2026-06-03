@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.32.6](https://github.com/gmrtd/gmrtd/compare/v0.32.5...v0.32.6) (2026-06-03)
+
+
+### Bug Fixes
+
+* **tlv:** ParseLength panics on 32-bit builds when long-form length e… ([#338](https://github.com/gmrtd/gmrtd/issues/338)) ([dcd1b90](https://github.com/gmrtd/gmrtd/commit/dcd1b904512aa40a1c7e4bf689da323109f7e8a7))
+
 ## [0.32.5](https://github.com/gmrtd/gmrtd/compare/v0.32.4...v0.32.5) (2026-06-03)
 
 
