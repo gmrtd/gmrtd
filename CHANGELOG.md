@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.32.5](https://github.com/gmrtd/gmrtd/compare/v0.32.4...v0.32.5) (2026-06-03)
+
+
+### Bug Fixes
+
+* **crypto-utils:** DecodeX962EcPoint returns nil instead of error ([#335](https://github.com/gmrtd/gmrtd/issues/335)) ([fff61a8](https://github.com/gmrtd/gmrtd/commit/fff61a835143e87278a1cfb27d669594a8b3557d))
+
 ## [0.32.4](https://github.com/gmrtd/gmrtd/compare/v0.32.3...v0.32.4) (2026-06-02)
 
 
