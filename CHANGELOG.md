@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.32.7](https://github.com/gmrtd/gmrtd/compare/v0.32.6...v0.32.7) (2026-06-05)
+
+
+### Bug Fixes
+
+* **tlv:** tlv.Decode unbounded recursion and O(n²) buffer cloning  ([#341](https://github.com/gmrtd/gmrtd/issues/341)) ([5dbbe6e](https://github.com/gmrtd/gmrtd/commit/5dbbe6e30b5c9aa9ae62890bf1bba649a15a6f4d))
+
 ## [0.32.6](https://github.com/gmrtd/gmrtd/compare/v0.32.5...v0.32.6) (2026-06-03)
 
 
