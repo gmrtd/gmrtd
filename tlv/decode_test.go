@@ -79,6 +79,41 @@ func TestDecodeErrors(t *testing.T) {
 	}
 }
 
+func TestDecodeExceedsMaxDepth(t *testing.T) {
+	// Build a deeply nested constructed TLV that exceeds maxDecodeDepth.
+	// Each level: tag 0x61 (constructed) + indefinite length (0x80) ... terminated by 0x0000
+	depth := maxDecodeDepth + 1
+	var buf []byte
+	for i := 0; i < depth; i++ {
+		buf = append(buf, 0x61, 0x80) // constructed tag + indefinite length
+	}
+	// innermost primitive
+	buf = append(buf, 0x01, 0x01, 0xFF)
+	// close all indefinite-length levels
+	for i := 0; i < depth; i++ {
+		buf = append(buf, 0x00, 0x00)
+	}
+
+	_, err := Decode(buf)
+	if err == nil {
+		t.Errorf("Expected depth-exceeded error")
+	}
+}
+
+func TestDecodeExceedsMaxNodes(t *testing.T) {
+	// Build a flat TLV with more than maxDecodeNodes primitive nodes.
+	count := maxDecodeNodes + 1
+	buf := make([]byte, 0, count*3)
+	for i := 0; i < count; i++ {
+		buf = append(buf, 0x01, 0x01, 0xFF) // tag=0x01, len=1, value=0xFF
+	}
+
+	_, err := Decode(buf)
+	if err == nil {
+		t.Errorf("Expected node-count-exceeded error")
+	}
+}
+
 func TestMustDecodeErrors(t *testing.T) {
 	// No need to check whether `recover()` is nil. Just turn off the panic.
 	defer func() { _ = recover() }()
