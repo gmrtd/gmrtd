@@ -706,7 +706,7 @@ func (pace *Pace) DoPACE() (result *document.PaceResult, err error) {
 		}
 		if paceConfig.mapping == CAM {
 			// flag 'Chip Authentication' for CAM
-			result.ChipAuthenticated = true
+			result.CamProtocolCompleted = true
 		}
 	case IM:
 		return result, fmt.Errorf("[DoPACE] PACE-IM NOT IMPLEMENTED")

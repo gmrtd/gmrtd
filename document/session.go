@@ -37,23 +37,29 @@ type Session struct {
 	ApduLog *iso7816.ApduLog `json:"apduLog,omitempty"`
 }
 
-// determines whether Chip Authentication has been performed based on PACE-CAM/CA/AA success (if applicable)
-func (session Session) ChipAuthenticated() bool {
-	var chipAuthStatus ChipAuthStatus = session.ChipAuthStatus()
+// ChipAuthProtocolCompleted reports whether a chip authentication protocol (PACE-CAM/CA/AA)
+// completed successfully. This reflects protocol outcome only — the public key used is
+// chip-supplied and unverified. Do NOT use as an anti-cloning verdict; use
+// VerifiedChipAuthStatus() which gates on passive authentication.
+func (session Session) ChipAuthProtocolCompleted() bool {
+	status := session.ChipAuthProtocolStatus()
 
-	// prefer explicit whitelisting of success
-	if chipAuthStatus == CHIP_AUTH_STATUS_AA ||
-		chipAuthStatus == CHIP_AUTH_STATUS_CA ||
-		chipAuthStatus == CHIP_AUTH_STATUS_PACE_CAM {
+	if status == CHIP_AUTH_STATUS_AA ||
+		status == CHIP_AUTH_STATUS_CA ||
+		status == CHIP_AUTH_STATUS_PACE_CAM {
 		return true
 	}
 
 	return false
 }
 
-func (session Session) ChipAuthStatus() (status ChipAuthStatus) {
+// ChipAuthProtocolStatus reports which chip authentication protocol completed successfully
+// (PACE-CAM, CA, or AA). This reflects protocol outcome only — the public key used is
+// chip-supplied and unverified. Do NOT use as an anti-cloning verdict; use
+// VerifiedChipAuthStatus() which gates on passive authentication.
+func (session Session) ChipAuthProtocolStatus() (status ChipAuthStatus) {
 	// PACE-CAM
-	if session.PaceResult != nil && session.PaceResult.Success && session.PaceResult.ChipAuthenticated {
+	if session.PaceResult != nil && session.PaceResult.Success && session.PaceResult.CamProtocolCompleted {
 		return CHIP_AUTH_STATUS_PACE_CAM
 	}
 
@@ -70,6 +76,28 @@ func (session Session) ChipAuthStatus() (status ChipAuthStatus) {
 	return CHIP_AUTH_STATUS_NONE
 }
 
+// VerifiedChipAuthStatus reports chip authentication status only when the corresponding
+// public key is bound to a CSCA-trusted passive authentication chain. Without this binding,
+// CA/AA/PACE-CAM only prove the chip holds the private key matching a key it supplied itself,
+// which a clone trivially satisfies with its own keypair.
+//
+// CA/AA: requires PassiveAuthResult.Success (SOD verified via CSCA, DG14/DG15 hashes match).
+// PACE-CAM: additionally requires CardSecurity verification (PassiveAuthResult.CardSec != nil).
+func (session Session) VerifiedChipAuthStatus() ChipAuthStatus {
+	if session.PassiveAuthResult == nil || !session.PassiveAuthResult.Success {
+		return CHIP_AUTH_STATUS_NONE
+	}
+
+	status := session.ChipAuthProtocolStatus()
+
+	// PACE-CAM key comes from CardSecurity — require it was independently verified
+	if status == CHIP_AUTH_STATUS_PACE_CAM && session.PassiveAuthResult.CardSec == nil {
+		return CHIP_AUTH_STATUS_NONE
+	}
+
+	return status
+}
+
 type ChipActivationRsp struct {
 	Atr []byte `json:"atr,omitempty"`
 	Ats []byte `json:"ats,omitempty"`
@@ -80,23 +108,23 @@ type BacResult struct {
 }
 
 type PaceResult struct {
-	Success           bool                  `json:"success"`
-	Oid               asn1.ObjectIdentifier `json:"oid"`
-	ParameterId       int                   `json:"parameterId"`
-	ChipAuthenticated bool                  `json:"chipAuthenticated"`
+	Success              bool                  `json:"success"`
+	Oid                  asn1.ObjectIdentifier `json:"oid"`
+	ParameterId          int                   `json:"parameterId"`
+	CamProtocolCompleted bool                  `json:"camProtocolCompleted"`
 }
 
 func (result PaceResult) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Success           bool   `json:"success"`
-		Oid               string `json:"oid"`
-		ParameterId       int    `json:"parameterId"`
-		ChipAuthenticated bool   `json:"chipAuthenticated"`
+		Success              bool   `json:"success"`
+		Oid                  string `json:"oid"`
+		ParameterId          int    `json:"parameterId"`
+		CamProtocolCompleted bool   `json:"camProtocolCompleted"`
 	}{
-		Success:           result.Success,
-		Oid:               result.Oid.String(),
-		ParameterId:       result.ParameterId,
-		ChipAuthenticated: result.ChipAuthenticated,
+		Success:              result.Success,
+		Oid:                  result.Oid.String(),
+		ParameterId:          result.ParameterId,
+		CamProtocolCompleted: result.CamProtocolCompleted,
 	})
 }
 

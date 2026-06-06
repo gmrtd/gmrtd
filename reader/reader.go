@@ -161,7 +161,7 @@ func (reader *Reader) ReadDocument(password *password.Password, atr []byte, ats 
 
 	// TODO - should get from summary...
 	reader.status.Status("Valid Document!")
-	slog.Info("** ReadDocument FINISHED **", "ChipAuthenticated", state.docEx.Session.ChipAuthenticated())
+	slog.Info("** ReadDocument FINISHED **", "ChipAuthProtocolCompleted", state.docEx.Session.ChipAuthProtocolCompleted())
 
 	return state.docEx, nil
 }
@@ -346,13 +346,13 @@ func performChipAuthentication(reader *Reader, state *ReaderState) error {
 	slog.Info("Chip Authentication (CA/AA)")
 	reader.status.Status("Chip Authentication (CA/AA)")
 
-	if !state.docEx.Session.ChipAuthenticated() {
+	if !state.docEx.Session.ChipAuthProtocolCompleted() {
 		// attempt chip-authentication (if supported)
 		// NB errors are just recorded at this point
 		state.docEx.Session.ChipAuthResult, state.docEx.Session.ChipAuthErr = chipauth.NewChipAuth(reader.nfc, &state.docEx.Document).DoChipAuth()
 	}
 
-	if !state.docEx.Session.ChipAuthenticated() {
+	if !state.docEx.Session.ChipAuthProtocolCompleted() {
 		// attempt active-authentication (if supported)
 		// NB errors are just recorded at this point
 		state.docEx.Session.ActiveAuthResult, state.docEx.Session.ActiveAuthErr = activeauth.NewActiveAuth(reader.nfc, &state.docEx.Document).DoActiveAuth()
@@ -383,7 +383,7 @@ func calculateDocumentSummary(_ *Reader, state *ReaderState) error {
 	state.docEx.Session.Summary = &document.DocumentSummary{
 		DataTrusted: state.docEx.Session.PassiveAuthResult != nil &&
 			state.docEx.Session.PassiveAuthResult.Success,
-		ChipAuthenticity: state.docEx.Session.ChipAuthStatus(),
+		ChipAuthenticity: state.docEx.Session.VerifiedChipAuthStatus(),
 		LdsVersion:       state.docEx.Document.LdsVersion(),
 		UnicodeVersion:   state.docEx.Document.UnicodeVersion(),
 	}
