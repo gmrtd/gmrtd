@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.32.10](https://github.com/gmrtd/gmrtd/compare/v0.32.9...v0.32.10) (2026-06-06)
+
+
+### Bug Fixes
+
+* **security:** gate chip authenticity verdict on passive authentication ([#350](https://github.com/gmrtd/gmrtd/issues/350)) ([002afb7](https://github.com/gmrtd/gmrtd/commit/002afb76df541ec33908163a04b3c9c988ab6bd2))
+
 ## [0.32.9](https://github.com/gmrtd/gmrtd/compare/v0.32.8...v0.32.9) (2026-06-06)
 
 
