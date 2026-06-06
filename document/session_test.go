@@ -7,22 +7,93 @@ import (
 	"github.com/gmrtd/gmrtd/oid"
 )
 
+func TestVerifiedChipAuthStatus(t *testing.T) {
+	testCases := []struct {
+		desc    string
+		session Session
+		exp     ChipAuthStatus
+	}{
+		{
+			desc:    "CA success + passive auth success",
+			session: Session{ChipAuthResult: &ChipAuthResult{Success: true}, PassiveAuthResult: &PassiveAuthResult{Success: true, Sod: NewPassiveAuth(nil)}},
+			exp:     CHIP_AUTH_STATUS_CA,
+		},
+		{
+			desc:    "CA success + passive auth fail",
+			session: Session{ChipAuthResult: &ChipAuthResult{Success: true}, PassiveAuthResult: &PassiveAuthResult{Success: false}},
+			exp:     CHIP_AUTH_STATUS_NONE,
+		},
+		{
+			desc:    "CA success + no passive auth",
+			session: Session{ChipAuthResult: &ChipAuthResult{Success: true}},
+			exp:     CHIP_AUTH_STATUS_NONE,
+		},
+		{
+			desc:    "AA success + passive auth success",
+			session: Session{ActiveAuthResult: &ActiveAuthResult{Success: true, Algorithm: oid.OidRsaEncryption}, PassiveAuthResult: &PassiveAuthResult{Success: true, Sod: NewPassiveAuth(nil)}},
+			exp:     CHIP_AUTH_STATUS_AA,
+		},
+		{
+			desc:    "AA success + passive auth fail",
+			session: Session{ActiveAuthResult: &ActiveAuthResult{Success: true, Algorithm: oid.OidRsaEncryption}, PassiveAuthResult: &PassiveAuthResult{Success: false}},
+			exp:     CHIP_AUTH_STATUS_NONE,
+		},
+		{
+			desc: "PACE-CAM success + passive auth success + CardSec verified",
+			session: Session{
+				PaceResult:        &PaceResult{Success: true, Oid: oid.OidPaceEcdhCamAesCbcCmac128, ParameterId: 13, CamProtocolCompleted: true},
+				PassiveAuthResult: &PassiveAuthResult{Success: true, Sod: NewPassiveAuth(nil), CardSec: NewPassiveAuth(nil)},
+			},
+			exp: CHIP_AUTH_STATUS_PACE_CAM,
+		},
+		{
+			desc: "PACE-CAM success + passive auth success + no CardSec",
+			session: Session{
+				PaceResult:        &PaceResult{Success: true, Oid: oid.OidPaceEcdhCamAesCbcCmac128, ParameterId: 13, CamProtocolCompleted: true},
+				PassiveAuthResult: &PassiveAuthResult{Success: true, Sod: NewPassiveAuth(nil)},
+			},
+			exp: CHIP_AUTH_STATUS_NONE,
+		},
+		{
+			desc: "PACE-CAM success + passive auth fail",
+			session: Session{
+				PaceResult:        &PaceResult{Success: true, Oid: oid.OidPaceEcdhCamAesCbcCmac128, ParameterId: 13, CamProtocolCompleted: true},
+				PassiveAuthResult: &PassiveAuthResult{Success: false},
+			},
+			exp: CHIP_AUTH_STATUS_NONE,
+		},
+		{
+			desc:    "no chip auth + passive auth success",
+			session: Session{PassiveAuthResult: &PassiveAuthResult{Success: true, Sod: NewPassiveAuth(nil)}},
+			exp:     CHIP_AUTH_STATUS_NONE,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			act := tc.session.VerifiedChipAuthStatus()
+			if tc.exp != act {
+				t.Errorf("VerifiedChipAuthStatus [Act] %d [Exp] %d", act, tc.exp)
+			}
+		})
+	}
+}
+
 func TestSession(t *testing.T) {
 	testCases := []struct {
-		session           Session
-		expChipAuthStatus ChipAuthStatus
+		session                   Session
+		expChipAuthProtocolStatus ChipAuthStatus
 	}{
 		{
 			// empty session
 			session:           Session{},
-			expChipAuthStatus: CHIP_AUTH_STATUS_NONE,
+			expChipAuthProtocolStatus: CHIP_AUTH_STATUS_NONE,
 		},
 		{
 			// BAC (success)
 			session: Session{BacResult: &BacResult{
 				Success: true},
 			},
-			expChipAuthStatus: CHIP_AUTH_STATUS_NONE,
+			expChipAuthProtocolStatus: CHIP_AUTH_STATUS_NONE,
 		},
 		{
 			// PACE (failure)
@@ -30,9 +101,9 @@ func TestSession(t *testing.T) {
 				Success:           true,
 				Oid:               oid.OidPaceEcdhGmAesCbcCmac256,
 				ParameterId:       13,
-				ChipAuthenticated: false},
+				CamProtocolCompleted: false},
 			},
-			expChipAuthStatus: CHIP_AUTH_STATUS_NONE,
+			expChipAuthProtocolStatus: CHIP_AUTH_STATUS_NONE,
 		},
 		{
 			// PACE (success)
@@ -40,9 +111,9 @@ func TestSession(t *testing.T) {
 				Success:           true,
 				Oid:               oid.OidPaceEcdhGmAesCbcCmac256,
 				ParameterId:       13,
-				ChipAuthenticated: false},
+				CamProtocolCompleted: false},
 			},
-			expChipAuthStatus: CHIP_AUTH_STATUS_NONE,
+			expChipAuthProtocolStatus: CHIP_AUTH_STATUS_NONE,
 		},
 		{
 			// PACE-CAM (failure)
@@ -50,9 +121,9 @@ func TestSession(t *testing.T) {
 				Success:           false,
 				Oid:               oid.OidPaceEcdhCamAesCbcCmac192,
 				ParameterId:       14,
-				ChipAuthenticated: true},
+				CamProtocolCompleted: true},
 			},
-			expChipAuthStatus: CHIP_AUTH_STATUS_NONE,
+			expChipAuthProtocolStatus: CHIP_AUTH_STATUS_NONE,
 		},
 		{
 			// PACE-CAM (success)
@@ -60,23 +131,23 @@ func TestSession(t *testing.T) {
 				Success:           true,
 				Oid:               oid.OidPaceEcdhCamAesCbcCmac192,
 				ParameterId:       14,
-				ChipAuthenticated: true},
+				CamProtocolCompleted: true},
 			},
-			expChipAuthStatus: CHIP_AUTH_STATUS_PACE_CAM,
+			expChipAuthProtocolStatus: CHIP_AUTH_STATUS_PACE_CAM,
 		},
 		{
 			// Chip-Auth (failure)
 			session: Session{ChipAuthResult: &ChipAuthResult{
 				Success: false},
 			},
-			expChipAuthStatus: CHIP_AUTH_STATUS_NONE,
+			expChipAuthProtocolStatus: CHIP_AUTH_STATUS_NONE,
 		},
 		{
 			// Chip-Auth (success)
 			session: Session{ChipAuthResult: &ChipAuthResult{
 				Success: true},
 			},
-			expChipAuthStatus: CHIP_AUTH_STATUS_CA,
+			expChipAuthProtocolStatus: CHIP_AUTH_STATUS_CA,
 		},
 		{
 			// Active-Auth (failure)
@@ -86,7 +157,7 @@ func TestSession(t *testing.T) {
 				Nonce:     []byte{0x12, 0x34, 0x56},
 				Signature: []byte{0xAB, 0xCD, 0xEF}},
 			},
-			expChipAuthStatus: CHIP_AUTH_STATUS_NONE,
+			expChipAuthProtocolStatus: CHIP_AUTH_STATUS_NONE,
 		},
 		{
 			// Active-Auth (success)
@@ -96,18 +167,18 @@ func TestSession(t *testing.T) {
 				Nonce:     []byte{0x12, 0x34, 0x56},
 				Signature: []byte{0xAB, 0xCD, 0xEF}},
 			},
-			expChipAuthStatus: CHIP_AUTH_STATUS_AA,
+			expChipAuthProtocolStatus: CHIP_AUTH_STATUS_AA,
 		},
 	}
 	for _, tc := range testCases {
-		actChipAuthStatus := tc.session.ChipAuthStatus()
-		if tc.expChipAuthStatus != actChipAuthStatus {
-			t.Errorf("Incorrect ChipAuthStatus [Act] %d [Exp] %d", actChipAuthStatus, tc.expChipAuthStatus)
+		actChipAuthStatus := tc.session.ChipAuthProtocolStatus()
+		if tc.expChipAuthProtocolStatus != actChipAuthStatus {
+			t.Errorf("Incorrect ChipAuthProtocolStatus [Act] %d [Exp] %d", actChipAuthStatus, tc.expChipAuthProtocolStatus)
 		}
 
-		if (tc.expChipAuthStatus == CHIP_AUTH_STATUS_NONE && tc.session.ChipAuthenticated()) ||
-			(tc.expChipAuthStatus != CHIP_AUTH_STATUS_NONE && !tc.session.ChipAuthenticated()) {
-			t.Errorf("ChipAuthenticated mismatch")
+		if (tc.expChipAuthProtocolStatus == CHIP_AUTH_STATUS_NONE && tc.session.ChipAuthProtocolCompleted()) ||
+			(tc.expChipAuthProtocolStatus != CHIP_AUTH_STATUS_NONE && !tc.session.ChipAuthProtocolCompleted()) {
+			t.Errorf("ChipAuthProtocolCompleted mismatch")
 		}
 	}
 }
@@ -123,8 +194,8 @@ func TestSessionJson(t *testing.T) {
 				Success:           true,
 				Oid:               oid.OidPaceEcdhGmAesCbcCmac256,
 				ParameterId:       13,
-				ChipAuthenticated: false},
-			expJson: "{\"success\":true,\"oid\":\"0.4.0.127.0.7.2.2.4.2.4\",\"parameterId\":13,\"chipAuthenticated\":false}",
+				CamProtocolCompleted: false},
+			expJson: "{\"success\":true,\"oid\":\"0.4.0.127.0.7.2.2.4.2.4\",\"parameterId\":13,\"camProtocolCompleted\":false}",
 		},
 		{
 			// Active-Auth (success)

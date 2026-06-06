@@ -392,7 +392,6 @@ func (chipAuth *ChipAuth) doGeneralAuthenticate(curve *elliptic.Curve, termKeypa
 }
 
 // performs Chip Authentication in ECDH mode
-// NB does NOT update doc.ChipAuthStatus, caller is expected to do this!
 // NB we currently implement the AES (2) APDU approach, which should also work for TDES
 //   - we also have special-case handling where we use MSE-SetKAT if the algorithm was inferred and the mode is 3DES-CBC
 func (chipAuth *ChipAuth) doCaEcdh(caInfo *document.ChipAuthenticationInfo, caAlgInfo *CaAlgorithmInfo, caPubKeyInfo *document.ChipAuthenticationPublicKeyInfo, algInferred bool) (err error) {

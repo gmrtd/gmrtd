@@ -320,7 +320,7 @@ func TestDoPace_GM_ECDH(t *testing.T) {
 	}
 
 	// verify Result is as expected
-	var expPaceResult *document.PaceResult = &document.PaceResult{Success: true, Oid: oid.OidPaceEcdhGmAesCbcCmac128, ParameterId: 13, ChipAuthenticated: false}
+	var expPaceResult *document.PaceResult = &document.PaceResult{Success: true, Oid: oid.OidPaceEcdhGmAesCbcCmac128, ParameterId: 13, CamProtocolCompleted: false}
 	if !reflect.DeepEqual(paceResult, expPaceResult) {
 		t.Errorf("Result differs to expected [Act] %+v [Exp] %+v", paceResult, expPaceResult)
 	}
@@ -482,7 +482,7 @@ func TestDoPace_GM_ECDH_TDES_CBC_NZ(t *testing.T) {
 	}
 
 	// verify Result is as expected
-	var expPaceResult *document.PaceResult = &document.PaceResult{Success: true, Oid: oid.OidPaceEcdhGm3DesCbcCbc, ParameterId: 13, ChipAuthenticated: false}
+	var expPaceResult *document.PaceResult = &document.PaceResult{Success: true, Oid: oid.OidPaceEcdhGm3DesCbcCbc, ParameterId: 13, CamProtocolCompleted: false}
 	if !reflect.DeepEqual(paceResult, expPaceResult) {
 		t.Errorf("Result differs to expected [Act] %+v [Exp] %+v", paceResult, expPaceResult)
 	}
@@ -582,7 +582,7 @@ func TestDoPace_CAM_ECDH_DE(t *testing.T) {
 	}
 
 	// verify Result is as expected
-	var expPaceResult *document.PaceResult = &document.PaceResult{Success: true, Oid: oid.OidPaceEcdhCamAesCbcCmac128, ParameterId: 13, ChipAuthenticated: true}
+	var expPaceResult *document.PaceResult = &document.PaceResult{Success: true, Oid: oid.OidPaceEcdhCamAesCbcCmac128, ParameterId: 13, CamProtocolCompleted: true}
 	if !reflect.DeepEqual(paceResult, expPaceResult) {
 		t.Errorf("Result differs to expected [Act] %+v [Exp] %+v", paceResult, expPaceResult)
 	}
