@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.32.8](https://github.com/gmrtd/gmrtd/compare/v0.32.7...v0.32.8) (2026-06-06)
+
+
+### Bug Fixes
+
+* **cms:** nil-deref panic in BySKI/ByIssuerCountry (fixes [#343](https://github.com/gmrtd/gmrtd/issues/343)) ([#344](https://github.com/gmrtd/gmrtd/issues/344)) ([1ba6f61](https://github.com/gmrtd/gmrtd/commit/1ba6f61e9a997cdb98437a30de6ecc68cd82029f))
+
 ## [0.32.7](https://github.com/gmrtd/gmrtd/compare/v0.32.6...v0.32.7) (2026-06-05)
 
 
