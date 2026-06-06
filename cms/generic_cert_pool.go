@@ -46,6 +46,9 @@ func (certPool *GenericCertPool) BySKI(ski []byte) []Certificate {
 			slog.Warn("SubjectKeyIdentifier error", "error", err)
 			continue
 		}
+		if tmpSki == nil {
+			continue
+		}
 
 		if bytes.Equal(*tmpSki, ski) {
 			slog.Debug("CertPool.BySki - found matching cert", "Idx", i, "SKI", utils.BytesToHex(ski))
@@ -85,7 +88,12 @@ func (certPool *GenericCertPool) ByIssuerCountry(countryAlpha2 string) []Certifi
 				continue
 			}
 
-			slog.Debug("CertPool.ByIssuerCountry - found matching cert", "Idx", i, "Country", countryAlpha2, "SKI", utils.BytesToHex(*sub))
+			var skiHex string
+			if sub != nil {
+				skiHex = utils.BytesToHex(*sub)
+			}
+
+			slog.Debug("CertPool.ByIssuerCountry - found matching cert", "Idx", i, "Country", countryAlpha2, "SKI", skiHex)
 			matchingCerts = append(matchingCerts, *cert)
 		}
 	}
