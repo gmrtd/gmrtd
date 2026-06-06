@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.32.9](https://github.com/gmrtd/gmrtd/compare/v0.32.8...v0.32.9) (2026-06-06)
+
+
+### Bug Fixes
+
+* **activeauth:** enforce minimum RSA modulus size (fixes [#346](https://github.com/gmrtd/gmrtd/issues/346)) ([#347](https://github.com/gmrtd/gmrtd/issues/347)) ([3d5a76a](https://github.com/gmrtd/gmrtd/commit/3d5a76abaf9628374a8d8c5359877a9ce6b13242))
+
 ## [0.32.8](https://github.com/gmrtd/gmrtd/compare/v0.32.7...v0.32.8) (2026-06-06)
 
 
