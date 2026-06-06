@@ -236,6 +236,14 @@ func ValidateActiveAuthSignature(dg15 *document.DG15, intAuthRspBytes, rndIfd []
 				return result, fmt.Errorf("(ValidateActiveAuthSignature) RsaPubKey error: %w", err)
 			}
 
+			modulusBits := pubKey.N.BitLen()
+			if modulusBits < 1024 {
+				return result, fmt.Errorf("(ValidateActiveAuthSignature) RSA modulus too small (%d bits, minimum 1024)", modulusBits)
+			}
+			if modulusBits < 2048 {
+				slog.Warn("ValidateActiveAuthSignature - RSA modulus below ICAO recommended minimum of 2048 bits", "bits", modulusBits)
+			}
+
 			// S = rapdu-data
 			s := intAuthRspBytes
 
