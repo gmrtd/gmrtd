@@ -501,8 +501,9 @@ func TestFormatKeyType_UnknownAlgorithm(t *testing.T) {
 
 type mockCertPool map[string][]cms.Certificate
 
-func (m mockCertPool) ByIssuerCountry(alpha2 string) []cms.Certificate { return m[alpha2] }
-func (m mockCertPool) BySKI(_ []byte) []cms.Certificate                 { return nil }
+func (m mockCertPool) ByIssuerCountry(alpha2 string) []cms.Certificate    { return m[alpha2] }
+func (m mockCertPool) BySKI(_ []byte) []cms.Certificate                   { return nil }
+func (m mockCertPool) ByIssuerAndSerial(_ []byte) ([]cms.Certificate, error) { return nil, nil }
 func (m mockCertPool) All() []cms.Certificate {
 	var all []cms.Certificate
 	for _, certs := range m {

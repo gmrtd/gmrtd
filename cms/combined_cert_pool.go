@@ -22,6 +22,21 @@ func (cp *CombinedCertPool) BySKI(ski []byte) []Certificate {
 	return out
 }
 
+// gets matching certificates by IssuerAndSerialNumber (RFC 5652 §5.3)
+func (cp *CombinedCertPool) ByIssuerAndSerial(raw []byte) ([]Certificate, error) {
+	var out []Certificate
+
+	for i := range cp.certPools {
+		tmpCerts, err := cp.certPools[i].ByIssuerAndSerial(raw)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, tmpCerts...)
+	}
+
+	return out, nil
+}
+
 // gets matching certificates by 'issuer' country
 func (cp *CombinedCertPool) ByIssuerCountry(countryAlpha2 string) []Certificate {
 	var out []Certificate

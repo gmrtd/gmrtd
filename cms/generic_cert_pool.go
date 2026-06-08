@@ -2,8 +2,10 @@ package cms
 
 import (
 	"bytes"
+	"encoding/asn1"
 	"fmt"
 	"log/slog"
+	"math/big"
 	"strings"
 
 	"github.com/gmrtd/gmrtd/oid"
@@ -61,6 +63,53 @@ func (certPool *GenericCertPool) BySKI(ski []byte) []Certificate {
 	}
 
 	return matchingCerts
+}
+
+// ByIssuerAndSerial matches certificates by IssuerAndSerialNumber (RFC 5652 §5.3).
+// Issuer comparison first tries exact byte match, then falls back to RDN set comparison
+// to handle real-world cases where issuers encode RDN attributes in different orderings.
+func (certPool *GenericCertPool) ByIssuerAndSerial(raw []byte) ([]Certificate, error) {
+	var ias struct {
+		Issuer       asn1.RawValue
+		SerialNumber *big.Int
+	}
+	if _, err := asn1.Unmarshal(raw, &ias); err != nil {
+		return nil, fmt.Errorf("unmarshal IssuerAndSerialNumber: %w", err)
+	}
+
+	sidIssuerRDN, err := ParseRDNSequence(ias.Issuer.FullBytes)
+	if err != nil {
+		return nil, fmt.Errorf("parse SID issuer RDN: %w", err)
+	}
+
+	var matchingCerts []Certificate
+
+	for i := range certPool.certificates {
+		cert := &certPool.certificates[i]
+		if cert.TbsCertificate.SerialNumber.Cmp(ias.SerialNumber) != 0 {
+			continue
+		}
+		if bytes.Equal(cert.TbsCertificate.Issuer.FullBytes, ias.Issuer.FullBytes) {
+			slog.Debug("CertPool.ByIssuerAndSerial - exact match", "Idx", i, "Serial", ias.SerialNumber)
+			matchingCerts = append(matchingCerts, *cert)
+			continue
+		}
+		certIssuerRDN, err := cert.TbsCertificate.IssuerRDN()
+		if err != nil {
+			slog.Warn("ByIssuerAndSerial: IssuerRDN error", "error", err)
+			continue
+		}
+		if sidIssuerRDN.Equal(*certIssuerRDN) {
+			slog.Debug("CertPool.ByIssuerAndSerial - RDN match (different encoding order)", "Idx", i, "Serial", ias.SerialNumber)
+			matchingCerts = append(matchingCerts, *cert)
+		}
+	}
+
+	if len(matchingCerts) < 1 {
+		slog.Debug("CertPool.ByIssuerAndSerial - NO matching certs found", "Serial", ias.SerialNumber)
+	}
+
+	return matchingCerts, nil
 }
 
 // gets matching certificates by 'issuer' country
