@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.32.11](https://github.com/gmrtd/gmrtd/compare/v0.32.10...v0.32.11) (2026-06-08)
+
+
+### Bug Fixes
+
+* **cms:** certificate selection fails when SI uses IssuerAndSerialNumber ([#353](https://github.com/gmrtd/gmrtd/issues/353)) ([cfd2102](https://github.com/gmrtd/gmrtd/commit/cfd2102c6d939f6a91b636a139240ac541d9ee23))
+
 ## [0.32.10](https://github.com/gmrtd/gmrtd/compare/v0.32.9...v0.32.10) (2026-06-06)
 
 
