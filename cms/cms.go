@@ -601,6 +601,45 @@ func (rdnSet RDNSequence) ByOID(oid asn1.ObjectIdentifier) []byte {
 	return []byte{}
 }
 
+// Equal compares two RDNSequences as unordered sets of (OID, Value) pairs,
+// handling the real-world case where issuers encode RDN attributes in different orderings.
+func (rdnSeq RDNSequence) Equal(other RDNSequence) bool {
+	aAttrs := rdnSeq.Flatten()
+	bAttrs := other.Flatten()
+
+	if len(aAttrs) != len(bAttrs) {
+		return false
+	}
+
+	matched := make([]bool, len(bAttrs))
+	for _, aa := range aAttrs {
+		found := false
+		for j, ba := range bAttrs {
+			if matched[j] {
+				continue
+			}
+			if aa.Type.Equal(ba.Type) && bytes.Equal(aa.Values.FullBytes, ba.Values.FullBytes) {
+				matched[j] = true
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}
+
+// Flatten returns all attributes across all RDN SETs as a single slice.
+func (rdnSeq RDNSequence) Flatten() []Attribute {
+	var out []Attribute
+	for _, set := range rdnSeq {
+		out = append(out, set...)
+	}
+	return out
+}
+
 func (cert TBSCertificate) IssuerRDN() (*RDNSequence, error) {
 	return ParseRDNSequence(cert.Issuer.FullBytes)
 }
@@ -903,7 +942,7 @@ func (si *SignerInfo) prepareVerificationData(config *CMSConfig, sd *SignedData)
 	return dataToHash, digestAlg, signatureAlg, signature, nil
 }
 
-// selectCertificate finds the appropriate certificate from the signed data
+// selectCertificate finds the appropriate certificate from the signed data by matching the SignerIdentifier (SID).
 func (si *SignerInfo) selectCertificate(sd *SignedData) (*Certificate, error) {
 	var sdCerts *GenericCertPool = &GenericCertPool{}
 
@@ -914,13 +953,18 @@ func (si *SignerInfo) selectCertificate(sd *SignedData) (*Certificate, error) {
 
 	var tmpCerts []Certificate
 
-	if sdCerts.Count() == 1 {
-		// if we only have 1 certificate in the signed-data then we'll just use that
-		tmpCerts = append(tmpCerts, sdCerts.certificates...)
-	} else if sdCerts.Count() > 1 {
-		// pick the certificate(s) if multiple exist
-		// TODO - should support other variants also (e.g. issuer+serialNumber).. sid is not always aki
+	switch {
+	case si.Sid.Tag == 0 && si.Sid.Class == asn1.ClassContextSpecific:
+		// SignerIdentifier: subjectKeyIdentifier [0] IMPLICIT
 		tmpCerts = sdCerts.BySKI(si.Sid.Bytes)
+	case si.Sid.Tag == asn1.TagSequence && si.Sid.Class == asn1.ClassUniversal:
+		// SignerIdentifier: issuerAndSerialNumber SEQUENCE
+		tmpCerts, err = sdCerts.ByIssuerAndSerial(si.Sid.FullBytes)
+		if err != nil {
+			return nil, fmt.Errorf("[selectCertificate] ByIssuerAndSerial error: %w", err)
+		}
+	default:
+		return nil, fmt.Errorf("[selectCertificate] unsupported SignerIdentifier (tag:%d, class:%d)", si.Sid.Tag, si.Sid.Class)
 	}
 
 	if len(tmpCerts) != 1 {
