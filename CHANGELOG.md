@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.34.0](https://github.com/gmrtd/gmrtd/compare/v0.33.0...v0.34.0) (2026-06-09)
+
+
+### Features
+
+* **cms:** display full Subject DN (RFC 4514) instead of CN in gmrtd-… ([#359](https://github.com/gmrtd/gmrtd/issues/359)) ([7b84cf3](https://github.com/gmrtd/gmrtd/commit/7b84cf3467b50b8605834c76a3fcfca8f76f684a))
+
 ## [0.33.0](https://github.com/gmrtd/gmrtd/compare/v0.32.11...v0.33.0) (2026-06-08)
 
 
