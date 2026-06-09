@@ -27,6 +27,7 @@ import (
 	"log/slog"
 	"math/big"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
@@ -638,6 +639,57 @@ func (rdnSeq RDNSequence) Flatten() []Attribute {
 		out = append(out, set...)
 	}
 	return out
+}
+
+var rdnShortNames = map[string]string{
+	oid.OidCountryName.String():            "C",
+	oid.OidStateOrProvinceName.String():    "ST",
+	oid.OidLocalityName.String():           "L",
+	oid.OidOrganizationName.String():       "O",
+	oid.OidOrganizationalUnitName.String(): "OU",
+	oid.OidCommonName.String():             "CN",
+	oid.OidSerialNumber.String():           "SERIALNUMBER",
+}
+
+// String returns the RDN sequence formatted as a comma-separated RFC 4514 string
+// in reverse order (most-specific first), e.g. "CN=Example, O=Example Corp, C=US".
+func (rdnSeq RDNSequence) String() string {
+	attrs := rdnSeq.Flatten()
+	if len(attrs) == 0 {
+		return ""
+	}
+
+	parts := make([]string, 0, len(attrs))
+	for i := len(attrs) - 1; i >= 0; i-- {
+		atv := attrs[i]
+		name, ok := rdnShortNames[atv.Type.String()]
+		if !ok {
+			name = atv.Type.String()
+		}
+		parts = append(parts, name+"="+rdnEscapeValue(string(atv.Values.Bytes)))
+	}
+	return strings.Join(parts, ", ")
+}
+
+func rdnEscapeValue(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for i, r := range s {
+		switch {
+		case r == ',' || r == '+' || r == '"' || r == '\\' || r == '<' || r == '>' || r == ';':
+			b.WriteByte('\\')
+			b.WriteRune(r)
+		case r == '#' && i == 0:
+			b.WriteByte('\\')
+			b.WriteRune(r)
+		case r == ' ' && (i == 0 || i == len(s)-1):
+			b.WriteByte('\\')
+			b.WriteRune(r)
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 func (cert TBSCertificate) IssuerRDN() (*RDNSequence, error) {

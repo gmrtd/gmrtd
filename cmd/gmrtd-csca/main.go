@@ -14,7 +14,6 @@ import (
 	"github.com/gmrtd/gmrtd/cryptoutils"
 	"github.com/gmrtd/gmrtd/internal/version"
 	"github.com/gmrtd/gmrtd/iso3166"
-	"github.com/gmrtd/gmrtd/oid"
 	"github.com/gmrtd/gmrtd/utils"
 )
 
@@ -178,16 +177,16 @@ func skiHex(cert *cms.Certificate) string {
 	return fmt.Sprintf("%X", []byte(*ski))
 }
 
-func subjectCN(cert *cms.Certificate) string {
+func subjectDN(cert *cms.Certificate) string {
 	rdn, err := cert.TbsCertificate.SubjectRDN()
 	if err != nil || rdn == nil {
 		return "?"
 	}
-	cn := rdn.ByOID(oid.OidCommonName)
-	if len(cn) == 0 {
+	s := rdn.String()
+	if s == "" {
 		return "?"
 	}
-	return string(cn)
+	return s
 }
 
 func run(pools []namedPool, countries []iso3166.Country, w io.Writer) {
@@ -225,7 +224,7 @@ func run(pools []namedPool, countries []iso3166.Country, w io.Writer) {
 		fmt.Fprintf(w, "  CSCA:\n")
 		{
 			tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-			fmt.Fprintln(tw, "    SKI\tVALID\tKEY\tSOURCES\tCN")
+			fmt.Fprintln(tw, "    SKI\tVALID\tKEY\tSOURCES\tSUBJECT")
 			for _, fp := range sortedFingerprints(cc.ByFingerprint) {
 				cr := cc.ByFingerprint[fp]
 				if !isLinkCert(cr.Cert) {
@@ -235,7 +234,7 @@ func run(pools []namedPool, countries []iso3166.Country, w io.Writer) {
 						formatValidity(cr.Cert.TbsCertificate.Validity),
 						formatKeyType(cr.Cert),
 						formatSources(cr.Sources),
-						subjectCN(cr.Cert),
+						subjectDN(cr.Cert),
 					)
 				}
 			}

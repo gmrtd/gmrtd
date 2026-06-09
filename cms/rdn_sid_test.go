@@ -14,7 +14,7 @@ func makeAttr(oidVal asn1.ObjectIdentifier, value string) Attribute {
 	valueBytes, _ := asn1.Marshal(value)
 	return Attribute{
 		Type:   oidVal,
-		Values: asn1.RawValue{FullBytes: valueBytes},
+		Values: asn1.RawValue{FullBytes: valueBytes, Tag: int(valueBytes[0]) & 0x1f, Bytes: []byte(value)},
 	}
 }
 
@@ -150,6 +150,100 @@ func TestRDNSequenceFlattenMultipleSets(t *testing.T) {
 	got := rdnSeq.Flatten()
 	if len(got) != 3 {
 		t.Fatalf("expected 3 attrs, got %d", len(got))
+	}
+}
+
+// ---------------------------------------------------------------------------
+// RDNSequence.String
+// ---------------------------------------------------------------------------
+
+func TestRDNSequenceStringEmpty(t *testing.T) {
+	t.Parallel()
+	rdnSeq := RDNSequence{}
+	if got := rdnSeq.String(); got != "" {
+		t.Fatalf("expected empty string, got %q", got)
+	}
+}
+
+func TestRDNSequenceStringSingleCN(t *testing.T) {
+	t.Parallel()
+	rdnSeq := RDNSequence{
+		RelativeDistinguishedNameSET{makeAttr(oid.OidCommonName, "csca-germany")},
+	}
+	expected := "CN=csca-germany"
+	if got := rdnSeq.String(); got != expected {
+		t.Fatalf("expected %q, got %q", expected, got)
+	}
+}
+
+func TestRDNSequenceStringMultipleAttrs(t *testing.T) {
+	t.Parallel()
+	rdnSeq := RDNSequence{
+		RelativeDistinguishedNameSET{makeAttr(oid.OidCountryName, "US")},
+		RelativeDistinguishedNameSET{makeAttr(oid.OidOrganizationName, "U.S. Government")},
+		RelativeDistinguishedNameSET{makeAttr(oid.OidOrganizationalUnitName, "Department of State")},
+		RelativeDistinguishedNameSET{makeAttr(oid.OidCommonName, "CSCA_US")},
+	}
+	expected := "CN=CSCA_US, OU=Department of State, O=U.S. Government, C=US"
+	if got := rdnSeq.String(); got != expected {
+		t.Fatalf("expected %q, got %q", expected, got)
+	}
+}
+
+func TestRDNSequenceStringAllKnownOIDs(t *testing.T) {
+	t.Parallel()
+	rdnSeq := RDNSequence{
+		RelativeDistinguishedNameSET{makeAttr(oid.OidCountryName, "DE")},
+		RelativeDistinguishedNameSET{makeAttr(oid.OidStateOrProvinceName, "Berlin")},
+		RelativeDistinguishedNameSET{makeAttr(oid.OidLocalityName, "Berlin")},
+		RelativeDistinguishedNameSET{makeAttr(oid.OidOrganizationName, "bund")},
+		RelativeDistinguishedNameSET{makeAttr(oid.OidOrganizationalUnitName, "bsi")},
+		RelativeDistinguishedNameSET{makeAttr(oid.OidSerialNumber, "001")},
+		RelativeDistinguishedNameSET{makeAttr(oid.OidCommonName, "csca-germany")},
+	}
+	expected := "CN=csca-germany, SERIALNUMBER=001, OU=bsi, O=bund, L=Berlin, ST=Berlin, C=DE"
+	if got := rdnSeq.String(); got != expected {
+		t.Fatalf("expected %q, got %q", expected, got)
+	}
+}
+
+func TestRDNSequenceStringUnknownOID(t *testing.T) {
+	t.Parallel()
+	unknownOID := asn1.ObjectIdentifier{1, 2, 3, 4, 5}
+	rdnSeq := RDNSequence{
+		RelativeDistinguishedNameSET{makeAttr(oid.OidCountryName, "FR")},
+		RelativeDistinguishedNameSET{makeAttr(unknownOID, "something")},
+	}
+	expected := "1.2.3.4.5=something, C=FR"
+	if got := rdnSeq.String(); got != expected {
+		t.Fatalf("expected %q, got %q", expected, got)
+	}
+}
+
+func TestRDNSequenceStringMultiValuedSET(t *testing.T) {
+	t.Parallel()
+	rdnSeq := RDNSequence{
+		RelativeDistinguishedNameSET{
+			makeAttr(oid.OidCountryName, "DE"),
+			makeAttr(oid.OidOrganizationName, "bund"),
+		},
+	}
+	expected := "O=bund, C=DE"
+	if got := rdnSeq.String(); got != expected {
+		t.Fatalf("expected %q, got %q", expected, got)
+	}
+}
+
+func TestRDNSequenceStringEscaping(t *testing.T) {
+	t.Parallel()
+	rdnSeq := RDNSequence{
+		RelativeDistinguishedNameSET{makeAttr(oid.OidCommonName, `val+with,special"chars`)},
+		RelativeDistinguishedNameSET{makeAttr(oid.OidOrganizationName, "#leading hash")},
+		RelativeDistinguishedNameSET{makeAttr(oid.OidOrganizationalUnitName, " spaces ")},
+	}
+	expected := `OU=\ spaces\ , O=\#leading hash, CN=val\+with\,special\"chars`
+	if got := rdnSeq.String(); got != expected {
+		t.Fatalf("expected %q, got %q", expected, got)
 	}
 }
 

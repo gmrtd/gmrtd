@@ -328,57 +328,83 @@ func TestSkiHex_NoSKI(t *testing.T) {
 	}
 }
 
-// --- subjectCN ---
+// --- subjectDN ---
 
-// buildSubjectWithCN encodes an RDNSequence containing a single commonName attribute.
-func buildSubjectWithCN(cn string) asn1.RawValue {
-	oidBytes, _ := asn1.Marshal(oid.OidCommonName)
-	valBytes, _ := asn1.Marshal(asn1.RawValue{Tag: asn1.TagUTF8String, Bytes: []byte(cn)})
-
-	attrContent := append(oidBytes, valBytes...)
-	attrSeq := append([]byte{0x30, byte(len(attrContent))}, attrContent...)
-	rdnSet := append([]byte{0x31, byte(len(attrSeq))}, attrSeq...)
-	rdnSeq := append([]byte{0x30, byte(len(rdnSet))}, rdnSet...)
-
+// buildSubjectRDN encodes an RDNSequence from a list of (OID, value) pairs.
+func buildSubjectRDN(attrs []struct {
+	oid   asn1.ObjectIdentifier
+	value string
+}) asn1.RawValue {
+	var rdnSets []byte
+	for _, attr := range attrs {
+		oidBytes, _ := asn1.Marshal(attr.oid)
+		valBytes, _ := asn1.Marshal(asn1.RawValue{Tag: asn1.TagUTF8String, Bytes: []byte(attr.value)})
+		attrContent := append(oidBytes, valBytes...)
+		attrSeq := append([]byte{0x30, byte(len(attrContent))}, attrContent...)
+		rdnSet := append([]byte{0x31, byte(len(attrSeq))}, attrSeq...)
+		rdnSets = append(rdnSets, rdnSet...)
+	}
+	rdnSeq := append([]byte{0x30, byte(len(rdnSets))}, rdnSets...)
 	return asn1.RawValue{FullBytes: rdnSeq}
 }
 
-func TestSubjectCN_WithCN(t *testing.T) {
+func TestSubjectDN_WithCN(t *testing.T) {
+	subject := buildSubjectRDN([]struct {
+		oid   asn1.ObjectIdentifier
+		value string
+	}{{oid.OidCommonName, "TestCert"}})
 	cert := cms.Certificate{
 		Raw: asn1.RawContent([]byte{1}),
 		TbsCertificate: cms.TBSCertificate{
-			Subject: buildSubjectWithCN("TestCert"),
+			Subject: subject,
 		},
 	}
-	if got := subjectCN(&cert); got != "TestCert" {
-		t.Errorf("expected TestCert, got %s", got)
+	if got := subjectDN(&cert); got != "CN=TestCert" {
+		t.Errorf("expected CN=TestCert, got %s", got)
 	}
 }
 
-func TestSubjectCN_EmptySubject(t *testing.T) {
+func TestSubjectDN_EmptySubject(t *testing.T) {
 	cert := buildCert([]byte{1}, []byte{0xAA}, nil)
-	if got := subjectCN(&cert); got != "?" {
+	if got := subjectDN(&cert); got != "?" {
 		t.Errorf("expected ?, got %s", got)
 	}
 }
 
-func TestSubjectCN_SubjectHasNoCN(t *testing.T) {
-	// Build subject with Organization but no CommonName.
-	orgOIDBytes, _ := asn1.Marshal(oid.OidOrganizationName)
-	valBytes, _ := asn1.Marshal(asn1.RawValue{Tag: asn1.TagUTF8String, Bytes: []byte("Acme")})
-	attrContent := append(orgOIDBytes, valBytes...)
-	attrSeq := append([]byte{0x30, byte(len(attrContent))}, attrContent...)
-	rdnSet := append([]byte{0x31, byte(len(attrSeq))}, attrSeq...)
-	rdnSeq := append([]byte{0x30, byte(len(rdnSet))}, rdnSet...)
-
+func TestSubjectDN_OrgOnly(t *testing.T) {
+	subject := buildSubjectRDN([]struct {
+		oid   asn1.ObjectIdentifier
+		value string
+	}{{oid.OidOrganizationName, "U.S. Department of State"}})
 	cert := cms.Certificate{
 		Raw: asn1.RawContent([]byte{1}),
 		TbsCertificate: cms.TBSCertificate{
-			Subject: asn1.RawValue{FullBytes: rdnSeq},
+			Subject: subject,
 		},
 	}
-	if got := subjectCN(&cert); got != "?" {
-		t.Errorf("expected ? when no CN present, got %s", got)
+	if got := subjectDN(&cert); got != "O=U.S. Department of State" {
+		t.Errorf("expected 'O=U.S. Department of State', got %s", got)
+	}
+}
+
+func TestSubjectDN_MultipleAttributes(t *testing.T) {
+	subject := buildSubjectRDN([]struct {
+		oid   asn1.ObjectIdentifier
+		value string
+	}{
+		{oid.OidCountryName, "US"},
+		{oid.OidOrganizationName, "U.S. Department of State"},
+		{oid.OidCommonName, "CSCA_US"},
+	})
+	cert := cms.Certificate{
+		Raw: asn1.RawContent([]byte{1}),
+		TbsCertificate: cms.TBSCertificate{
+			Subject: subject,
+		},
+	}
+	expected := "CN=CSCA_US, O=U.S. Department of State, C=US"
+	if got := subjectDN(&cert); got != expected {
+		t.Errorf("expected %s, got %s", expected, got)
 	}
 }
 
