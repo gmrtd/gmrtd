@@ -45,6 +45,8 @@ type LDSVersionInfo struct {
 	UnicodeVersion string `json:"unicodeVersion,omitempty"`
 }
 
+func (f *SOD) GetRawData() []byte { return f.RawData }
+
 func NewSOD(data []byte) (*SOD, error) {
 	var err error
 

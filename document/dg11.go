@@ -34,6 +34,8 @@ type DG11 struct {
 	Details PersonDetails `json:"personDetails,omitempty"`
 }
 
+func (f *DG11) GetRawData() []byte { return f.RawData }
+
 func NewDG11(data []byte) (*DG11, error) {
 	if len(data) < 1 {
 		return nil, nil

@@ -20,6 +20,8 @@ type COM struct {
 	TagList        []tlv.TlvTag `json:"tagList,omitempty"`
 }
 
+func (f *COM) GetRawData() []byte { return f.RawData }
+
 func NewCOM(data []byte) (*COM, error) {
 	if len(data) < 1 {
 		return nil, nil

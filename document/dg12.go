@@ -26,8 +26,10 @@ type DocumentDetails struct {
 
 type DG12 struct {
 	RawData []byte          `json:"rawData,omitempty"`
-	Details DocumentDetails `json:"details,omitempty"`
+	Details DocumentDetails `json:"details,omitempty"` // TODO - why just details? dg11 seems to have full name?
 }
+
+func (f *DG12) GetRawData() []byte { return f.RawData }
 
 func NewDG12(data []byte) (*DG12, error) {
 	if len(data) < 1 {

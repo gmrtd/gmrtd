@@ -14,6 +14,8 @@ type DG14 struct {
 	SecInfos *SecurityInfos `json:"securityInfos,omitempty"`
 }
 
+func (f *DG14) GetRawData() []byte { return f.RawData }
+
 func NewDG14(data []byte) (dg14 *DG14, err error) {
 	if len(data) < 1 {
 		return nil, nil

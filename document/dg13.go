@@ -14,6 +14,8 @@ type DG13 struct {
 	Content []byte `json:"content,omitempty"` // contents of the DG (ie within the 6D root tag)
 }
 
+func (f *DG13) GetRawData() []byte { return f.RawData }
+
 func NewDG13(data []byte) (out *DG13, err error) {
 	if len(data) < 1 {
 		return nil, nil
