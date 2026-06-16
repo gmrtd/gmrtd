@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.36.0](https://github.com/gmrtd/gmrtd/compare/v0.35.0...v0.36.0) (2026-06-16)
+
+
+### Features
+
+* **document:** add ToCbor/NewDocumentFromCbor for document export/import ([#365](https://github.com/gmrtd/gmrtd/issues/365)) ([369c129](https://github.com/gmrtd/gmrtd/commit/369c12929920601f93ca6a8cdf242127af8ebbb0))
+
 ## [0.35.0](https://github.com/gmrtd/gmrtd/compare/v0.34.0...v0.35.0) (2026-06-11)
 
 
