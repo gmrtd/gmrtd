@@ -25,6 +25,8 @@ type DG16 struct {
 	PersonsToNotify []PersonToNotify `json:"personsToNotify,omitempty"`
 }
 
+func (f *DG16) GetRawData() []byte { return f.RawData }
+
 func NewDG16(data []byte) (*DG16, error) {
 	slog.Debug("NewDG16")
 

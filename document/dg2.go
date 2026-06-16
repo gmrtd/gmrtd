@@ -69,6 +69,8 @@ type BiometricDataBlock struct {
 //					88: 0008
 //				5f2e:				** 5F2E or 7F2E
 
+func (f *DG2) GetRawData() []byte { return f.RawData }
+
 func NewDG2(data []byte) (*DG2, error) {
 	if len(data) < 1 {
 		return nil, nil

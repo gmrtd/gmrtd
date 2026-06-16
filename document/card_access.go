@@ -9,6 +9,8 @@ type CardAccess struct {
 	SecurityInfos *SecurityInfos `json:"securityInfos,omitempty"`
 }
 
+func (f *CardAccess) GetRawData() []byte { return f.RawData }
+
 func NewCardAccess(data []byte) (*CardAccess, error) {
 	var out CardAccess
 	var err error

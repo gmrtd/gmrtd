@@ -14,6 +14,8 @@ type DG15 struct {
 	SubjectPublicKeyInfoBytes []byte `json:"subjectPublicKeyInfoBytes,omitempty"`
 }
 
+func (f *DG15) GetRawData() []byte { return f.RawData }
+
 func NewDG15(data []byte) (*DG15, error) {
 	var err error
 

@@ -26,6 +26,8 @@ type DG7Image struct {
 // Note.— Data Element 02 (tag 5F43) SHALL be encoded as defined in [ISO/IEC 10918], using the JFIF option, or
 //		  [ISO/IEC 15444] using JPEG 2000 image coding system.
 
+func (f *DG7) GetRawData() []byte { return f.RawData }
+
 func NewDG7(data []byte) (*DG7, error) {
 	if len(data) < 1 {
 		return nil, nil

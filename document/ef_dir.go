@@ -16,6 +16,8 @@ type EFDIR struct {
 	Application []EfDirApplication `json:"application,omitempty"`
 }
 
+func (f *EFDIR) GetRawData() []byte { return f.RawData }
+
 func NewEFDIR(data []byte) (efDir *EFDIR, err error) {
 	if len(data) < 1 {
 		return nil, nil

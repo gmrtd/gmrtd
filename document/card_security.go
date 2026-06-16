@@ -16,6 +16,8 @@ type CardSecurity struct {
 	SecurityInfos *SecurityInfos  `json:"securityInfos,omitempty"`
 }
 
+func (f *CardSecurity) GetRawData() []byte { return f.RawData }
+
 func NewCardSecurity(data []byte) (out *CardSecurity, err error) {
 	if len(data) < 1 {
 		return nil, nil

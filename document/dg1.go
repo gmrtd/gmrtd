@@ -17,6 +17,8 @@ type DG1 struct {
 	Mrz     *mrz.MRZ  `json:"mrz,omitempty"`
 }
 
+func (f *DG1) GetRawData() []byte { return f.RawData }
+
 func NewDG1(data []byte) (dg1 *DG1, err error) {
 	if len(data) < 1 {
 		return nil, nil
