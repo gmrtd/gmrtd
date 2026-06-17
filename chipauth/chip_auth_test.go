@@ -703,6 +703,71 @@ func TestInferCAInfoFromKeyProtocol(t *testing.T) {
 	}
 }
 
+func TestSelectChipAuthParams(t *testing.T) {
+	testCases := []struct {
+		name    string
+		dg14hex string
+	}{
+		{
+			// resolveCAInfo fails: ChipAuthInfo has an OID under id-CA-ECDH that is not in the alg lookup
+			// OID 0.4.0.127.0.7.2.2.3.2.0 = 04 00 7F 00 07 02 02 03 02 00, version 1 = 02 01 01
+			name:    "resolveCAInfo error (invalid CA OID)",
+			dg14hex: "6E133111300F060A04007F00070202030200020101",
+		},
+		{
+			// selectCAPubKeyInfo fails: valid ChipAuthInfo (id-CA-ECDH-AES-CBC-CMAC-128) but no ChipAuthPubKeyInfo present
+			name:    "selectCAPubKeyInfo error (no matching public key)",
+			dg14hex: "6E133111300F060A04007F00070202030202020101",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			doc := &document.Document{}
+			err := doc.NewDG(14, utils.HexToBytes(tc.dg14hex))
+			if err != nil {
+				t.Fatalf("unexpected error setting up DG14: %s", err)
+			}
+
+			_, err = selectChipAuthParams(doc)
+			if err == nil {
+				t.Error("expected error but got nil")
+			}
+		})
+	}
+}
+
+func TestExecuteCA(t *testing.T) {
+	nfc := iso7816.NewNfcSession(&iso7816.StaticTransceiver{})
+	doc := &document.Document{}
+	chipAuth := NewChipAuth(nfc, doc)
+
+	t.Run("DH not supported", func(t *testing.T) {
+		params := &ChipAuthParams{
+			Info:    &document.ChipAuthenticationInfo{Protocol: oid.OidCaDh3DesCbcCbc},
+			AlgInfo: &CaAlgorithmInfo{targetOid: oid.OidPkDh},
+			PubKeyInfo: &document.ChipAuthenticationPublicKeyInfo{
+				Protocol: oid.OidPkDh,
+			},
+		}
+		err := chipAuth.executeCA(params)
+		if err == nil {
+			t.Error("expected error for DH key type")
+		}
+	})
+
+	t.Run("unknown key type", func(t *testing.T) {
+		params := &ChipAuthParams{
+			PubKeyInfo: &document.ChipAuthenticationPublicKeyInfo{
+				Protocol: oid.OidPk,
+			},
+		}
+		err := chipAuth.executeCA(params)
+		if err == nil {
+			t.Error("expected error for unknown key type")
+		}
+	})
+}
+
 func TestAlgInfo(t *testing.T) {
 	testCases := []struct {
 		protocol   asn1.ObjectIdentifier

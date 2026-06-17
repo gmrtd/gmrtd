@@ -29,6 +29,35 @@ func NewChipAuth(nfc *iso7816.NfcSession, doc *document.Document) *ChipAuth {
 	return &chipAuth
 }
 
+// ChipAuthParams holds the resolved CA parameters selected from the document.
+type ChipAuthParams struct {
+	Info        *document.ChipAuthenticationInfo
+	AlgInfo     *CaAlgorithmInfo
+	PubKeyInfo  *document.ChipAuthenticationPublicKeyInfo
+	AlgInferred bool
+}
+
+func selectChipAuthParams(doc *document.Document) (*ChipAuthParams, error) {
+	secInfos := doc.Mf.Lds1.Dg14.SecInfos
+
+	caInfo, caAlgInfo, algInferred, err := resolveCAInfo(secInfos)
+	if err != nil {
+		return nil, fmt.Errorf("[selectChipAuthParams] resolveCAInfo error: %w", err)
+	}
+
+	caPubKeyInfo, err := selectCAPubKeyInfo(caInfo, caAlgInfo, doc)
+	if err != nil {
+		return nil, fmt.Errorf("[selectChipAuthParams] selectCAPubKeyInfo error: %w", err)
+	}
+
+	return &ChipAuthParams{
+		Info:        caInfo,
+		AlgInfo:     caAlgInfo,
+		PubKeyInfo:  caPubKeyInfo,
+		AlgInferred: algInferred,
+	}, nil
+}
+
 func (chipAuth *ChipAuth) DoChipAuth() (result *document.ChipAuthResult, err error) {
 	if !caAdvertised(*chipAuth.document) {
 		slog.Debug("doChipAuth - skipping CA as not advertised")
@@ -39,27 +68,16 @@ func (chipAuth *ChipAuth) DoChipAuth() (result *document.ChipAuthResult, err err
 	// setup the result (but mark as !success)
 	result = &document.ChipAuthResult{Success: false}
 
-	var caInfo *document.ChipAuthenticationInfo
-	var caAlgInfo *CaAlgorithmInfo
-	var algInferred bool = false
-
-	caInfo, caAlgInfo, algInferred, err = resolveCAInfo((*chipAuth.document).Mf.Lds1.Dg14.SecInfos)
-	if err != nil {
-		return result, fmt.Errorf("[DoChipAuth] resolveCAInfo error: %w", err)
-	}
-
 	if (*chipAuth.nfcSession).SM() != nil {
 		slog.Debug("doChipAuth", "SM(pre)", (*chipAuth.nfcSession).SM().String())
 	}
 
-	var caPubKeyInfo *document.ChipAuthenticationPublicKeyInfo
-
-	caPubKeyInfo, err = selectCAPubKeyInfo(caInfo, caAlgInfo, *chipAuth.document)
+	params, err := selectChipAuthParams(*chipAuth.document)
 	if err != nil {
-		return result, fmt.Errorf("[DoChipAuth] selectCAPubKeyInfo error: %w", err)
+		return result, fmt.Errorf("[DoChipAuth] selectChipAuthParams error: %w", err)
 	}
 
-	err = chipAuth.executeCA(caInfo, caAlgInfo, caPubKeyInfo, algInferred)
+	err = chipAuth.executeCA(params)
 	if err != nil {
 		return result, fmt.Errorf("[DoChipAuth] executeCA error: %w", err)
 	}
@@ -119,28 +137,23 @@ func resolveCAInfo(secInfos *document.SecurityInfos) (
 	return nil, nil, false, fmt.Errorf("[resolveCAInfo] Unable to resolve caInfo/caAlgInfo")
 }
 
-func (chipAuth *ChipAuth) executeCA(
-	caInfo *document.ChipAuthenticationInfo,
-	caAlgInfo *CaAlgorithmInfo,
-	caPubKeyInfo *document.ChipAuthenticationPublicKeyInfo,
-	algInferred bool,
-) error {
+func (chipAuth *ChipAuth) executeCA(params *ChipAuthParams) error {
 	// process based on the type of key (DH/ECDH)
 	switch {
-	case caPubKeyInfo.Protocol.Equal(oid.OidPkDh):
+	case params.PubKeyInfo.Protocol.Equal(oid.OidPkDh):
 		// DH
-		return fmt.Errorf("[executeCA] DH not currently supported (Raw:%x)", caPubKeyInfo.Raw)
+		return fmt.Errorf("[executeCA] DH not currently supported (Raw:%x)", params.PubKeyInfo.Raw)
 
-	case caPubKeyInfo.Protocol.Equal(oid.OidPkEcdh):
+	case params.PubKeyInfo.Protocol.Equal(oid.OidPkEcdh):
 		// ECDH
-		err := chipAuth.doCaEcdh(caInfo, caAlgInfo, caPubKeyInfo, algInferred)
+		err := chipAuth.doCaEcdh(params)
 		if err != nil {
 			return fmt.Errorf("[executeCA] doCaEcdh error: %w", err)
 		}
 		return nil
 
 	default:
-		return fmt.Errorf("[executeCA] unsupported public key type (OID:%s)", caPubKeyInfo.Protocol.String())
+		return fmt.Errorf("[executeCA] unsupported public key type (OID:%s)", params.PubKeyInfo.Protocol.String())
 	}
 }
 
@@ -394,12 +407,12 @@ func (chipAuth *ChipAuth) doGeneralAuthenticate(curve *elliptic.Curve, termKeypa
 // performs Chip Authentication in ECDH mode
 // NB we currently implement the AES (2) APDU approach, which should also work for TDES
 //   - we also have special-case handling where we use MSE-SetKAT if the algorithm was inferred and the mode is 3DES-CBC
-func (chipAuth *ChipAuth) doCaEcdh(caInfo *document.ChipAuthenticationInfo, caAlgInfo *CaAlgorithmInfo, caPubKeyInfo *document.ChipAuthenticationPublicKeyInfo, algInferred bool) (err error) {
-	slog.Debug("doCaEcdh", "OID", caInfo.Protocol.String())
+func (chipAuth *ChipAuth) doCaEcdh(params *ChipAuthParams) (err error) {
+	slog.Debug("doCaEcdh", "OID", params.Info.Protocol.String())
 
 	var curve *elliptic.Curve
 	var chipPubKey *cryptoutils.EcPoint
-	curve, chipPubKey, err = caPubKeyInfo.ChipAuthenticationPublicKey.EcCurveAndPubKey(true)
+	curve, chipPubKey, err = params.PubKeyInfo.ChipAuthenticationPublicKey.EcCurveAndPubKey(true)
 	if err != nil {
 		return fmt.Errorf("[doCaEcdh] EcCurveAndPubKey error: %w", err)
 	}
@@ -411,24 +424,24 @@ func (chipAuth *ChipAuth) doCaEcdh(caInfo *document.ChipAuthenticationInfo, caAl
 
 	var ksEnc, ksMac []byte
 
-	slog.Debug("doCaEcdh", "algInferred", algInferred)
+	slog.Debug("doCaEcdh", "algInferred", params.AlgInferred)
 
-	if algInferred && caInfo.Protocol.Equal(oid.OidCaEcdh3DesCbcCbc) {
+	if params.AlgInferred && params.Info.Protocol.Equal(oid.OidCaEcdh3DesCbcCbc) {
 		/*
 		 * special handling for older passports - we'll use the lagacy MSE-SetKAT
 		 * if the algorithm was inferred and the mode is 3DES-CBC
 		 */
-		ksEnc, ksMac, err = chipAuth.doMseSetKAT(curve, termKeypair, caInfo, caAlgInfo, chipPubKey)
+		ksEnc, ksMac, err = chipAuth.doMseSetKAT(curve, termKeypair, params.Info, params.AlgInfo, chipPubKey)
 		if err != nil {
 			return fmt.Errorf("[doCaEcdh] doMseSetKAT error: %w", err)
 		}
 	} else {
-		err = chipAuth.doMseSetAT(caInfo)
+		err = chipAuth.doMseSetAT(params.Info)
 		if err != nil {
 			return fmt.Errorf("[doCaEcdh] doMseSetAT error: %w", err)
 		}
 
-		ksEnc, ksMac, err = chipAuth.doGeneralAuthenticate(curve, termKeypair, chipPubKey, caAlgInfo)
+		ksEnc, ksMac, err = chipAuth.doGeneralAuthenticate(curve, termKeypair, chipPubKey, params.AlgInfo)
 		if err != nil {
 			return fmt.Errorf("[doCaEcdh] doGeneralAuthenticate error: %w", err)
 		}
@@ -440,7 +453,7 @@ func (chipAuth *ChipAuth) doCaEcdh(caInfo *document.ChipAuthenticationInfo, caAl
 	{
 		var err error
 
-		sm, err := iso7816.NewSecureMessaging(caAlgInfo.cipherAlg, ksEnc, ksMac)
+		sm, err := iso7816.NewSecureMessaging(params.AlgInfo.cipherAlg, ksEnc, ksMac)
 		if err != nil {
 			return fmt.Errorf("[doCaEcdh] NewSecureMessaging error: %w", err)
 		}
