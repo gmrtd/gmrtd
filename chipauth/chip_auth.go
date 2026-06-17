@@ -284,7 +284,7 @@ func algInfo(oid asn1.ObjectIdentifier) (*CaAlgorithmInfo, error) {
 	return &out, nil
 }
 
-func (chipAuth *ChipAuth) doMseSetKAT(curve *elliptic.Curve, termKeypair cryptoutils.EcKeypair, caInfo *document.ChipAuthenticationInfo, caAlgInfo *CaAlgorithmInfo, chipPubKey *cryptoutils.EcPoint) (ksEnc []byte, ksMac []byte, err error) {
+func (chipAuth *ChipAuth) doMseSetKAT(curve *elliptic.Curve, termKeypair cryptoutils.EcKeypair, caInfo *document.ChipAuthenticationInfo) error {
 	// MSE:Set KAT
 	//
 	// INS: 0x22
@@ -306,25 +306,12 @@ func (chipAuth *ChipAuth) doMseSetKAT(curve *elliptic.Curve, termKeypair cryptou
 
 	// MSE:Set KAT (0x41A6: Set Key Agreement Template for computation)
 	// NB same as 'MseSetAT'
-	err = (*chipAuth.nfcSession).MseSetAT(0x41, 0xA6, nodes.Encode())
+	err := (*chipAuth.nfcSession).MseSetAT(0x41, 0xA6, nodes.Encode())
 	if err != nil {
-		return nil, nil, fmt.Errorf("[doMseSetKAT] MseSetAT error: %w", err)
+		return fmt.Errorf("[doMseSetKAT] MseSetAT error: %w", err)
 	}
 
-	// 3. Both the eMRTD chip and the terminal compute the following:
-	// a) The shared secret K = KA(SKIC, PKDH,IFD, DIC) = KA(SKDH,IFD, PKIC, DIC)
-	var k *cryptoutils.EcPoint = cryptoutils.DoEcDh(termKeypair.Pri, chipPubKey, *curve)
-
-	// NB secret is just based on 'x'
-	sharedSecret := k.X.Bytes()
-
-	// b) The session keys KSMAC = KDFMAC(K) and KSEnc = KDFEnc(K) derived from K for Secure Messaging.
-	ksEnc = cryptoutils.KDF(sharedSecret, cryptoutils.KDF_COUNTER_KSENC, caAlgInfo.cipherAlg, caAlgInfo.keySizeBits)
-	ksMac = cryptoutils.KDF(sharedSecret, cryptoutils.KDF_COUNTER_KSMAC, caAlgInfo.cipherAlg, caAlgInfo.keySizeBits)
-
-	slog.Debug("doMseSetKAT", "sharedSecret", utils.BytesToHex(sharedSecret), "ksEnc", utils.BytesToHex(ksEnc), "ksMac", utils.BytesToHex(ksMac))
-
-	return ksEnc, ksMac, err
+	return nil
 }
 
 func (chipAuth *ChipAuth) doMseSetAT(caInfo *document.ChipAuthenticationInfo) error {
@@ -354,7 +341,7 @@ func (chipAuth *ChipAuth) doMseSetAT(caInfo *document.ChipAuthenticationInfo) er
 	return err
 }
 
-func (chipAuth *ChipAuth) doGeneralAuthenticate(curve *elliptic.Curve, termKeypair cryptoutils.EcKeypair, chipPubKey *cryptoutils.EcPoint, caAlgInfo *CaAlgorithmInfo) (ksEnc []byte, ksMac []byte, err error) {
+func (chipAuth *ChipAuth) doGeneralAuthenticate(curve *elliptic.Curve, termKeypair cryptoutils.EcKeypair) error {
 	// General Authenticate
 	//
 	// INS: 0x86
@@ -368,10 +355,9 @@ func (chipAuth *ChipAuth) doGeneralAuthenticate(curve *elliptic.Curve, termKeypa
 
 	slog.Debug("doGeneralAuthenticate")
 
-	var rApduBytes []byte
-	rApduBytes, err = (*chipAuth.nfcSession).GeneralAuthenticate(false, encodeDynAuthData(0x80, cryptoutils.EncodeX962EcPoint(*curve, termKeypair.Pub)))
+	rApduBytes, err := (*chipAuth.nfcSession).GeneralAuthenticate(false, encodeDynAuthData(0x80, cryptoutils.EncodeX962EcPoint(*curve, termKeypair.Pub)))
 	if err != nil {
-		return nil, nil, fmt.Errorf("[doGeneralAuthenticate] GeneralAuthenticate error: %w", err)
+		return fmt.Errorf("[doGeneralAuthenticate] GeneralAuthenticate error: %w", err)
 	}
 
 	slog.Debug("doGeneralAuthenticate", "rApdu-bytes", utils.BytesToHex(rApduBytes))
@@ -380,28 +366,23 @@ func (chipAuth *ChipAuth) doGeneralAuthenticate(curve *elliptic.Curve, termKeypa
 	{
 		tmpNodes, err := tlv.Decode(rApduBytes)
 		if err != nil {
-			return nil, nil, fmt.Errorf("[doGeneralAuthenticate] tlv.Decode error: %w", err)
+			return fmt.Errorf("[doGeneralAuthenticate] tlv.Decode error: %w", err)
 		}
 		if !tmpNodes.NodeByTag(0x7C).IsValidNode() {
-			return nil, nil, fmt.Errorf("[doGeneralAuthenticate] missing 7C tag in response (rspBytes:%x)", rApduBytes)
+			return fmt.Errorf("[doGeneralAuthenticate] missing 7C tag in response (rspBytes:%x)", rApduBytes)
 		}
 	}
 
-	// 3. Both the eMRTD chip and the terminal compute the following:
-	// a) The shared secret K = KA(SKIC, PKDH,IFD, DIC) = KA(SKDH,IFD, PKIC, DIC)
-	var k *cryptoutils.EcPoint = cryptoutils.DoEcDh(termKeypair.Pri, chipPubKey, *curve)
+	return nil
+}
 
-	// NB secret is just based on 'x'
+func deriveSessionKeys(curve *elliptic.Curve, termKeypair cryptoutils.EcKeypair, chipPubKey *cryptoutils.EcPoint, caAlgInfo *CaAlgorithmInfo) (ksEnc []byte, ksMac []byte) {
+	k := cryptoutils.DoEcDh(termKeypair.Pri, chipPubKey, *curve)
 	sharedSecret := k.X.Bytes()
-
-	slog.Debug("doGeneralAuthenticate", "sharedSecret", utils.BytesToHex(sharedSecret))
-
-	// b) The session keys KSMAC = KDFMAC(K) and KSEnc = KDFEnc(K) derived from K for Secure Messaging.
 	ksEnc = cryptoutils.KDF(sharedSecret, cryptoutils.KDF_COUNTER_KSENC, caAlgInfo.cipherAlg, caAlgInfo.keySizeBits)
 	ksMac = cryptoutils.KDF(sharedSecret, cryptoutils.KDF_COUNTER_KSMAC, caAlgInfo.cipherAlg, caAlgInfo.keySizeBits)
-	slog.Debug("doGeneralAuthenticate", "ksEnc", utils.BytesToHex(ksEnc), "ksMac", utils.BytesToHex(ksMac))
-
-	return ksEnc, ksMac, err
+	slog.Debug("deriveSessionKeys", "sharedSecret", utils.BytesToHex(sharedSecret), "ksEnc", utils.BytesToHex(ksEnc), "ksMac", utils.BytesToHex(ksMac))
+	return ksEnc, ksMac
 }
 
 // performs Chip Authentication in ECDH mode
@@ -422,16 +403,10 @@ func (chipAuth *ChipAuth) doCaEcdh(params *ChipAuthParams) (err error) {
 	// generate ephemeral key
 	var termKeypair cryptoutils.EcKeypair = chipAuth.keyGeneratorEc(*curve)
 
-	var ksEnc, ksMac []byte
-
 	slog.Debug("doCaEcdh", "algInferred", params.AlgInferred)
 
 	if params.AlgInferred && params.Info.Protocol.Equal(oid.OidCaEcdh3DesCbcCbc) {
-		/*
-		 * special handling for older passports - we'll use the lagacy MSE-SetKAT
-		 * if the algorithm was inferred and the mode is 3DES-CBC
-		 */
-		ksEnc, ksMac, err = chipAuth.doMseSetKAT(curve, termKeypair, params.Info, params.AlgInfo, chipPubKey)
+		err = chipAuth.doMseSetKAT(curve, termKeypair, params.Info)
 		if err != nil {
 			return fmt.Errorf("[doCaEcdh] doMseSetKAT error: %w", err)
 		}
@@ -441,11 +416,13 @@ func (chipAuth *ChipAuth) doCaEcdh(params *ChipAuthParams) (err error) {
 			return fmt.Errorf("[doCaEcdh] doMseSetAT error: %w", err)
 		}
 
-		ksEnc, ksMac, err = chipAuth.doGeneralAuthenticate(curve, termKeypair, chipPubKey, params.AlgInfo)
+		err = chipAuth.doGeneralAuthenticate(curve, termKeypair)
 		if err != nil {
 			return fmt.Errorf("[doCaEcdh] doGeneralAuthenticate error: %w", err)
 		}
 	}
+
+	ksEnc, ksMac := deriveSessionKeys(curve, termKeypair, chipPubKey, params.AlgInfo)
 
 	// setup secure-messaging
 	// NB no need to set SSC for ChipAuth
