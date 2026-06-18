@@ -40,6 +40,7 @@ type NfcSession struct {
 	readFileMaxChunks    int
 	maxLe                int
 	apduLog              *ApduLog
+	lastApduLogEntry     *ApduLogEntry
 }
 
 func NewNfcSession(transceiver Transceiver) *NfcSession {
@@ -67,6 +68,10 @@ func (nfc *NfcSession) SetMaxLe(value int) {
 
 func (nfc *NfcSession) ApduLog() *ApduLog {
 	return nfc.apduLog
+}
+
+func (nfc *NfcSession) LastApdu() *ApduLogEntry {
+	return nfc.lastApduLogEntry
 }
 
 func (nfc *NfcSession) GetChallenge(length int) (out []byte, err error) {
@@ -395,6 +400,7 @@ func (nfc *NfcSession) DoAPDU(cApdu *CApdu, desc string) (rApdu *RApdu, err erro
 	}
 
 	// record the APDU log
+	nfc.lastApduLogEntry = apduLogEntry
 	nfc.apduLog.Add(apduLogEntry)
 	//	nfc.recordApduLog(*apduLog)
 
