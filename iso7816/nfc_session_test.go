@@ -749,6 +749,91 @@ func TestReadFileErrorLastFrame(t *testing.T) {
 	}
 }
 
+func TestLastApdu(t *testing.T) {
+	var nfc *NfcSession = NewNfcSession(&StaticTransceiver{utils.HexToBytes("9000")})
+
+	if nfc.LastApdu() != nil {
+		t.Fatalf("LastApdu should be nil before any APDU")
+	}
+
+	_, err := nfc.SelectEF(0x0101)
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+
+	lastApdu := nfc.LastApdu()
+	if lastApdu == nil {
+		t.Fatalf("LastApdu should not be nil after APDU")
+	}
+
+	expTx := utils.HexToBytes("00A4020C020101")
+	if !bytes.Equal(lastApdu.Tx, expTx) {
+		t.Errorf("LastApdu Tx differs (exp:%x, act:%x)", expTx, lastApdu.Tx)
+	}
+
+	expRx := utils.HexToBytes("9000")
+	if !bytes.Equal(lastApdu.Rx, expRx) {
+		t.Errorf("LastApdu Rx differs (exp:%x, act:%x)", expRx, lastApdu.Rx)
+	}
+
+	if lastApdu.Child != nil {
+		t.Errorf("LastApdu Child should be nil without SM")
+	}
+}
+
+func TestLastApduWithSM(t *testing.T) {
+	var transceiver *MockTransceiver = new(MockTransceiver)
+	transceiver.AddReqRsp("0CA4020C158709016375432908C044F68E08BF8B92D635FF24F800", "990290008E08FA855A5D4C50A8ED9000")
+
+	nfc := NewNfcSession(transceiver)
+
+	sm, err := NewSecureMessaging(cryptoutils.TDES, utils.HexToBytes("979EC13B1CBFE9DCD01AB0FED307EAE5"), utils.HexToBytes("F1CB1F1FB5ADF208806B89DC579DC1F8"))
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+	nfc.SetSecureMessaging(sm)
+	err = nfc.SM().SetSSC(utils.HexToBytes("887022120C06C226"))
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+
+	_, err = nfc.SelectEF(0x011e)
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+
+	lastApdu := nfc.LastApdu()
+	if lastApdu == nil {
+		t.Fatalf("LastApdu should not be nil")
+	}
+
+	// parent should have plaintext APDU
+	expPlaintextTx := utils.HexToBytes("00A4020C02011E")
+	if !bytes.Equal(lastApdu.Tx, expPlaintextTx) {
+		t.Errorf("LastApdu Tx (plaintext) differs (exp:%x, act:%x)", expPlaintextTx, lastApdu.Tx)
+	}
+
+	expPlaintextRx := utils.HexToBytes("9000")
+	if !bytes.Equal(lastApdu.Rx, expPlaintextRx) {
+		t.Errorf("LastApdu Rx (plaintext) differs (exp:%x, act:%x)", expPlaintextRx, lastApdu.Rx)
+	}
+
+	// child should have encrypted (SM) APDU
+	if lastApdu.Child == nil {
+		t.Fatalf("LastApdu Child should not be nil with SM")
+	}
+
+	expEncTx := utils.HexToBytes("0CA4020C158709016375432908C044F68E08BF8B92D635FF24F800")
+	if !bytes.Equal(lastApdu.Child.Tx, expEncTx) {
+		t.Errorf("LastApdu Child Tx (encrypted) differs (exp:%x, act:%x)", expEncTx, lastApdu.Child.Tx)
+	}
+
+	expEncRx := utils.HexToBytes("990290008E08FA855A5D4C50A8ED9000")
+	if !bytes.Equal(lastApdu.Child.Rx, expEncRx) {
+		t.Errorf("LastApdu Child Rx (encrypted) differs (exp:%x, act:%x)", expEncRx, lastApdu.Child.Rx)
+	}
+}
+
 // MockTransceiverHugeLength simulates evil chip sending TLV with gigantic length
 type MockTransceiverTooManyChunks struct {
 	chunkCnt int
