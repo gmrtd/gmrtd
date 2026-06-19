@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.37.0](https://github.com/gmrtd/gmrtd/compare/v0.36.0...v0.37.0) (2026-06-19)
+
+
+### Features
+
+* **activeauth:** capture AA evidence and add offline VerifyEvidence ([#372](https://github.com/gmrtd/gmrtd/issues/372)) ([8f8355e](https://github.com/gmrtd/gmrtd/commit/8f8355eb624d05b1c75249b524f6b8b3a3cd8e34))
+* **chipauth:** capture CA evidence and add offline VerifyEvidence ([#370](https://github.com/gmrtd/gmrtd/issues/370)) ([83429f5](https://github.com/gmrtd/gmrtd/commit/83429f54d5991f29975960a8e83fddbb1ea81676))
+
 ## [0.36.0](https://github.com/gmrtd/gmrtd/compare/v0.35.0...v0.36.0) (2026-06-16)
 
 
