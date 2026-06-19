@@ -149,8 +149,23 @@ func (result ActiveAuthResult) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// ChipAuthEvidence holds the ephemeral terminal keypair and the SM-encrypted RAPDU from
+// the CA verification step. Together with the Document (which contains the chip's public
+// key in DG14), this is sufficient for independent cryptographic re-verification.
+//
+// The ephemeral terminal private key is safe to include: it is generated fresh for each
+// CA session and has no value afterwards — the terminal will use a new keypair on the next
+// session. Including it enables the verifier to re-derive the shared secret and session
+// keys, then verify the SM MAC on the RAPDU.
+type ChipAuthEvidence struct {
+	TermPri    []byte `json:"termPri,omitempty"`
+	TermPubKey []byte `json:"termPubKey,omitempty"`
+	SmRapdu    []byte `json:"smRapdu,omitempty"`
+}
+
 type ChipAuthResult struct {
-	Success bool `json:"success"`
+	Success  bool              `json:"success"`
+	Evidence *ChipAuthEvidence `json:"evidence,omitempty"`
 }
 
 type ChipAuthStatus int

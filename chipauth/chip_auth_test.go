@@ -289,10 +289,26 @@ func TestChipAuthAT(t *testing.T) {
 		t.Errorf("Unexpected error: %s", err)
 	}
 
-	// verify Result is as expected
-	var expResult *document.ChipAuthResult = &document.ChipAuthResult{Success: true}
+	var expResult *document.ChipAuthResult = &document.ChipAuthResult{
+		Success: true,
+		Evidence: &document.ChipAuthEvidence{
+			TermPri:    utils.HexToBytes("80EBAFC8A51BECD4D90BB640EE38C9FD5C12748D28AAA37096B98C4533C4F5F5"),
+			TermPubKey: utils.HexToBytes("044827C781BE1AC7A00B351214FD783AC76D99E831A6316C8FD6DE7BD96CFA31DA06B6B57BA380789729F4A028212A768C49BF5F97D98B1DB12BEEC1A1CD324FB2"),
+			SmRapdu:    utils.HexToBytes("990290008E0803C4B125B4218CEF9000"),
+		},
+	}
+
 	if !reflect.DeepEqual(result, expResult) {
-		t.Errorf("Result differs to expected [Act] %+v [Exp] %+v", result, expResult)
+		t.Fatalf("Result differs to expected")
+	}
+
+	// verify that evidence can be independently verified
+	verifyResult, err := VerifyEvidence(doc, result.Evidence)
+	if err != nil {
+		t.Errorf("VerifyEvidence unexpected error: %s", err)
+	}
+	if verifyResult == nil || !verifyResult.Success {
+		t.Errorf("VerifyEvidence expected success")
 	}
 
 	var smExp *iso7816.SecureMessaging
@@ -388,10 +404,26 @@ func TestChipAuthDE(t *testing.T) {
 		t.Errorf("Unexpected error: %s", err)
 	}
 
-	// verify Result is as expected
-	var expResult *document.ChipAuthResult = &document.ChipAuthResult{Success: true}
+	var expResult *document.ChipAuthResult = &document.ChipAuthResult{
+		Success: true,
+		Evidence: &document.ChipAuthEvidence{
+			TermPri:    utils.HexToBytes("84a5145885678ee9307c28c52736896267511203b7b8009c5fe27abcbaecdcaa"),
+			TermPubKey: utils.HexToBytes("04897fa47c895d35949a8db8f776a62d775bdf764a1aa1bdc2d8fc96cd5c2e80e39f631c67e84364dcf85f5c9f8ce79a752071896819a0d510cf9701652486817c"),
+			SmRapdu:    utils.HexToBytes("990290008e0829d0e1ebbb61be7a9000"),
+		},
+	}
+
 	if !reflect.DeepEqual(result, expResult) {
-		t.Errorf("Result differs to expected [Act] %+v [Exp] %+v", result, expResult)
+		t.Fatalf("Result differs to expected")
+	}
+
+	// verify that evidence can be independently verified
+	verifyResult, err := VerifyEvidence(doc, result.Evidence)
+	if err != nil {
+		t.Errorf("VerifyEvidence unexpected error: %s", err)
+	}
+	if verifyResult == nil || !verifyResult.Success {
+		t.Errorf("VerifyEvidence expected success")
 	}
 
 	var smExp *iso7816.SecureMessaging
@@ -487,10 +519,26 @@ func TestChipAuthMY(t *testing.T) {
 		t.Errorf("Unexpected error: %s", err)
 	}
 
-	// verify Result is as expected
-	var expResult *document.ChipAuthResult = &document.ChipAuthResult{Success: true}
+	var expResult *document.ChipAuthResult = &document.ChipAuthResult{
+		Success: true,
+		Evidence: &document.ChipAuthEvidence{
+			TermPri:    utils.HexToBytes("3a31f4e18418312fcb40f3efbe719182c046a9719e1ed8c376197aa9e8ed7465"),
+			TermPubKey: utils.HexToBytes("043da6d3b923689b96aa65d744f1bd1537fcf1f8a5dd9bc6b01d7b30fc1812645b510cb66bed899c67a802a7881313e4bca87055cde3cf615efdbadbb64bc32462"),
+			SmRapdu:    utils.HexToBytes("990290008e08c2bf01fddd1d599d9000"),
+		},
+	}
+
 	if !reflect.DeepEqual(result, expResult) {
-		t.Errorf("Result differs to expected [Act] %+v [Exp] %+v", result, expResult)
+		t.Fatalf("Result differs to expected")
+	}
+
+	// verify that evidence can be independently verified
+	verifyResult, err := VerifyEvidence(doc, result.Evidence)
+	if err != nil {
+		t.Errorf("VerifyEvidence unexpected error: %s", err)
+	}
+	if verifyResult == nil || !verifyResult.Success {
+		t.Errorf("VerifyEvidence expected success")
 	}
 
 	var smExp *iso7816.SecureMessaging
@@ -584,10 +632,26 @@ func TestChipAuthFR(t *testing.T) {
 		t.Errorf("Unexpected error: %s", err)
 	}
 
-	// verify Result is as expected
-	var expResult *document.ChipAuthResult = &document.ChipAuthResult{Success: true}
+	var expResult *document.ChipAuthResult = &document.ChipAuthResult{
+		Success: true,
+		Evidence: &document.ChipAuthEvidence{
+			TermPri:    utils.HexToBytes("d9c3b06a4dcb735351429403fcb56db520dc882512d775971f724d6112f96586"),
+			TermPubKey: utils.HexToBytes("04334f809c8842a4c9316c19e52a0d6ea0285996c40ff6db303cef72099198c8ad5d6b46e93482de899533d06eac54c289df5aa1436a846fb9154100c5322439ea"),
+			SmRapdu:    utils.HexToBytes("990290008e08420dea0a913418ae9000"),
+		},
+	}
+
 	if !reflect.DeepEqual(result, expResult) {
-		t.Errorf("Result differs to expected [Act] %+v [Exp] %+v", result, expResult)
+		t.Fatalf("Result differs to expected")
+	}
+
+	// verify that evidence can be independently verified
+	verifyResult, err := VerifyEvidence(&doc, result.Evidence)
+	if err != nil {
+		t.Errorf("VerifyEvidence unexpected error: %s", err)
+	}
+	if verifyResult == nil || !verifyResult.Success {
+		t.Errorf("VerifyEvidence expected success")
 	}
 
 	var smExp *iso7816.SecureMessaging
@@ -749,7 +813,7 @@ func TestExecuteCA(t *testing.T) {
 				Protocol: oid.OidPkDh,
 			},
 		}
-		err := chipAuth.executeCA(params)
+		_, err := chipAuth.executeCA(params)
 		if err == nil {
 			t.Error("expected error for DH key type")
 		}
@@ -761,9 +825,121 @@ func TestExecuteCA(t *testing.T) {
 				Protocol: oid.OidPk,
 			},
 		}
-		err := chipAuth.executeCA(params)
+		_, err := chipAuth.executeCA(params)
 		if err == nil {
 			t.Error("expected error for unknown key type")
+		}
+	})
+}
+
+func TestVerifyEvidence(t *testing.T) {
+	// use AT test data to construct valid evidence, then test various invalid inputs
+	dg14bytes := utils.HexToBytes("6E82017E3182017A300D060804007F0007020202020101300F060A04007F000702020302020201013012060A04007F0007020204020202010202010D30820142060904007F000702020102308201333081EC06072A8648CE3D02013081E0020101302C06072A8648CE3D0101022100A9FB57DBA1EEA9BC3E660A909D838D726E3BF623D52620282013481D1F6E5377304404207D5A0975FC2C3057EEF67530417AFFE7FB8055C126DC5C6CE94A4B44F330B5D9042026DC5C6CE94A4B44F330B5D9BBD77CBF958416295CF7E1CE6BCCDC18FF8C07B60441048BD2AEB9CB7E57CB2C4B482FFC81B7AFB9DE27E1E3BD23C23A4453BD9ACE3262547EF835C3DAC4FD97F8461A14611DC9C27745132DED8E545C1D54C72F046997022100A9FB57DBA1EEA9BC3E660A909D838D718C397AA3B561A6F7901E0E82974856A7020101034200041983917269AC877C0B61544C2C022000D2A5ABA723E2D80141E648B40911DC3459761F27480E4B57181A53D8FE1190EA86C939AC14363178CAFFC621F0F905C3")
+
+	doc := &document.Document{}
+	if err := doc.NewDG(14, dg14bytes); err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+
+	// valid evidence captured from AT test (SM RAPDU for Select EF DG14)
+	validEvidence := &document.ChipAuthEvidence{
+		TermPri:    utils.HexToBytes("80EBAFC8A51BECD4D90BB640EE38C9FD5C12748D28AAA37096B98C4533C4F5F5"),
+		TermPubKey: utils.HexToBytes("044827C781BE1AC7A00B351214FD783AC76D99E831A6316C8FD6DE7BD96CFA31DA06B6B57BA380789729F4A028212A768C49BF5F97D98B1DB12BEEC1A1CD324FB2"),
+		SmRapdu:    utils.HexToBytes("990290008E0803C4B125B4218CEF9000"),
+	}
+
+	t.Run("nil evidence", func(t *testing.T) {
+		_, err := VerifyEvidence(doc, nil)
+		if err == nil {
+			t.Error("expected error for nil evidence")
+		}
+	})
+
+	t.Run("empty TermPri", func(t *testing.T) {
+		e := &document.ChipAuthEvidence{
+			TermPri:    nil,
+			TermPubKey: validEvidence.TermPubKey,
+			SmRapdu:    validEvidence.SmRapdu,
+		}
+		_, err := VerifyEvidence(doc, e)
+		if err == nil {
+			t.Error("expected error for empty TermPri")
+		}
+	})
+
+	t.Run("empty SmRapdu", func(t *testing.T) {
+		e := &document.ChipAuthEvidence{
+			TermPri:    validEvidence.TermPri,
+			TermPubKey: validEvidence.TermPubKey,
+			SmRapdu:    nil,
+		}
+		_, err := VerifyEvidence(doc, e)
+		if err == nil {
+			t.Error("expected error for empty SmRapdu")
+		}
+	})
+
+	t.Run("oversized field", func(t *testing.T) {
+		e := &document.ChipAuthEvidence{
+			TermPri:    validEvidence.TermPri,
+			TermPubKey: validEvidence.TermPubKey,
+			SmRapdu:    make([]byte, maxEvidenceFieldLen+1),
+		}
+		_, err := VerifyEvidence(doc, e)
+		if err == nil {
+			t.Error("expected error for oversized SmRapdu")
+		}
+	})
+
+	t.Run("wrong private key", func(t *testing.T) {
+		e := &document.ChipAuthEvidence{
+			TermPri:    utils.HexToBytes("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"),
+			TermPubKey: validEvidence.TermPubKey,
+			SmRapdu:    validEvidence.SmRapdu,
+		}
+		_, err := VerifyEvidence(doc, e)
+		if err == nil {
+			t.Error("expected error for wrong private key")
+		}
+	})
+
+	t.Run("non-9000 status", func(t *testing.T) {
+		e := &document.ChipAuthEvidence{
+			TermPri:    validEvidence.TermPri,
+			TermPubKey: validEvidence.TermPubKey,
+			SmRapdu:    utils.HexToBytes("990269828E0870AD2E8835E91DEA6982"),
+		}
+		_, err := VerifyEvidence(doc, e)
+		if err == nil {
+			t.Error("expected error for non-9000 RAPDU status")
+		}
+	})
+
+	t.Run("corrupted SmRapdu", func(t *testing.T) {
+		corrupted := make([]byte, len(validEvidence.SmRapdu))
+		copy(corrupted, validEvidence.SmRapdu)
+		corrupted[len(corrupted)-3] ^= 0xFF
+		e := &document.ChipAuthEvidence{
+			TermPri:    validEvidence.TermPri,
+			TermPubKey: validEvidence.TermPubKey,
+			SmRapdu:    corrupted,
+		}
+		_, err := VerifyEvidence(doc, e)
+		if err == nil {
+			t.Error("expected error for corrupted SmRapdu")
+		}
+	})
+
+	t.Run("valid evidence", func(t *testing.T) {
+		result, err := VerifyEvidence(doc, validEvidence)
+		if err != nil {
+			t.Errorf("unexpected error: %s", err)
+		}
+		if result == nil || !result.Success {
+			t.Error("expected success")
+		}
+		if result.Evidence == nil {
+			t.Error("expected evidence in result")
 		}
 	})
 }

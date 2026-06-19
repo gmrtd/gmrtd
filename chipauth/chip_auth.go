@@ -2,10 +2,12 @@
 package chipauth
 
 import (
+	"bytes"
 	"crypto/elliptic"
 	"encoding/asn1"
 	"fmt"
 	"log/slog"
+	"math/big"
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
 	"github.com/gmrtd/gmrtd/document"
@@ -35,6 +37,12 @@ type ChipAuthParams struct {
 	AlgInfo     *CaAlgorithmInfo
 	PubKeyInfo  *document.ChipAuthenticationPublicKeyInfo
 	AlgInferred bool
+}
+
+type caEcdhEvidence struct {
+	termPri    []byte
+	termPubKey []byte
+	smRapdu    []byte
 }
 
 func selectChipAuthParams(doc *document.Document) (*ChipAuthParams, error) {
@@ -77,13 +85,21 @@ func (chipAuth *ChipAuth) DoChipAuth() (result *document.ChipAuthResult, err err
 		return result, fmt.Errorf("[DoChipAuth] selectChipAuthParams error: %w", err)
 	}
 
-	err = chipAuth.executeCA(params)
+	evidence, err := chipAuth.executeCA(params)
 	if err != nil {
 		return result, fmt.Errorf("[DoChipAuth] executeCA error: %w", err)
 	}
 
 	// update result to indicate success
 	result.Success = true
+
+	if evidence != nil {
+		result.Evidence = &document.ChipAuthEvidence{
+			TermPri:    evidence.termPri,
+			TermPubKey: evidence.termPubKey,
+			SmRapdu:    evidence.smRapdu,
+		}
+	}
 
 	if (*chipAuth.nfcSession).SM() != nil {
 		slog.Debug("doChipAuth", "SM(post)", (*chipAuth.nfcSession).SM().String())
@@ -137,23 +153,23 @@ func resolveCAInfo(secInfos *document.SecurityInfos) (
 	return nil, nil, false, fmt.Errorf("[resolveCAInfo] Unable to resolve caInfo/caAlgInfo")
 }
 
-func (chipAuth *ChipAuth) executeCA(params *ChipAuthParams) error {
+func (chipAuth *ChipAuth) executeCA(params *ChipAuthParams) (*caEcdhEvidence, error) {
 	// process based on the type of key (DH/ECDH)
 	switch {
 	case params.PubKeyInfo.Protocol.Equal(oid.OidPkDh):
 		// DH
-		return fmt.Errorf("[executeCA] DH not currently supported (Raw:%x)", params.PubKeyInfo.Raw)
+		return nil, fmt.Errorf("[executeCA] DH not currently supported (Raw:%x)", params.PubKeyInfo.Raw)
 
 	case params.PubKeyInfo.Protocol.Equal(oid.OidPkEcdh):
 		// ECDH
-		err := chipAuth.doCaEcdh(params)
+		evidence, err := chipAuth.doCaEcdh(params)
 		if err != nil {
-			return fmt.Errorf("[executeCA] doCaEcdh error: %w", err)
+			return nil, fmt.Errorf("[executeCA] doCaEcdh error: %w", err)
 		}
-		return nil
+		return evidence, nil
 
 	default:
-		return fmt.Errorf("[executeCA] unsupported public key type (OID:%s)", params.PubKeyInfo.Protocol.String())
+		return nil, fmt.Errorf("[executeCA] unsupported public key type (OID:%s)", params.PubKeyInfo.Protocol.String())
 	}
 }
 
@@ -388,14 +404,14 @@ func deriveSessionKeys(curve *elliptic.Curve, termKeypair cryptoutils.EcKeypair,
 // performs Chip Authentication in ECDH mode
 // NB we currently implement the AES (2) APDU approach, which should also work for TDES
 //   - we also have special-case handling where we use MSE-SetKAT if the algorithm was inferred and the mode is 3DES-CBC
-func (chipAuth *ChipAuth) doCaEcdh(params *ChipAuthParams) (err error) {
+func (chipAuth *ChipAuth) doCaEcdh(params *ChipAuthParams) (evidence *caEcdhEvidence, err error) {
 	slog.Debug("doCaEcdh", "OID", params.Info.Protocol.String())
 
 	var curve *elliptic.Curve
 	var chipPubKey *cryptoutils.EcPoint
 	curve, chipPubKey, err = params.PubKeyInfo.ChipAuthenticationPublicKey.EcCurveAndPubKey(true)
 	if err != nil {
-		return fmt.Errorf("[doCaEcdh] EcCurveAndPubKey error: %w", err)
+		return nil, fmt.Errorf("[doCaEcdh] EcCurveAndPubKey error: %w", err)
 	}
 
 	slog.Debug("doCaEcdh", "chipPubKey", chipPubKey.String())
@@ -403,22 +419,27 @@ func (chipAuth *ChipAuth) doCaEcdh(params *ChipAuthParams) (err error) {
 	// generate ephemeral key
 	var termKeypair cryptoutils.EcKeypair = chipAuth.keyGeneratorEc(*curve)
 
+	evidence = &caEcdhEvidence{
+		termPri:    bytes.Clone(termKeypair.Pri),
+		termPubKey: cryptoutils.EncodeX962EcPoint(*curve, termKeypair.Pub),
+	}
+
 	slog.Debug("doCaEcdh", "algInferred", params.AlgInferred)
 
 	if params.AlgInferred && params.Info.Protocol.Equal(oid.OidCaEcdh3DesCbcCbc) {
 		err = chipAuth.doMseSetKAT(curve, termKeypair, params.Info)
 		if err != nil {
-			return fmt.Errorf("[doCaEcdh] doMseSetKAT error: %w", err)
+			return nil, fmt.Errorf("[doCaEcdh] doMseSetKAT error: %w", err)
 		}
 	} else {
 		err = chipAuth.doMseSetAT(params.Info)
 		if err != nil {
-			return fmt.Errorf("[doCaEcdh] doMseSetAT error: %w", err)
+			return nil, fmt.Errorf("[doCaEcdh] doMseSetAT error: %w", err)
 		}
 
 		err = chipAuth.doGeneralAuthenticate(curve, termKeypair)
 		if err != nil {
-			return fmt.Errorf("[doCaEcdh] doGeneralAuthenticate error: %w", err)
+			return nil, fmt.Errorf("[doCaEcdh] doGeneralAuthenticate error: %w", err)
 		}
 	}
 
@@ -432,7 +453,7 @@ func (chipAuth *ChipAuth) doCaEcdh(params *ChipAuthParams) (err error) {
 
 		sm, err := iso7816.NewSecureMessaging(params.AlgInfo.cipherAlg, ksEnc, ksMac)
 		if err != nil {
-			return fmt.Errorf("[doCaEcdh] NewSecureMessaging error: %w", err)
+			return nil, fmt.Errorf("[doCaEcdh] NewSecureMessaging error: %w", err)
 		}
 		(*chipAuth.nfcSession).SetSecureMessaging(sm)
 	}
@@ -449,14 +470,110 @@ func (chipAuth *ChipAuth) doCaEcdh(params *ChipAuthParams) (err error) {
 
 		selected, err := (*chipAuth.nfcSession).SelectEF(MRTDFileIdDG14)
 		if err != nil {
-			return fmt.Errorf("[doCaEcdh] SelectEF(DG14) error: %w", err)
+			return nil, fmt.Errorf("[doCaEcdh] SelectEF(DG14) error: %w", err)
 		}
 		if !selected {
-			return fmt.Errorf("[doCaEcdh] unable to select DG14 after performing CA")
+			return nil, fmt.Errorf("[doCaEcdh] unable to select DG14 after performing CA")
 		}
 	}
 
-	return nil
+	// capture the SM-encrypted RAPDU from the verification SelectEF
+	lastApdu := (*chipAuth.nfcSession).LastApdu()
+	if lastApdu != nil && lastApdu.Child != nil {
+		evidence.smRapdu = bytes.Clone(lastApdu.Child.Rx)
+	}
+
+	return evidence, nil
+}
+
+// VerifyEvidence independently verifies Chip Authentication evidence without a live
+// NFC session. It requires only the Document (which supplies the chip's EC public key
+// from DG14 via selectChipAuthParams) and the evidence captured during the original
+// CA session (ephemeral terminal keypair + SM-encrypted RAPDU).
+//
+// Verification steps:
+//  1. Resolve CA parameters from the Document (algorithm, chip public key, curve).
+//  2. Reconstruct the terminal keypair from the evidence.
+//  3. Re-derive the shared secret and session keys (ksEnc, ksMac) via ECDH + KDF.
+//  4. Verify the SM MAC on the captured RAPDU using ksMac.
+//  5. Confirm the decrypted RAPDU status is 9000 (success).
+//
+// A successful result proves the chip held the private key matching the public
+// key in DG14 during the original session. However, this alone does not prove
+// the chip is genuine — a clone could generate its own keypair and produce valid
+// evidence against it. Callers must also verify the Document via Passive
+// Authentication to confirm that DG14 (and hence the chip's public key) is
+// bound to a trusted CSCA chain. Only the combination of successful evidence
+// verification and Passive Authentication constitutes an anti-cloning verdict.
+//
+// This function does not perform replay detection. Applications should implement
+// their own checks (e.g. tracking previously seen evidence) to prevent a valid
+// evidence payload from being submitted more than once.
+const maxEvidenceFieldLen = 1024
+
+func VerifyEvidence(doc *document.Document, evidence *document.ChipAuthEvidence) (*document.ChipAuthResult, error) {
+	if evidence == nil {
+		return nil, fmt.Errorf("[VerifyEvidence] evidence is nil")
+	}
+
+	if len(evidence.TermPri) == 0 || len(evidence.TermPubKey) == 0 || len(evidence.SmRapdu) == 0 {
+		return nil, fmt.Errorf("[VerifyEvidence] evidence has empty field(s)")
+	}
+
+	if len(evidence.TermPri) > maxEvidenceFieldLen ||
+		len(evidence.TermPubKey) > maxEvidenceFieldLen ||
+		len(evidence.SmRapdu) > maxEvidenceFieldLen {
+		return nil, fmt.Errorf("[VerifyEvidence] evidence field exceeds maximum length (%d)", maxEvidenceFieldLen)
+	}
+
+	params, err := selectChipAuthParams(doc)
+	if err != nil {
+		return nil, fmt.Errorf("[VerifyEvidence] selectChipAuthParams error: %w", err)
+	}
+
+	var curve *elliptic.Curve
+	var chipPubKey *cryptoutils.EcPoint
+	curve, chipPubKey, err = params.PubKeyInfo.ChipAuthenticationPublicKey.EcCurveAndPubKey(true)
+	if err != nil {
+		return nil, fmt.Errorf("[VerifyEvidence] EcCurveAndPubKey error: %w", err)
+	}
+
+	// reconstruct the terminal keypair from the evidence
+	termPub, err := cryptoutils.DecodeX962EcPoint(*curve, evidence.TermPubKey)
+	if err != nil {
+		return nil, fmt.Errorf("[VerifyEvidence] DecodeX962EcPoint error: %w", err)
+	}
+
+	termKeypair := cryptoutils.EcKeypair{
+		Pri: evidence.TermPri,
+		Pub: termPub,
+	}
+
+	ksEnc, ksMac := deriveSessionKeys(curve, termKeypair, chipPubKey, params.AlgInfo)
+
+	sm, err := iso7816.NewSecureMessaging(params.AlgInfo.cipherAlg, ksEnc, ksMac)
+	if err != nil {
+		return nil, fmt.Errorf("[VerifyEvidence] NewSecureMessaging error: %w", err)
+	}
+
+	// set SSC to 1 so that sm.Decode (which increments before use) verifies at SSC=2,
+	// matching the state during the original CA session (Encode incremented to 1, Decode to 2)
+	ssc := make([]byte, len(sm.SSC()))
+	new(big.Int).SetInt64(1).FillBytes(ssc)
+	if err = sm.SetSSC(ssc); err != nil {
+		return nil, fmt.Errorf("[VerifyEvidence] SetSSC error: %w", err)
+	}
+
+	rApdu, err := sm.Decode(evidence.SmRapdu)
+	if err != nil {
+		return nil, fmt.Errorf("[VerifyEvidence] SM MAC verification failed: %w", err)
+	}
+
+	if !rApdu.IsSuccess() {
+		return nil, fmt.Errorf("[VerifyEvidence] RAPDU status is not success (status:%04x)", rApdu.Status)
+	}
+
+	return &document.ChipAuthResult{Success: true, Evidence: evidence}, nil
 }
 
 // dynamic authentication data - (TLV) 7C <tag> <data>
