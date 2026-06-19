@@ -30,12 +30,12 @@ func TestVerifiedChipAuthStatus(t *testing.T) {
 		},
 		{
 			desc:    "AA success + passive auth success",
-			session: Session{ActiveAuthResult: &ActiveAuthResult{Success: true, Algorithm: oid.OidRsaEncryption}, PassiveAuthResult: &PassiveAuthResult{Success: true, Sod: NewPassiveAuth(nil)}},
+			session: Session{ActiveAuthResult: &ActiveAuthResult{Success: true, Evidence: &ActiveAuthEvidence{Algorithm: oid.OidRsaEncryption}}, PassiveAuthResult: &PassiveAuthResult{Success: true, Sod: NewPassiveAuth(nil)}},
 			exp:     CHIP_AUTH_STATUS_AA,
 		},
 		{
 			desc:    "AA success + passive auth fail",
-			session: Session{ActiveAuthResult: &ActiveAuthResult{Success: true, Algorithm: oid.OidRsaEncryption}, PassiveAuthResult: &PassiveAuthResult{Success: false}},
+			session: Session{ActiveAuthResult: &ActiveAuthResult{Success: true, Evidence: &ActiveAuthEvidence{Algorithm: oid.OidRsaEncryption}}, PassiveAuthResult: &PassiveAuthResult{Success: false}},
 			exp:     CHIP_AUTH_STATUS_NONE,
 		},
 		{
@@ -152,20 +152,22 @@ func TestSession(t *testing.T) {
 		{
 			// Active-Auth (failure)
 			session: Session{ActiveAuthResult: &ActiveAuthResult{
-				Success:   false,
-				Algorithm: oid.OidRsaEncryption,
-				Nonce:     []byte{0x12, 0x34, 0x56},
-				Signature: []byte{0xAB, 0xCD, 0xEF}},
+				Success: false,
+				Evidence: &ActiveAuthEvidence{
+					Algorithm: oid.OidRsaEncryption,
+					Nonce:     []byte{0x12, 0x34, 0x56},
+					Signature: []byte{0xAB, 0xCD, 0xEF}}},
 			},
 			expChipAuthProtocolStatus: CHIP_AUTH_STATUS_NONE,
 		},
 		{
 			// Active-Auth (success)
 			session: Session{ActiveAuthResult: &ActiveAuthResult{
-				Success:   true,
-				Algorithm: oid.OidRsaEncryption,
-				Nonce:     []byte{0x12, 0x34, 0x56},
-				Signature: []byte{0xAB, 0xCD, 0xEF}},
+				Success: true,
+				Evidence: &ActiveAuthEvidence{
+					Algorithm: oid.OidRsaEncryption,
+					Nonce:     []byte{0x12, 0x34, 0x56},
+					Signature: []byte{0xAB, 0xCD, 0xEF}}},
 			},
 			expChipAuthProtocolStatus: CHIP_AUTH_STATUS_AA,
 		},
@@ -198,13 +200,12 @@ func TestSessionJson(t *testing.T) {
 			expJson: "{\"success\":true,\"oid\":\"0.4.0.127.0.7.2.2.4.2.4\",\"parameterId\":13,\"camProtocolCompleted\":false}",
 		},
 		{
-			// Active-Auth (success)
-			object: &ActiveAuthResult{
-				Success:   true,
+			// Active-Auth Evidence
+			object: &ActiveAuthEvidence{
 				Algorithm: oid.OidRsaEncryption,
 				Nonce:     []byte{0x12, 0x34, 0x56},
 				Signature: []byte{0xAB, 0xCD, 0xEF}},
-			expJson: "{\"success\":true,\"algorithm\":\"1.2.840.113549.1.1.1\",\"nonce\":\"EjRW\",\"signature\":\"q83v\"}",
+			expJson: "{\"algorithm\":\"1.2.840.113549.1.1.1\",\"nonce\":\"EjRW\",\"signature\":\"q83v\"}",
 		},
 	}
 	for _, tc := range testCases {
