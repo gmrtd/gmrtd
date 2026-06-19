@@ -128,25 +128,27 @@ func (result PaceResult) MarshalJSON() ([]byte, error) {
 	})
 }
 
-type ActiveAuthResult struct {
-	Success   bool                  `json:"success"`
+type ActiveAuthEvidence struct {
 	Algorithm asn1.ObjectIdentifier `json:"algorithm"`
 	Nonce     []byte                `json:"nonce"`
 	Signature []byte                `json:"signature"`
 }
 
-func (result ActiveAuthResult) MarshalJSON() ([]byte, error) {
+func (evidence ActiveAuthEvidence) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Success   bool   `json:"success"`
 		Algorithm string `json:"algorithm"`
 		Nonce     []byte `json:"nonce"`
 		Signature []byte `json:"signature"`
 	}{
-		Success:   result.Success,
-		Algorithm: result.Algorithm.String(),
-		Nonce:     result.Nonce,
-		Signature: result.Signature,
+		Algorithm: evidence.Algorithm.String(),
+		Nonce:     evidence.Nonce,
+		Signature: evidence.Signature,
 	})
+}
+
+type ActiveAuthResult struct {
+	Success  bool                `json:"success"`
+	Evidence *ActiveAuthEvidence `json:"evidence,omitempty"`
 }
 
 // ChipAuthEvidence holds the ephemeral terminal keypair and the SM-encrypted RAPDU from

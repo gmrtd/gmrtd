@@ -105,7 +105,14 @@ func TestDoActiveAuth(t *testing.T) {
 	}
 
 	// verify Result is as expected
-	var expResult *document.ActiveAuthResult = &document.ActiveAuthResult{Success: true, Algorithm: oid.OidRsaEncryption, Nonce: utils.HexToBytes("96302b0f3d7e7864"), Signature: utils.HexToBytes("474256306840c0ab1b63c10e1c26bdfef4a0dd843920283cc4e6e70a60f2bd25dc7725f9677bc1cde66379dc28b38e8490f33afb2d10f9980c44c0bfc175d2b6684218f535c92fdd3e18db770a9ccbf91db3c7f0138e6d9e94b9bc8371761e3abed5e5e9b260279cfb238b58ae0d6a01da51c74c2a3ecd62c448bd9f20127f7384587287fa971204234e55b1a856c3e5aaaa620bb799a68fbae08ee132bb61683eba9b0b40dc1e54641cad975b16991cab50af82e3f3985afd19e7427a125f5b4b9878b12a5d2e01c7eedca3bb41c6fc05dccd818bce379d04b1f2f5d43487d3")}
+	var expResult *document.ActiveAuthResult = &document.ActiveAuthResult{
+		Success: true,
+		Evidence: &document.ActiveAuthEvidence{
+			Algorithm: oid.OidRsaEncryption,
+			Nonce:     utils.HexToBytes("96302b0f3d7e7864"),
+			Signature: utils.HexToBytes("474256306840c0ab1b63c10e1c26bdfef4a0dd843920283cc4e6e70a60f2bd25dc7725f9677bc1cde66379dc28b38e8490f33afb2d10f9980c44c0bfc175d2b6684218f535c92fdd3e18db770a9ccbf91db3c7f0138e6d9e94b9bc8371761e3abed5e5e9b260279cfb238b58ae0d6a01da51c74c2a3ecd62c448bd9f20127f7384587287fa971204234e55b1a856c3e5aaaa620bb799a68fbae08ee132bb61683eba9b0b40dc1e54641cad975b16991cab50af82e3f3985afd19e7427a125f5b4b9878b12a5d2e01c7eedca3bb41c6fc05dccd818bce379d04b1f2f5d43487d3"),
+		},
+	}
 	if !reflect.DeepEqual(result, expResult) {
 		t.Errorf("Result differs to expected [Act] %+v [Exp] %+v", result, expResult)
 	}
@@ -699,6 +706,112 @@ func TestValidateActiveAuthSignatureRsaEmptyAuthRspBytes(t *testing.T) {
 	if err == nil {
 		t.Fatalf("Expected error")
 	}
+}
+
+func TestVerifyEvidence(t *testing.T) {
+	var dg15bytes []byte = utils.HexToBytes("6F8201023081FF300D06092A864886F70D01010105000381ED003081E90281E100BB8F93F4DC95E205CDA17C6927AB1E365B13065D03CD12E0FCE95D96840529453202F56CC4C13F77CD062930C8BC89A2873B257045C286E601CF3C09323A53103314902804AA10A314628CE222206A8866946A36B442041BB54AC81E6855DD1D6E16101833D65A191C20AC8B33B8A1A32920F46043F8031CF2BC17417030865FC5BE5A39DEE423BCBA3CA8177168EB23CFE01BA43EC87711B1CFFF85DB46F300DD8AE317B50D543B573E119E23AF7070D0B2FED6A3B2313A5EC02A531AAED1741F4390D1013E2A0F081EAC5DC8B0A1B2C6BDB1206F08D30E3643E1E5BDF536110203010001")
+
+	doc := &document.Document{}
+	if err := doc.NewDG(15, dg15bytes); err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+
+	validEvidence := &document.ActiveAuthEvidence{
+		Algorithm: oid.OidRsaEncryption,
+		Nonce:     utils.HexToBytes("96302b0f3d7e7864"),
+		Signature: utils.HexToBytes("474256306840c0ab1b63c10e1c26bdfef4a0dd843920283cc4e6e70a60f2bd25dc7725f9677bc1cde66379dc28b38e8490f33afb2d10f9980c44c0bfc175d2b6684218f535c92fdd3e18db770a9ccbf91db3c7f0138e6d9e94b9bc8371761e3abed5e5e9b260279cfb238b58ae0d6a01da51c74c2a3ecd62c448bd9f20127f7384587287fa971204234e55b1a856c3e5aaaa620bb799a68fbae08ee132bb61683eba9b0b40dc1e54641cad975b16991cab50af82e3f3985afd19e7427a125f5b4b9878b12a5d2e01c7eedca3bb41c6fc05dccd818bce379d04b1f2f5d43487d3"),
+	}
+
+	t.Run("nil evidence", func(t *testing.T) {
+		_, err := VerifyEvidence(doc, nil)
+		if err == nil {
+			t.Error("expected error for nil evidence")
+		}
+	})
+
+	t.Run("empty Algorithm", func(t *testing.T) {
+		e := &document.ActiveAuthEvidence{
+			Algorithm: nil,
+			Nonce:     validEvidence.Nonce,
+			Signature: validEvidence.Signature,
+		}
+		_, err := VerifyEvidence(doc, e)
+		if err == nil {
+			t.Error("expected error for empty Algorithm")
+		}
+	})
+
+	t.Run("empty Nonce", func(t *testing.T) {
+		e := &document.ActiveAuthEvidence{
+			Algorithm: validEvidence.Algorithm,
+			Nonce:     nil,
+			Signature: validEvidence.Signature,
+		}
+		_, err := VerifyEvidence(doc, e)
+		if err == nil {
+			t.Error("expected error for empty Nonce")
+		}
+	})
+
+	t.Run("empty Signature", func(t *testing.T) {
+		e := &document.ActiveAuthEvidence{
+			Algorithm: validEvidence.Algorithm,
+			Nonce:     validEvidence.Nonce,
+			Signature: nil,
+		}
+		_, err := VerifyEvidence(doc, e)
+		if err == nil {
+			t.Error("expected error for empty Signature")
+		}
+	})
+
+	t.Run("oversized field", func(t *testing.T) {
+		e := &document.ActiveAuthEvidence{
+			Algorithm: validEvidence.Algorithm,
+			Nonce:     validEvidence.Nonce,
+			Signature: make([]byte, maxEvidenceFieldLen+1),
+		}
+		_, err := VerifyEvidence(doc, e)
+		if err == nil {
+			t.Error("expected error for oversized Signature")
+		}
+	})
+
+	t.Run("nil DG15", func(t *testing.T) {
+		emptyDoc := &document.Document{}
+		_, err := VerifyEvidence(emptyDoc, validEvidence)
+		if err == nil {
+			t.Error("expected error for nil DG15")
+		}
+	})
+
+	t.Run("wrong signature", func(t *testing.T) {
+		corrupted := make([]byte, len(validEvidence.Signature))
+		copy(corrupted, validEvidence.Signature)
+		corrupted[0] ^= 0xFF
+		e := &document.ActiveAuthEvidence{
+			Algorithm: validEvidence.Algorithm,
+			Nonce:     validEvidence.Nonce,
+			Signature: corrupted,
+		}
+		_, err := VerifyEvidence(doc, e)
+		if err == nil {
+			t.Error("expected error for wrong signature")
+		}
+	})
+
+	t.Run("valid evidence", func(t *testing.T) {
+		result, err := VerifyEvidence(doc, validEvidence)
+		if err != nil {
+			t.Errorf("unexpected error: %s", err)
+		}
+		if result == nil || !result.Success {
+			t.Error("expected success")
+		}
+		if result.Evidence == nil {
+			t.Error("expected evidence in result")
+		}
+	})
 }
 
 func TestEcdsaSignatureIsWellFormed(t *testing.T) {

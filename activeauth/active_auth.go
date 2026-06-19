@@ -224,7 +224,14 @@ func ValidateActiveAuthSignature(dg15 *document.DG15, intAuthRspBytes, rndIfd []
 	}
 
 	// setup result - but set success to FALSE (initially)
-	result = &document.ActiveAuthResult{Success: false, Algorithm: subPubKeyInfo.Algorithm.Algorithm, Nonce: bytes.Clone(rndIfd), Signature: bytes.Clone(intAuthRspBytes)}
+	result = &document.ActiveAuthResult{
+		Success: false,
+		Evidence: &document.ActiveAuthEvidence{
+			Algorithm: subPubKeyInfo.Algorithm.Algorithm,
+			Nonce:     bytes.Clone(rndIfd),
+			Signature: bytes.Clone(intAuthRspBytes),
+		},
+	}
 
 	switch subPubKeyInfo.Algorithm.Algorithm.String() {
 	case oid.OidRsaEncryption.String():
@@ -345,4 +352,37 @@ func ValidateActiveAuthSignature(dg15 *document.DG15, intAuthRspBytes, rndIfd []
 	result.Success = true
 
 	return result, err
+}
+
+const maxEvidenceFieldLen = 4096
+
+// VerifyEvidence independently verifies Active Authentication evidence without a live
+// NFC session. It requires only the Document (which supplies the AA public key from DG15)
+// and the evidence captured during the original AA session (algorithm, nonce, signature).
+//
+// Verification re-executes the signature validation using the public key from DG15 and
+// the nonce/signature pair from the evidence.
+//
+// A successful result proves the chip held the private key matching the public key in DG15
+// during the original session. However, this alone does not prove the chip is genuine — a
+// clone could generate its own keypair. Callers must also verify the Document via Passive
+// Authentication to confirm that DG15 is bound to a trusted CSCA chain.
+func VerifyEvidence(doc *document.Document, evidence *document.ActiveAuthEvidence) (*document.ActiveAuthResult, error) {
+	if evidence == nil {
+		return nil, fmt.Errorf("[VerifyEvidence] evidence is nil")
+	}
+
+	if len(evidence.Algorithm) == 0 || len(evidence.Nonce) == 0 || len(evidence.Signature) == 0 {
+		return nil, fmt.Errorf("[VerifyEvidence] evidence has empty field(s)")
+	}
+
+	if len(evidence.Nonce) > maxEvidenceFieldLen || len(evidence.Signature) > maxEvidenceFieldLen {
+		return nil, fmt.Errorf("[VerifyEvidence] evidence field exceeds maximum length (%d)", maxEvidenceFieldLen)
+	}
+
+	if doc.Mf.Lds1.Dg15 == nil {
+		return nil, fmt.Errorf("[VerifyEvidence] DG15 is nil")
+	}
+
+	return ValidateActiveAuthSignature(doc.Mf.Lds1.Dg15, evidence.Signature, evidence.Nonce)
 }
