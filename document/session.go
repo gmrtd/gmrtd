@@ -128,6 +128,18 @@ func (result PaceResult) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// ActiveAuthEvidence holds the challenge nonce and the chip's signature over it from
+// the AA protocol. Together with the Document (which contains the chip's public key
+// in DG15), this is sufficient for independent cryptographic re-verification.
+//
+// A successful re-verification only proves the chip holds the private key matching
+// the DG15 public key — it must be paired with a positive passive authentication
+// result to confirm the key is bound to a CSCA-trusted chain.
+//
+// The nonce is generated fresh by the terminal for each AA session — it serves as a
+// challenge to prove the chip holds the private key matching the DG15 public key.
+// Including it enables the verifier to re-check the signature against the public key
+// and the original challenge.
 type ActiveAuthEvidence struct {
 	Algorithm asn1.ObjectIdentifier `json:"algorithm"`
 	Nonce     []byte                `json:"nonce"`
@@ -154,6 +166,10 @@ type ActiveAuthResult struct {
 // ChipAuthEvidence holds the ephemeral terminal keypair and the SM-encrypted RAPDU from
 // the CA verification step. Together with the Document (which contains the chip's public
 // key in DG14), this is sufficient for independent cryptographic re-verification.
+//
+// A successful re-verification only proves the chip holds the private key matching
+// the DG14 public key — it must be paired with a positive passive authentication
+// result to confirm the key is bound to a CSCA-trusted chain.
 //
 // The ephemeral terminal private key is safe to include: it is generated fresh for each
 // CA session and has no value afterwards — the terminal will use a new keypair on the next
