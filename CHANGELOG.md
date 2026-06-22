@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.37.1](https://github.com/gmrtd/gmrtd/compare/v0.37.0...v0.37.1) (2026-06-22)
+
+
+### Bug Fixes
+
+* **mobile:** Add Android 16 KB page-size compatible AAR ([#373](https://github.com/gmrtd/gmrtd/issues/373)) ([708ae22](https://github.com/gmrtd/gmrtd/commit/708ae22eff863721419183117493d91b2068aae7))
+
 ## [0.37.0](https://github.com/gmrtd/gmrtd/compare/v0.36.0...v0.37.0) (2026-06-19)
 
 
