@@ -171,6 +171,14 @@ Together these cover **121 countries**. These defaults can be replaced, extended
 - Transports: PC/SC, Core NFC, Android NFC, custom APDU transceivers
 - Platforms: Desktop, mobile, embedded
 
+## Android AAR Artifacts
+Release assets include two Android AARs:
+
+- `gmrtd.aar`: legacy/full ABI artifact for `armeabi-v7a`, `arm64-v8a`, and `x86_64`.
+- `gmrtd-android-16kb.aar`: 16 KB page-size compatible artifact for `arm64-v8a` and `x86_64`.
+
+Use `gmrtd-android-16kb.aar` for apps that need Android 16 KB page-size compatibility. Use `gmrtd.aar` if your app still needs 32-bit Android support.
+
 # 📚 Specifications
 - [ICAO Doc 9303 — Machine Readable Travel Documents](https://www.icao.int/publications/pages/publication.aspx?docnum=9303)
 - [ISO/IEC 7816-4 — Smart card command interface](https://www.iso.org/obp/ui/#iso:std:iso-iec:7816:-4)

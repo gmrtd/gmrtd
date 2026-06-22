@@ -16,6 +16,7 @@ ANDROID_OUT         ?= dist/android
 TEST_OUT            ?= dist/test
 IOS_NAME            ?= Gmrtd
 AAR_NAME            ?= gmrtd.aar
+AAR_16KB_NAME       ?= gmrtd-android-16kb.aar
 
 # -------- Toolchain / Versions --------
 MIN_IOS             ?= 13.0
@@ -36,7 +37,7 @@ export IPHONEOS_DEPLOYMENT_TARGET ?= $(MIN_IOS)
 
 # -------- Phonies --------
 .PHONY: all clean tools lint-tools gomobile-init verify-env \
-        ios android release checksums \
+        ios android android-16kb release checksums \
         test test-short test-race cover bench \
         fmt vet lint vuln tidy modverify gen ci
 
@@ -86,7 +87,7 @@ $(IOS_OUT)/$(IOS_NAME).xcframework:
 # =======================
 # Android binding
 # =======================
-android: $(ANDROID_OUT)/$(AAR_NAME)
+android: $(ANDROID_OUT)/$(AAR_NAME) $(ANDROID_OUT)/$(AAR_16KB_NAME)
 $(ANDROID_OUT)/$(AAR_NAME):
 	mkdir -p $(ANDROID_OUT)
 	ANDROID_HOME=$(ANDROID_HOME) ANDROID_NDK=$(ANDROID_NDK) \
@@ -98,6 +99,20 @@ $(ANDROID_OUT)/$(AAR_NAME):
 		$(if $(GO_TAGS),-tags "$(GO_TAGS)",) \
 		$(PKG_MOBILE)
 	@echo ">> Android AAR at $(ANDROID_OUT)/$(AAR_NAME)"
+
+android-16kb: $(ANDROID_OUT)/$(AAR_16KB_NAME)
+$(ANDROID_OUT)/$(AAR_16KB_NAME):
+	mkdir -p $(ANDROID_OUT)
+	ANDROID_HOME=$(ANDROID_HOME) ANDROID_NDK=$(ANDROID_NDK) \
+	gomobile bind -v \
+		-target=android/arm64,android/amd64 \
+		-androidapi=$(MIN_ANDROID_SDK) \
+		-javapkg $(ANDROID_JAVAPKG) \
+		-ldflags='-R=16384' \
+		-o $(ANDROID_OUT)/$(AAR_16KB_NAME) \
+		$(if $(GO_TAGS),-tags "$(GO_TAGS)",) \
+		$(PKG_MOBILE)
+	@echo ">> Android 16 KB page-size compatible AAR at $(ANDROID_OUT)/$(AAR_16KB_NAME)"
 
 # =======================
 # Releases / checksums
