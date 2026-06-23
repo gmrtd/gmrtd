@@ -117,6 +117,17 @@ func TestDoActiveAuth(t *testing.T) {
 		t.Errorf("Result differs to expected [Act] %+v [Exp] %+v", result, expResult)
 	}
 
+	// verify that captured evidence can be independently verified
+	{
+		verifyResult, err := VerifyEvidence(&doc, result.Evidence)
+		if err != nil {
+			t.Errorf("VerifyEvidence failed: %s", err)
+		}
+		if verifyResult == nil || !verifyResult.Success {
+			t.Errorf("Evidence verification failed: expected success")
+		}
+	}
+
 	// verify Secure-Messaging post-state is correct
 	// NB active-auth does NOT setup a new SM, do we just sanity check that it's still there with the correct SSC (ie +2)
 	{
@@ -454,6 +465,29 @@ func TestEcdsaValidateActiveAuthSignatureAllCurves(t *testing.T) {
 			t.Errorf("Result 'success' differs to expected [act] %t [exp] %t", aaResult.Success, tc.expResultSuccess)
 
 		}
+
+		// For valid signatures, also verify via VerifyEvidence to test document-integrated verification
+		if !tc.expectErr && aaResult.Success {
+			doc := &document.Document{}
+			if err := doc.NewDG(15, tc.dg15bytes); err != nil {
+				t.Errorf("%s: Failed to create document for VerifyEvidence: %v", tc.name, err)
+				continue
+			}
+
+			evidence := &document.ActiveAuthEvidence{
+				Algorithm: aaResult.Evidence.Algorithm,
+				Nonce:     tc.rndIfd,
+				Signature: tc.signature,
+			}
+
+			verifyResult, err := VerifyEvidence(doc, evidence)
+			if err != nil {
+				t.Errorf("%s: VerifyEvidence failed: %v", tc.name, err)
+			}
+			if verifyResult == nil || !verifyResult.Success {
+				t.Errorf("%s: VerifyEvidence returned unsuccessful result", tc.name)
+			}
+		}
 	}
 }
 
@@ -566,6 +600,29 @@ func TestEcdsaValidateActiveAuthSignatureDERFormat(t *testing.T) {
 		}
 		if aaResult.Success != tc.expResultSuccess {
 			t.Errorf("%s: Result 'success' differs to expected [act] %t [exp] %t", tc.name, aaResult.Success, tc.expResultSuccess)
+		}
+
+		// For valid signatures, also verify via VerifyEvidence to test document-integrated verification
+		if !tc.expectErr && aaResult.Success {
+			doc := &document.Document{}
+			if err := doc.NewDG(15, tc.dg15bytes); err != nil {
+				t.Errorf("%s: Failed to create document for VerifyEvidence: %v", tc.name, err)
+				continue
+			}
+
+			evidence := &document.ActiveAuthEvidence{
+				Algorithm: aaResult.Evidence.Algorithm,
+				Nonce:     tc.rndIfd,
+				Signature: tc.signature,
+			}
+
+			verifyResult, err := VerifyEvidence(doc, evidence)
+			if err != nil {
+				t.Errorf("%s: VerifyEvidence failed: %v", tc.name, err)
+			}
+			if verifyResult == nil || !verifyResult.Success {
+				t.Errorf("%s: VerifyEvidence returned unsuccessful result", tc.name)
+			}
 		}
 	}
 }
