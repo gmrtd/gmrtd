@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.38.0](https://github.com/gmrtd/gmrtd/compare/v0.37.1...v0.38.0) (2026-06-23)
+
+
+### Features
+
+* **pace:** add PACE-CAM evidence for offline verification ([#379](https://github.com/gmrtd/gmrtd/issues/379)) ([ebba87b](https://github.com/gmrtd/gmrtd/commit/ebba87b375c1c1cb190cceb04f6118cf3d56b8d2))
+
 ## [0.37.1](https://github.com/gmrtd/gmrtd/compare/v0.37.0...v0.37.1) (2026-06-22)
 
 
