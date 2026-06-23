@@ -327,7 +327,7 @@ func performPace(reader *Reader, state *ReaderState) error {
 	}
 	reader.status.Status("PACE")
 	// NB errors are just recorded at this point
-	state.docEx.Session.PaceResult, state.docEx.Session.PaceErr = pace.NewPace(reader.nfc, &state.docEx.Document, state.password).DoPACE()
+	state.docEx.Session.PaceResult, state.docEx.Session.PaceCamResult, state.docEx.Session.PaceErr = pace.NewPace(reader.nfc, &state.docEx.Document, state.password).DoPACE()
 	return nil
 }
 

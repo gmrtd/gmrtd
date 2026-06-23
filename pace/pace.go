@@ -50,6 +50,15 @@ type Pace struct {
 	password       *password.Password
 }
 
+type paceCamEvidence struct {
+	nonce      []byte
+	termMapPri []byte
+	chipMapPub []byte
+	termKaPri  []byte
+	chipKaPub  []byte
+	ecadIC     []byte
+}
+
 func NewPace(nfc *iso7816.NfcSession, doc *document.Document, pass *password.Password) *Pace {
 	var pace Pace
 	pace.keyGeneratorEc = cryptoutils.KeyGeneratorEc
@@ -304,11 +313,13 @@ func (pace *Pace) doApduMseSetAT(paceConfig *PaceConfig, domainParams *DomainPar
 //   - exchanges with chip
 //   - generates shared secret
 //   - do generic mapping (and return G)
-func (pace *Pace) mapNonceGmEcDh(domainParams *DomainParams, s []byte) (mapped_g *cryptoutils.EcPoint, pubMapIC *cryptoutils.EcPoint, err error) {
+func (pace *Pace) mapNonceGmEcDh(domainParams *DomainParams, s []byte) (mapped_g *cryptoutils.EcPoint, pubMapIC *cryptoutils.EcPoint, termMapPri []byte, err error) {
 	slog.Debug("mapNonceGmEcDh", "s", utils.BytesToHex(s))
 
 	// generate terminal key (private/public)
 	var termKeypair cryptoutils.EcKeypair = pace.keyGeneratorEc(domainParams.ec)
+
+	termMapPri = bytes.Clone(termKeypair.Pri)
 
 	// do public-key exchange to get chip pub-key
 	{
@@ -316,16 +327,16 @@ func (pace *Pace) mapNonceGmEcDh(domainParams *DomainParams, s []byte) (mapped_g
 
 		rApduBytes, err := pace.nfcSession.GeneralAuthenticate(true, reqData)
 		if err != nil {
-			return nil, nil, fmt.Errorf("[mapNonceGmEcDh] GeneralAuthenticate error: %w", err)
+			return nil, nil, nil, fmt.Errorf("[mapNonceGmEcDh] GeneralAuthenticate error: %w", err)
 		}
 
 		dynAuthBytes, err := decodeDynAuthData(0x82, rApduBytes)
 		if err != nil {
-			return nil, nil, fmt.Errorf("[mapNonceGmEcDh] %w", err)
+			return nil, nil, nil, fmt.Errorf("[mapNonceGmEcDh] %w", err)
 		}
 		pubMapIC, err = cryptoutils.DecodeX962EcPoint(domainParams.ec, dynAuthBytes)
 		if err != nil {
-			return nil, nil, fmt.Errorf("[mapNonceGmEcDh] %w", err)
+			return nil, nil, nil, fmt.Errorf("[mapNonceGmEcDh] %w", err)
 		}
 		slog.Debug("mapNonceGmEcDh", "pubMapIC", pubMapIC.String())
 	}
@@ -341,7 +352,7 @@ func (pace *Pace) mapNonceGmEcDh(domainParams *DomainParams, s []byte) (mapped_g
 	//
 	mapped_g = doGenericMappingEC(s, termShared, domainParams.ec)
 
-	return mapped_g, pubMapIC, nil
+	return mapped_g, pubMapIC, termMapPri, nil
 }
 
 func (pace *Pace) keyAgreementGmEcDh(domainParams *DomainParams, G *cryptoutils.EcPoint) (sharedSecret []byte, termKeypair *cryptoutils.EcKeypair, chipPub *cryptoutils.EcPoint, err error) {
@@ -489,6 +500,31 @@ func icPubKeyECForCAM(domainParams *DomainParams, cardSecurity *document.CardSec
 	return nil, fmt.Errorf("[icPubKeyECForCAM] Unable to get Public-Key for CAM")
 }
 
+func decryptEcadIC(cipherAlg cryptoutils.BlockCipherAlg, ksEnc, ecadIC []byte) ([]byte, error) {
+	blockCipher, err := cryptoutils.CipherForKey(cipherAlg, ksEnc)
+	if err != nil {
+		return nil, fmt.Errorf("[decryptEcadIC] CipherForKey error: %w", err)
+	}
+
+	// IV = E(KSenc, 0xFF...)
+	var iv []byte = make([]byte, blockCipher.BlockSize())
+	// Note: suppress secure mode and padding scheme warning in sonar
+	//		 - this is required for CAM ECDH to generate the IV
+	blockCipher.Encrypt(iv, bytes.Repeat([]byte{0xff}, blockCipher.BlockSize())) // NOSONAR
+
+	tmpDecryptedValue, err := cryptoutils.CryptCBC(blockCipher, iv, ecadIC, false)
+	if err != nil {
+		return nil, fmt.Errorf("[decryptEcadIC] CryptCBC error: %w", err)
+	}
+
+	caIC, err := cryptoutils.ISO9797Method2Unpad(tmpDecryptedValue)
+	if err != nil {
+		return nil, fmt.Errorf("[decryptEcadIC] ISO9797Method2Unpad error: %w", err)
+	}
+
+	return caIC, nil
+}
+
 // pubMapIC: IC Public Key from earlier mapping operation
 // ecadIC: encrypted chip authentication data (tag:8A) from 'mutual auth' response
 func (pace *Pace) doCamEcdh(paceConfig *PaceConfig, domainParams *DomainParams, pubMapIC *cryptoutils.EcPoint, ecadIC []byte) (err error) {
@@ -503,28 +539,9 @@ func (pace *Pace) doCamEcdh(paceConfig *PaceConfig, domainParams *DomainParams, 
 
 	// ICAO9303 p11... 4.4.3.3.3 Chip Authentication Mapping
 
-	var blockCipher cipher.Block
-	blockCipher, err = cryptoutils.CipherForKey(paceConfig.cipher, pace.nfcSession.SM().KsEnc())
+	caIC, err := decryptEcadIC(paceConfig.cipher, pace.nfcSession.SM().KsEnc(), ecadIC)
 	if err != nil {
-		return fmt.Errorf("[doCamEcdh] CipherForKey error: %w", err)
-	}
-
-	// IV = K(KSenc,-1)
-	var iv []byte = make([]byte, blockCipher.BlockSize())
-	// Note: suppress secure mode and padding scheme warning in sonar
-	//		 - this is required for CAM ECDH to generate the IV
-	blockCipher.Encrypt(iv, bytes.Repeat([]byte{0xff}, blockCipher.BlockSize())) // NOSONAR
-
-	// decrypt the data we got earlier...
-	tmpDecryptedValue, err := cryptoutils.CryptCBC(blockCipher, iv, ecadIC, false)
-	if err != nil {
-		return fmt.Errorf("[doCamEcdh] CryptCBC error: %w", err)
-	}
-
-	var caIC []byte
-	caIC, err = cryptoutils.ISO9797Method2Unpad(tmpDecryptedValue)
-	if err != nil {
-		return fmt.Errorf("[doCamEcdh] ISO9797Method2Unpad error: %w", err)
+		return fmt.Errorf("[doCamEcdh] %w", err)
 	}
 	slog.Debug("doCamEcdh", "CA-IC", utils.BytesToHex(caIC))
 
@@ -607,14 +624,15 @@ func (pace *Pace) loadCardSecurityFile() error {
 	return nil
 }
 
-func (pace *Pace) doGenericMappingGmCam(paceConfig *PaceConfig, domainParams *DomainParams, s []byte) (err error) {
+func (pace *Pace) doGenericMappingGmCam(paceConfig *PaceConfig, domainParams *DomainParams, s []byte) (evidence *paceCamEvidence, err error) {
 	switch domainParams.isECDH {
 	case true: // ECDH
 		// map the nonce
 		var mappedG, pubMapIC *cryptoutils.EcPoint
-		mappedG, pubMapIC, err = pace.mapNonceGmEcDh(domainParams, s)
+		var termMapPri []byte
+		mappedG, pubMapIC, termMapPri, err = pace.mapNonceGmEcDh(domainParams, s)
 		if err != nil {
-			return fmt.Errorf("[doGenericMappingGmCam] mapNonceGmEcDh error: %w", err)
+			return nil, fmt.Errorf("[doGenericMappingGmCam] mapNonceGmEcDh error: %w", err)
 		}
 
 		// Perform Key Agreement
@@ -624,13 +642,13 @@ func (pace *Pace) doGenericMappingGmCam(paceConfig *PaceConfig, domainParams *Do
 
 		sharedSecret, kaTermKeypair, kaChipPub, err = pace.keyAgreementGmEcDh(domainParams, mappedG)
 		if err != nil {
-			return fmt.Errorf("[doGenericMappingGmCam] keyAgreementGmEcDh error: %w", err)
+			return nil, fmt.Errorf("[doGenericMappingGmCam] keyAgreementGmEcDh error: %w", err)
 		}
 
 		var ecadIC []byte
 		ecadIC, err = pace.mutualAuthGmEcDh(paceConfig, domainParams, sharedSecret, kaTermKeypair.Pub, kaChipPub)
 		if err != nil {
-			return fmt.Errorf("[doGenericMappingGmCam] mutualAuthGmEcDh error: %w", err)
+			return nil, fmt.Errorf("[doGenericMappingGmCam] mutualAuthGmEcDh error: %w", err)
 		}
 
 		// Perform Chip Authentication - CAM (if applicable)
@@ -638,28 +656,38 @@ func (pace *Pace) doGenericMappingGmCam(paceConfig *PaceConfig, domainParams *Do
 			// load Card Security file (if required)
 			if pace.document.Mf.CardSecurity == nil {
 				if err = pace.loadCardSecurityFile(); err != nil {
-					return fmt.Errorf("[doGenericMappingGmCam] loadCardSecurityFile error: %w", err)
+					return nil, fmt.Errorf("[doGenericMappingGmCam] loadCardSecurityFile error: %w", err)
 				}
 			}
 
 			if err = pace.doCamEcdh(paceConfig, domainParams, pubMapIC, ecadIC); err != nil {
-				return fmt.Errorf("[doGenericMappingGmCam] doCamEcdh error: %w", err)
+				return nil, fmt.Errorf("[doGenericMappingGmCam] doCamEcdh error: %w", err)
+			}
+
+			// capture evidence for independent re-verification
+			evidence = &paceCamEvidence{
+				nonce:      bytes.Clone(s),
+				termMapPri: termMapPri,
+				chipMapPub: cryptoutils.EncodeX962EcPoint(domainParams.ec, pubMapIC),
+				termKaPri:  bytes.Clone(kaTermKeypair.Pri),
+				chipKaPub:  cryptoutils.EncodeX962EcPoint(domainParams.ec, kaChipPub),
+				ecadIC:     bytes.Clone(ecadIC),
 			}
 		}
 	case false: // DH
-		return fmt.Errorf("[doGenericMappingGmCam] PACE GM (DH) NOT IMPLEMENTED")
+		return nil, fmt.Errorf("[doGenericMappingGmCam] PACE GM (DH) NOT IMPLEMENTED")
 	}
 
-	return nil
+	return evidence, nil
 }
 
-func (pace *Pace) DoPACE() (result *document.PaceResult, err error) {
+func (pace *Pace) DoPACE() (result *document.PaceResult, camResult *document.PaceCamResult, err error) {
 	slog.Debug("DoPACE", "password-type", pace.password.PasswordType, "password", pace.password.Password)
 
 	// PACE requires card-access
 	if pace.document.Mf.CardAccess == nil {
 		slog.Debug("DoPACE - SKIPPING as no CardAccess file is present")
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	// setup the result (but mark as !success)
@@ -670,7 +698,7 @@ func (pace *Pace) DoPACE() (result *document.PaceResult, err error) {
 
 	paceConfig, domainParams, err = selectPaceConfig(pace.document.Mf.CardAccess)
 	if err != nil {
-		return result, fmt.Errorf("[DoPACE] selectPaceConfig error: %w", err)
+		return result, nil, fmt.Errorf("[DoPACE] selectPaceConfig error: %w", err)
 	}
 
 	// update result to indicate the selected OID/ParameterId
@@ -683,33 +711,46 @@ func (pace *Pace) DoPACE() (result *document.PaceResult, err error) {
 
 	kKdf, err = keyForPassword(paceConfig, pace.password)
 	if err != nil {
-		return result, fmt.Errorf("[DoPACE] keyForPassword error: %w", err)
+		return result, nil, fmt.Errorf("[DoPACE] keyForPassword error: %w", err)
 	}
 
 	// init PACE (via 'MSE:Set AT' command)
 	if err = pace.doApduMseSetAT(paceConfig, domainParams); err != nil {
-		return result, fmt.Errorf("[DoPACE] doApduMseSetAT error: %w", err)
+		return result, nil, fmt.Errorf("[DoPACE] doApduMseSetAT error: %w", err)
 	}
 
 	// get nonce
 	var s []byte
 	s, err = pace.getNonce(paceConfig, kKdf)
 	if err != nil {
-		return result, fmt.Errorf("[DoPACE] getNonce error: %w", err)
+		return result, nil, fmt.Errorf("[DoPACE] getNonce error: %w", err)
 	}
 
 	// process based on the mapping type (GM/IM/CAM) and the key type (ECDH/DH)
 	switch paceConfig.mapping {
 	case GM, CAM:
-		if err = pace.doGenericMappingGmCam(paceConfig, domainParams, s); err != nil {
-			return result, fmt.Errorf("[DoPACE] doGenericMappingGmCam error: %w", err)
+		var camEvidence *paceCamEvidence
+		camEvidence, err = pace.doGenericMappingGmCam(paceConfig, domainParams, s)
+		if err != nil {
+			return result, nil, fmt.Errorf("[DoPACE] doGenericMappingGmCam error: %w", err)
 		}
-		if paceConfig.mapping == CAM {
-			// flag 'Chip Authentication' for CAM
-			result.CamProtocolCompleted = true
+		if paceConfig.mapping == CAM && camEvidence != nil {
+			camResult = &document.PaceCamResult{
+				Success: true,
+				Evidence: &document.PaceCamEvidence{
+					PaceOid:     paceConfig.oid,
+					ParameterId: domainParams.id,
+					Nonce:       camEvidence.nonce,
+					TermMapPri:  camEvidence.termMapPri,
+					ChipMapPub:  camEvidence.chipMapPub,
+					TermKaPri:   camEvidence.termKaPri,
+					ChipKaPub:   camEvidence.chipKaPub,
+					EcadIC:      camEvidence.ecadIC,
+				},
+			}
 		}
 	case IM:
-		return result, fmt.Errorf("[DoPACE] PACE-IM NOT IMPLEMENTED")
+		return result, nil, fmt.Errorf("[DoPACE] PACE-IM NOT IMPLEMENTED")
 	}
 
 	// update result to indicate success
@@ -717,5 +758,107 @@ func (pace *Pace) DoPACE() (result *document.PaceResult, err error) {
 
 	slog.Debug("DoPACE - Completed", "SM", pace.nfcSession.SM().String())
 
-	return result, nil
+	return result, camResult, nil
+}
+
+// VerifyEvidence independently verifies PACE-CAM evidence without a live NFC session.
+// It requires the Document (which supplies the chip's static EC public key from
+// CardSecurity) and the evidence captured during the original PACE-CAM session.
+//
+// Verification replays the PACE key-derivation chain from the captured ephemeral keys:
+//  1. Re-derives the mapping shared secret and mapped generator from the nonce and
+//     terminal mapping private key.
+//  2. Re-derives the key-agreement shared secret and session keys (ksEnc).
+//  3. Decrypts the encrypted chip authentication data (EcadIC) using ksEnc to recover
+//     caIC.
+//  4. Verifies KA(caIC, pkIC, ec) == ChipMapPub, proving the chip held the private key
+//     matching the static public key in CardSecurity.
+//
+// The Nonce and TermMapPri fields are replayed for completeness but cannot be
+// independently verified — the security proof rests on the CAM verification (step 4).
+//
+// A successful result proves the chip held the private key matching the public key in
+// CardSecurity during the original session. Callers must also verify the Document via
+// Passive Authentication to confirm that CardSecurity is bound to a trusted CSCA chain.
+const maxEvidenceFieldLen = 1024
+
+func VerifyEvidence(doc *document.Document, evidence *document.PaceCamEvidence) (*document.PaceCamResult, error) {
+	if evidence == nil {
+		return nil, fmt.Errorf("[VerifyEvidence] evidence is nil")
+	}
+
+	if len(evidence.Nonce) == 0 || len(evidence.TermMapPri) == 0 || len(evidence.ChipMapPub) == 0 ||
+		len(evidence.TermKaPri) == 0 || len(evidence.ChipKaPub) == 0 || len(evidence.EcadIC) == 0 {
+		return nil, fmt.Errorf("[VerifyEvidence] evidence has empty field(s)")
+	}
+
+	if len(evidence.Nonce) > maxEvidenceFieldLen || len(evidence.TermMapPri) > maxEvidenceFieldLen ||
+		len(evidence.ChipMapPub) > maxEvidenceFieldLen || len(evidence.TermKaPri) > maxEvidenceFieldLen ||
+		len(evidence.ChipKaPub) > maxEvidenceFieldLen || len(evidence.EcadIC) > maxEvidenceFieldLen {
+		return nil, fmt.Errorf("[VerifyEvidence] evidence field exceeds maximum length (%d)", maxEvidenceFieldLen)
+	}
+
+	if doc.Mf.CardSecurity == nil {
+		return nil, fmt.Errorf("[VerifyEvidence] CardSecurity is nil")
+	}
+
+	paceConfig, err := paceConfigGetByOID(evidence.PaceOid)
+	if err != nil {
+		return nil, fmt.Errorf("[VerifyEvidence] paceConfigGetByOID error: %w", err)
+	}
+
+	if paceConfig.mapping != CAM {
+		return nil, fmt.Errorf("[VerifyEvidence] evidence OID is not PACE-CAM")
+	}
+
+	domainParams, err := standardisedDomainParams(evidence.ParameterId)
+	if err != nil {
+		return nil, fmt.Errorf("[VerifyEvidence] standardisedDomainParams error: %w", err)
+	}
+
+	if !domainParams.isECDH {
+		return nil, fmt.Errorf("[VerifyEvidence] domain params are not ECDH")
+	}
+
+	chipMapPub, err := cryptoutils.DecodeX962EcPoint(domainParams.ec, evidence.ChipMapPub)
+	if err != nil {
+		return nil, fmt.Errorf("[VerifyEvidence] DecodeX962EcPoint(ChipMapPub) error: %w", err)
+	}
+
+	chipKaPub, err := cryptoutils.DecodeX962EcPoint(domainParams.ec, evidence.ChipKaPub)
+	if err != nil {
+		return nil, fmt.Errorf("[VerifyEvidence] DecodeX962EcPoint(ChipKaPub) error: %w", err)
+	}
+
+	// re-derive mapping shared secret and mapped generator
+	H := cryptoutils.DoEcDh(evidence.TermMapPri, chipMapPub, domainParams.ec)
+	_ = doGenericMappingEC(evidence.Nonce, H, domainParams.ec)
+
+	// re-derive key-agreement shared secret and session keys
+	kaShared := cryptoutils.DoEcDh(evidence.TermKaPri, chipKaPub, domainParams.ec)
+	sharedSecret := kaShared.X.Bytes()
+	ksEnc := cryptoutils.KDF(sharedSecret, cryptoutils.KDF_COUNTER_KSENC, paceConfig.cipher, paceConfig.keyLengthBits)
+
+	// decrypt EcadIC to recover caIC
+	caIC, err := decryptEcadIC(paceConfig.cipher, ksEnc, evidence.EcadIC)
+	if err != nil {
+		return nil, fmt.Errorf("[VerifyEvidence] %w", err)
+	}
+
+	// get chip static public key from CardSecurity
+	pkIC, err := icPubKeyECForCAM(domainParams, doc.Mf.CardSecurity)
+	if err != nil {
+		return nil, fmt.Errorf("[VerifyEvidence] icPubKeyECForCAM error: %w", err)
+	}
+
+	// verify KA(caIC, pkIC, ec) == chipMapPub
+	KA := cryptoutils.DoEcDh(caIC, pkIC, domainParams.ec)
+	if !KA.Equal(*chipMapPub) {
+		return nil, fmt.Errorf("[VerifyEvidence] PACE CAM verification failed")
+	}
+
+	return &document.PaceCamResult{
+		Success:  true,
+		Evidence: evidence,
+	}, nil
 }

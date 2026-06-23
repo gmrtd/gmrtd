@@ -231,9 +231,7 @@ func TestDoPaceNoCardAccessFile(t *testing.T) {
 
 	var pace *Pace = NewPace(nfc, &doc, pass)
 
-	var paceResult *document.PaceResult
-
-	paceResult, err = pace.DoPACE()
+	paceResult, paceCamResult, err := pace.DoPACE()
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
@@ -241,6 +239,9 @@ func TestDoPaceNoCardAccessFile(t *testing.T) {
 	// NB no PaceResult when CardAccess file is missing
 	if paceResult != nil {
 		t.Errorf("Unexpected PACE result")
+	}
+	if paceCamResult != nil {
+		t.Errorf("Unexpected PACE-CAM result")
 	}
 
 	// verify that PACE was not performed (i.e. no secure-messaging)
@@ -312,17 +313,18 @@ func TestDoPace_GM_ECDH(t *testing.T) {
 	// override EC key-generator (to ensure predictable keys)
 	pace.keyGeneratorEc = getTestKeyGenEc()
 
-	var paceResult *document.PaceResult
-
-	paceResult, err = pace.DoPACE()
+	paceResult, paceCamResult, err := pace.DoPACE()
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
 
 	// verify Result is as expected
-	var expPaceResult *document.PaceResult = &document.PaceResult{Success: true, Oid: oid.OidPaceEcdhGmAesCbcCmac128, ParameterId: 13, CamProtocolCompleted: false}
+	var expPaceResult *document.PaceResult = &document.PaceResult{Success: true, Oid: oid.OidPaceEcdhGmAesCbcCmac128, ParameterId: 13}
 	if !reflect.DeepEqual(paceResult, expPaceResult) {
 		t.Errorf("Result differs to expected [Act] %+v [Exp] %+v", paceResult, expPaceResult)
+	}
+	if paceCamResult != nil {
+		t.Errorf("Unexpected PACE-CAM result for GM")
 	}
 
 	// verify Secure-Messaging was setup correctly
@@ -367,7 +369,7 @@ func TestDoPace_GM_ECDH_InvalidDomainParam(t *testing.T) {
 
 	wantErr := ErrPACEParamUnsupported
 
-	_, err = pace.DoPACE()
+	_, _, err = pace.DoPACE()
 	if err == nil {
 		t.Fatalf("expected error (%v) but got nil", wantErr)
 	}
@@ -404,7 +406,7 @@ func TestDoPace_GM_ECDH_InvalidPasswordType(t *testing.T) {
 
 	wantErr := password.ErrPasswordTypeUnsupported
 
-	_, err = pace.DoPACE()
+	_, _, err = pace.DoPACE()
 	if err == nil {
 		t.Fatalf("expected error (%v) but got nil", wantErr)
 	}
@@ -474,17 +476,18 @@ func TestDoPace_GM_ECDH_TDES_CBC_NZ(t *testing.T) {
 	// override EC key-generator (to ensure predictable keys)
 	pace.keyGeneratorEc = getTestKeyGenEc()
 
-	var paceResult *document.PaceResult
-
-	paceResult, err = pace.DoPACE()
+	paceResult, paceCamResult, err := pace.DoPACE()
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
 
 	// verify Result is as expected
-	var expPaceResult *document.PaceResult = &document.PaceResult{Success: true, Oid: oid.OidPaceEcdhGm3DesCbcCbc, ParameterId: 13, CamProtocolCompleted: false}
+	var expPaceResult *document.PaceResult = &document.PaceResult{Success: true, Oid: oid.OidPaceEcdhGm3DesCbcCbc, ParameterId: 13}
 	if !reflect.DeepEqual(paceResult, expPaceResult) {
 		t.Errorf("Result differs to expected [Act] %+v [Exp] %+v", paceResult, expPaceResult)
+	}
+	if paceCamResult != nil {
+		t.Errorf("Unexpected PACE-CAM result for GM")
 	}
 
 	// verify Secure-Messaging was setup correctly
@@ -574,17 +577,44 @@ func TestDoPace_CAM_ECDH_DE(t *testing.T) {
 	// override EC key-generator (to ensure predictable keys)
 	pace.keyGeneratorEc = getTestKeyGenEc()
 
-	var paceResult *document.PaceResult
-
-	paceResult, err = pace.DoPACE()
+	paceResult, paceCamResult, err := pace.DoPACE()
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
 
-	// verify Result is as expected
-	var expPaceResult *document.PaceResult = &document.PaceResult{Success: true, Oid: oid.OidPaceEcdhCamAesCbcCmac128, ParameterId: 13, CamProtocolCompleted: true}
-	if !reflect.DeepEqual(paceResult, expPaceResult) {
-		t.Errorf("Result differs to expected [Act] %+v [Exp] %+v", paceResult, expPaceResult)
+	// verify core PACE result fields
+	if !paceResult.Success {
+		t.Errorf("Expected success")
+	}
+	if !paceResult.Oid.Equal(oid.OidPaceEcdhCamAesCbcCmac128) {
+		t.Errorf("Unexpected OID: %s", paceResult.Oid)
+	}
+	if paceResult.ParameterId != 13 {
+		t.Errorf("Unexpected ParameterId: %d", paceResult.ParameterId)
+	}
+
+	// verify PACE-CAM result
+	if paceCamResult == nil {
+		t.Fatalf("Expected PACE-CAM result")
+	}
+	if !paceCamResult.Success {
+		t.Errorf("Expected PACE-CAM success")
+	}
+
+	// verify evidence is populated
+	if paceCamResult.Evidence == nil {
+		t.Fatalf("Expected evidence to be populated")
+	}
+	if len(paceCamResult.Evidence.Nonce) == 0 || len(paceCamResult.Evidence.TermMapPri) == 0 ||
+		len(paceCamResult.Evidence.ChipMapPub) == 0 || len(paceCamResult.Evidence.TermKaPri) == 0 ||
+		len(paceCamResult.Evidence.ChipKaPub) == 0 || len(paceCamResult.Evidence.EcadIC) == 0 {
+		t.Errorf("Evidence has empty field(s)")
+	}
+	if !bytes.Equal(paceCamResult.Evidence.TermMapPri, utils.HexToBytes("01fd26013f5bc41fad8bb09811e435f16fbe2eb3c2e1d999b0f63da8c3d58bb5")) {
+		t.Errorf("Unexpected TermMapPri")
+	}
+	if !bytes.Equal(paceCamResult.Evidence.TermKaPri, utils.HexToBytes("1fcd3d8ac4fae3960a14fea2925d75add335f13b248eba192358dded93a89552")) {
+		t.Errorf("Unexpected TermKaPri")
 	}
 
 	// verify Secure-Messaging state (inc final SSC) is correct
@@ -670,7 +700,7 @@ func TestMapNonceGmEcDhApduErr(t *testing.T) {
 	var domainParams *DomainParams = mustStandardisedDomainParams(t, 13) // 13: Brainpool P256r1
 	var s []byte = []byte{1, 2, 3, 4}
 
-	_, _, err := pace.mapNonceGmEcDh(domainParams, s)
+	_, _, _, err := pace.mapNonceGmEcDh(domainParams, s)
 	// NB we expect an error as we'll get an APDU error
 	if err == nil {
 		t.Fatalf("error expected")
@@ -758,6 +788,203 @@ func TestGetNonceApduErr(t *testing.T) {
 	_, err = pace.getNonce(paceConfig, kKdf)
 	if err == nil {
 		t.Errorf("Expected error")
+	}
+}
+
+func setupDeCamEvidence(t *testing.T) (*document.Document, *document.PaceCamEvidence) {
+	t.Helper()
+
+	var transceiver *iso7816.MockTransceiver = new(iso7816.MockTransceiver)
+	transceiver.AddReqRsp("0022C1A412800A04007F0007020204060283010184010D", "9000")
+	transceiver.AddReqRsp("10860000027c0000", "7c1280109bff93e6ed9f5f9764ec0d783d14fb039000")
+	transceiver.AddReqRsp("10860000457c43814104303f340815eea501772393e299a4a6f6694600189c249c63a8513ff3fefa66e346d11970b5f76fb564c3b0e54b215528f647ec5a9ab209cdbe262e763d6119a100", "7c4382410476dc295c4fb14237d87318d70967e25ec45f74d6fd4aff588c90efb3d868f05b450ba6b64967227c2246dbe2905522c8086dac7f3bbe5cf3b192f0a0c2d97ee59000")
+	transceiver.AddReqRsp("10860000457c438341048442b191ef5346a6b6dacb6cd5728c4a72f0ca7aecdf7afdfb3ef175e12a6f7c74f509af768b8dbe2cf42d16c1f00714691d78a19cdf1b493390d1173785f2b700", "7c438441042315ae8143f21de15b35f083cfa148c5fcbd9f2eb9dcdc4519bcf337443e79e55b28a5e218fb919c30880d263e469645ff114c46ed29918910be3453527d21649000")
+	transceiver.AddReqRsp("008600000c7c0a8508fee088a4d7be1b7f00", "7c3c860819a2b9192e11512a8a30b3ae8830311b1d5605777f47cb4ed028346cd00105d32859de127da3d8398865358f26f08ebe410864eaf6e39f33f3f59000")
+	transceiver.AddReqRsp("0ca4020c1d87110147ee2e3bd440fb596167f2bb6cd6395e8e08a105747484314bcf00", "990290008e085f570baddd1002d29000")
+	transceiver.AddReqRsp("0cb000000d9701048e085d283ec183cbb99800", "871101d688d27a6d16f03619e76dcb59c1f1ec990290008e08b7df9a5982bb17299000")
+	transceiver.AddReqRsp("0cb000040d9701008e08a893fca2cd1cb17d00", "8781e10191b363a7569f49734c418c91ace47aa27886ffd841802c1402793032b9a15568d16bddd290885c7bb6672c459be06fda2464b3ac216272142d6bdc10e60a8d977143e10b095c1066624a3cae65e422a5ad6faf4b2bbbdf3789e11632fda8317d15db2c6d5b1d77ee46e693afecf0bf6cc227d0106fda370f4a43fd70088362869acd7c55fe00a13c5eafa9f11c217d3a872075209d98709aec16b8a70bc1010497eb4eb2867044b8cb6fba76247b8240036aabf3a179c9adbdacf5cf83506effc723b51af2e2b4868f74e2f9aac7ecc29626ad19a75a1d1469f6123c69b9c223990290008e08ea0238ad4096f04d9000")
+	transceiver.AddReqRsp("0cb000e30d9701008e085dcb938a53abd87400", "8781e1011c7177d401c84023ee49f0a6813e1af16b43052d4478a78b0af39b329e7a8f4fc101c9f558527c453e2cfa02b5088b4d64a5e8b8d752c9fc64ab419224f5d6f014e327e16c9adcb5e1bb48b41327b858ab4f3b9f281d5a4735529cc69456f1076ceabb7335f649535bdb25900aca7138f44fc47f96528590c5bc271d411c74750843e39fa282e2068c122534380da8c5617d45040854f773c6b47b5929b6272684a1e95bfddb54334380a63907e028710cb92030f83b49fd76fe5392057e52eef9fc6319c4ac400cf1761a45e34f7f3bb7860bcb1bc230ef00a2a011b8ad2c26990290008e08f18d62f004f604ca9000")
+	transceiver.AddReqRsp("0cb001c20d9701008e0800aa6a8873a4a4c700", "8781e1019f74944baea5cb9a628b5320379ba84c9dbbbac678dd60e4d50774e7754ad147d9bd9061cbde486061543a924a5c75ebe1fdef7ecf2f470204d8a76c3f3f7868f53b068de3723f148aa36902252399111484ed660d83a8fbc354aa83f68697619e31b14e24860f43050fb0a4dcd9c04f51a388eb3867f6be33b9a2b3852ddf8b25d7fd93fb26531090cda34854c5761d5fea6bf16cd6b27c6c34a1d9f583a48cca4db08389404bb73bd99030afa1163227e70bce4d0325af1f5bdfa2f5f3e062fef1225c9ea8a7420749d765a9e56bc1a0d64d3cf5560f43daa6eb881a9a7cba990290008e08f128f595abf1b1ed9000")
+	transceiver.AddReqRsp("0cb002a10d9701008e08f1b21360dd601aaf00", "8781e1012fabf9e0655d7e987fd28a8aeb19c9cadd990d49399799ed1fe465bcea56da9ba3024291d40d23d7f1e00485d71faddc6d8c1382e8028dd22efdcc72ed47663d56d20dd6c4b867956fe0507313083ae7fc54fb46133f184febbe13ad6fd3e2616a1f4a829e75ada1a0e443ca738288f6014be8a7745d8259b089e6bee35bcc4bf5b63db5fdd84244f67eca099213b70a861b4487225aa68af684278fceb4cb809de42be3ee95b0e0d72bcdb0ed47cb56efc264e04a9397a90e81ad1d81efa2d14b2ca8ec7bd997f4b1c1fd344d5dee8589c38b227ca4cb35810060a7cc76403e990290008e083eb47ef4fa82afc99000")
+	transceiver.AddReqRsp("0cb003800d9701008e088fd094ae384388ab00", "8781e101cbb19c8fe8b58b15138915c9b8aff2171c3c2894196d91a338add75a221d1cb763910296468d0c7d8bf9058389e50b7ebc5603797d5ecf832fe25291b9ec414d57e5f75f3597523949c721420dd5a55b8b2738795c60a3b1436168d2188d89b47cc60951db4d558935f87b9c075c82e3e9630315a7a2a7f266ed24973c12207e51ef5c11a1e1e897c79366fae1999087d60b78c537b2b18f2219fb38d9a2b244eb58721def8a2532ce889e4c914eb6add938590fab7e5ef23ba576ad11cb6b6ebd5507dc7097c9c77b68f3cd3951bacac1501f18d838899a2f512eb7e914ff06990290008e086dca6ea612bea2fc9000")
+	transceiver.AddReqRsp("0cb0045f0d9701008e087f2ab02f493166d400", "8781e1019f92735420bc040cf99cc0191a80cc02e3c5fc899d535ca2e7204a7855de80c1960a71e99c18a8404ac9dee12e85e9339b384d15718325ccb5e8c64e95c04f20e1e2c3786fceb577020599ccbe62c62ed20070007e8287a8a24ea12c6e7a1b08f5cc4ad822dce924c8f9b4926b889018e2b01c3c3c1cee5601cb40176281cdea3a07905b52289b2c0c2817634a3936fb43501dd67febb2a65cc6341340c0f614f14733cc5eb1a989879695cc0ae521c18a557d79e73459c32ff470e7e38e242e8bd36d9ad6f58d1b33e5df10de3d67edeb5d502aa6760d98744c5cb6300f5340990290008e08f04944fffbcf08499000")
+	transceiver.AddReqRsp("0cb0053e0d9701008e080244dd4fff79cc5b00", "8781e1013dc2a051c66e2bbc888d65714ed2652039913671c4301483ac9380f803c262ee89de67e544e564a953ab86edac4ab54f77bbc49000784b3cc323b774ec4ebcb397729ca539baa584099b63ceb56a1334debcbefc4fdace029b4c7292c6519492fe31f422cd021fb7c990c1016b3dd1d550f3cd8a443e267fb0a70106d7933b905008042e7937205d6f13fda86a23f3112dc3ea566460797ca2f46e294a3a7f7afd1c8b723e10cc1c7de5b2e0b8008ebf4d086937a6a419e31719e5e33eec5bdb4dd49bc60648ebdad3cc272961311c54cb552fd40b2f3ad0e560616c89d3c61e990290008e08f84dade3511b07149000")
+	transceiver.AddReqRsp("0cb0061d0d9701008e08d13c4e86a5c390bc00", "8781e101cfe5947ea65924c874ec477a1d4be1c587093d874482286e9eac15f241c416bbc1f26f93ec71b3212de17c19e071037831a3c6efa7374c66843965a2ceee6f2ffbc5f1c648fe751b978bdb26c94a418afde1eeceb28ce5124ce58c3c0ec96a62a1a383a1494820dd3db166e0a5e6d632a080f29413e733e44996c99f4a03702abd445df84d4bbeb7e4225fd3bc19d3e8517c474c0ad9c3b53f61d6a2569fb4713f097da18b7395697f7fd996a0771d59a2233536e4e8220fbcabea7add966748cbb61efa21f93ff8b11374a699e2acf8a061bb3c815f0648dbcc36d5a3a138f4990290008e08a6fd912653b4be5e9000")
+	transceiver.AddReqRsp("0cb006fc0d97014a8e0834b735e4065d97c100", "8751017c668bedae4a7b51f4466d979d2026942ea1f4ae37bcb6e29f0c4b36f3572675ae58c8b9f52ebf35c65c3ae955dc060bebc79b407f7e86d587391d9535c593e5f790939babe21b1436035b2046560d09990290008e0820085b109fb48aad9000")
+
+	nfc := iso7816.NewNfcSession(transceiver)
+
+	var idx int
+	keyGenEc := func(ec elliptic.Curve) (keypair cryptoutils.EcKeypair) {
+		switch idx {
+		case 0:
+			keypair = cryptoutils.NewEcKeypair(
+				utils.HexToBytes("01fd26013f5bc41fad8bb09811e435f16fbe2eb3c2e1d999b0f63da8c3d58bb5"),
+				utils.HexToBytes("303f340815eea501772393e299a4a6f6694600189c249c63a8513ff3fefa66e3"),
+				utils.HexToBytes("46d11970b5f76fb564c3b0e54b215528f647ec5a9ab209cdbe262e763d6119a1"))
+		case 1:
+			keypair = cryptoutils.NewEcKeypair(
+				utils.HexToBytes("1fcd3d8ac4fae3960a14fea2925d75add335f13b248eba192358dded93a89552"),
+				[]byte{0},
+				[]byte{0})
+		default:
+			t.Fatalf("Invalid key-gen index (idx:%1d)", idx)
+		}
+		idx++
+		return keypair
+	}
+
+	var doc document.Document
+
+	cardAccess, err := document.NewCardAccess(utils.HexToBytes("31283012060A04007F0007020204020202010202010D3012060A04007F0007020204060202010202010D"))
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+	doc.Mf.CardAccess = cardAccess
+
+	pass, err := password.NewPasswordMrzi("C4KHNY1PF", "780214", "330315")
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	pace := NewPace(nfc, &doc, pass)
+	pace.keyGeneratorEc = keyGenEc
+
+	_, paceCamResult, err := pace.DoPACE()
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+	if paceCamResult == nil || paceCamResult.Evidence == nil {
+		t.Fatalf("Evidence is nil")
+	}
+
+	return &doc, paceCamResult.Evidence
+}
+
+func TestVerifyEvidence(t *testing.T) {
+	doc, evidence := setupDeCamEvidence(t)
+
+	result, err := VerifyEvidence(doc, evidence)
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+
+	if !result.Success {
+		t.Errorf("Expected success")
+	}
+	if result.Evidence != evidence {
+		t.Errorf("Expected evidence to be passed through")
+	}
+}
+
+func TestVerifyEvidenceNilEvidence(t *testing.T) {
+	doc, _ := setupDeCamEvidence(t)
+
+	_, err := VerifyEvidence(doc, nil)
+	if err == nil {
+		t.Fatalf("Expected error")
+	}
+}
+
+func TestVerifyEvidenceEmptyField(t *testing.T) {
+	doc, evidence := setupDeCamEvidence(t)
+
+	tampered := *evidence
+	tampered.Nonce = nil
+	_, err := VerifyEvidence(doc, &tampered)
+	if err == nil {
+		t.Fatalf("Expected error for empty Nonce")
+	}
+}
+
+func TestVerifyEvidenceOversizedField(t *testing.T) {
+	doc, evidence := setupDeCamEvidence(t)
+
+	tampered := *evidence
+	tampered.EcadIC = make([]byte, 1025)
+	_, err := VerifyEvidence(doc, &tampered)
+	if err == nil {
+		t.Fatalf("Expected error for oversized field")
+	}
+}
+
+func TestVerifyEvidenceNilCardSecurity(t *testing.T) {
+	_, evidence := setupDeCamEvidence(t)
+
+	var doc document.Document
+	_, err := VerifyEvidence(&doc, evidence)
+	if err == nil {
+		t.Fatalf("Expected error for nil CardSecurity")
+	}
+}
+
+func TestVerifyEvidenceNonCamOid(t *testing.T) {
+	doc, evidence := setupDeCamEvidence(t)
+
+	tampered := *evidence
+	tampered.PaceOid = oid.OidPaceEcdhGmAesCbcCmac128
+	_, err := VerifyEvidence(doc, &tampered)
+	if err == nil {
+		t.Fatalf("Expected error for non-CAM OID")
+	}
+}
+
+func TestVerifyEvidenceInvalidParameterId(t *testing.T) {
+	doc, evidence := setupDeCamEvidence(t)
+
+	tampered := *evidence
+	tampered.ParameterId = 999
+	_, err := VerifyEvidence(doc, &tampered)
+	if err == nil {
+		t.Fatalf("Expected error for invalid ParameterId")
+	}
+}
+
+func TestVerifyEvidenceTamperedTermKaPri(t *testing.T) {
+	doc, evidence := setupDeCamEvidence(t)
+
+	tampered := *evidence
+	tampered.TermKaPri = bytes.Clone(evidence.TermKaPri)
+	tampered.TermKaPri[0] ^= 0x01
+	_, err := VerifyEvidence(doc, &tampered)
+	if err == nil {
+		t.Fatalf("Expected error for tampered TermKaPri")
+	}
+}
+
+func TestVerifyEvidenceTamperedChipKaPub(t *testing.T) {
+	doc, evidence := setupDeCamEvidence(t)
+
+	tampered := *evidence
+	tampered.ChipKaPub = bytes.Clone(evidence.ChipKaPub)
+	tampered.ChipKaPub[1] ^= 0x01
+	_, err := VerifyEvidence(doc, &tampered)
+	if err == nil {
+		t.Fatalf("Expected error for tampered ChipKaPub")
+	}
+}
+
+func TestVerifyEvidenceTamperedEcadIC(t *testing.T) {
+	doc, evidence := setupDeCamEvidence(t)
+
+	tampered := *evidence
+	tampered.EcadIC = bytes.Clone(evidence.EcadIC)
+	tampered.EcadIC[0] ^= 0x01
+	_, err := VerifyEvidence(doc, &tampered)
+	if err == nil {
+		t.Fatalf("Expected error for tampered EcadIC")
+	}
+}
+
+func TestVerifyEvidenceTamperedChipMapPub(t *testing.T) {
+	doc, evidence := setupDeCamEvidence(t)
+
+	tampered := *evidence
+	tampered.ChipMapPub = bytes.Clone(evidence.ChipMapPub)
+	tampered.ChipMapPub[1] ^= 0x01
+	_, err := VerifyEvidence(doc, &tampered)
+	if err == nil {
+		t.Fatalf("Expected error for tampered ChipMapPub")
 	}
 }
 
