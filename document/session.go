@@ -16,8 +16,9 @@ type Session struct {
 	BacResult *BacResult `json:"bacResult,omitempty"`
 
 	// PACE
-	PaceErr    error       `json:"paceErr,omitempty"`
-	PaceResult *PaceResult `json:"paceResult,omitempty"`
+	PaceErr       error          `json:"paceErr,omitempty"`
+	PaceResult    *PaceResult    `json:"paceResult,omitempty"`
+	PaceCamResult *PaceCamResult `json:"paceCamResult,omitempty"`
 
 	// Chip Authentication
 	ChipAuthErr    error           `json:"chipAuthErr,omitempty"`
@@ -59,7 +60,7 @@ func (session Session) ChipAuthProtocolCompleted() bool {
 // VerifiedChipAuthStatus() which gates on passive authentication.
 func (session Session) ChipAuthProtocolStatus() (status ChipAuthStatus) {
 	// PACE-CAM
-	if session.PaceResult != nil && session.PaceResult.Success && session.PaceResult.CamProtocolCompleted {
+	if session.PaceCamResult != nil && session.PaceCamResult.Success {
 		return CHIP_AUTH_STATUS_PACE_CAM
 	}
 
@@ -108,23 +109,82 @@ type BacResult struct {
 }
 
 type PaceResult struct {
-	Success              bool                  `json:"success"`
-	Oid                  asn1.ObjectIdentifier `json:"oid"`
-	ParameterId          int                   `json:"parameterId"`
-	CamProtocolCompleted bool                  `json:"camProtocolCompleted"`
+	Success     bool                  `json:"success"`
+	Oid         asn1.ObjectIdentifier `json:"oid"`
+	ParameterId int                   `json:"parameterId"`
 }
 
 func (result PaceResult) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Success              bool   `json:"success"`
-		Oid                  string `json:"oid"`
-		ParameterId          int    `json:"parameterId"`
-		CamProtocolCompleted bool   `json:"camProtocolCompleted"`
+		Success     bool   `json:"success"`
+		Oid         string `json:"oid"`
+		ParameterId int    `json:"parameterId"`
 	}{
-		Success:              result.Success,
-		Oid:                  result.Oid.String(),
-		ParameterId:          result.ParameterId,
-		CamProtocolCompleted: result.CamProtocolCompleted,
+		Success:     result.Success,
+		Oid:         result.Oid.String(),
+		ParameterId: result.ParameterId,
+	})
+}
+
+type PaceCamResult struct {
+	Success  bool             `json:"success"`
+	Evidence *PaceCamEvidence `json:"evidence,omitempty"`
+}
+
+func (result PaceCamResult) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Success  bool             `json:"success"`
+		Evidence *PaceCamEvidence `json:"evidence,omitempty"`
+	}{
+		Success:  result.Success,
+		Evidence: result.Evidence,
+	})
+}
+
+// PaceCamEvidence holds the cryptographic material from a PACE-CAM session that enables
+// independent re-verification without a live NFC session.
+//
+// The evidence contains both terminal ephemeral private keys (mapping and key-agreement
+// phases), the chip's ephemeral public keys, the encrypted chip authentication data, and
+// an SM-encrypted RAPDU captured after CAM verification.
+//
+// A successful re-verification proves the chip held the private key matching the static
+// public key in CardSecurity during the original session. However, this alone does not
+// prove the chip is genuine — callers must also verify the Document via Passive
+// Authentication to confirm that CardSecurity is bound to a trusted CSCA chain.
+//
+// The ephemeral terminal private keys are safe to include: they are generated fresh for
+// each PACE session and have no value afterwards.
+type PaceCamEvidence struct {
+	PaceOid     asn1.ObjectIdentifier `json:"paceOid"`
+	ParameterId int                   `json:"parameterId"`
+	Nonce       []byte                `json:"nonce"`
+	TermMapPri  []byte                `json:"termMapPri"`
+	ChipMapPub  []byte                `json:"chipMapPub"`
+	TermKaPri   []byte                `json:"termKaPri"`
+	ChipKaPub   []byte                `json:"chipKaPub"`
+	EcadIC      []byte                `json:"ecadIC"`
+}
+
+func (evidence PaceCamEvidence) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		PaceOid     string `json:"paceOid"`
+		ParameterId int    `json:"parameterId"`
+		Nonce       []byte `json:"nonce"`
+		TermMapPri  []byte `json:"termMapPri"`
+		ChipMapPub  []byte `json:"chipMapPub"`
+		TermKaPri   []byte `json:"termKaPri"`
+		ChipKaPub   []byte `json:"chipKaPub"`
+		EcadIC      []byte `json:"ecadIC"`
+	}{
+		PaceOid:     evidence.PaceOid.String(),
+		ParameterId: evidence.ParameterId,
+		Nonce:       evidence.Nonce,
+		TermMapPri:  evidence.TermMapPri,
+		ChipMapPub:  evidence.ChipMapPub,
+		TermKaPri:   evidence.TermKaPri,
+		ChipKaPub:   evidence.ChipKaPub,
+		EcadIC:      evidence.EcadIC,
 	})
 }
 

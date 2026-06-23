@@ -41,7 +41,7 @@ func TestVerifiedChipAuthStatus(t *testing.T) {
 		{
 			desc: "PACE-CAM success + passive auth success + CardSec verified",
 			session: Session{
-				PaceResult:        &PaceResult{Success: true, Oid: oid.OidPaceEcdhCamAesCbcCmac128, ParameterId: 13, CamProtocolCompleted: true},
+				PaceCamResult:     &PaceCamResult{Success: true},
 				PassiveAuthResult: &PassiveAuthResult{Success: true, Sod: NewPassiveAuth(nil), CardSec: NewPassiveAuth(nil)},
 			},
 			exp: CHIP_AUTH_STATUS_PACE_CAM,
@@ -49,7 +49,7 @@ func TestVerifiedChipAuthStatus(t *testing.T) {
 		{
 			desc: "PACE-CAM success + passive auth success + no CardSec",
 			session: Session{
-				PaceResult:        &PaceResult{Success: true, Oid: oid.OidPaceEcdhCamAesCbcCmac128, ParameterId: 13, CamProtocolCompleted: true},
+				PaceCamResult:     &PaceCamResult{Success: true},
 				PassiveAuthResult: &PassiveAuthResult{Success: true, Sod: NewPassiveAuth(nil)},
 			},
 			exp: CHIP_AUTH_STATUS_NONE,
@@ -57,7 +57,7 @@ func TestVerifiedChipAuthStatus(t *testing.T) {
 		{
 			desc: "PACE-CAM success + passive auth fail",
 			session: Session{
-				PaceResult:        &PaceResult{Success: true, Oid: oid.OidPaceEcdhCamAesCbcCmac128, ParameterId: 13, CamProtocolCompleted: true},
+				PaceCamResult:     &PaceCamResult{Success: true},
 				PassiveAuthResult: &PassiveAuthResult{Success: false},
 			},
 			exp: CHIP_AUTH_STATUS_NONE,
@@ -96,42 +96,25 @@ func TestSession(t *testing.T) {
 			expChipAuthProtocolStatus: CHIP_AUTH_STATUS_NONE,
 		},
 		{
-			// PACE (failure)
+			// PACE (success, no CAM)
 			session: Session{PaceResult: &PaceResult{
-				Success:           true,
-				Oid:               oid.OidPaceEcdhGmAesCbcCmac256,
-				ParameterId:       13,
-				CamProtocolCompleted: false},
-			},
-			expChipAuthProtocolStatus: CHIP_AUTH_STATUS_NONE,
-		},
-		{
-			// PACE (success)
-			session: Session{PaceResult: &PaceResult{
-				Success:           true,
-				Oid:               oid.OidPaceEcdhGmAesCbcCmac256,
-				ParameterId:       13,
-				CamProtocolCompleted: false},
+				Success:     true,
+				Oid:         oid.OidPaceEcdhGmAesCbcCmac256,
+				ParameterId: 13},
 			},
 			expChipAuthProtocolStatus: CHIP_AUTH_STATUS_NONE,
 		},
 		{
 			// PACE-CAM (failure)
-			session: Session{PaceResult: &PaceResult{
-				Success:           false,
-				Oid:               oid.OidPaceEcdhCamAesCbcCmac192,
-				ParameterId:       14,
-				CamProtocolCompleted: true},
+			session: Session{PaceCamResult: &PaceCamResult{
+				Success: false},
 			},
 			expChipAuthProtocolStatus: CHIP_AUTH_STATUS_NONE,
 		},
 		{
 			// PACE-CAM (success)
-			session: Session{PaceResult: &PaceResult{
-				Success:           true,
-				Oid:               oid.OidPaceEcdhCamAesCbcCmac192,
-				ParameterId:       14,
-				CamProtocolCompleted: true},
+			session: Session{PaceCamResult: &PaceCamResult{
+				Success: true},
 			},
 			expChipAuthProtocolStatus: CHIP_AUTH_STATUS_PACE_CAM,
 		},
@@ -193,11 +176,38 @@ func TestSessionJson(t *testing.T) {
 		{
 			// PACE (success)
 			object: &PaceResult{
-				Success:           true,
-				Oid:               oid.OidPaceEcdhGmAesCbcCmac256,
-				ParameterId:       13,
-				CamProtocolCompleted: false},
-			expJson: "{\"success\":true,\"oid\":\"0.4.0.127.0.7.2.2.4.2.4\",\"parameterId\":13,\"camProtocolCompleted\":false}",
+				Success:     true,
+				Oid:         oid.OidPaceEcdhGmAesCbcCmac256,
+				ParameterId: 13},
+			expJson: "{\"success\":true,\"oid\":\"0.4.0.127.0.7.2.2.4.2.4\",\"parameterId\":13}",
+		},
+		{
+			// PACE Evidence
+			object: &PaceCamEvidence{
+				PaceOid:     oid.OidPaceEcdhCamAesCbcCmac128,
+				ParameterId: 13,
+				Nonce:       []byte{0x01, 0x02},
+				TermMapPri:  []byte{0x03},
+				ChipMapPub:  []byte{0x04},
+				TermKaPri:   []byte{0x05},
+				ChipKaPub:   []byte{0x06},
+				EcadIC:      []byte{0x07}},
+			expJson: "{\"paceOid\":\"0.4.0.127.0.7.2.2.4.6.2\",\"parameterId\":13,\"nonce\":\"AQI=\",\"termMapPri\":\"Aw==\",\"chipMapPub\":\"BA==\",\"termKaPri\":\"BQ==\",\"chipKaPub\":\"Bg==\",\"ecadIC\":\"Bw==\"}",
+		},
+		{
+			// PACE-CAM Result with Evidence
+			object: &PaceCamResult{
+				Success: true,
+				Evidence: &PaceCamEvidence{
+					PaceOid:     oid.OidPaceEcdhCamAesCbcCmac128,
+					ParameterId: 13,
+					Nonce:       []byte{0x01},
+					TermMapPri:  []byte{0x02},
+					ChipMapPub:  []byte{0x03},
+					TermKaPri:   []byte{0x04},
+					ChipKaPub:   []byte{0x05},
+					EcadIC:      []byte{0x06}}},
+			expJson: "{\"success\":true,\"evidence\":{\"paceOid\":\"0.4.0.127.0.7.2.2.4.6.2\",\"parameterId\":13,\"nonce\":\"AQ==\",\"termMapPri\":\"Ag==\",\"chipMapPub\":\"Aw==\",\"termKaPri\":\"BA==\",\"chipKaPub\":\"BQ==\",\"ecadIC\":\"Bg==\"}}",
 		},
 		{
 			// Active-Auth Evidence
