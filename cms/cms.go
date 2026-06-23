@@ -299,7 +299,7 @@ func ParseSignedData(data []byte) (*SignedData, error) {
 
 	err = utils.ParseAsn1(data, false, &contentInfo)
 	if err != nil {
-		return nil, fmt.Errorf("[ParseSignedData] asn1 parsing error (contentInfo): %s", err)
+		return nil, fmt.Errorf("[ParseSignedData] asn1 parsing error (contentInfo): %w", err)
 	}
 
 	// verify we got the expected OID
@@ -311,7 +311,7 @@ func ParseSignedData(data []byte) (*SignedData, error) {
 
 	err = utils.ParseAsn1(contentInfo.Content.Bytes, false, &signedData)
 	if err != nil {
-		return nil, fmt.Errorf("[ParseSignedData] asn1 parsing error (signedData): %s", err)
+		return nil, fmt.Errorf("[ParseSignedData] asn1 parsing error (signedData): %w", err)
 	}
 
 	return &signedData, nil
@@ -327,7 +327,7 @@ func ParseCertificates(data []byte) (certs []Certificate, err error) {
 
 		tmpData, err := utils.ParseAsn1Ex(remainingData, &tmpCert)
 		if err != nil {
-			return nil, fmt.Errorf("[ParseCertificates] asn1 parsing error: %s", err)
+			return nil, fmt.Errorf("[ParseCertificates] asn1 parsing error: %w", err)
 		}
 
 		certs = append(certs, tmpCert)
@@ -1588,7 +1588,7 @@ func (signature AlgorithmIdentifier) DetermineDigestAlgFromSigAlgWithConfig(conf
 
 		err := config.Parser.ParseAsn1(signature.Parameters.FullBytes, false, &tmpParams)
 		if err != nil {
-			return nil, fmt.Errorf("(AlgorithmIdentifier.DetermineDigestAlg) error: %s", err)
+			return nil, fmt.Errorf("(AlgorithmIdentifier.DetermineDigestAlg) error: %w", err)
 		}
 
 		digestAlg = tmpParams.HashAlgorithm.Algorithm

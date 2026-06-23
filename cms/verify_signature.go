@@ -153,7 +153,7 @@ func decodeRSAPublicKey(pubKeyInfo []byte) (*rsa.PublicKey, error) {
 
 	pubKey, err := subPubKeyInfo.RsaPubKey()
 	if err != nil {
-		return nil, fmt.Errorf("[decodeRSAPublicKey] RsaPubKey error: %s", err)
+		return nil, fmt.Errorf("[decodeRSAPublicKey] RsaPubKey error: %w", err)
 	}
 
 	return &rsa.PublicKey{

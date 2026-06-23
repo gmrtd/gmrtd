@@ -572,7 +572,7 @@ func (pace *Pace) getNonce(paceConfig *PaceConfig, kKdf []byte) ([]byte, error) 
 			// TODO -this is firing for NZ.. maxRead=65536... RAPDU=6982
 			//			- maybe we can include this as a catch.. and try to decrease max-read
 			//			** needs to be handled somewhere common like doAPDU
-			return nil, fmt.Errorf("[getNonce] GeneralAuthenticate error: %s", err)
+			return nil, fmt.Errorf("[getNonce] GeneralAuthenticate error: %w", err)
 		}
 
 		nonceE, err = decodeDynAuthData(0x80, rApduBytes)
