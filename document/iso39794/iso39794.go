@@ -31,7 +31,7 @@ func ProcessISO39794p5(data []byte) (*ISO39794_5_AP, error) {
 	// NB we ignore any remaining bytes
 	_, err = asn1.UnmarshalWithParams(data, &ap, "tag:1")
 	if err != nil {
-		return nil, fmt.Errorf("[processISO39794_5_AP] asn1 parsing error: %s", err)
+		return nil, fmt.Errorf("[processISO39794_5_AP] asn1 parsing error: %w", err)
 	}
 
 	// check we have a valid image

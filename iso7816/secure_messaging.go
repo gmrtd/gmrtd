@@ -161,7 +161,7 @@ func (sm *SecureMessaging) generateMac(data []byte) (mac []byte, err error) {
 		// AES [FIPS 197] SHALL be used in CMAC-mode [SP 800-38B] with a MAC length of 8 bytes.
 		mac, err = cmac.Sum(data, sm.macCipher, 8)
 		if err != nil {
-			return nil, fmt.Errorf("unable to generate Auth-Token (CMAC): %s", err)
+			return nil, fmt.Errorf("unable to generate Auth-Token (CMAC): %w", err)
 		}
 	}
 
