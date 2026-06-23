@@ -3,6 +3,7 @@ package tlv
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/gmrtd/gmrtd/utils"
@@ -10,13 +11,13 @@ import (
 
 const indentStringValue = "  "
 
-func ParseTagAndLength(buf *bytes.Buffer) (tag TlvTag, length TlvLength, err error) {
-	tag, err = ParseTag(buf)
+func ParseTagAndLength(r io.Reader) (tag TlvTag, length TlvLength, err error) {
+	tag, err = ParseTag(r)
 	if err != nil {
 		return TlvTag(0), TlvLength(0), fmt.Errorf("[ParseTagAndLength] ParseTag error: %w", err)
 	}
 
-	length, err = ParseLength(buf)
+	length, err = ParseLength(r)
 	if err != nil {
 		return TlvTag(0), TlvLength(0), fmt.Errorf("[ParseTagAndLength] ParseLength error: %w", err)
 	}

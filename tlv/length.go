@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"math"
 
 	"github.com/gmrtd/gmrtd/utils"
@@ -13,8 +14,8 @@ type TlvLength int64
 
 // decodes and returns the length
 // NB returns -1 when 'indefinite-length' is indicated
-func ParseLength(buf *bytes.Buffer) (length TlvLength, err error) {
-	b1, err := utils.ByteFromBuffer(buf)
+func ParseLength(r io.Reader) (length TlvLength, err error) {
+	b1, err := utils.ByteFromBuffer(r)
 	if err != nil {
 		return 0, fmt.Errorf("[ParseLength] ByteFromBuffer error: %w", err)
 	}
@@ -33,7 +34,7 @@ func ParseLength(buf *bytes.Buffer) (length TlvLength, err error) {
 		// 4 bytes: 10000011 xxxxxxxx xxxxxxxx xxxxxxxx (24 bit length)
 		// 5 bytes: 10000100 xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx (32 bit length)
 		byteLen := b1 - 0x80
-		bytes, err := utils.BytesFromBuffer(buf, int(byteLen))
+		bytes, err := utils.BytesFromBuffer(r, int(byteLen))
 		if err != nil {
 			return 0, fmt.Errorf("[ParseLength] ByteBuffer error: %w", err)
 		}
@@ -45,7 +46,7 @@ func ParseLength(buf *bytes.Buffer) (length TlvLength, err error) {
 		}
 		length = TlvLength(rawLen)
 	} else {
-		return 0, fmt.Errorf("[ParseLength] Unsupported length (b1:%02x) (remBytes:%x)", b1, buf.Bytes())
+		return 0, fmt.Errorf("[ParseLength] Unsupported length (b1:%02x)", b1)
 	}
 
 	return length, nil
