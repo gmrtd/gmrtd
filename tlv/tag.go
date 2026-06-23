@@ -2,16 +2,23 @@ package tlv
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"io"
 
 	"github.com/gmrtd/gmrtd/utils"
 )
 
 type TlvTag uint32
 
-func ParseTag(buf *bytes.Buffer) (TlvTag, error) {
-	b1, err := utils.ByteFromBuffer(buf)
+var errStartOfStreamEOF = errors.New("EOF at start of stream")
+
+func ParseTag(r io.Reader) (TlvTag, error) {
+	b1, err := utils.ByteFromBuffer(r)
 	if err != nil {
+		if errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, io.EOF) {
+			return TlvTag(0), errStartOfStreamEOF
+		}
 		return TlvTag(0), fmt.Errorf("[ParseTag] ByteFromBuffer error: %w", err)
 	}
 
@@ -25,7 +32,7 @@ func ParseTag(buf *bytes.Buffer) (TlvTag, error) {
 				return TlvTag(0), fmt.Errorf("[ParseTag] Tag exceeds 4 bytes (tag:%x)", tag)
 			}
 
-			tmp, err := utils.ByteFromBuffer(buf)
+			tmp, err := utils.ByteFromBuffer(r)
 			if err != nil {
 				return TlvTag(0), fmt.Errorf("[ParseTag] ByteFromBuffer error: %w", err)
 			}
@@ -42,16 +49,15 @@ func ParseTag(buf *bytes.Buffer) (TlvTag, error) {
 	return tag, nil
 }
 
-func ParseTags(buf *bytes.Buffer) ([]TlvTag, error) {
+func ParseTags(r io.Reader) ([]TlvTag, error) {
 	var out []TlvTag
 
 	for {
-		if buf.Len() <= 0 {
-			break
-		}
-
-		tag, err := ParseTag(buf)
+		tag, err := ParseTag(r)
 		if err != nil {
+			if errors.Is(err, errStartOfStreamEOF) {
+				break
+			}
 			return nil, fmt.Errorf("[ParseTags] ParseTag error: %w", err)
 		}
 

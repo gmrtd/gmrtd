@@ -1,11 +1,11 @@
 package utils
 
 import (
-	"bytes"
 	"encoding/asn1"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"unicode"
 )
 
@@ -105,18 +105,19 @@ func PrintableBytes(data []byte) bool {
 	return true
 }
 
-func BytesFromBuffer(buf *bytes.Buffer, length int) ([]byte, error) {
-	tmp := buf.Next(length)
+func BytesFromBuffer(r io.Reader, length int) ([]byte, error) {
+	tmp := make([]byte, length)
 
-	if len(tmp) != length {
-		return nil, fmt.Errorf("[BytesFromBuffer] Req:%d, Act:%d", length, len(tmp))
+	n, err := io.ReadFull(r, tmp)
+	if err != nil {
+		return nil, fmt.Errorf("[BytesFromBuffer] Req:%d, Act:%d: %w", length, n, err)
 	}
 
-	return bytes.Clone(tmp), nil
+	return tmp, nil
 }
 
-func ByteFromBuffer(buf *bytes.Buffer) (byte, error) {
-	tmp, err := BytesFromBuffer(buf, 1)
+func ByteFromBuffer(r io.Reader) (byte, error) {
+	tmp, err := BytesFromBuffer(r, 1)
 	if err != nil {
 		return 0, fmt.Errorf("[ByteFromBuffer] GetBytesFromBuffer error: %w", err)
 	}
