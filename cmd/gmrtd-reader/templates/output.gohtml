@@ -716,14 +716,32 @@ document.addEventListener('DOMContentLoaded', () => {
       <td>ParameterId</td>
       <td>{{.Session.PaceResult.ParameterId}}</td>
     </tr>
-    <tr>
-      <td>CAM Protocol Completed (PACE-CAM)</td>
-      <td>{{.Session.PaceResult.CamProtocolCompleted}}</td>
-    </tr>
   </tbody>
 </table>
 </div>
 {{end}}
+{{else}}
+<i>No data</i>
+{{end}}
+
+<h3>PACE-CAM <sub>Chip Authentication Mapping (PACE-CAM)</sub></h3>
+{{if .Session.PaceCamResult}}
+<div>
+<table class="striped">
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Value</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Success</td>
+      <td>{{.Session.PaceCamResult.Success}}</td>
+    </tr>
+  </tbody>
+</table>
+</div>
 {{else}}
 <i>No data</i>
 {{end}}
@@ -773,18 +791,6 @@ document.addEventListener('DOMContentLoaded', () => {
     <tr>
       <td>Success</td>
       <td>{{.Session.ActiveAuthResult.Success}}</td>
-    </tr>
-    <tr>
-      <td>Algorithm</td>
-      <td>{{.Session.ActiveAuthResult.Algorithm}}</td>
-    </tr>
-    <tr>
-      <td>Nonce</td>
-      <td>{{.Session.ActiveAuthResult.Nonce | BytesToHex}}</td>
-    </tr>
-    <tr>
-      <td>Signature</td>
-      <td>{{.Session.ActiveAuthResult.Signature | BytesToHex}}</td>
     </tr>
   </tbody>
 </table>
