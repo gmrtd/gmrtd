@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.39.0](https://github.com/gmrtd/gmrtd/compare/v0.38.0...v0.39.0) (2026-06-24)
+
+
+### Features
+
+* **document:** move ApduLog from Session to DocumentEx ([#384](https://github.com/gmrtd/gmrtd/issues/384)) ([9f2860c](https://github.com/gmrtd/gmrtd/commit/9f2860c6b2b9cde54b4b1ffe32afed807a194b93))
+* **session:** add CBOR serialization for chip auth evidence ([#381](https://github.com/gmrtd/gmrtd/issues/381)) ([f0f26c0](https://github.com/gmrtd/gmrtd/commit/f0f26c03b9fa3272a982197c424ff285b3e59085))
+
+
+### Bug Fixes
+
+* **gmrtd-reader:** update template for PACE-CAM and AA struct changes ([#383](https://github.com/gmrtd/gmrtd/issues/383)) ([ef06873](https://github.com/gmrtd/gmrtd/commit/ef06873939e304b5b61bed81a2e33e05d5ec19ca))
+
 ## [0.38.0](https://github.com/gmrtd/gmrtd/compare/v0.37.1...v0.38.0) (2026-06-23)
 
 
