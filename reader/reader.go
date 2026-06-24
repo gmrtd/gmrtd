@@ -156,8 +156,7 @@ func (reader *Reader) ReadDocument(password *password.Password, atr []byte, ats 
 		return state.docEx, fmt.Errorf("[ReadDocument] runSteps error: %w", err)
 	}
 
-	// copy apdu-log over to session
-	state.docEx.Session.ApduLog = reader.nfc.ApduLog()
+	state.docEx.ApduLog = reader.nfc.ApduLog()
 
 	// TODO - should get from summary...
 	reader.status.Status("Valid Document!")

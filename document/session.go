@@ -4,8 +4,6 @@ import (
 	"encoding/asn1"
 	"encoding/json"
 	"fmt"
-
-	"github.com/gmrtd/gmrtd/iso7816"
 )
 
 type Session struct {
@@ -34,8 +32,6 @@ type Session struct {
 
 	// Summary (generated from above data)
 	Summary *DocumentSummary `json:"summary,omitempty"`
-
-	ApduLog *iso7816.ApduLog `json:"apduLog,omitempty"`
 }
 
 // ChipAuthProtocolCompleted reports whether a chip authentication protocol (PACE-CAM/CA/AA)

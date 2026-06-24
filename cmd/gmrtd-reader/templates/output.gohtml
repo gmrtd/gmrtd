@@ -868,8 +868,8 @@ document.addEventListener('DOMContentLoaded', () => {
 </div>
 
 <div id="apdu">
-{{ if .Session.ApduLog }}
-{{ template "apduLog" .Session.ApduLog }}
+{{ if .ApduLog }}
+{{ template "apduLog" .ApduLog }}
 {{ end }}
 </div>
 
