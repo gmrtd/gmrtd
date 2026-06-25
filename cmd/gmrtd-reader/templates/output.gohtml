@@ -594,7 +594,7 @@ document.addEventListener('DOMContentLoaded', () => {
 <h1><a href="https://github.com/gmrtd/gmrtd">GMRTD</a> <sub>(v{{ GmrtdVersion }})</sub></h1>
 
 <div>
-<a href="#session">Session</a> | <a href="#document">Document</a> | <a href="#apdu">APDU</a> | <a href="#json">JSON</a>
+<a href="#session">Session</a> | <a href="#document">Document</a> | <a href="#apdu">APDU</a> | <a href="#json">JSON</a> | <a href="#cbor">CBOR</a>
 </div>
 
 <br/>
@@ -879,6 +879,84 @@ document.addEventListener('DOMContentLoaded', () => {
 <div><pre>
 {{ .IndentedJson }}
 </pre></div>
+</div>
+
+<div id="cbor">
+<h1>CBOR DocumentEx</h1>
+
+{{if .CborBase64}}
+<div class="raw-block" data-expanded="false">
+  <div class="raw-toolbar">
+    <div class="raw-meta" id="cbor-meta"></div>
+    <div class="raw-actions">
+      <button class="btn" type="button" id="cbor-toggle">Expand</button>
+      <button class="btn" type="button" id="cbor-copy-hex">Copy hex</button>
+      <button class="btn" type="button" id="cbor-copy-b64">Copy base64</button>
+      <button class="btn" type="button" id="cbor-download">Download .cbor</button>
+    </div>
+    <span class="copy-status" id="cbor-status"></span>
+  </div>
+  <div class="raw-preview">
+    <div class="hex-data" id="cbor-preview"></div>
+  </div>
+  <div class="raw-full">
+    <div class="hex-data" id="cbor-full"></div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var b64 = "{{ .CborBase64 }}";
+  var raw = atob(b64);
+  var bytes = new Uint8Array(raw.length);
+  for (var i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+
+  var hex = Array.from(bytes, function(b) { return ('0'+b.toString(16)).slice(-2); }).join('');
+  var spaced = hex.match(/.{2}/g).join(' ');
+
+  document.getElementById('cbor-meta').textContent = bytes.length.toLocaleString() + ' bytes';
+
+  var PREVIEW_BYTES = 64;
+  var previewHex = hex.slice(0, PREVIEW_BYTES * 2);
+  document.getElementById('cbor-preview').textContent = previewHex.match(/.{2}/g).join(' ') + ' …';
+  document.getElementById('cbor-full').textContent = spaced;
+
+  var block = document.getElementById('cbor-toggle').closest('.raw-block');
+
+  document.getElementById('cbor-toggle').addEventListener('click', function() {
+    var expanded = block.dataset.expanded === 'true';
+    block.dataset.expanded = expanded ? 'false' : 'true';
+    this.textContent = expanded ? 'Expand' : 'Collapse';
+  });
+
+  var statusEl = document.getElementById('cbor-status');
+  function setStatus(msg) {
+    statusEl.textContent = msg;
+    if (msg) setTimeout(function() { statusEl.textContent = ''; }, 900);
+  }
+
+  document.getElementById('cbor-copy-hex').addEventListener('click', function() {
+    navigator.clipboard.writeText(hex).then(function() { setStatus('Copied hex'); }, function() { setStatus('Copy failed'); });
+  });
+
+  document.getElementById('cbor-copy-b64').addEventListener('click', function() {
+    navigator.clipboard.writeText(b64).then(function() { setStatus('Copied base64'); }, function() { setStatus('Copy failed'); });
+  });
+
+  document.getElementById('cbor-download').addEventListener('click', function() {
+    var blob = new Blob([bytes], { type: 'application/cbor' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'gmrtd-verifiable-doc.cbor';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    setStatus('Downloaded');
+  });
+})();
+</script>
+{{else}}
+<i>CBOR data not available</i>
+{{end}}
 </div>
 
 </body>
