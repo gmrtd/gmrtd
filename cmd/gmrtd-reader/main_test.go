@@ -242,7 +242,7 @@ func TestGenerateDocumentNilDocument(t *testing.T) {
 func TestExecuteDocumentTemplateError(t *testing.T) {
 	tmpl := template.Must(template.New("not-output").Parse(`hello`))
 
-	out, err := executeDocumentTemplate(tmpl, &document.DocumentEx{})
+	out, err := executeDocumentTemplate(tmpl, &templateData{DocumentEx: &document.DocumentEx{}})
 	if err == nil {
 		t.Fatalf("expected error")
 	}

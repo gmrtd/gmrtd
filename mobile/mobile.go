@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime/debug"
+	"sync"
 
 	"github.com/gmrtd/gmrtd/cms"
 	"github.com/gmrtd/gmrtd/document"
@@ -14,7 +15,28 @@ import (
 	"github.com/gmrtd/gmrtd/oid"
 	"github.com/gmrtd/gmrtd/password"
 	"github.com/gmrtd/gmrtd/reader"
+	"github.com/gmrtd/gmrtd/verifier"
 )
+
+var (
+	cscaOnce     sync.Once
+	cscaCertPool cms.CertPool
+	cscaInitErr  error
+)
+
+func PreloadCscaCertPool() error {
+	cscaOnce.Do(func() {
+		cscaCertPool, cscaInitErr = cms.DefaultMasterList()
+	})
+	return cscaInitErr
+}
+
+func getCscaCertPool() (cms.CertPool, error) {
+	if err := PreloadCscaCertPool(); err != nil {
+		return nil, err
+	}
+	return cscaCertPool, nil
+}
 
 // bind doesn't like referencing iso7816.Transceiver
 // so we redefine the interface here
@@ -64,30 +86,12 @@ func NewPasswordCan(can string) (*MrtdPassword, error) {
 	return &MrtdPassword{password: password.NewPasswordCan(can)}, nil
 }
 
-// CscaMasterList holds a pre-initialised CSCA trust store for use with Reader.
-// Callers can create one via NewDefaultCscaMasterList and pass it to
-// Reader.SetCscaMasterList to avoid the initialisation cost inside ReadDocument.
-type CscaMasterList struct {
-	certPool cms.CertPool
-}
-
-// NewDefaultCscaMasterList builds a CscaMasterList from the bundled default
-// master lists (DE, NL, and Indonesian 2010-series certificates).
-func NewDefaultCscaMasterList() (*CscaMasterList, error) {
-	certPool, err := cms.DefaultMasterList()
-	if err != nil {
-		return nil, fmt.Errorf("[NewDefaultCscaMasterList] error: %w", err)
-	}
-	return &CscaMasterList{certPool: certPool}, nil
-}
-
 type Reader struct {
-	status       ReaderStatus
-	transceiver  Transceiver
-	maxRead      int
-	skipPace     bool
-	skipImages   bool
-	cscaCertPool cms.CertPool
+	status      ReaderStatus
+	transceiver Transceiver
+	maxRead     int
+	skipPace    bool
+	skipImages  bool
 }
 
 type Document struct {
@@ -120,29 +124,6 @@ func (r *Reader) SkipImages() {
 	r.skipImages = true
 }
 
-// SetCscaMasterList sets a pre-initialised trust store on the reader.
-// When set, ReadDocument uses this pool directly instead of initialising
-// one itself. Callers can use this to amortise the initialisation cost
-// across multiple ReadDocument calls.
-func (r *Reader) SetCscaMasterList(ml *CscaMasterList) {
-	if ml != nil {
-		r.cscaCertPool = ml.certPool
-	}
-}
-
-func cscaMasterList() (cms.CertPool, error) {
-	var cscaCertPool cms.CertPool
-	var err error
-
-	cscaCertPool, err = cms.DefaultMasterList()
-	if err != nil {
-		return nil, fmt.Errorf("[cscaMasterList] cms.DefaultMasterList error: %w", err)
-	}
-
-	return cscaCertPool, nil
-}
-
-// reads the document (and performs passive authentication)
 func (r *Reader) ReadDocument(password *MrtdPassword, atr []byte, ats []byte) (doc *Document, err error) {
 	defer func() {
 		if e := recover(); e != nil {
@@ -166,15 +147,13 @@ func (r *Reader) ReadDocument(password *MrtdPassword, atr []byte, ats []byte) (d
 		nfc.SetMaxLe(r.maxRead)
 	}
 
-	if r.cscaCertPool == nil {
-		r.cscaCertPool, err = cscaMasterList()
-		if err != nil {
-			return nil, fmt.Errorf("[ReadDocument] cscaMasterList error: %w", err)
-		}
+	certPool, err := getCscaCertPool()
+	if err != nil {
+		return nil, fmt.Errorf("[ReadDocument] getCscaCertPool error: %w", err)
 	}
 
 	var gmrtdReader *reader.Reader
-	gmrtdReader = reader.NewReader(r.status, nfc, r.cscaCertPool)
+	gmrtdReader = reader.NewReader(r.status, nfc, certPool)
 
 	if r.skipPace {
 		gmrtdReader.SkipPace()
@@ -184,7 +163,6 @@ func (r *Reader) ReadDocument(password *MrtdPassword, atr []byte, ats []byte) (d
 		gmrtdReader.SkipImages()
 	}
 
-	// read (and verify) the document (inc passive-authentication)
 	doc.documentEx, err = gmrtdReader.ReadDocument(password.password, atr, ats)
 
 	return doc, err
@@ -212,6 +190,26 @@ func OidDesc(oidStr string) string {
 	return oid.OidDescStr(oidStr)
 }
 
+type Verifier struct{}
+
+func NewVerifier() *Verifier {
+	return &Verifier{}
+}
+
+func (v *Verifier) Verify(data []byte) (doc *Document, err error) {
+	certPool, err := getCscaCertPool()
+	if err != nil {
+		return nil, fmt.Errorf("[Verify] getCscaCertPool error: %w", err)
+	}
+
+	docEx, err := verifier.NewVerifier(certPool).Verify(data)
+	if err != nil {
+		return nil, fmt.Errorf("[Verify] verifier error: %w", err)
+	}
+
+	return &Document{documentEx: docEx}, nil
+}
+
 func (doc *Document) DocumentExJson() (jsonData []byte, err error) {
 	if doc.documentEx == nil {
 		return nil, fmt.Errorf("[DocumentJson] No document available")
@@ -220,4 +218,12 @@ func (doc *Document) DocumentExJson() (jsonData []byte, err error) {
 	jsonData, err = json.Marshal(doc.documentEx)
 
 	return jsonData, err
+}
+
+func (doc *Document) DocumentExCbor() (cborData []byte, err error) {
+	if doc.documentEx == nil {
+		return nil, fmt.Errorf("[DocumentExCbor] No document available")
+	}
+
+	return doc.documentEx.ToCbor()
 }

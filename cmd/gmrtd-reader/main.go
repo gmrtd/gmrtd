@@ -86,11 +86,16 @@ func parseDocumentTemplates() (*template.Template, error) {
 	return template.New("").Funcs(templateFuncMap()).ParseFS(templateFS, "templates/*.gohtml")
 }
 
-func executeDocumentTemplate(tmpl *template.Template, documentEx *document.DocumentEx) (*bytes.Buffer, error) {
+type templateData struct {
+	*document.DocumentEx
+	CborBase64 string
+}
+
+func executeDocumentTemplate(tmpl *template.Template, data *templateData) (*bytes.Buffer, error) {
 	byteBuf := bytes.NewBuffer(nil)
 
 	// convert to HTML using template
-	err := tmpl.ExecuteTemplate(byteBuf, "output.gohtml", documentEx)
+	err := tmpl.ExecuteTemplate(byteBuf, "output.gohtml", data)
 	if err != nil {
 		return nil, fmt.Errorf("[generateDocument] ExecuteTemplate error: %w", err)
 	}
@@ -110,7 +115,16 @@ func generateDocument(documentEx *document.DocumentEx) (*bytes.Buffer, error) {
 		return nil, fmt.Errorf("[generateDocument] ParseFS error: %w", err)
 	}
 
-	byteBuf, err := executeDocumentTemplate(tmpl, documentEx)
+	data := &templateData{DocumentEx: documentEx}
+
+	cborBytes, err := documentEx.ToCbor()
+	if err != nil {
+		slog.Warn("ToCbor failed, CBOR section will be unavailable", "error", err)
+	} else {
+		data.CborBase64 = base64.StdEncoding.EncodeToString(cborBytes)
+	}
+
+	byteBuf, err := executeDocumentTemplate(tmpl, data)
 	if err != nil {
 		return nil, fmt.Errorf("[generateDocument] executeDocumentTemplate error: %w", err)
 	}
