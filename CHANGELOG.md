@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.40.0](https://github.com/gmrtd/gmrtd/compare/v0.39.0...v0.40.0) (2026-06-25)
+
+
+### Features
+
+* **verifier:** add offline document verification and DocumentEx CBOR serialisation ([#385](https://github.com/gmrtd/gmrtd/issues/385)) ([2dc6e58](https://github.com/gmrtd/gmrtd/commit/2dc6e58d7bf30e513059a5f30f077309df453331))
+
 ## [0.39.0](https://github.com/gmrtd/gmrtd/compare/v0.38.0...v0.39.0) (2026-06-24)
 
 
