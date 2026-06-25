@@ -379,13 +379,6 @@ func verifyDocument(reader *Reader, state *ReaderState) (err error) {
 }
 
 func calculateDocumentSummary(_ *Reader, state *ReaderState) error {
-	state.docEx.Session.Summary = &document.DocumentSummary{
-		DataTrusted: state.docEx.Session.PassiveAuthResult != nil &&
-			state.docEx.Session.PassiveAuthResult.Success,
-		ChipAuthenticity: state.docEx.Session.VerifiedChipAuthStatus(),
-		LdsVersion:       state.docEx.Document.LdsVersion(),
-		UnicodeVersion:   state.docEx.Document.UnicodeVersion(),
-	}
-
+	state.docEx.GenerateSummary()
 	return nil
 }

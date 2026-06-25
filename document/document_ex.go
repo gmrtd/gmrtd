@@ -13,6 +13,16 @@ type DocumentEx struct {
 	ApduLog  *iso7816.ApduLog `json:"apduLog,omitempty"`
 }
 
+func (docEx *DocumentEx) GenerateSummary() {
+	docEx.Session.Summary = &DocumentSummary{
+		DataTrusted: docEx.Session.PassiveAuthResult != nil &&
+			docEx.Session.PassiveAuthResult.Success,
+		ChipAuthenticity: docEx.Session.VerifiedChipAuthStatus(),
+		LdsVersion:       docEx.Document.LdsVersion(),
+		UnicodeVersion:   docEx.Document.UnicodeVersion(),
+	}
+}
+
 func (docEx *DocumentEx) IndentedJson() string {
 	b, err := json.MarshalIndent(docEx, "", "    ")
 	if err != nil {

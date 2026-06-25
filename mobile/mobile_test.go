@@ -4,6 +4,7 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/gmrtd/gmrtd/document"
 	"github.com/gmrtd/gmrtd/iso7816"
 )
 
@@ -191,41 +192,50 @@ func TestReadDocument(t *testing.T) {
 	}
 }
 
-func TestNewDefaultCscaMasterList(t *testing.T) {
-	ml, err := NewDefaultCscaMasterList()
+func TestGetCscaCertPool(t *testing.T) {
+	certPool, err := getCscaCertPool()
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
-	if ml == nil {
-		t.Fatalf("expected non-nil CscaMasterList")
-	}
-	if ml.certPool == nil {
+	if certPool == nil {
 		t.Fatalf("expected non-nil certPool")
 	}
 }
 
-func TestSetCscaMasterList(t *testing.T) {
-	ml, err := NewDefaultCscaMasterList()
+func TestPreloadCscaCertPool(t *testing.T) {
+	err := PreloadCscaCertPool()
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
+}
 
-	r := &Reader{}
-	if r.cscaCertPool != nil {
-		t.Fatalf("cscaCertPool should be nil initially")
-	}
+func TestDocumentExCborError(t *testing.T) {
+	doc := &Document{}
 
-	r.SetCscaMasterList(ml)
-	if r.cscaCertPool == nil {
-		t.Fatalf("cscaCertPool should be set after SetCscaMasterList")
+	_, err := doc.DocumentExCbor()
+	if err == nil {
+		t.Error("expected error when documentEx is nil")
 	}
 }
 
-func TestSetCscaMasterListNil(t *testing.T) {
-	r := &Reader{}
-	r.SetCscaMasterList(nil)
-	if r.cscaCertPool != nil {
-		t.Fatalf("cscaCertPool should remain nil when nil is passed")
+func TestDocumentExCborRoundTrip(t *testing.T) {
+	doc := &Document{documentEx: &document.DocumentEx{}}
+
+	cborData, err := doc.DocumentExCbor()
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if len(cborData) == 0 {
+		t.Fatal("expected non-empty CBOR data")
+	}
+}
+
+func TestVerifierVerifyInvalidInput(t *testing.T) {
+	v := NewVerifier()
+
+	_, err := v.Verify([]byte{0xff, 0xff, 0xff})
+	if err == nil {
+		t.Error("expected error for invalid CBOR input")
 	}
 }
 
