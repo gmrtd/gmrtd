@@ -1051,3 +1051,315 @@ func TestCardSecurityFileApduErr(t *testing.T) {
 		t.Fatalf("error expected")
 	}
 }
+
+// ---- decryptNonce ----
+
+func TestDecryptNonceNonBlockAligned(t *testing.T) {
+	cfg, err := paceConfigGetByOID(oid.OidPaceEcdhGmAesCbcCmac128)
+	if err != nil {
+		t.Fatalf("paceConfigGetByOID error: %s", err)
+	}
+	// 15 bytes — not block-aligned for AES (16-byte blocks)
+	_, err = cfg.decryptNonce(utils.HexToBytes("89DED1B26624EC1E634C1989302849DD"), make([]byte, 15))
+	if err == nil {
+		t.Fatalf("Expected error for non-block-aligned nonce")
+	}
+}
+
+// ---- doApduMseSetAT ----
+
+func TestDoApduMseSetATInvalidPasswordType(t *testing.T) {
+	var doc document.Document
+	var pass password.Password
+	pass.PasswordType = 99 // invalid — password.Type() returns ErrPasswordTypeUnsupported
+
+	p := NewPace(iso7816.NewNfcSession(&iso7816.StaticTransceiver{}), &doc, &pass)
+
+	cfg, err := paceConfigGetByOID(oid.OidPaceEcdhGmAesCbcCmac256)
+	if err != nil {
+		t.Fatalf("paceConfigGetByOID error: %s", err)
+	}
+
+	err = p.doApduMseSetAT(cfg, mustStandardisedDomainParams(t, 13))
+	if err == nil {
+		t.Fatalf("Expected error for invalid password type")
+	}
+	if !errors.Is(err, password.ErrPasswordTypeUnsupported) {
+		t.Fatalf("Expected ErrPasswordTypeUnsupported, got: %v", err)
+	}
+}
+
+// ---- decryptEcadIC ----
+
+func TestDecryptEcadICBadKeyLen(t *testing.T) {
+	// 7-byte key is invalid for AES or TDES
+	_, err := decryptEcadIC(cryptoutils.AES, make([]byte, 7), make([]byte, 16))
+	if err == nil {
+		t.Fatalf("Expected error for invalid key length")
+	}
+}
+
+func TestDecryptEcadICNonBlockAligned(t *testing.T) {
+	// 1-byte ciphertext is not block-aligned
+	_, err := decryptEcadIC(cryptoutils.AES, make([]byte, 16), make([]byte, 1))
+	if err == nil {
+		t.Fatalf("Expected error for non-block-aligned ciphertext")
+	}
+}
+
+func TestDecryptEcadICBadPadding(t *testing.T) {
+	key := make([]byte, 16)
+
+	// Mirror what decryptEcadIC does internally to compute IV and build ecadIC
+	blockCipher, err := cryptoutils.CipherForKey(cryptoutils.AES, key)
+	if err != nil {
+		t.Fatalf("CipherForKey error: %s", err)
+	}
+	iv := make([]byte, blockCipher.BlockSize())
+	blockCipher.Encrypt(iv, bytes.Repeat([]byte{0xff}, blockCipher.BlockSize()))
+
+	// Encrypt all-zeros plaintext → decrypts to all-zeros → no 0x80 byte → ISO9797Method2Unpad fails
+	ecadIC, err := cryptoutils.CryptCBC(blockCipher, iv, make([]byte, 16), true)
+	if err != nil {
+		t.Fatalf("CryptCBC error: %s", err)
+	}
+
+	_, err = decryptEcadIC(cryptoutils.AES, key, ecadIC)
+	if err == nil {
+		t.Fatalf("Expected error for bad ISO9797 M2 padding")
+	}
+}
+
+// ---- icPubKeyECForCAM ----
+
+func TestIcPubKeyECForCAMNotECDH(t *testing.T) {
+	dp := &DomainParams{isECDH: false}
+	cardSec := &document.CardSecurity{SecurityInfos: &document.SecurityInfos{}}
+	_, err := icPubKeyECForCAM(dp, cardSec)
+	if err == nil {
+		t.Fatalf("Expected error for non-ECDH domain params")
+	}
+}
+
+// ---- doGenericMappingGmCam ----
+
+func TestDoGenericMappingDhNotImplemented(t *testing.T) {
+	var doc document.Document
+	var pass password.Password = *password.NewPasswordCan("123456")
+	p := NewPace(iso7816.NewNfcSession(&iso7816.StaticTransceiver{}), &doc, &pass)
+
+	cfg, err := paceConfigGetByOID(oid.OidPaceDhGmAesCbcCmac256)
+	if err != nil {
+		t.Fatalf("paceConfigGetByOID error: %s", err)
+	}
+
+	_, err = p.doGenericMappingGmCam(cfg, &DomainParams{id: 0, isECDH: false}, make([]byte, 16))
+	if err == nil {
+		t.Fatalf("Expected error for DH (not implemented)")
+	}
+}
+
+// ---- computeAuthTokens ----
+
+func TestComputeAuthTokensError(t *testing.T) {
+	// PaceConfig with an unsupported authToken type triggers computeAuthToken error
+	badConfig := PaceConfig{
+		oid:       oid.OidPaceEcdhGmAesCbcCmac128,
+		cipher:    cryptoutils.AES,
+		authToken: PACEAuthToken(99),
+	}
+
+	domainParams := mustStandardisedDomainParams(t, 13)
+	termPub := mustDecodeX962EcPoint(t, domainParams.ec, utils.HexToBytes("04303f340815eea501772393e299a4a6f6694600189c249c63a8513ff3fefa66e346d11970b5f76fb564c3b0e54b215528f647ec5a9ab209cdbe262e763d6119a1"))
+	chipPub := mustDecodeX962EcPoint(t, domainParams.ec, utils.HexToBytes("0476dc295c4fb14237d87318d70967e25ec45f74d6fd4aff588c90efb3d868f05b450ba6b64967227c2246dbe2905522c8086dac7f3bbe5cf3b192f0a0c2d97ee5"))
+
+	_, _, err := badConfig.computeAuthTokens(make([]byte, 16), domainParams.ec, termPub, chipPub)
+	if err == nil {
+		t.Fatalf("Expected error for unsupported authToken type")
+	}
+}
+
+// ---- getNonce ----
+
+func TestGetNonceMalformedResponse(t *testing.T) {
+	// Chip returns 7C with wrong inner tag (83 instead of 80) → decodeDynAuthData fails
+	var transceiver *iso7816.MockTransceiver = new(iso7816.MockTransceiver)
+	transceiver.AddReqRsp("10860000027C0000", "7C0283009000")
+
+	var doc document.Document
+	var pass password.Password = *password.NewPasswordCan("123456")
+	p := NewPace(iso7816.NewNfcSession(transceiver), &doc, &pass)
+
+	cfg, err := paceConfigGetByOID(oid.OidPaceEcdhGmAesCbcCmac256)
+	if err != nil {
+		t.Fatalf("paceConfigGetByOID error: %s", err)
+	}
+
+	_, err = p.getNonce(cfg, make([]byte, 32))
+	if err == nil {
+		t.Fatalf("Expected error for malformed nonce response")
+	}
+}
+
+// ---- mapNonceGmEcDh ----
+
+// termMapPri/PubXY from TestDoPace_CAM_ECDH_DE (idx=0) on Brainpool P256r1 (paramId=13)
+const (
+	testTermMapPriHex = "01fd26013f5bc41fad8bb09811e435f16fbe2eb3c2e1d999b0f63da8c3d58bb5"
+	testTermMapPubXHex = "303f340815eea501772393e299a4a6f6694600189c249c63a8513ff3fefa66e3"
+	testTermMapPubYHex = "46d11970b5f76fb564c3b0e54b215528f647ec5a9ab209cdbe262e763d6119a1"
+)
+
+func testTermMapKeyGen(ec elliptic.Curve) cryptoutils.EcKeypair {
+	return cryptoutils.NewEcKeypair(
+		utils.HexToBytes(testTermMapPriHex),
+		utils.HexToBytes(testTermMapPubXHex),
+		utils.HexToBytes(testTermMapPubYHex),
+	)
+}
+
+// mapNonceGmEcDh request hex for the fixed keypair above on paramId=13
+const testMapNonceReqHex = "10860000457c43814104" + testTermMapPubXHex + testTermMapPubYHex + "00"
+
+func TestMapNonceGmEcDhBadInnerTag(t *testing.T) {
+	var transceiver *iso7816.MockTransceiver = new(iso7816.MockTransceiver)
+	// Wrong inner tag (83 instead of 82)
+	transceiver.AddReqRsp(testMapNonceReqHex, "7C0283009000")
+
+	var doc document.Document
+	var pass password.Password = *password.NewPasswordCan("123456")
+	p := NewPace(iso7816.NewNfcSession(transceiver), &doc, &pass)
+	p.keyGeneratorEc = testTermMapKeyGen
+
+	_, _, _, _, err := p.mapNonceGmEcDh(mustStandardisedDomainParams(t, 13), make([]byte, 16))
+	if err == nil {
+		t.Fatalf("Expected error for wrong inner tag in mapping response")
+	}
+}
+
+func TestMapNonceGmEcDhBadEcPoint(t *testing.T) {
+	var transceiver *iso7816.MockTransceiver = new(iso7816.MockTransceiver)
+	// Correct tag 82 but only 2 bytes of data — not a valid X9.62 EC point
+	transceiver.AddReqRsp(testMapNonceReqHex, "7C04820200009000")
+
+	var doc document.Document
+	var pass password.Password = *password.NewPasswordCan("123456")
+	p := NewPace(iso7816.NewNfcSession(transceiver), &doc, &pass)
+	p.keyGeneratorEc = testTermMapKeyGen
+
+	_, _, _, _, err := p.mapNonceGmEcDh(mustStandardisedDomainParams(t, 13), make([]byte, 16))
+	if err == nil {
+		t.Fatalf("Expected error for invalid EC point in mapping response")
+	}
+}
+
+func TestMapNonceGmEcDhSamePublicKeys(t *testing.T) {
+	var transceiver *iso7816.MockTransceiver = new(iso7816.MockTransceiver)
+	// Chip echoes back the terminal's own mapping public key → must-differ check fires
+	transceiver.AddReqRsp(
+		testMapNonceReqHex,
+		"7c43824104"+testTermMapPubXHex+testTermMapPubYHex+"9000",
+	)
+
+	var doc document.Document
+	var pass password.Password = *password.NewPasswordCan("123456")
+	p := NewPace(iso7816.NewNfcSession(transceiver), &doc, &pass)
+	p.keyGeneratorEc = testTermMapKeyGen
+
+	_, _, _, _, err := p.mapNonceGmEcDh(mustStandardisedDomainParams(t, 13), make([]byte, 16))
+	if err == nil {
+		t.Fatalf("Expected error when terminal and chip mapping public keys are the same")
+	}
+}
+
+// ---- DoPACE ----
+
+// TestDoPace_IM verifies that PACE-IM returns a "not implemented" error.
+func TestDoPace_IM(t *testing.T) {
+	pass := password.NewPasswordCan("123456")
+
+	imConfig, err := paceConfigGetByOID(oid.OidPaceEcdhImAesCbcCmac128)
+	if err != nil {
+		t.Fatalf("paceConfigGetByOID error: %s", err)
+	}
+
+	// Derive kKdf so we can construct a valid encrypted nonce for the mock
+	canKey, err := pass.Key()
+	if err != nil {
+		t.Fatalf("pass.Key error: %s", err)
+	}
+	kKdf := cryptoutils.KDF(canKey, cryptoutils.KDF_COUNTER_PACE, imConfig.cipher, imConfig.keyLengthBits)
+
+	bcipher, err := cryptoutils.CipherForKey(imConfig.cipher, kKdf)
+	if err != nil {
+		t.Fatalf("CipherForKey error: %s", err)
+	}
+	encryptedNonce, err := cryptoutils.CryptCBC(bcipher, make([]byte, bcipher.BlockSize()), make([]byte, 16), true)
+	if err != nil {
+		t.Fatalf("CryptCBC error: %s", err)
+	}
+
+	var transceiver *iso7816.MockTransceiver = new(iso7816.MockTransceiver)
+	transceiver.AddReqRsp("0022C1A412800A04007F0007020204040283010284010D", "9000")
+	transceiver.AddReqRsp("10860000027C0000", "7C128010"+utils.BytesToHex(encryptedNonce)+"9000")
+
+	nfc := iso7816.NewNfcSession(transceiver)
+
+	var doc document.Document
+	doc.Mf.CardAccess, err = document.NewCardAccess(utils.HexToBytes("31143012060A04007F0007020204040202010202010D"))
+	if err != nil {
+		t.Fatalf("NewCardAccess error: %s", err)
+	}
+
+	_, _, err = NewPace(nfc, &doc, pass).DoPACE()
+	if err == nil {
+		t.Fatalf("Expected PACE-IM not-implemented error")
+	}
+}
+
+// ---- VerifyEvidence ----
+
+func TestVerifyEvidenceUnknownOID(t *testing.T) {
+	doc, evidence := setupDeCamEvidence(t)
+
+	tampered := *evidence
+	tampered.PaceOid = oid.OidBsiDe // not in the paceConfig map
+	_, err := VerifyEvidence(doc, &tampered)
+	if err == nil {
+		t.Fatalf("Expected error for OID not in paceConfig map")
+	}
+}
+
+func TestVerifyEvidenceTermMapPubMismatch(t *testing.T) {
+	doc, evidence := setupDeCamEvidence(t)
+
+	tampered := *evidence
+	// Substitute a valid EC point that won't match the TermMapPub re-derived from TermMapPri
+	tampered.TermMapPub = bytes.Clone(evidence.ChipMapPub)
+	_, err := VerifyEvidence(doc, &tampered)
+	if err == nil {
+		t.Fatalf("Expected error when stored TermMapPub is inconsistent with TermMapPri")
+	}
+}
+
+func TestVerifyEvidenceSameKAPublicKeys(t *testing.T) {
+	doc, evidence := setupDeCamEvidence(t)
+
+	tampered := *evidence
+	tampered.ChipKaPub = bytes.Clone(evidence.TermKaPub)
+	_, err := VerifyEvidence(doc, &tampered)
+	if err == nil {
+		t.Fatalf("Expected error when TermKaPub == ChipKaPub")
+	}
+}
+
+func TestVerifyEvidenceDecryptEcadICError(t *testing.T) {
+	doc, evidence := setupDeCamEvidence(t)
+
+	tampered := *evidence
+	tampered.EcadIC = []byte{0x01} // 1 byte — not block-aligned → decryptEcadIC fails
+	_, err := VerifyEvidence(doc, &tampered)
+	if err == nil {
+		t.Fatalf("Expected error for non-block-aligned EcadIC")
+	}
+}
