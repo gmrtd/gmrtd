@@ -14,8 +14,10 @@ type cborPaceCamEvidence struct {
 	ParameterId int    `cbor:"parameterId"`
 	Nonce       []byte `cbor:"nonce"`
 	TermMapPri  []byte `cbor:"termMapPri"`
+	TermMapPub  []byte `cbor:"termMapPub"`
 	ChipMapPub  []byte `cbor:"chipMapPub"`
 	TermKaPri   []byte `cbor:"termKaPri"`
+	TermKaPub   []byte `cbor:"termKaPub"`
 	ChipKaPub   []byte `cbor:"chipKaPub"`
 	EcadIC      []byte `cbor:"ecadIC"`
 }
@@ -24,6 +26,7 @@ type cborCAEvidence struct {
 	TermPri    []byte `cbor:"termPri,omitempty"`
 	TermPubKey []byte `cbor:"termPubKey,omitempty"`
 	SmRapdu    []byte `cbor:"smRapdu,omitempty"`
+	SmSsc      []byte `cbor:"smSsc,omitempty"`
 }
 
 type cborAAEvidence struct {
@@ -39,7 +42,8 @@ type cborChipAuthBundle struct {
 }
 
 const chipAuthEvidenceMagic = "gmrtd-chip-auth-evidence"
-const chipAuthEvidenceVersion uint = 1
+const chipAuthEvidenceMinVersion uint = 2 // v1 lacked TermMapPub and TermKaPub
+const chipAuthEvidenceVersion uint = 2
 
 type ChipAuthEvidenceBundle struct {
 	PaceCam    *PaceCamEvidence
@@ -57,8 +61,10 @@ func (session *Session) ChipAuthEvidenceToCbor() ([]byte, error) {
 			ParameterId: e.ParameterId,
 			Nonce:       e.Nonce,
 			TermMapPri:  e.TermMapPri,
+			TermMapPub:  e.TermMapPub,
 			ChipMapPub:  e.ChipMapPub,
 			TermKaPri:   e.TermKaPri,
+			TermKaPub:   e.TermKaPub,
 			ChipKaPub:   e.ChipKaPub,
 			EcadIC:      e.EcadIC,
 		}
@@ -70,6 +76,7 @@ func (session *Session) ChipAuthEvidenceToCbor() ([]byte, error) {
 			TermPri:    e.TermPri,
 			TermPubKey: e.TermPubKey,
 			SmRapdu:    e.SmRapdu,
+			SmSsc:      e.SmSsc,
 		}
 	}
 
@@ -107,6 +114,9 @@ func NewChipAuthEvidenceFromCbor(data []byte) (*ChipAuthEvidenceBundle, error) {
 	if env.Magic != chipAuthEvidenceMagic {
 		return nil, fmt.Errorf("[NewChipAuthEvidenceFromCbor] unrecognised magic %q (want %q)", env.Magic, chipAuthEvidenceMagic)
 	}
+	if env.Version < chipAuthEvidenceMinVersion {
+		return nil, fmt.Errorf("[NewChipAuthEvidenceFromCbor] bundle version %d is no longer supported (minimum: %d); please re-capture the evidence", env.Version, chipAuthEvidenceMinVersion)
+	}
 	if env.Version > chipAuthEvidenceVersion {
 		return nil, fmt.Errorf("[NewChipAuthEvidenceFromCbor] unsupported version %d (max supported: %d)", env.Version, chipAuthEvidenceVersion)
 	}
@@ -129,8 +139,10 @@ func NewChipAuthEvidenceFromCbor(data []byte) (*ChipAuthEvidenceBundle, error) {
 			ParameterId: bundle.PaceCam.ParameterId,
 			Nonce:       bundle.PaceCam.Nonce,
 			TermMapPri:  bundle.PaceCam.TermMapPri,
+			TermMapPub:  bundle.PaceCam.TermMapPub,
 			ChipMapPub:  bundle.PaceCam.ChipMapPub,
 			TermKaPri:   bundle.PaceCam.TermKaPri,
+			TermKaPub:   bundle.PaceCam.TermKaPub,
 			ChipKaPub:   bundle.PaceCam.ChipKaPub,
 			EcadIC:      bundle.PaceCam.EcadIC,
 		}
@@ -141,6 +153,7 @@ func NewChipAuthEvidenceFromCbor(data []byte) (*ChipAuthEvidenceBundle, error) {
 			TermPri:    bundle.ChipAuth.TermPri,
 			TermPubKey: bundle.ChipAuth.TermPubKey,
 			SmRapdu:    bundle.ChipAuth.SmRapdu,
+			SmSsc:      bundle.ChipAuth.SmSsc,
 		}
 	}
 

@@ -2,6 +2,7 @@ package document
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/asn1"
 	"testing"
 
@@ -34,10 +35,12 @@ func TestChipAuthEvidenceToCborPaceCam(t *testing.T) {
 		ParameterId: 13,
 		Nonce:       []byte{0x01, 0x02, 0x03},
 		TermMapPri:  []byte{0x04, 0x05},
-		ChipMapPub:  []byte{0x06, 0x07},
-		TermKaPri:   []byte{0x08, 0x09},
-		ChipKaPub:   []byte{0x0a, 0x0b},
-		EcadIC:      []byte{0x0c, 0x0d},
+		TermMapPub:  []byte{0x06, 0x07},
+		ChipMapPub:  []byte{0x08, 0x09},
+		TermKaPri:   []byte{0x0a, 0x0b},
+		TermKaPub:   []byte{0x0c, 0x0d},
+		ChipKaPub:   []byte{0x0e, 0x0f},
+		EcadIC:      []byte{0x10, 0x11},
 	}
 
 	session := Session{
@@ -70,11 +73,17 @@ func TestChipAuthEvidenceToCborPaceCam(t *testing.T) {
 	if !bytes.Equal(got.TermMapPri, src.TermMapPri) {
 		t.Error("TermMapPri mismatch")
 	}
+	if !bytes.Equal(got.TermMapPub, src.TermMapPub) {
+		t.Error("TermMapPub mismatch")
+	}
 	if !bytes.Equal(got.ChipMapPub, src.ChipMapPub) {
 		t.Error("ChipMapPub mismatch")
 	}
 	if !bytes.Equal(got.TermKaPri, src.TermKaPri) {
 		t.Error("TermKaPri mismatch")
+	}
+	if !bytes.Equal(got.TermKaPub, src.TermKaPub) {
+		t.Error("TermKaPub mismatch")
 	}
 	if !bytes.Equal(got.ChipKaPub, src.ChipKaPub) {
 		t.Error("ChipKaPub mismatch")
@@ -274,6 +283,26 @@ func TestChipAuthEvidenceFromCborBadMagic(t *testing.T) {
 	_, err = NewChipAuthEvidenceFromCbor(data)
 	if err == nil {
 		t.Error("expected error for wrong magic")
+	}
+}
+
+func TestChipAuthEvidenceFromCborObsoleteVersion(t *testing.T) {
+	payload, _ := cbor.Marshal(cborChipAuthBundle{})
+	digest := sha256.Sum256(payload)
+	env := cborEnvelope{
+		Magic:   chipAuthEvidenceMagic,
+		Version: chipAuthEvidenceMinVersion - 1,
+		SHA256:  digest[:],
+		Payload: payload,
+	}
+	data, err := cbor.Marshal(env)
+	if err != nil {
+		t.Fatalf("cbor.Marshal error: %s", err)
+	}
+
+	_, err = NewChipAuthEvidenceFromCbor(data)
+	if err == nil {
+		t.Error("expected error for obsolete bundle version")
 	}
 }
 

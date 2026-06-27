@@ -53,8 +53,10 @@ type Pace struct {
 type paceCamEvidence struct {
 	nonce      []byte
 	termMapPri []byte
+	termMapPub []byte
 	chipMapPub []byte
 	termKaPri  []byte
+	termKaPub  []byte
 	chipKaPub  []byte
 	ecadIC     []byte
 }
@@ -313,13 +315,14 @@ func (pace *Pace) doApduMseSetAT(paceConfig *PaceConfig, domainParams *DomainPar
 //   - exchanges with chip
 //   - generates shared secret
 //   - do generic mapping (and return G)
-func (pace *Pace) mapNonceGmEcDh(domainParams *DomainParams, s []byte) (mapped_g *cryptoutils.EcPoint, pubMapIC *cryptoutils.EcPoint, termMapPri []byte, err error) {
+func (pace *Pace) mapNonceGmEcDh(domainParams *DomainParams, s []byte) (mapped_g *cryptoutils.EcPoint, pubMapIC *cryptoutils.EcPoint, termMapPri []byte, termMapPub []byte, err error) {
 	slog.Debug("mapNonceGmEcDh", "s", utils.BytesToHex(s))
 
 	// generate terminal key (private/public)
 	var termKeypair cryptoutils.EcKeypair = pace.keyGeneratorEc(domainParams.ec)
 
 	termMapPri = bytes.Clone(termKeypair.Pri)
+	termMapPub = cryptoutils.EncodeX962EcPoint(domainParams.ec, termKeypair.Pub)
 
 	// do public-key exchange to get chip pub-key
 	{
@@ -327,18 +330,24 @@ func (pace *Pace) mapNonceGmEcDh(domainParams *DomainParams, s []byte) (mapped_g
 
 		rApduBytes, err := pace.nfcSession.GeneralAuthenticate(true, reqData)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("[mapNonceGmEcDh] GeneralAuthenticate error: %w", err)
+			return nil, nil, nil, nil, fmt.Errorf("[mapNonceGmEcDh] GeneralAuthenticate error: %w", err)
 		}
 
 		dynAuthBytes, err := decodeDynAuthData(0x82, rApduBytes)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("[mapNonceGmEcDh] %w", err)
+			return nil, nil, nil, nil, fmt.Errorf("[mapNonceGmEcDh] %w", err)
 		}
 		pubMapIC, err = cryptoutils.DecodeX962EcPoint(domainParams.ec, dynAuthBytes)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("[mapNonceGmEcDh] %w", err)
+			return nil, nil, nil, nil, fmt.Errorf("[mapNonceGmEcDh] %w", err)
 		}
 		slog.Debug("mapNonceGmEcDh", "pubMapIC", pubMapIC.String())
+	}
+
+	// verify terminal and chip mapping public-keys are not the same
+	// analogous to the key-agreement check (ICAO 9303-11 §4.4.1 d)
+	if termKeypair.Pub.Equal(*pubMapIC) {
+		return nil, nil, nil, nil, fmt.Errorf("[mapNonceGmEcDh] terminal and chip mapping public-keys must not be the same")
 	}
 
 	//
@@ -352,7 +361,7 @@ func (pace *Pace) mapNonceGmEcDh(domainParams *DomainParams, s []byte) (mapped_g
 	//
 	mapped_g = doGenericMappingEC(s, termShared, domainParams.ec)
 
-	return mapped_g, pubMapIC, termMapPri, nil
+	return mapped_g, pubMapIC, termMapPri, termMapPub, nil
 }
 
 func (pace *Pace) keyAgreementGmEcDh(domainParams *DomainParams, G *cryptoutils.EcPoint) (sharedSecret []byte, termKeypair *cryptoutils.EcKeypair, chipPub *cryptoutils.EcPoint, err error) {
@@ -630,7 +639,8 @@ func (pace *Pace) doGenericMappingGmCam(paceConfig *PaceConfig, domainParams *Do
 		// map the nonce
 		var mappedG, pubMapIC *cryptoutils.EcPoint
 		var termMapPri []byte
-		mappedG, pubMapIC, termMapPri, err = pace.mapNonceGmEcDh(domainParams, s)
+		var termMapPub []byte
+		mappedG, pubMapIC, termMapPri, termMapPub, err = pace.mapNonceGmEcDh(domainParams, s)
 		if err != nil {
 			return nil, fmt.Errorf("[doGenericMappingGmCam] mapNonceGmEcDh error: %w", err)
 		}
@@ -668,8 +678,10 @@ func (pace *Pace) doGenericMappingGmCam(paceConfig *PaceConfig, domainParams *Do
 			evidence = &paceCamEvidence{
 				nonce:      bytes.Clone(s),
 				termMapPri: termMapPri,
+				termMapPub: termMapPub,
 				chipMapPub: cryptoutils.EncodeX962EcPoint(domainParams.ec, pubMapIC),
 				termKaPri:  bytes.Clone(kaTermKeypair.Pri),
+				termKaPub:  cryptoutils.EncodeX962EcPoint(domainParams.ec, kaTermKeypair.Pub),
 				chipKaPub:  cryptoutils.EncodeX962EcPoint(domainParams.ec, kaChipPub),
 				ecadIC:     bytes.Clone(ecadIC),
 			}
@@ -742,8 +754,10 @@ func (pace *Pace) DoPACE() (result *document.PaceResult, camResult *document.Pac
 					ParameterId: domainParams.id,
 					Nonce:       camEvidence.nonce,
 					TermMapPri:  camEvidence.termMapPri,
+					TermMapPub:  camEvidence.termMapPub,
 					ChipMapPub:  camEvidence.chipMapPub,
 					TermKaPri:   camEvidence.termKaPri,
+					TermKaPub:   camEvidence.termKaPub,
 					ChipKaPub:   camEvidence.chipKaPub,
 					EcadIC:      camEvidence.ecadIC,
 				},
@@ -761,25 +775,48 @@ func (pace *Pace) DoPACE() (result *document.PaceResult, camResult *document.Pac
 	return result, camResult, nil
 }
 
-// VerifyEvidence independently verifies PACE-CAM evidence without a live NFC session.
-// It requires the Document (which supplies the chip's static EC public key from
-// CardSecurity) and the evidence captured during the original PACE-CAM session.
+// VerifyEvidence verifies the internal cryptographic consistency of PACE-CAM evidence
+// captured during a previous NFC session. It requires the Document (which supplies the
+// chip's static EC public key from CardSecurity).
 //
 // Verification replays the PACE key-derivation chain from the captured ephemeral keys:
-//  1. Re-derives the mapping shared secret and mapped generator from the nonce and
-//     terminal mapping private key.
-//  2. Re-derives the key-agreement shared secret and session keys (ksEnc).
-//  3. Decrypts the encrypted chip authentication data (EcadIC) using ksEnc to recover
+//  1. Re-derives TermMapPub from TermMapPri and verifies it matches the stored value.
+//  2. Verifies TermMapPub != ChipMapPub (ICAO 9303-11 §4.4.1).
+//  3. Re-derives the mapping shared secret H and the mapped generator G' from the nonce
+//     and TermMapPri.
+//  4. Re-derives the terminal KA public key from G' and TermKaPri, verifies it matches
+//     the stored TermKaPub, and verifies it differs from ChipKaPub (ICAO 9303-11 §4.4.1).
+//  5. Re-derives the key-agreement shared secret and session keys (ksEnc).
+//  6. Decrypts the encrypted chip authentication data (EcadIC) using ksEnc to recover
 //     caIC.
-//  4. Verifies KA(caIC, pkIC, ec) == ChipMapPub, proving the chip held the private key
-//     matching the static public key in CardSecurity.
+//  7. Verifies KA(caIC, pkIC, ec) == ChipMapPub (the CAM formula).
 //
-// The Nonce and TermMapPri fields are replayed for completeness but cannot be
-// independently verified — the security proof rests on the CAM verification (step 4).
+// Steps 1–7 form a complete chain: TermMapPri determines TermMapPub (equality-checked
+// against the stored value), Nonce and TermMapPri determine G', G' and TermKaPri
+// determine TermKaPub (equality-checked against the stored value), and the KA shared
+// secret derives ksEnc that decrypts EcadIC for the CAM proof. Any single-field
+// post-capture modification breaks the chain.
 //
-// A successful result proves the chip held the private key matching the public key in
-// CardSecurity during the original session. Callers must also verify the Document via
-// Passive Authentication to confirm that CardSecurity is bound to a trusted CSCA chain.
+// Structural tamper gap: ChipKaPub and EcadIC can be replaced simultaneously by anyone
+// who reads the bundle. Because TermKaPri is stored (it is needed to verify TermKaPub
+// in step 4), an attacker can compute kaShared = TermKaPri·ChipKaPub, extract caIC =
+// Decrypt(ksEnc, EcadIC), choose any replacement ChipKaPub', derive ksEnc' from
+// TermKaPri·ChipKaPub', and produce EcadIC' = Encrypt(ksEnc', caIC). The CAM formula
+// passes because caIC and pkIC are unchanged. This gap cannot be closed without removing
+// TermKaPri from the bundle, which would break the TermKaPub consistency check.
+//
+// Security limitation: this function cannot prove a genuine chip was present. Because
+// pkIC is publicly readable from CardSecurity before PACE begins, an attacker can
+// fabricate a passing evidence bundle without holding the chip's CA private key — by
+// choosing an arbitrary caIC scalar and computing ChipMapPub = caIC·pkIC (the forward
+// direction, which requires no discrete-log). The temporal commitment that makes the
+// live session secure (ChipMapPub is sent before TermKaPub is known, so ksEnc is not
+// yet determined) is not preserved in the offline evidence.
+//
+// This function is therefore best understood as tamper-detection on evidence captured
+// by a trusted terminal, subject to the structural gap above. The overall security claim
+// requires trusting the capturing terminal and must be paired with Passive Authentication
+// to confirm CardSecurity is bound to a trusted CSCA chain.
 const maxEvidenceFieldLen = 1024
 
 func VerifyEvidence(doc *document.Document, evidence *document.PaceCamEvidence) (*document.PaceCamResult, error) {
@@ -787,13 +824,15 @@ func VerifyEvidence(doc *document.Document, evidence *document.PaceCamEvidence) 
 		return nil, fmt.Errorf("[VerifyEvidence] evidence is nil")
 	}
 
-	if len(evidence.Nonce) == 0 || len(evidence.TermMapPri) == 0 || len(evidence.ChipMapPub) == 0 ||
-		len(evidence.TermKaPri) == 0 || len(evidence.ChipKaPub) == 0 || len(evidence.EcadIC) == 0 {
+	if len(evidence.Nonce) == 0 || len(evidence.TermMapPri) == 0 || len(evidence.TermMapPub) == 0 ||
+		len(evidence.ChipMapPub) == 0 || len(evidence.TermKaPri) == 0 || len(evidence.TermKaPub) == 0 ||
+		len(evidence.ChipKaPub) == 0 || len(evidence.EcadIC) == 0 {
 		return nil, fmt.Errorf("[VerifyEvidence] evidence has empty field(s)")
 	}
 
 	if len(evidence.Nonce) > maxEvidenceFieldLen || len(evidence.TermMapPri) > maxEvidenceFieldLen ||
-		len(evidence.ChipMapPub) > maxEvidenceFieldLen || len(evidence.TermKaPri) > maxEvidenceFieldLen ||
+		len(evidence.TermMapPub) > maxEvidenceFieldLen || len(evidence.ChipMapPub) > maxEvidenceFieldLen ||
+		len(evidence.TermKaPri) > maxEvidenceFieldLen || len(evidence.TermKaPub) > maxEvidenceFieldLen ||
 		len(evidence.ChipKaPub) > maxEvidenceFieldLen || len(evidence.EcadIC) > maxEvidenceFieldLen {
 		return nil, fmt.Errorf("[VerifyEvidence] evidence field exceeds maximum length (%d)", maxEvidenceFieldLen)
 	}
@@ -830,9 +869,44 @@ func VerifyEvidence(doc *document.Document, evidence *document.PaceCamEvidence) 
 		return nil, fmt.Errorf("[VerifyEvidence] DecodeX962EcPoint(ChipKaPub) error: %w", err)
 	}
 
+	// re-derive terminal mapping public key from TermMapPri and verify it matches the stored value
+	var termMapPub cryptoutils.EcPoint
+	termMapPub.X, termMapPub.Y = domainParams.ec.ScalarBaseMult(evidence.TermMapPri)
+
+	storedTermMapPub, err := cryptoutils.DecodeX962EcPoint(domainParams.ec, evidence.TermMapPub)
+	if err != nil {
+		return nil, fmt.Errorf("[VerifyEvidence] DecodeX962EcPoint(TermMapPub) error: %w", err)
+	}
+	if !termMapPub.Equal(*storedTermMapPub) {
+		return nil, fmt.Errorf("[VerifyEvidence] TermMapPub is inconsistent with TermMapPri")
+	}
+
+	// ICAO 9303-11 §4.4.1 — terminal and chip mapping public keys must not be the same
+	if termMapPub.Equal(*chipMapPub) {
+		return nil, fmt.Errorf("[VerifyEvidence] terminal and chip mapping public keys must not be the same")
+	}
+
 	// re-derive mapping shared secret and mapped generator
 	H := cryptoutils.DoEcDh(evidence.TermMapPri, chipMapPub, domainParams.ec)
-	_ = doGenericMappingEC(evidence.Nonce, H, domainParams.ec)
+	G := doGenericMappingEC(evidence.Nonce, H, domainParams.ec)
+
+	// re-derive terminal KA public key using the mapped generator (mirrors keyAgreementGmEcDh)
+	var termKaPub cryptoutils.EcPoint
+	termKaPub.X, termKaPub.Y = domainParams.ec.ScalarMult(G.X, G.Y, evidence.TermKaPri)
+
+	// verify that the stored TermKaPub is consistent with TermKaPri and the mapped generator
+	storedTermKaPub, err := cryptoutils.DecodeX962EcPoint(domainParams.ec, evidence.TermKaPub)
+	if err != nil {
+		return nil, fmt.Errorf("[VerifyEvidence] DecodeX962EcPoint(TermKaPub) error: %w", err)
+	}
+	if !termKaPub.Equal(*storedTermKaPub) {
+		return nil, fmt.Errorf("[VerifyEvidence] TermKaPub is inconsistent with TermKaPri and the mapped generator")
+	}
+
+	// ICAO 9303-11 §4.4.1 — terminal and chip KA public keys must not be the same
+	if termKaPub.Equal(*chipKaPub) {
+		return nil, fmt.Errorf("[VerifyEvidence] terminal and chip KA public keys must not be the same")
+	}
 
 	// re-derive key-agreement shared secret and session keys
 	kaShared := cryptoutils.DoEcDh(evidence.TermKaPri, chipKaPub, domainParams.ec)
