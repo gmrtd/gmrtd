@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.41.0](https://github.com/gmrtd/gmrtd/compare/v0.40.0...v0.41.0) (2026-06-27)
+
+
+### Features
+
+* **chipauth,pace:** capture terminal public keys and SSC in evidence; strengthen VerifyEvidence ([#387](https://github.com/gmrtd/gmrtd/issues/387)) ([cb21794](https://github.com/gmrtd/gmrtd/commit/cb21794bbec2128e62184632ebc4c81b6ba3a034))
+
 ## [0.40.0](https://github.com/gmrtd/gmrtd/compare/v0.39.0...v0.40.0) (2026-06-25)
 
 
