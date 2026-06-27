@@ -2,6 +2,7 @@ package document
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"testing"
 
 	cbor "github.com/fxamacker/cbor/v2"
@@ -219,5 +220,150 @@ func TestNewDocumentFromCborChecksumMismatch(t *testing.T) {
 	_, err = NewDocumentFromCbor(corrupted)
 	if err == nil {
 		t.Error("expected checksum mismatch error for corrupted payload")
+	}
+}
+
+// buildCborFromRawDoc marshals raw into a complete, checksum-valid CBOR blob that
+// NewDocumentFromCbor can decode.
+func buildCborFromRawDoc(t *testing.T, raw rawDoc) []byte {
+	t.Helper()
+	payload, err := cbor.Marshal(raw)
+	if err != nil {
+		t.Fatalf("cbor.Marshal(rawDoc): %s", err)
+	}
+	digest := sha256.Sum256(payload)
+	env := cborEnvelope{
+		Magic:   envelopeMagic,
+		Version: envelopeVersion,
+		SHA256:  digest[:],
+		Payload: payload,
+	}
+	data, err := cbor.Marshal(env)
+	if err != nil {
+		t.Fatalf("cbor.Marshal(envelope): %s", err)
+	}
+	return data
+}
+
+// TestToCborAllFields exercises every data-file branch in ToCbor by populating
+// all fourteen optional fields directly (bypassing constructors, which are
+// irrelevant to the serialisation path).
+func TestToCborAllFields(t *testing.T) {
+	placeholder := []byte{0x01, 0x02, 0x03}
+
+	var doc Document
+	doc.Mf.CardAccess = &CardAccess{RawData: placeholder}
+	doc.Mf.CardSecurity = &CardSecurity{RawData: placeholder}
+	doc.Mf.Dir = &EFDIR{RawData: placeholder}
+	doc.Mf.Lds1.Com = &COM{RawData: placeholder}
+	doc.Mf.Lds1.Sod = &SOD{RawData: placeholder}
+	doc.Mf.Lds1.Dg1 = &DG1{RawData: placeholder}
+	doc.Mf.Lds1.Dg2 = &DG2{RawData: placeholder}
+	doc.Mf.Lds1.Dg7 = &DG7{RawData: placeholder}
+	doc.Mf.Lds1.Dg11 = &DG11{RawData: placeholder}
+	doc.Mf.Lds1.Dg12 = &DG12{RawData: placeholder}
+	doc.Mf.Lds1.Dg13 = &DG13{RawData: placeholder}
+	doc.Mf.Lds1.Dg14 = &DG14{RawData: placeholder}
+	doc.Mf.Lds1.Dg15 = &DG15{RawData: placeholder}
+	doc.Mf.Lds1.Dg16 = &DG16{RawData: placeholder}
+
+	cborBytes, err := doc.ToCbor()
+	if err != nil {
+		t.Fatalf("ToCbor error: %s", err)
+	}
+
+	var env cborEnvelope
+	if err = cbor.Unmarshal(cborBytes, &env); err != nil {
+		t.Fatalf("cbor.Unmarshal(envelope): %s", err)
+	}
+	var decoded rawDoc
+	if err = cbor.Unmarshal(env.Payload, &decoded); err != nil {
+		t.Fatalf("cbor.Unmarshal(rawDoc): %s", err)
+	}
+
+	checks := []struct {
+		name string
+		got  []byte
+	}{
+		{"CardAccess", decoded.CardAccess},
+		{"CardSecurity", decoded.CardSecurity},
+		{"Dir", decoded.Dir},
+		{"Com", decoded.Com},
+		{"Sod", decoded.Sod},
+		{"Dg1", decoded.Dg1},
+		{"Dg2", decoded.Dg2},
+		{"Dg7", decoded.Dg7},
+		{"Dg11", decoded.Dg11},
+		{"Dg12", decoded.Dg12},
+		{"Dg13", decoded.Dg13},
+		{"Dg14", decoded.Dg14},
+		{"Dg15", decoded.Dg15},
+		{"Dg16", decoded.Dg16},
+	}
+	for _, c := range checks {
+		if !bytes.Equal(c.got, placeholder) {
+			t.Errorf("%s: want %x, got %x", c.name, placeholder, c.got)
+		}
+	}
+}
+
+// TestNewDocumentFromCborBadRawDoc covers the cbor.Unmarshal(rawDoc) error path:
+// the outer envelope is valid and its checksum matches, but the payload bytes are
+// a CBOR integer rather than a CBOR map, so decoding into rawDoc must fail.
+func TestNewDocumentFromCborBadRawDoc(t *testing.T) {
+	payload := []byte{0x01} // CBOR integer 1, not a map
+	digest := sha256.Sum256(payload)
+	env := cborEnvelope{
+		Magic:   envelopeMagic,
+		Version: envelopeVersion,
+		SHA256:  digest[:],
+		Payload: payload,
+	}
+	data, err := cbor.Marshal(env)
+	if err != nil {
+		t.Fatalf("cbor.Marshal: %s", err)
+	}
+
+	_, err = NewDocumentFromCbor(data)
+	if err == nil {
+		t.Error("expected error when payload is not a CBOR map")
+	}
+}
+
+// TestNewDocumentFromCborConstructorErrors verifies that NewDocumentFromCbor
+// returns an error when any individual data-file field contains invalid bytes
+// that cause its New* constructor to fail.
+func TestNewDocumentFromCborConstructorErrors(t *testing.T) {
+	badTlv := utils.HexToBytes("02101234") // valid length prefix but too few bytes
+	badAsn := utils.HexToBytes("0608")     // truncated ASN.1 (rejects in CardAccess/CardSecurity)
+	badTag := utils.HexToBytes("01021234") // valid TLV but wrong root tag
+
+	testCases := []struct {
+		name string
+		raw  rawDoc
+	}{
+		{"CardAccess", rawDoc{CardAccess: badAsn}},
+		{"CardSecurity", rawDoc{CardSecurity: badAsn}},
+		{"Dir", rawDoc{Dir: badTlv}},
+		{"Com", rawDoc{Com: badTlv}},
+		{"Sod", rawDoc{Sod: badTag}},
+		{"Dg1", rawDoc{Dg1: badTlv}},
+		{"Dg2", rawDoc{Dg2: badTlv}},
+		{"Dg7", rawDoc{Dg7: badTlv}},
+		{"Dg11", rawDoc{Dg11: badTlv}},
+		{"Dg12", rawDoc{Dg12: badTlv}},
+		{"Dg13", rawDoc{Dg13: badTag}},
+		{"Dg14", rawDoc{Dg14: badTlv}},
+		{"Dg15", rawDoc{Dg15: badTlv}},
+		{"Dg16", rawDoc{Dg16: badTlv}},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			data := buildCborFromRawDoc(t, tc.raw)
+			_, err := NewDocumentFromCbor(data)
+			if err == nil {
+				t.Errorf("expected error for invalid %s bytes", tc.name)
+			}
+		})
 	}
 }
