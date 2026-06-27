@@ -295,6 +295,7 @@ func TestChipAuthAT(t *testing.T) {
 			TermPri:    utils.HexToBytes("80EBAFC8A51BECD4D90BB640EE38C9FD5C12748D28AAA37096B98C4533C4F5F5"),
 			TermPubKey: utils.HexToBytes("044827C781BE1AC7A00B351214FD783AC76D99E831A6316C8FD6DE7BD96CFA31DA06B6B57BA380789729F4A028212A768C49BF5F97D98B1DB12BEEC1A1CD324FB2"),
 			SmRapdu:    utils.HexToBytes("990290008E0803C4B125B4218CEF9000"),
+			SmSsc:      utils.HexToBytes("00000000000000000000000000000002"),
 		},
 	}
 
@@ -410,6 +411,7 @@ func TestChipAuthDE(t *testing.T) {
 			TermPri:    utils.HexToBytes("84a5145885678ee9307c28c52736896267511203b7b8009c5fe27abcbaecdcaa"),
 			TermPubKey: utils.HexToBytes("04897fa47c895d35949a8db8f776a62d775bdf764a1aa1bdc2d8fc96cd5c2e80e39f631c67e84364dcf85f5c9f8ce79a752071896819a0d510cf9701652486817c"),
 			SmRapdu:    utils.HexToBytes("990290008e0829d0e1ebbb61be7a9000"),
+			SmSsc:      utils.HexToBytes("00000000000000000000000000000002"),
 		},
 	}
 
@@ -525,6 +527,7 @@ func TestChipAuthMY(t *testing.T) {
 			TermPri:    utils.HexToBytes("3a31f4e18418312fcb40f3efbe719182c046a9719e1ed8c376197aa9e8ed7465"),
 			TermPubKey: utils.HexToBytes("043da6d3b923689b96aa65d744f1bd1537fcf1f8a5dd9bc6b01d7b30fc1812645b510cb66bed899c67a802a7881313e4bca87055cde3cf615efdbadbb64bc32462"),
 			SmRapdu:    utils.HexToBytes("990290008e08c2bf01fddd1d599d9000"),
+			SmSsc:      utils.HexToBytes("0000000000000002"),
 		},
 	}
 
@@ -638,6 +641,7 @@ func TestChipAuthFR(t *testing.T) {
 			TermPri:    utils.HexToBytes("d9c3b06a4dcb735351429403fcb56db520dc882512d775971f724d6112f96586"),
 			TermPubKey: utils.HexToBytes("04334f809c8842a4c9316c19e52a0d6ea0285996c40ff6db303cef72099198c8ad5d6b46e93482de899533d06eac54c289df5aa1436a846fb9154100c5322439ea"),
 			SmRapdu:    utils.HexToBytes("990290008e08420dea0a913418ae9000"),
+			SmSsc:      utils.HexToBytes("0000000000000002"),
 		},
 	}
 
@@ -846,6 +850,7 @@ func TestVerifyEvidence(t *testing.T) {
 		TermPri:    utils.HexToBytes("80EBAFC8A51BECD4D90BB640EE38C9FD5C12748D28AAA37096B98C4533C4F5F5"),
 		TermPubKey: utils.HexToBytes("044827C781BE1AC7A00B351214FD783AC76D99E831A6316C8FD6DE7BD96CFA31DA06B6B57BA380789729F4A028212A768C49BF5F97D98B1DB12BEEC1A1CD324FB2"),
 		SmRapdu:    utils.HexToBytes("990290008E0803C4B125B4218CEF9000"),
+		SmSsc:      utils.HexToBytes("00000000000000000000000000000002"),
 	}
 
 	t.Run("nil evidence", func(t *testing.T) {
@@ -927,6 +932,36 @@ func TestVerifyEvidence(t *testing.T) {
 		_, err := VerifyEvidence(doc, e)
 		if err == nil {
 			t.Error("expected error for corrupted SmRapdu")
+		}
+	})
+
+	t.Run("tampered SmSsc", func(t *testing.T) {
+		corrupted := make([]byte, len(validEvidence.SmSsc))
+		copy(corrupted, validEvidence.SmSsc)
+		corrupted[len(corrupted)-1] ^= 0xFF
+		e := &document.ChipAuthEvidence{
+			TermPri:    validEvidence.TermPri,
+			TermPubKey: validEvidence.TermPubKey,
+			SmRapdu:    validEvidence.SmRapdu,
+			SmSsc:      corrupted,
+		}
+		_, err := VerifyEvidence(doc, e)
+		if err == nil {
+			t.Error("expected error for tampered SmSsc")
+		}
+	})
+
+	t.Run("mismatched TermPubKey", func(t *testing.T) {
+		// chip public key from DG14 — a valid curve point, but does not correspond to validEvidence.TermPri
+		chipPubKey := utils.HexToBytes("041983917269AC877C0B61544C2C022000D2A5ABA723E2D80141E648B40911DC3459761F27480E4B57181A53D8FE1190EA86C939AC14363178CAFFC621F0F905C3")
+		e := &document.ChipAuthEvidence{
+			TermPri:    validEvidence.TermPri,
+			TermPubKey: chipPubKey,
+			SmRapdu:    validEvidence.SmRapdu,
+		}
+		_, err := VerifyEvidence(doc, e)
+		if err == nil {
+			t.Error("expected error for mismatched TermPubKey")
 		}
 	})
 

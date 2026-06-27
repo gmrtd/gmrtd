@@ -607,7 +607,8 @@ func TestDoPace_CAM_ECDH_DE(t *testing.T) {
 	}
 	if len(paceCamResult.Evidence.Nonce) == 0 || len(paceCamResult.Evidence.TermMapPri) == 0 ||
 		len(paceCamResult.Evidence.ChipMapPub) == 0 || len(paceCamResult.Evidence.TermKaPri) == 0 ||
-		len(paceCamResult.Evidence.ChipKaPub) == 0 || len(paceCamResult.Evidence.EcadIC) == 0 {
+		len(paceCamResult.Evidence.TermKaPub) == 0 || len(paceCamResult.Evidence.ChipKaPub) == 0 ||
+		len(paceCamResult.Evidence.EcadIC) == 0 {
 		t.Errorf("Evidence has empty field(s)")
 	}
 	if !bytes.Equal(paceCamResult.Evidence.TermMapPri, utils.HexToBytes("01fd26013f5bc41fad8bb09811e435f16fbe2eb3c2e1d999b0f63da8c3d58bb5")) {
@@ -700,7 +701,7 @@ func TestMapNonceGmEcDhApduErr(t *testing.T) {
 	var domainParams *DomainParams = mustStandardisedDomainParams(t, 13) // 13: Brainpool P256r1
 	var s []byte = []byte{1, 2, 3, 4}
 
-	_, _, _, err := pace.mapNonceGmEcDh(domainParams, s)
+	_, _, _, _, err := pace.mapNonceGmEcDh(domainParams, s)
 	// NB we expect an error as we'll get an APDU error
 	if err == nil {
 		t.Fatalf("error expected")
@@ -985,6 +986,54 @@ func TestVerifyEvidenceTamperedChipMapPub(t *testing.T) {
 	_, err := VerifyEvidence(doc, &tampered)
 	if err == nil {
 		t.Fatalf("Expected error for tampered ChipMapPub")
+	}
+}
+
+
+func TestVerifyEvidenceTamperedTermMapPub(t *testing.T) {
+	doc, evidence := setupDeCamEvidence(t)
+
+	tampered := *evidence
+	tampered.TermMapPub = bytes.Clone(evidence.TermMapPub)
+	tampered.TermMapPub[1] ^= 0x01
+	_, err := VerifyEvidence(doc, &tampered)
+	if err == nil {
+		t.Fatalf("Expected error for tampered TermMapPub")
+	}
+}
+
+func TestVerifyEvidenceTamperedTermKaPub(t *testing.T) {
+	doc, evidence := setupDeCamEvidence(t)
+
+	tampered := *evidence
+	tampered.TermKaPub = bytes.Clone(evidence.TermKaPub)
+	tampered.TermKaPub[1] ^= 0x01
+	_, err := VerifyEvidence(doc, &tampered)
+	if err == nil {
+		t.Fatalf("Expected error for tampered TermKaPub")
+	}
+}
+
+func TestVerifyEvidenceTamperedNonce(t *testing.T) {
+	doc, evidence := setupDeCamEvidence(t)
+
+	tampered := *evidence
+	tampered.Nonce = bytes.Clone(evidence.Nonce)
+	tampered.Nonce[0] ^= 0x01
+	_, err := VerifyEvidence(doc, &tampered)
+	if err == nil {
+		t.Fatalf("Expected error for tampered Nonce")
+	}
+}
+
+func TestVerifyEvidenceSameTermMapAndChipMapPub(t *testing.T) {
+	doc, evidence := setupDeCamEvidence(t)
+
+	tampered := *evidence
+	tampered.ChipMapPub = bytes.Clone(evidence.TermMapPub)
+	_, err := VerifyEvidence(doc, &tampered)
+	if err == nil {
+		t.Fatalf("Expected error when TermMapPub == ChipMapPub")
 	}
 }
 

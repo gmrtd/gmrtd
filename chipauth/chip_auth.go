@@ -43,6 +43,7 @@ type caEcdhEvidence struct {
 	termPri    []byte
 	termPubKey []byte
 	smRapdu    []byte
+	smSsc      []byte
 }
 
 func selectChipAuthParams(doc *document.Document) (*ChipAuthParams, error) {
@@ -98,6 +99,7 @@ func (chipAuth *ChipAuth) DoChipAuth() (result *document.ChipAuthResult, err err
 			TermPri:    evidence.termPri,
 			TermPubKey: evidence.termPubKey,
 			SmRapdu:    evidence.smRapdu,
+			SmSsc:      evidence.smSsc,
 		}
 	}
 
@@ -477,19 +479,21 @@ func (chipAuth *ChipAuth) doCaEcdh(params *ChipAuthParams) (evidence *caEcdhEvid
 		}
 	}
 
-	// capture the SM-encrypted RAPDU from the verification SelectEF
+	// capture the SM-encrypted RAPDU and the post-decode SSC from the verification SelectEF
 	lastApdu := (*chipAuth.nfcSession).LastApdu()
 	if lastApdu != nil && lastApdu.Child != nil {
 		evidence.smRapdu = bytes.Clone(lastApdu.Child.Rx)
+	}
+	if sm := (*chipAuth.nfcSession).SM(); sm != nil {
+		evidence.smSsc = bytes.Clone(sm.SSC())
 	}
 
 	return evidence, nil
 }
 
-// VerifyEvidence independently verifies Chip Authentication evidence without a live
-// NFC session. It requires only the Document (which supplies the chip's EC public key
-// from DG14 via selectChipAuthParams) and the evidence captured during the original
-// CA session (ephemeral terminal keypair + SM-encrypted RAPDU).
+// VerifyEvidence verifies the internal cryptographic consistency of Chip Authentication
+// evidence captured during a previous NFC session. It requires only the Document (which
+// supplies the chip's EC public key from DG14).
 //
 // Verification steps:
 //  1. Resolve CA parameters from the Document (algorithm, chip public key, curve).
@@ -498,17 +502,23 @@ func (chipAuth *ChipAuth) doCaEcdh(params *ChipAuthParams) (evidence *caEcdhEvid
 //  4. Verify the SM MAC on the captured RAPDU using ksMac.
 //  5. Confirm the decrypted RAPDU status is 9000 (success).
 //
-// A successful result proves the chip held the private key matching the public
-// key in DG14 during the original session. However, this alone does not prove
-// the chip is genuine — a clone could generate its own keypair and produce valid
-// evidence against it. Callers must also verify the Document via Passive
-// Authentication to confirm that DG14 (and hence the chip's public key) is
-// bound to a trusted CSCA chain. Only the combination of successful evidence
-// verification and Passive Authentication constitutes an anti-cloning verdict.
+// Security limitation: this function cannot prove a genuine chip was present. The CA
+// shared secret is sharedSecret = TermPri·chipPubKey = skCA_IC·TermPub — both the
+// terminal and the chip can compute the same value. Because TermPri is known to the
+// terminal and chipPubKey is public (from DG14), a forger can derive ksMac without
+// holding skCA_IC and construct a MAC-valid SmRapdu with status 9000. The live session
+// is secure because the chip must decrypt the SM-protected command (requiring skCA_IC)
+// before it can respond, but the command is not captured in the evidence, so the
+// verifier cannot check this.
+//
+// This function is therefore best understood as tamper-detection on evidence captured
+// by a trusted terminal: any post-capture modification to any field breaks the MAC
+// chain. It must be paired with Passive Authentication (binding DG14 to a CSCA chain)
+// and trust in the capturing terminal for the overall claim to be meaningful.
 //
 // This function does not perform replay detection. Applications should implement
 // their own checks (e.g. tracking previously seen evidence) to prevent a valid
-// evidence payload from being submitted more than once.
+// evidence payload from being replayed.
 const maxEvidenceFieldLen = 1024
 
 func VerifyEvidence(doc *document.Document, evidence *document.ChipAuthEvidence) (*document.ChipAuthResult, error) {
@@ -544,6 +554,12 @@ func VerifyEvidence(doc *document.Document, evidence *document.ChipAuthEvidence)
 		return nil, fmt.Errorf("[VerifyEvidence] DecodeX962EcPoint error: %w", err)
 	}
 
+	// verify that the terminal public key is consistent with the private key
+	expX, expY := (*curve).ScalarBaseMult(evidence.TermPri)
+	if termPub.X.Cmp(expX) != 0 || termPub.Y.Cmp(expY) != 0 {
+		return nil, fmt.Errorf("[VerifyEvidence] terminal public key does not match private key")
+	}
+
 	termKeypair := cryptoutils.EcKeypair{
 		Pri: evidence.TermPri,
 		Pub: termPub,
@@ -556,10 +572,15 @@ func VerifyEvidence(doc *document.Document, evidence *document.ChipAuthEvidence)
 		return nil, fmt.Errorf("[VerifyEvidence] NewSecureMessaging error: %w", err)
 	}
 
-	// set SSC to 1 so that sm.Decode (which increments before use) verifies at SSC=2,
-	// matching the state during the original CA session (Encode incremented to 1, Decode to 2)
+	// Set SSC to (captured − 1) so sm.Decode (which increments before verifying) reaches
+	// the exact SSC that was in effect when SmRapdu was captured. Legacy bundles without
+	// SmSsc default to 1, which is correct when SelectEF was the first SM command (SSC=2).
+	sscInit := big.NewInt(1)
+	if len(evidence.SmSsc) > 0 {
+		sscInit.Sub(new(big.Int).SetBytes(evidence.SmSsc), big.NewInt(1))
+	}
 	ssc := make([]byte, len(sm.SSC()))
-	new(big.Int).SetInt64(1).FillBytes(ssc)
+	sscInit.FillBytes(ssc)
 	if err = sm.SetSSC(ssc); err != nil {
 		return nil, fmt.Errorf("[VerifyEvidence] SetSSC error: %w", err)
 	}
