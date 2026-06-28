@@ -79,6 +79,7 @@ type Reader struct {
 	cscaCertPool cms.CertPool
 	skipPace     bool // skip PACE
 	skipImages   bool // skip image DGs (DG2, DG7)
+	aaChallenge  []byte
 }
 
 func NewReader(status ReaderStatus, nfc *iso7816.NfcSession, cscaCertPool cms.CertPool) *Reader {
@@ -95,6 +96,27 @@ func (reader *Reader) SkipPace() {
 
 func (reader *Reader) SkipImages() {
 	reader.skipImages = true
+}
+
+// WithAAChallenge sets a caller-supplied 8-byte RND.IFD challenge for Active
+// Authentication. If not called, a random challenge is generated internally.
+//
+// Security-conscious callers should always supply their own challenge rather
+// than relying on the internally generated random value. When the library
+// generates the challenge it is ephemeral — if it is not captured and passed
+// to the verifier, there is no way to confirm the AA response was generated
+// for this specific session (relay-attack prevention). The recommended pattern:
+//
+//  1. Generate a cryptographically random 8-byte value.
+//  2. Supply it here via WithAAChallenge before calling ReadDocument.
+//  3. Pass the same value to verifier.Verifier.WithAAChallenge when verifying
+//     the captured evidence; the verifier will hard-error on a nonce mismatch.
+func (reader *Reader) WithAAChallenge(challenge []byte) (*Reader, error) {
+	if len(challenge) != 8 {
+		return nil, fmt.Errorf("[WithAAChallenge] challenge must be exactly 8 bytes, got %d", len(challenge))
+	}
+	reader.aaChallenge = bytes.Clone(challenge)
+	return reader, nil
 }
 
 type ReaderState struct {
@@ -349,7 +371,14 @@ func performChipAuthentication(reader *Reader, state *ReaderState) error {
 	{
 		// attempt active-authentication (if supported)
 		// NB errors are just recorded at this point
-		state.docEx.Session.ActiveAuthResult, state.docEx.Session.ActiveAuthErr = activeauth.NewActiveAuth(reader.nfc, &state.docEx.Document).DoActiveAuth()
+		aa := activeauth.NewActiveAuth(reader.nfc, &state.docEx.Document)
+		if reader.aaChallenge != nil {
+			var err error
+			if aa, err = aa.WithChallenge(reader.aaChallenge); err != nil {
+				return fmt.Errorf("[performChipAuthentication] WithChallenge error: %w", err)
+			}
+		}
+		state.docEx.Session.ActiveAuthResult, state.docEx.Session.ActiveAuthErr = aa.DoActiveAuth()
 	}
 
 	// CA has a lower backend verification level, so only perform if ChipAuth not already completed (e.g. via AA or PACE-CAM)

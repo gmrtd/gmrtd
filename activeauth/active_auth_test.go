@@ -149,6 +149,90 @@ func TestDoActiveAuth(t *testing.T) {
 
 }
 
+func TestWithChallenge(t *testing.T) {
+	// "doActiveAuth","SM(pre)":"(alg:1, ksenc:b99d546108eaa251570876b6d3456dce, ksmac:e3857ca24946251c151c540e13f2cd51, ssc:00000000000000cc)"}
+	//
+	// Same test vectors as TestDoActiveAuth but challenge is supplied by caller instead of generated randomly.
+
+	var err error
+
+	var nfc *iso7816.NfcSession
+
+	{
+		var transceiver *iso7816.MockTransceiver = new(iso7816.MockTransceiver)
+
+		transceiver.AddReqRsp("0c88000020871101ed7f8cb47a4eea086324a7f9dd7427809701008e0897f54bae49aa71f800", "8781e901d04ca80f527df94f4a430d3d6e6cb6c2af4c6756c068a93132d147fa27833125304132981b8bd8009448e89f259eec8552b54285cef9d8f1b7fb31b9f279221c7e925f4951811f3fe2e01d76e68dbc7cde9c873c5f61862f3c5469792a72f92c8943b890436f5e9feaead9f2a361fcd7a615493d1b3519865f32ee9a125886588eb21fee0e709353d0731139fdc958d6b2127fad6947b438998b526819803f70f78614cd42f4a6619c6af95dfd2ab09bedf71e707abc39a250aee68006d522ad37d159674984a07d11c001022c853aeb7acdb059ede5721a3b9f20441bda7e242ee8df1369d25316990290008e08fd2493147866f0ed9000")
+
+		nfc = iso7816.NewNfcSession(transceiver)
+	}
+
+	{
+		sm, err := iso7816.NewSecureMessaging(cryptoutils.TDES, utils.HexToBytes("b99d546108eaa251570876b6d3456dce"), utils.HexToBytes("e3857ca24946251c151c540e13f2cd51"))
+		if err != nil {
+			t.Errorf("Unexpected error: %s", err)
+		}
+
+		err = sm.SetSSC(utils.HexToBytes("00000000000000cc"))
+		if err != nil {
+			t.Fatalf("Unexpected error: %s", err)
+		}
+
+		nfc.SetSecureMessaging(sm)
+	}
+
+	var doc document.Document
+
+	var dg15bytes []byte = utils.HexToBytes("6F8201023081FF300D06092A864886F70D01010105000381ED003081E90281E100BB8F93F4DC95E205CDA17C6927AB1E365B13065D03CD12E0FCE95D96840529453202F56CC4C13F77CD062930C8BC89A2873B257045C286E601CF3C09323A53103314902804AA10A314628CE222206A8866946A36B442041BB54AC81E6855DD1D6E16101833D65A191C20AC8B33B8A1A32920F46043F8031CF2BC17417030865FC5BE5A39DEE423BCBA3CA8177168EB23CFE01BA43EC87711B1CFFF85DB46F300DD8AE317B50D543B573E119E23AF7070D0B2FED6A3B2313A5EC02A531AAED1741F4390D1013E2A0F081EAC5DC8B0A1B2C6BDB1206F08D30E3643E1E5BDF536110203010001")
+
+	err = doc.NewDG(15, dg15bytes)
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+
+	callerChallenge := utils.HexToBytes("96302b0f3d7e7864")
+
+	activeAuth, err := NewActiveAuth(nfc, &doc).WithChallenge(callerChallenge)
+	if err != nil {
+		t.Fatalf("WithChallenge unexpected error: %s", err)
+	}
+
+	result, err := activeAuth.DoActiveAuth()
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+
+	if result == nil || !result.Success {
+		t.Fatalf("Expected successful result")
+	}
+
+	if !bytes.Equal(result.Evidence.Nonce, callerChallenge) {
+		t.Errorf("Nonce differs from supplied challenge (exp:%x) (act:%x)", callerChallenge, result.Evidence.Nonce)
+	}
+}
+
+func TestWithChallengeInvalidSize(t *testing.T) {
+	testCases := []struct {
+		name      string
+		challenge []byte
+	}{
+		{"empty", []byte{}},
+		{"7 bytes", make([]byte, 7)},
+		{"9 bytes", make([]byte, 9)},
+		{"16 bytes", make([]byte, 16)},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			nfc := iso7816.NewNfcSession(new(iso7816.MockTransceiver))
+			var doc document.Document
+			_, err := NewActiveAuth(nfc, &doc).WithChallenge(tc.challenge)
+			if err == nil {
+				t.Errorf("Expected error for challenge of length %d", len(tc.challenge))
+			}
+		})
+	}
+}
+
 func TestDoActiveAuthMissingDg15(t *testing.T) {
 	var doc document.Document
 
