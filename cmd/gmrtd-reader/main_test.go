@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"errors"
-	"html/template"
 	"io"
 	"log"
 	"strings"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/gmrtd/gmrtd/cms"
 	"github.com/gmrtd/gmrtd/document"
+	"github.com/gmrtd/gmrtd/htmlreport"
 	"github.com/gmrtd/gmrtd/password"
 	"github.com/gmrtd/gmrtd/utils"
 )
@@ -41,7 +41,7 @@ func TestGenerateDocument(t *testing.T) {
 
 	// TODO - add in some apdu logs.. should increase test coverage for APDU output
 
-	docByteBuf, err := generateDocument(&docEx)
+	docByteBuf, err := htmlreport.Generate(&docEx)
 	if err != nil {
 		t.Fatalf("Unexpected error: %s", err)
 	}
@@ -227,7 +227,7 @@ func TestCmdParamsError(t *testing.T) {
 }
 
 func TestGenerateDocumentNilDocument(t *testing.T) {
-	out, err := generateDocument(nil)
+	out, err := htmlreport.Generate(nil)
 	if err == nil {
 		t.Fatalf("expected error")
 	}
@@ -235,21 +235,6 @@ func TestGenerateDocumentNilDocument(t *testing.T) {
 		t.Fatalf("expected nil output")
 	}
 	if !strings.Contains(err.Error(), "documentEx cannot be nil") {
-		t.Fatalf("unexpected error: %s", err)
-	}
-}
-
-func TestExecuteDocumentTemplateError(t *testing.T) {
-	tmpl := template.Must(template.New("not-output").Parse(`hello`))
-
-	out, err := executeDocumentTemplate(tmpl, &templateData{DocumentEx: &document.DocumentEx{}})
-	if err == nil {
-		t.Fatalf("expected error")
-	}
-	if out != nil {
-		t.Fatalf("expected nil output")
-	}
-	if !strings.Contains(err.Error(), "ExecuteTemplate") {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }
