@@ -2,9 +2,7 @@
 package document
 
 import (
-	"encoding/json"
 	"fmt"
-	"log"
 	"log/slog"
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
@@ -238,15 +236,6 @@ func (doc *Document) Verify() error {
 	// 			- review 9303p11... 4.2 Chip Access Procedure
 
 	return nil
-}
-
-func (doc *Document) IndentedJson() string {
-	b, err := json.MarshalIndent(doc, "", "    ")
-	if err != nil {
-		log.Panicf("MarshalIndent error: %s", err)
-	}
-
-	return string(b)
 }
 
 // TODO - add specific UTs for parseDateYYYYMMDD / parseDatetimeYYYYMMDDHHMISS
