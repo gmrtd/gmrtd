@@ -342,19 +342,21 @@ func performBac(reader *Reader, state *ReaderState) error {
 }
 
 func performChipAuthentication(reader *Reader, state *ReaderState) error {
-	slog.Info("Chip Authentication (CA/AA)")
-	reader.status.Status("Chip Authentication (CA/AA)")
+	slog.Info("Chip Authentication (AA/CA)")
+	reader.status.Status("Chip Authentication (AA/CA)")
 
+	// note: AA has the strongest backend verification level, so always execute if available (even if PACE-CAM has completed)
+	{
+		// attempt active-authentication (if supported)
+		// NB errors are just recorded at this point
+		state.docEx.Session.ActiveAuthResult, state.docEx.Session.ActiveAuthErr = activeauth.NewActiveAuth(reader.nfc, &state.docEx.Document).DoActiveAuth()
+	}
+
+	// CA has a lower backend verification level, so only perform if ChipAuth not already completed (e.g. via AA or PACE-CAM)
 	if !state.docEx.Session.ChipAuthProtocolCompleted() {
 		// attempt chip-authentication (if supported)
 		// NB errors are just recorded at this point
 		state.docEx.Session.ChipAuthResult, state.docEx.Session.ChipAuthErr = chipauth.NewChipAuth(reader.nfc, &state.docEx.Document).DoChipAuth()
-	}
-
-	if !state.docEx.Session.ChipAuthProtocolCompleted() {
-		// attempt active-authentication (if supported)
-		// NB errors are just recorded at this point
-		state.docEx.Session.ActiveAuthResult, state.docEx.Session.ActiveAuthErr = activeauth.NewActiveAuth(reader.nfc, &state.docEx.Document).DoActiveAuth()
 	}
 
 	return nil

@@ -51,10 +51,16 @@ func (session Session) ChipAuthProtocolCompleted() bool {
 }
 
 // ChipAuthProtocolStatus reports which chip authentication protocol completed successfully
-// (PACE-CAM, CA, or AA). This reflects protocol outcome only — the public key used is
+// (AA, PACE-CAM, or CA). This reflects protocol outcome only — the public key used is
 // chip-supplied and unverified. Do NOT use as an anti-cloning verdict; use
 // VerifiedChipAuthStatus() which gates on passive authentication.
 func (session Session) ChipAuthProtocolStatus() (status ChipAuthStatus) {
+	// AA
+	// note: AA has the strongest backend verification level, so report AA over others (when available)
+	if session.ActiveAuthResult != nil && session.ActiveAuthResult.Success {
+		return CHIP_AUTH_STATUS_AA
+	}
+
 	// PACE-CAM
 	if session.PaceCamResult != nil && session.PaceCamResult.Success {
 		return CHIP_AUTH_STATUS_PACE_CAM
@@ -63,11 +69,6 @@ func (session Session) ChipAuthProtocolStatus() (status ChipAuthStatus) {
 	// CA
 	if session.ChipAuthResult != nil && session.ChipAuthResult.Success {
 		return CHIP_AUTH_STATUS_CA
-	}
-
-	// AA
-	if session.ActiveAuthResult != nil && session.ActiveAuthResult.Success {
-		return CHIP_AUTH_STATUS_AA
 	}
 
 	return CHIP_AUTH_STATUS_NONE
@@ -169,7 +170,6 @@ func (result PaceCamResult) MarshalJSON() ([]byte, error) {
 //
 // The terminal ephemeral private keys are safe to include: they are generated fresh for
 // each PACE session and carry no value once the session ends.
-//
 type PaceCamEvidence struct {
 	PaceOid     asn1.ObjectIdentifier `json:"paceOid"`
 	ParameterId int                   `json:"parameterId"`
