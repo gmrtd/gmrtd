@@ -2,12 +2,8 @@ package main
 
 import (
 	"bytes"
-	"embed"
-	"encoding/base64"
-	"encoding/json"
 	"flag"
 	"fmt"
-	"html/template"
 	"io"
 	"log"
 	"log/slog"
@@ -16,18 +12,14 @@ import (
 	"github.com/dumacp/smartcard/pcsc"
 	"github.com/gmrtd/gmrtd/cms"
 	"github.com/gmrtd/gmrtd/document"
+	"github.com/gmrtd/gmrtd/htmlreport"
 	"github.com/gmrtd/gmrtd/internal/version"
 	"github.com/gmrtd/gmrtd/iso7816"
-	"github.com/gmrtd/gmrtd/oid"
 	"github.com/gmrtd/gmrtd/password"
 	"github.com/gmrtd/gmrtd/reader"
-	"github.com/gmrtd/gmrtd/tlv"
 	"github.com/gmrtd/gmrtd/utils"
 	"github.com/pkg/browser"
 )
-
-//go:embed templates/*
-var templateFS embed.FS
 
 type PCSCTransceiver struct {
 	card smartCard
@@ -54,90 +46,6 @@ var _ reader.ReaderStatus = (*PCSCReaderStatus)(nil)
 
 func (status *PCSCReaderStatus) Status(msg string) {
 	slog.Info("Status", "msg", msg)
-}
-
-func templateFuncMap() template.FuncMap {
-	// TODO - is 'TlvBytesToString' still required? check others also
-	return template.FuncMap{
-		"GmrtdVersion":     func() string { return version.Version },
-		"BytesToHex":       func(bytes []byte) string { return fmt.Sprintf("%X", bytes) },
-		"BytesToStr":       func(bytes []byte) string { return string(bytes) },
-		"ByteLen":          func(bytes []byte) int { return len(bytes) },
-		"TagToHex":         func(tag tlv.TlvTag) string { return fmt.Sprintf("%X", tag) },
-		"TlvBytesToString": func(bytes []byte) string { nodes := tlv.MustDecode(bytes); return nodes.String() },
-		"DecodeTlvBytes":   func(bytes []byte) []tlv.TlvNode { nodes := tlv.MustDecode(bytes); return nodes.Nodes() },
-		"BytesToBase64":    func(bytes []byte) string { return base64.StdEncoding.EncodeToString(bytes) },
-		"OidDesc": func(oidBytes []byte) string {
-			tmpOid := oid.DecodeAsn1objectId(oidBytes)
-			tmpOidDesc := oid.OidDesc(tmpOid)
-			return fmt.Sprintf("%s %s", tmpOid.String(), tmpOidDesc)
-		},
-		"IsPrintable": func(bytes []byte) bool { return len(bytes) > 0 && utils.PrintableBytes(bytes) },
-		"ApduTotalDurMs": func(entries []*iso7816.ApduLogEntry) int {
-			var totalMs int
-			for _, entry := range entries {
-				totalMs += int(entry.DurMs)
-			}
-			return totalMs
-		},
-		"IndentedJson": func(v any) string {
-			b, err := json.MarshalIndent(v, "", "    ")
-			if err != nil {
-				log.Panicf("MarshalIndent error: %s", err)
-			}
-			return string(b)
-		},
-	}
-}
-
-func parseDocumentTemplates() (*template.Template, error) {
-	return template.New("").Funcs(templateFuncMap()).ParseFS(templateFS, "templates/*.gohtml")
-}
-
-type templateData struct {
-	*document.DocumentEx
-	CborBase64 string
-}
-
-func executeDocumentTemplate(tmpl *template.Template, data *templateData) (*bytes.Buffer, error) {
-	byteBuf := bytes.NewBuffer(nil)
-
-	// convert to HTML using template
-	err := tmpl.ExecuteTemplate(byteBuf, "output.gohtml", data)
-	if err != nil {
-		return nil, fmt.Errorf("[generateDocument] ExecuteTemplate error: %w", err)
-	}
-
-	return byteBuf, nil
-}
-
-func generateDocument(documentEx *document.DocumentEx) (*bytes.Buffer, error) {
-	var err error
-
-	if documentEx == nil {
-		return nil, fmt.Errorf("[generateDocument] documentEx cannot be nil")
-	}
-
-	tmpl, err := parseDocumentTemplates()
-	if err != nil {
-		return nil, fmt.Errorf("[generateDocument] ParseFS error: %w", err)
-	}
-
-	data := &templateData{DocumentEx: documentEx}
-
-	cborBytes, err := documentEx.ToCbor()
-	if err != nil {
-		slog.Warn("ToCbor failed, CBOR section will be unavailable", "error", err)
-	} else {
-		data.CborBase64 = base64.StdEncoding.EncodeToString(cborBytes)
-	}
-
-	byteBuf, err := executeDocumentTemplate(tmpl, data)
-	if err != nil {
-		return nil, fmt.Errorf("[generateDocument] executeDocumentTemplate error: %w", err)
-	}
-
-	return byteBuf, nil
 }
 
 func cmdParams(args []string) (pass *password.Password, debug bool, apduMaxRead uint, skipPace bool, skipImages bool, err error) {
@@ -256,7 +164,7 @@ func defaultAppDeps() appDeps {
 	return appDeps{
 		cardProvider:         newPCSCCardProvider,
 		cscaMasterList:       cscaMasterList,
-		generateDocument:     generateDocument,
+		generateDocument:     htmlreport.Generate,
 		openBrowser:          browser.OpenReader,
 		readDocumentFromCard: readDocumentFromCard,
 	}
