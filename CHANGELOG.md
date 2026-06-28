@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.43.0](https://github.com/gmrtd/gmrtd/compare/v0.42.0...v0.43.0) (2026-06-28)
+
+
+### Features
+
+* add gmrtd-verify offline document verifier CLI ([#401](https://github.com/gmrtd/gmrtd/issues/401)) ([ea86baf](https://github.com/gmrtd/gmrtd/commit/ea86bafb47aff2830025e8d92f26c024937da23b))
+* caller-supplied AA challenge with relay-attack nonce binding ([#397](https://github.com/gmrtd/gmrtd/issues/397)) ([8fa49a3](https://github.com/gmrtd/gmrtd/commit/8fa49a349362a6f435063a773b6096792645d1aa))
+
 ## [0.42.0](https://github.com/gmrtd/gmrtd/compare/v0.41.0...v0.42.0) (2026-06-28)
 
 
