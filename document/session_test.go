@@ -63,6 +63,15 @@ func TestVerifiedChipAuthStatus(t *testing.T) {
 			exp: CHIP_AUTH_STATUS_NONE,
 		},
 		{
+			desc: "AA + PACE-CAM success + passive auth success + no CardSec - AA takes priority (PACE-CAM CardSec gate bypassed)",
+			session: Session{
+				ActiveAuthResult:  &ActiveAuthResult{Success: true, Evidence: &ActiveAuthEvidence{Algorithm: oid.OidRsaEncryption}},
+				PaceCamResult:     &PaceCamResult{Success: true},
+				PassiveAuthResult: &PassiveAuthResult{Success: true, Sod: NewPassiveAuth(nil)},
+			},
+			exp: CHIP_AUTH_STATUS_AA,
+		},
+		{
 			desc:    "no chip auth + passive auth success",
 			session: Session{PassiveAuthResult: &PassiveAuthResult{Success: true, Sod: NewPassiveAuth(nil)}},
 			exp:     CHIP_AUTH_STATUS_NONE,
@@ -151,6 +160,32 @@ func TestSession(t *testing.T) {
 					Algorithm: oid.OidRsaEncryption,
 					Nonce:     []byte{0x12, 0x34, 0x56},
 					Signature: []byte{0xAB, 0xCD, 0xEF}}},
+			},
+			expChipAuthProtocolStatus: CHIP_AUTH_STATUS_AA,
+		},
+		{
+			// Active-Auth + Chip-Auth (both success) - AA takes priority
+			session: Session{
+				ActiveAuthResult: &ActiveAuthResult{
+					Success: true,
+					Evidence: &ActiveAuthEvidence{
+						Algorithm: oid.OidRsaEncryption,
+						Nonce:     []byte{0x12, 0x34, 0x56},
+						Signature: []byte{0xAB, 0xCD, 0xEF}}},
+				ChipAuthResult: &ChipAuthResult{Success: true},
+			},
+			expChipAuthProtocolStatus: CHIP_AUTH_STATUS_AA,
+		},
+		{
+			// Active-Auth + PACE-CAM (both success) - AA takes priority
+			session: Session{
+				ActiveAuthResult: &ActiveAuthResult{
+					Success: true,
+					Evidence: &ActiveAuthEvidence{
+						Algorithm: oid.OidRsaEncryption,
+						Nonce:     []byte{0x12, 0x34, 0x56},
+						Signature: []byte{0xAB, 0xCD, 0xEF}}},
+				PaceCamResult: &PaceCamResult{Success: true},
 			},
 			expChipAuthProtocolStatus: CHIP_AUTH_STATUS_AA,
 		},
