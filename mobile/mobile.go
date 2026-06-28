@@ -1,6 +1,7 @@
 package mobile
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -92,6 +93,7 @@ type Reader struct {
 	maxRead     int
 	skipPace    bool
 	skipImages  bool
+	aaChallenge []byte
 }
 
 type Document struct {
@@ -122,6 +124,27 @@ func (r *Reader) SkipPace() {
 // SkipImages configures the reader to skip image data groups (DG2, DG7)
 func (r *Reader) SkipImages() {
 	r.skipImages = true
+}
+
+// WithAAChallenge sets a caller-supplied 8-byte RND.IFD challenge for Active
+// Authentication. If not called, a random challenge is generated internally.
+//
+// Security-conscious callers should always supply their own challenge rather
+// than relying on the internally generated random value. When the library
+// generates the challenge it is ephemeral — if it is not captured and passed
+// to the verifier, there is no way to confirm the AA response was generated
+// for this specific session (relay-attack prevention). The recommended pattern:
+//
+//  1. Generate a cryptographically random 8-byte value.
+//  2. Supply it here via WithAAChallenge before calling ReadDocument.
+//  3. Pass the same value to Verifier.WithAAChallenge when verifying the
+//     captured evidence; the verifier will hard-error on a nonce mismatch.
+func (r *Reader) WithAAChallenge(challenge []byte) (*Reader, error) {
+	if len(challenge) != 8 {
+		return nil, fmt.Errorf("[WithAAChallenge] challenge must be exactly 8 bytes, got %d", len(challenge))
+	}
+	r.aaChallenge = bytes.Clone(challenge)
+	return r, nil
 }
 
 func (r *Reader) ReadDocument(password *MrtdPassword, atr []byte, ats []byte) (doc *Document, err error) {
@@ -163,6 +186,12 @@ func (r *Reader) ReadDocument(password *MrtdPassword, atr []byte, ats []byte) (d
 		gmrtdReader.SkipImages()
 	}
 
+	if r.aaChallenge != nil {
+		if gmrtdReader, err = gmrtdReader.WithAAChallenge(r.aaChallenge); err != nil {
+			return nil, fmt.Errorf("[ReadDocument] WithAAChallenge error: %w", err)
+		}
+	}
+
 	doc.documentEx, err = gmrtdReader.ReadDocument(password.password, atr, ats)
 
 	return doc, err
@@ -190,10 +219,27 @@ func OidDesc(oidStr string) string {
 	return oid.OidDescStr(oidStr)
 }
 
-type Verifier struct{}
+type Verifier struct {
+	aaChallenge []byte
+}
 
 func NewVerifier() *Verifier {
 	return &Verifier{}
+}
+
+// WithAAChallenge sets a caller-supplied 8-byte challenge to bind against the
+// AA evidence nonce during verification. Security-conscious callers should
+// always supply their own challenge — this is what closes the relay-attack
+// window. When set and AA evidence is present, Verify returns a hard error if
+// the evidence nonce does not match the supplied challenge, or if the AA
+// signature itself fails to verify. See Reader.WithAAChallenge for the
+// corresponding read-side method.
+func (v *Verifier) WithAAChallenge(challenge []byte) (*Verifier, error) {
+	if len(challenge) != 8 {
+		return nil, fmt.Errorf("[WithAAChallenge] challenge must be exactly 8 bytes, got %d", len(challenge))
+	}
+	v.aaChallenge = bytes.Clone(challenge)
+	return v, nil
 }
 
 func (v *Verifier) Verify(data []byte) (doc *Document, err error) {
@@ -202,7 +248,15 @@ func (v *Verifier) Verify(data []byte) (doc *Document, err error) {
 		return nil, fmt.Errorf("[Verify] getCscaCertPool error: %w", err)
 	}
 
-	docEx, err := verifier.NewVerifier(certPool).Verify(data)
+	gmrtdVerifier := verifier.NewVerifier(certPool)
+
+	if v.aaChallenge != nil {
+		if gmrtdVerifier, err = gmrtdVerifier.WithAAChallenge(v.aaChallenge); err != nil {
+			return nil, fmt.Errorf("[Verify] WithAAChallenge error: %w", err)
+		}
+	}
+
+	docEx, err := gmrtdVerifier.Verify(data)
 	if err != nil {
 		return nil, fmt.Errorf("[Verify] verifier error: %w", err)
 	}

@@ -86,6 +86,7 @@ type ActiveAuth struct {
 	randomBytesFn cryptoutils.RandomBytesFn
 	nfcSession    **iso7816.NfcSession
 	document      **document.Document
+	challenge     []byte // optional caller-supplied RND.IFD
 }
 
 func NewActiveAuth(nfc *iso7816.NfcSession, doc *document.Document) *ActiveAuth {
@@ -159,7 +160,32 @@ func decodeF(f []byte) (m1 []byte, d []byte, hashAlg crypto.Hash, err error) {
 	return
 }
 
+// WithChallenge sets a caller-supplied RND.IFD challenge (must be exactly 8 bytes).
+// If not called, DoActiveAuth generates a random 8-byte challenge internally.
+//
+// Security-conscious callers should always supply their own challenge rather
+// than relying on the internally generated random value. When the library
+// generates the challenge it is ephemeral — if it is not captured and passed
+// to the verifier, there is no way to confirm the AA response was generated
+// for this specific session (relay-attack prevention). The recommended pattern:
+//
+//  1. Generate a cryptographically random 8-byte value.
+//  2. Supply it here via WithChallenge before calling DoActiveAuth.
+//  3. Pass the same value to verifier.Verifier.WithAAChallenge when verifying
+//     the captured evidence; the verifier will hard-error on a nonce mismatch.
+func (activeAuth *ActiveAuth) WithChallenge(challenge []byte) (*ActiveAuth, error) {
+	if len(challenge) != 8 {
+		return nil, fmt.Errorf("[WithChallenge] challenge must be exactly 8 bytes, got %d", len(challenge))
+	}
+	activeAuth.challenge = bytes.Clone(challenge)
+	return activeAuth, nil
+}
+
 func (activeAuth *ActiveAuth) randomIfd() []byte {
+	if activeAuth.challenge != nil {
+		slog.Debug("randomIfd", "rndIfd", utils.BytesToHex(activeAuth.challenge), "source", "caller-supplied")
+		return bytes.Clone(activeAuth.challenge)
+	}
 	var rndIfd []byte = activeAuth.randomBytesFn(8) // RND.IFD
 	slog.Debug("randomIfd", "rndIfd", utils.BytesToHex(rndIfd))
 	return rndIfd
@@ -171,8 +197,11 @@ func (activeAuth *ActiveAuth) randomIfd() []byte {
 // Flow:
 //  1. Checks presence of DG15 (AA public key). If missing, returns (nil, nil)
 //     to indicate AA is skipped without error.
-//  2. Generates a random challenge (RndIFD) and sends it to the chip using the
-//     INTERNAL AUTHENTICATE command.
+//  2. Produces a challenge (RND.IFD) — the caller-supplied value if WithChallenge
+//     was called, otherwise a freshly generated random 8-byte value — and sends
+//     it to the chip via INTERNAL AUTHENTICATE. The nonce used is recorded in
+//     ActiveAuthResult.Evidence.Nonce and must be passed to the verifier for
+//     relay-attack prevention (see WithChallenge).
 //  3. Validates the returned signature using the public key from DG15.
 //  4. Emits debug logs for secure messaging (pre/post) when enabled.
 //
@@ -367,6 +396,11 @@ const maxEvidenceFieldLen = 4096
 // during the original session. However, this alone does not prove the chip is genuine — a
 // clone could generate its own keypair. Callers must also verify the Document via Passive
 // Authentication to confirm that DG15 is bound to a trusted CSCA chain.
+//
+// This function does not enforce that the nonce matches the challenge used in
+// the original session. For relay-attack prevention, callers must additionally
+// verify that evidence.Nonce matches the challenge they supplied during reading,
+// either by comparing directly or by using verifier.Verifier.WithAAChallenge.
 func VerifyEvidence(doc *document.Document, evidence *document.ActiveAuthEvidence) (*document.ActiveAuthResult, error) {
 	if evidence == nil {
 		return nil, fmt.Errorf("[VerifyEvidence] evidence is nil")

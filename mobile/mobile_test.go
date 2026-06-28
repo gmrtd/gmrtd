@@ -155,6 +155,36 @@ func TestSkipImages(t *testing.T) {
 	}
 }
 
+func TestWithAAChallenge(t *testing.T) {
+	t.Run("valid 8 bytes", func(t *testing.T) {
+		r, err := (&Reader{}).WithAAChallenge(make([]byte, 8))
+		if err != nil {
+			t.Errorf("unexpected error: %s", err)
+		}
+		if r == nil {
+			t.Errorf("expected non-nil reader")
+		}
+	})
+
+	invalidSizes := []struct {
+		name string
+		size int
+	}{
+		{"empty", 0},
+		{"7 bytes", 7},
+		{"9 bytes", 9},
+		{"16 bytes", 16},
+	}
+	for _, tc := range invalidSizes {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := (&Reader{}).WithAAChallenge(make([]byte, tc.size))
+			if err == nil {
+				t.Errorf("expected error for challenge of length %d", tc.size)
+			}
+		})
+	}
+}
+
 type testReaderStatus struct {
 }
 
@@ -236,6 +266,36 @@ func TestVerifierVerifyInvalidInput(t *testing.T) {
 	_, err := v.Verify([]byte{0xff, 0xff, 0xff})
 	if err == nil {
 		t.Error("expected error for invalid CBOR input")
+	}
+}
+
+func TestVerifierWithAAChallenge(t *testing.T) {
+	t.Run("valid 8 bytes", func(t *testing.T) {
+		v, err := NewVerifier().WithAAChallenge(make([]byte, 8))
+		if err != nil {
+			t.Errorf("unexpected error: %s", err)
+		}
+		if v == nil {
+			t.Errorf("expected non-nil verifier")
+		}
+	})
+
+	invalidSizes := []struct {
+		name string
+		size int
+	}{
+		{"empty", 0},
+		{"7 bytes", 7},
+		{"9 bytes", 9},
+		{"16 bytes", 16},
+	}
+	for _, tc := range invalidSizes {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := NewVerifier().WithAAChallenge(make([]byte, tc.size))
+			if err == nil {
+				t.Errorf("expected error for challenge of length %d", tc.size)
+			}
+		})
 	}
 }
 

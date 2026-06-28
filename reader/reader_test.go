@@ -42,6 +42,39 @@ func TestReaderSetup(t *testing.T) {
 	}
 }
 
+func TestWithAAChallenge(t *testing.T) {
+	var status MockStatus
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.MockTransceiver{})
+
+	t.Run("valid 8 bytes", func(t *testing.T) {
+		reader, err := NewReader(&status, nfc, EmptyCscaTrustStore(t)).WithAAChallenge(make([]byte, 8))
+		if err != nil {
+			t.Errorf("unexpected error: %s", err)
+		}
+		if reader == nil {
+			t.Errorf("expected non-nil reader")
+		}
+	})
+
+	invalidSizes := []struct {
+		name string
+		size int
+	}{
+		{"empty", 0},
+		{"7 bytes", 7},
+		{"9 bytes", 9},
+		{"16 bytes", 16},
+	}
+	for _, tc := range invalidSizes {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := NewReader(&status, nfc, EmptyCscaTrustStore(t)).WithAAChallenge(make([]byte, tc.size))
+			if err == nil {
+				t.Errorf("expected error for challenge of length %d", tc.size)
+			}
+		})
+	}
+}
+
 func TestRecordAtrAts(t *testing.T) {
 	var expAtr []byte = utils.HexToBytes("1234567890")
 	var expAts []byte = utils.HexToBytes("ABCDEF")
