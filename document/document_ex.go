@@ -1,9 +1,6 @@
 package document
 
 import (
-	"encoding/json"
-	"log"
-
 	"github.com/gmrtd/gmrtd/iso7816"
 )
 
@@ -23,11 +20,3 @@ func (docEx *DocumentEx) GenerateSummary() {
 	}
 }
 
-func (docEx *DocumentEx) IndentedJson() string {
-	b, err := json.MarshalIndent(docEx, "", "    ")
-	if err != nil {
-		log.Panicf("MarshalIndent error: %s", err)
-	}
-
-	return string(b)
-}

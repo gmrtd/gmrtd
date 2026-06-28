@@ -1,6 +1,7 @@
 package document
 
 import (
+	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
@@ -105,10 +106,10 @@ func TestLdsUnicodeVersion(t *testing.T) {
 			}
 		}
 
-		// verify that we can generate JSON without any error
+		// verify that we can marshal to JSON without any error
 		{
-			tmpJson := doc.IndentedJson()
-			if len(tmpJson) <= 0 {
+			tmpJson, err := json.MarshalIndent(doc, "", "    ")
+			if err != nil || len(tmpJson) <= 0 {
 				t.Errorf("Expected some JSON data for the Document")
 			}
 		}

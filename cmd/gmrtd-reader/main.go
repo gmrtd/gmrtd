@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"embed"
 	"encoding/base64"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"html/template"
@@ -78,6 +79,13 @@ func templateFuncMap() template.FuncMap {
 				totalMs += int(entry.DurMs)
 			}
 			return totalMs
+		},
+		"IndentedJson": func(v any) string {
+			b, err := json.MarshalIndent(v, "", "    ")
+			if err != nil {
+				log.Panicf("MarshalIndent error: %s", err)
+			}
+			return string(b)
 		},
 	}
 }
