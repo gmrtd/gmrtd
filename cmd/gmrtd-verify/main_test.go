@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"testing"
 
@@ -266,5 +267,107 @@ func TestRunWithDepsOpenBrowserError(t *testing.T) {
 
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("got %v, want %v", err, wantErr)
+	}
+}
+
+func TestRunWithDepsSuccessWithDebug(t *testing.T) {
+	err := runWithDeps([]string{"-file", "document.gmrtd", "-debug"}, makeDeps(nil))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestReadCborFile(t *testing.T) {
+	t.Run("regular file", func(t *testing.T) {
+		f, err := os.CreateTemp("", "*.cbor")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(f.Name())
+		f.Write([]byte("testdata"))
+		f.Close()
+
+		got, err := readCborFile(f.Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(got) != "testdata" {
+			t.Fatalf("got %q, want %q", got, "testdata")
+		}
+	})
+
+	t.Run("stdin", func(t *testing.T) {
+		r, w, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		orig := os.Stdin
+		os.Stdin = r
+		defer func() { os.Stdin = orig }()
+		w.Write([]byte("stdin content"))
+		w.Close()
+
+		got, err := readCborFile("-")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(got) != "stdin content" {
+			t.Fatalf("got %q, want %q", got, "stdin content")
+		}
+	})
+
+	t.Run("file not found", func(t *testing.T) {
+		_, err := readCborFile("/nonexistent/path/missing.cbor")
+		if err == nil {
+			t.Fatal("expected error for missing file")
+		}
+	})
+}
+
+func TestVerifyDocument(t *testing.T) {
+	pool := &cms.GenericCertPool{}
+
+	t.Run("invalid cbor no challenge", func(t *testing.T) {
+		_, err := verifyDocument(pool, nil, []byte("not valid cbor"))
+		if err == nil {
+			t.Fatal("expected error for invalid CBOR data")
+		}
+	})
+
+	t.Run("invalid cbor with challenge", func(t *testing.T) {
+		challenge := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}
+		_, err := verifyDocument(pool, challenge, []byte("not valid cbor"))
+		if err == nil {
+			t.Fatal("expected error for invalid CBOR data with challenge")
+		}
+	})
+}
+
+func TestDefaultAppDeps(t *testing.T) {
+	deps := defaultAppDeps()
+	if deps.cscaMasterList == nil {
+		t.Error("cscaMasterList is nil")
+	}
+	if deps.readFile == nil {
+		t.Error("readFile is nil")
+	}
+	if deps.verify == nil {
+		t.Error("verify is nil")
+	}
+	if deps.generateDocument == nil {
+		t.Error("generateDocument is nil")
+	}
+	if deps.openBrowser == nil {
+		t.Error("openBrowser is nil")
+	}
+}
+
+func TestRunMissingFile(t *testing.T) {
+	err := run([]string{})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "-file is required") {
+		t.Fatalf("unexpected error: %s", err)
 	}
 }
