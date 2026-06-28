@@ -892,7 +892,7 @@ document.addEventListener('DOMContentLoaded', () => {
       <button class="btn" type="button" id="cbor-toggle">Expand</button>
       <button class="btn" type="button" id="cbor-copy-hex">Copy hex</button>
       <button class="btn" type="button" id="cbor-copy-b64">Copy base64</button>
-      <button class="btn" type="button" id="cbor-download">Download .cbor</button>
+      <button class="btn" type="button" id="cbor-download">Download .gmrtd</button>
     </div>
     <span class="copy-status" id="cbor-status"></span>
   </div>
@@ -947,7 +947,7 @@ document.addEventListener('DOMContentLoaded', () => {
     var blob = new Blob([bytes], { type: 'application/cbor' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'gmrtd-verifiable-doc.cbor';
+    a.download = 'document.gmrtd';
     a.click();
     URL.revokeObjectURL(a.href);
     setStatus('Downloaded');

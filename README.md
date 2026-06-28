@@ -106,6 +106,38 @@ go run ./cmd/gmrtd-reader --can <CAN>
 > - `--doc/--dob/--exp` and `--can` are mutually exclusive.
 > - Requires a PC/SC-compatible NFC reader and a working PC/SC stack.
 
+# ✅ Offline Document Verifier (gmrtd-verify)
+Verifies a serialised CBOR document offline — no NFC hardware required. The CBOR blob is the output of `DocumentEx.ToCbor()`, typically produced by `gmrtd-reader` or the mobile SDK; the verifier replays chip authentication evidence and performs passive authentication, then opens the same HTML report as `gmrtd-reader`.
+
+### Build / run
+```bash
+go run ./cmd/gmrtd-verify -help
+```
+
+### Basic usage
+```bash
+go run ./cmd/gmrtd-verify -file document.gmrtd
+```
+
+### Read from stdin
+```bash
+cat document.gmrtd | go run ./cmd/gmrtd-verify -file -
+```
+
+### With AA challenge binding
+```bash
+go run ./cmd/gmrtd-verify -file document.gmrtd -challenge 0102030405060708
+```
+
+### Flags
+| Flag | Description |
+|---|---|
+| `-file <path>` | Path to CBOR document file; use `-` for stdin |
+| `-challenge <hex>` | 8-byte AA nonce challenge (16 hex chars); binds against AA evidence to close the relay-attack window |
+| `-debug` | Enable debug logging |
+
+> Uses the same built-in CSCA trust stores as `gmrtd-reader`. See [CSCA Trust Stores](#-csca-trust-stores) for coverage.
+
 # 🔍 CSCA Inspection Tool
 A command-line utility for auditing the built-in CSCA trust stores is included at `cmd/gmrtd-csca`.
 
