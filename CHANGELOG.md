@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.42.0](https://github.com/gmrtd/gmrtd/compare/v0.41.0...v0.42.0) (2026-06-28)
+
+
+### Features
+
+* Elevate Active Authentication (AA) to the highest priority among chip authentication protocols ([#394](https://github.com/gmrtd/gmrtd/issues/394)) ([bbf868f](https://github.com/gmrtd/gmrtd/commit/bbf868fe96989e0dc994a42620d9dd92978bd60f))
+
 ## [0.41.0](https://github.com/gmrtd/gmrtd/compare/v0.40.0...v0.41.0) (2026-06-27)
 
 
