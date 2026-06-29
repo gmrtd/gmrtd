@@ -36,22 +36,21 @@ func NewPasswordNil() *Password {
 	return &out
 }
 
+// NewPasswordMrz derives an MRZi password from a raw MRZ string.
+// ConvertMrzToMrzi is used instead of MrzDecode+EncodeMrzi so that only the three
+// fields required to construct the MRZi (document number, date of birth, date of
+// expiry) are validated. The composite check digit and all other MRZ fields are
+// ignored, making this tolerant of OCR noise outside those three fields.
 func NewPasswordMrz(mrzStr string) (pass *Password, err error) {
 	pass = new(Password)
 	pass.PasswordType = PASSWORD_TYPE_MRZi
 
-	var m *mrz.MRZ
-	m, err = mrz.MrzDecode(mrzStr)
+	pass.Password, err = mrz.ConvertMrzToMrzi(mrzStr)
 	if err != nil {
 		return nil, err
 	}
 
-	pass.Password, err = m.EncodeMrzi()
-	if err != nil {
-		return nil, err
-	}
-
-	return pass, err
+	return pass, nil
 }
 
 func NewPasswordMrzi(documentNo, dateOfBirth, dateOfExpiry string) (pass *Password, err error) {

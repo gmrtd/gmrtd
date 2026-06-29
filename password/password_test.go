@@ -26,6 +26,21 @@ func TestNewPasswordMrzTD2(t *testing.T) {
 	}
 }
 
+// TestNewPasswordMrzOcrTolerance verifies that NewPasswordMrz succeeds when the MRZ
+// contains OCR noise outside the three MRZi fields (here: a corrupted composite
+// check digit that MrzDecode would reject).
+func TestNewPasswordMrzOcrTolerance(t *testing.T) {
+	// TD3 with composite check-digit corrupted (0->2); field check digits are valid
+	pass, err := NewPasswordMrz("P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<L898902C36UTO7408122F1204159ZE184226B<<<<<12")
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+
+	if (pass.PasswordType != PASSWORD_TYPE_MRZi) || (pass.Password != "L898902C3674081221204159") {
+		t.Errorf("Password (MRZ) not encoded correctly")
+	}
+}
+
 func TestNewPasswordMrzInvalid(t *testing.T) {
 	password, err := NewPasswordMrz("InvalidMrzStr")
 	if err == nil {
