@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.44.0](https://github.com/gmrtd/gmrtd/compare/v0.43.0...v0.44.0) (2026-06-29)
+
+
+### Features
+
+* **mrz:** add OCR-tolerant ConvertMrzToMrzi; optimise NewPasswordMrz ([#405](https://github.com/gmrtd/gmrtd/issues/405)) ([c1a1561](https://github.com/gmrtd/gmrtd/commit/c1a15616697926914851805fce343e2d6ba8dd14))
+
 ## [0.43.0](https://github.com/gmrtd/gmrtd/compare/v0.42.0...v0.43.0) (2026-06-28)
 
 
