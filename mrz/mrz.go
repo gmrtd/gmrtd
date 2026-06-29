@@ -355,6 +355,73 @@ func decodeTD3(mrz string) (*MRZ, error) {
 	return out, nil
 }
 
+func buildMrzi(docNum, docNumCD, dob, dobCD, expiry, expiryCD string) (string, error) {
+	if err := verifyCheckdigit(docNum, docNumCD); err != nil {
+		return "", err
+	}
+	if err := verifyCheckdigit(dob, dobCD); err != nil {
+		return "", err
+	}
+	if err := verifyCheckdigit(expiry, expiryCD); err != nil {
+		return "", err
+	}
+	return docNum + docNumCD + dob + dobCD + expiry + expiryCD, nil
+}
+
+func extractMrziTD1(mrz string) (string, error) {
+	docNum := mrz[5:14]
+	docNumCD := mrz[14:15]
+	optionalData := mrz[15:30]
+
+	if docNumCD == "<" {
+		tmpIdx := strings.Index(optionalData, "<")
+		if tmpIdx < 2 {
+			return "", fmt.Errorf("(extractMrziTD1) invalid encoding. Index must be >=2 (Act:%d)", tmpIdx)
+		}
+		docNum += optionalData[0 : tmpIdx-1]
+		docNumCD = optionalData[tmpIdx-1 : tmpIdx]
+	}
+
+	return buildMrzi(docNum, docNumCD, mrz[30:36], mrz[36:37], mrz[38:44], mrz[44:45])
+}
+
+func extractMrziTD2(mrz string) (string, error) {
+	docNum := mrz[36:45]
+	docNumCD := mrz[45:46]
+	optionalData := mrz[64:71]
+
+	if docNumCD == "<" {
+		tmpIdx := strings.Index(optionalData, "<")
+		if tmpIdx < 2 {
+			return "", fmt.Errorf("(extractMrziTD2) invalid encoding. Index must be >=2 (Act:%d)", tmpIdx)
+		}
+		docNum += optionalData[0 : tmpIdx-1]
+		docNumCD = optionalData[tmpIdx-1 : tmpIdx]
+	}
+
+	return buildMrzi(docNum, docNumCD, mrz[49:55], mrz[55:56], mrz[57:63], mrz[63:64])
+}
+
+func extractMrziTD3(mrz string) (string, error) {
+	return buildMrzi(mrz[44:53], mrz[53:54], mrz[57:63], mrz[63:64], mrz[65:71], mrz[71:72])
+}
+
+// ConvertMrzToMrzi extracts and returns the MRZi from a full MRZ string, validating only
+// the three field-level check digits required to construct the MRZi (document number, date
+// of birth, date of expiry). The composite check digit and all other fields are ignored,
+// so OCR noise outside those three fields does not cause failure.
+func ConvertMrzToMrzi(mrzStr string) (string, error) {
+	switch len(mrzStr) {
+	case MRZLengthTD1:
+		return extractMrziTD1(mrzStr)
+	case MRZLengthTD2:
+		return extractMrziTD2(mrzStr)
+	case MRZLengthTD3:
+		return extractMrziTD3(mrzStr)
+	}
+	return "", fmt.Errorf("unsupported MRZ length (length:%d)", len(mrzStr))
+}
+
 func (mrz *MRZ) EncodeMrzi() (string, error) {
 	// [9] document-number
 	documentNumber := encodeValue(mrz.DocumentNumber, 9, -1)

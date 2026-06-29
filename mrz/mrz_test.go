@@ -433,6 +433,161 @@ func TestDecodeTD3Errors(t *testing.T) {
 	}
 }
 
+func TestConvertMrzToMrzi(t *testing.T) {
+	testCases := []struct {
+		desc    string
+		inp_mrz string
+		exp     string
+	}{
+		{
+			desc:    "TD1 standard",
+			inp_mrz: "I<UTOD231458907<<<<<<<<<<<<<<<7408122F1204159UTO<<<<<<<<<<<6ERIKSSON<<ANNA<MARIA<<<<<<<<<<",
+			exp:     "D23145890774081221204159",
+		},
+		{
+			desc:    "TD1 extended document-number",
+			inp_mrz: "I<UTOD23145890<7349<<<<<<<<<<<3407127M9507122UTO<<<<<<<<<<<2STEVENSON<<PETER<JOHN<<<<<<<<<",
+			exp:     "D23145890734934071279507122",
+		},
+		{
+			desc:    "TD2 standard",
+			inp_mrz: "I<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<D231458907UTO7408122F1204159<<<<<<<6",
+			exp:     "D23145890774081221204159",
+		},
+		{
+			desc:    "TD2 extended document-number",
+			inp_mrz: "I<UTOSTEVENSON<<PETER<JOHN<<<<<<<<<<D23145890<UTO3407127M95071227349<<<8",
+			exp:     "D23145890734934071279507122",
+		},
+		{
+			desc:    "TD3",
+			inp_mrz: "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<L898902C36UTO7408122F1204159ZE184226B<<<<<10",
+			exp:     "L898902C3674081221204159",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			act, err := ConvertMrzToMrzi(tc.inp_mrz)
+			if err != nil {
+				t.Errorf("unexpected error: %s", err)
+			}
+			if act != tc.exp {
+				t.Errorf("MRZi mismatch (Exp:%s, Act:%s)", tc.exp, act)
+			}
+		})
+	}
+}
+
+// TestConvertMrzToMrziOcrTolerance verifies that ConvertMrzToMrzi succeeds on MRZ strings
+// that MrzDecode would reject due to errors outside the three required fields.
+func TestConvertMrzToMrziOcrTolerance(t *testing.T) {
+	testCases := []struct {
+		desc    string
+		inp_mrz string
+		exp     string
+	}{
+		{
+			// composite check-digit corrupted (6->7) — MrzDecode rejects this
+			desc:    "TD1 bad composite CD",
+			inp_mrz: "I<UTOD231458907<<<<<<<<<<<<<<<7408122F1204159UTO<<<<<<<<<<<7ERIKSSON<<ANNA<MARIA<<<<<<<<<<",
+			exp:     "D23145890774081221204159",
+		},
+		{
+			// composite check-digit corrupted (6->8) — MrzDecode rejects this
+			desc:    "TD2 bad composite CD",
+			inp_mrz: "I<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<D231458907UTO7408122F1204159<<<<<<<8",
+			exp:     "D23145890774081221204159",
+		},
+		{
+			// optional-data check-digit corrupted (1->2) — MrzDecode rejects this
+			desc:    "TD3 bad optional-data CD",
+			inp_mrz: "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<L898902C36UTO7408122F1204159ZE184226B<<<<<20",
+			exp:     "L898902C3674081221204159",
+		},
+		{
+			// composite check-digit corrupted (0->2) — MrzDecode rejects this
+			desc:    "TD3 bad composite CD",
+			inp_mrz: "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<L898902C36UTO7408122F1204159ZE184226B<<<<<12",
+			exp:     "L898902C3674081221204159",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			act, err := ConvertMrzToMrzi(tc.inp_mrz)
+			if err != nil {
+				t.Errorf("unexpected error: %s", err)
+			}
+			if act != tc.exp {
+				t.Errorf("MRZi mismatch (Exp:%s, Act:%s)", tc.exp, act)
+			}
+		})
+	}
+}
+
+func TestConvertMrzToMrziErrors(t *testing.T) {
+	testCases := []struct {
+		desc    string
+		inp_mrz string
+	}{
+		{
+			desc:    "bad MRZ length",
+			inp_mrz: "BadMrz",
+		},
+		{
+			desc:    "TD1 bad document-number CD",
+			inp_mrz: "I<UTOD231458905<<<<<<<<<<<<<<<7408122F1204159UTO<<<<<<<<<<<6ERIKSSON<<ANNA<MARIA<<<<<<<<<<",
+		},
+		{
+			desc:    "TD1 bad date-of-birth CD",
+			inp_mrz: "I<UTOD231458907<<<<<<<<<<<<<<<7408124F1204159UTO<<<<<<<<<<<6ERIKSSON<<ANNA<MARIA<<<<<<<<<<",
+		},
+		{
+			desc:    "TD1 bad date-of-expiry CD",
+			inp_mrz: "I<UTOD231458907<<<<<<<<<<<<<<<7408122F1204151UTO<<<<<<<<<<<6ERIKSSON<<ANNA<MARIA<<<<<<<<<<",
+		},
+		{
+			desc:    "TD1 invalid extended document-number encoding",
+			inp_mrz: "I<UTOD23145890<7<<<<<<<<<<<<<<3407127M9507122UTO<<<<<<<<<<<2STEVENSON<<PETER<JOHN<<<<<<<<<",
+		},
+		{
+			desc:    "TD2 bad document-number CD",
+			inp_mrz: "I<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<D231458906UTO7408122F1204159<<<<<<<6",
+		},
+		{
+			desc:    "TD2 bad date-of-birth CD",
+			inp_mrz: "I<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<D231458907UTO7408123F1204159<<<<<<<6",
+		},
+		{
+			desc:    "TD2 bad date-of-expiry CD",
+			inp_mrz: "I<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<D231458907UTO7408122F1204158<<<<<<<6",
+		},
+		{
+			desc:    "TD2 invalid extended document-number encoding",
+			inp_mrz: "I<UTOSTEVENSON<<PETER<JOHN<<<<<<<<<<D23145890<UTO3407127M95071227<<<<<<8",
+		},
+		{
+			desc:    "TD3 bad document-number CD",
+			inp_mrz: "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<L898902C34UTO7408122F1204159ZE184226B<<<<<10",
+		},
+		{
+			desc:    "TD3 bad date-of-birth CD",
+			inp_mrz: "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<L898902C36UTO7408126F1204159ZE184226B<<<<<10",
+		},
+		{
+			desc:    "TD3 bad date-of-expiry CD",
+			inp_mrz: "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<L898902C36UTO7408122F1204151ZE184226B<<<<<10",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			_, err := ConvertMrzToMrzi(tc.inp_mrz)
+			if err == nil {
+				t.Errorf("error expected")
+			}
+		})
+	}
+}
+
 func TestEncodeMrziErrors(t *testing.T) {
 	testCases := []struct {
 		mrz MRZ
