@@ -27,15 +27,13 @@ type templateData struct {
 }
 
 func templateFuncMap() template.FuncMap {
-	// TODO - is 'TlvBytesToString' still required? check others also
 	return template.FuncMap{
-		"GmrtdVersion":     func() string { return version.Version },
-		"BytesToHex":       func(bytes []byte) string { return fmt.Sprintf("%X", bytes) },
-		"BytesToStr":       func(bytes []byte) string { return string(bytes) },
-		"ByteLen":          func(bytes []byte) int { return len(bytes) },
-		"TagToHex":         func(tag tlv.TlvTag) string { return fmt.Sprintf("%X", tag) },
-		"TlvBytesToString": func(bytes []byte) string { nodes := tlv.MustDecode(bytes); return nodes.String() },
-		"DecodeTlvBytes":   func(bytes []byte) []tlv.TlvNode { nodes := tlv.MustDecode(bytes); return nodes.Nodes() },
+		"GmrtdVersion":   func() string { return version.Version },
+		"BytesToHex":     func(bytes []byte) string { return fmt.Sprintf("%X", bytes) },
+		"BytesToStr":     func(bytes []byte) string { return string(bytes) },
+		"ByteLen":        func(bytes []byte) int { return len(bytes) },
+		"TagToHex":       func(tag tlv.TlvTag) string { return fmt.Sprintf("%X", tag) },
+		"DecodeTlvBytes": func(bytes []byte) []tlv.TlvNode { nodes := tlv.MustDecode(bytes); return nodes.Nodes() },
 		"BytesToBase64":    func(bytes []byte) string { return base64.StdEncoding.EncodeToString(bytes) },
 		"OidDesc": func(oidBytes []byte) string {
 			tmpOid := oid.DecodeAsn1objectId(oidBytes)

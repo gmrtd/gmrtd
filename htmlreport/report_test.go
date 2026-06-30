@@ -170,14 +170,6 @@ func TestTemplateFuncMapTagToHex(t *testing.T) {
 	}
 }
 
-func TestTemplateFuncMapTlvBytesToString(t *testing.T) {
-	fn := templateFuncMap()["TlvBytesToString"].(func([]byte) string)
-	// tag=0x01 (primitive), len=1, value=0xFF
-	got := fn([]byte{0x01, 0x01, 0xFF})
-	if got == "" {
-		t.Error("TlvBytesToString returned empty string for valid TLV")
-	}
-}
 
 func TestTemplateFuncMapDecodeTlvBytes(t *testing.T) {
 	fn := templateFuncMap()["DecodeTlvBytes"].(func([]byte) []tlv.TlvNode)
