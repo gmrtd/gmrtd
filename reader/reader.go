@@ -271,6 +271,7 @@ func readEfDir(reader *Reader, state *ReaderState) (err error) {
 	// TODO - ReadFile won't work correctly here, as the file may contain
 	//        consecutive tag 61 entries, but ReadFile will only read the 1st!
 	//        - not a big deal as this file is not used for any processing
+	//		  - EF.DIR observed on NL passport
 	slog.Info("Read EF.DIR")
 	reader.status.Status("Reading EF.DIR")
 	efDirData, err := reader.nfc.ReadFile(MRTDFileIdEFDIR)
