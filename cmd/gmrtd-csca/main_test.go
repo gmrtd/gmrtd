@@ -37,7 +37,7 @@ func buildAKIExt(keyId []byte) cms.Extension {
 
 // buildCert constructs a minimal Certificate for testing.
 // raw provides the bytes used for fingerprinting; nil skiVal omits the SKI extension.
-func buildCert(raw []byte, skiVal []byte, akiVal []byte) cms.Certificate {
+func buildCert(raw, skiVal, akiVal []byte) cms.Certificate {
 	var exts cms.Extensions
 	if skiVal != nil {
 		exts = append(exts, buildSKIExt(skiVal))
