@@ -25,6 +25,10 @@ const READ_FILE_MAX_TLV_LENGTH = tlv.TlvLength(65535)
 // - some older passports support <100 byte reads
 const READ_FILE_MAX_CHUNKS = 1000
 
+// stepped fallback Le values tried (in order) when the first block read fails
+// - skips any value >= the current maxReadAmount, so only strictly smaller sizes are retried
+var readFileMaxReadFallbacks = []int{256, 192, 128}
+
 // TODO - extended length support? odd INS read-binary can support larger offset.. and potentially avoid SELECT FILE
 //
 // 3.5.2 READ BINARY
@@ -337,11 +341,29 @@ func (nfc *NfcSession) ReadFile(fileId uint16) (fileData []byte, err error) {
 			}
 			chunkCnt++
 
-			bytesToRead := min(maxReadAmount, totalBytes-fileBuf.Len())
+			remaining := totalBytes - fileBuf.Len()
+			bytesToRead := min(maxReadAmount, remaining)
 
-			tmpData, err := nfc.ReadBinaryFromOffset(fileBuf.Len(), bytesToRead)
-			if err != nil {
-				return nil, fmt.Errorf("[ReadFile] ReadBinaryFromOffset error: %w", err)
+			var tmpData []byte
+			if fileBuf.Len() <= 4 {
+				// only the first block gets the fallback treatment - this is where we
+				// establish the passport's working Le, so later chunks reuse it directly
+				var effectiveMax int
+				var readErr error
+				tmpData, effectiveMax, readErr = nfc.readWithFallback(fileBuf.Len(), remaining, maxReadAmount)
+				if readErr != nil {
+					return nil, fmt.Errorf("[ReadFile] ReadBinaryFromOffset error: %w", readErr)
+				}
+				if effectiveMax != maxReadAmount {
+					maxReadAmount = effectiveMax
+					nfc.maxLe = effectiveMax
+				}
+			} else {
+				var readErr error
+				tmpData, readErr = nfc.ReadBinaryFromOffset(fileBuf.Len(), bytesToRead)
+				if readErr != nil {
+					return nil, fmt.Errorf("[ReadFile] ReadBinaryFromOffset error: %w", readErr)
+				}
 			}
 
 			// sanity check that we received some data
@@ -368,6 +390,35 @@ func (nfc *NfcSession) ReadFile(fileId uint16) (fileData []byte, err error) {
 	slog.Debug("ReadFile", "fileId", fileId, "data", utils.BytesToHex(fileData))
 
 	return fileData, nil
+}
+
+// readWithFallback reads data from offset, falling back to progressively smaller
+// Le values (from readFileMaxReadFallbacks) if the read fails. Some passports reject
+// READ BINARY when Le exceeds their capability. Returns the data and the effective
+// maxReadAmount that worked.
+func (nfc *NfcSession) readWithFallback(offset, remaining, maxReadAmount int) ([]byte, int, error) {
+	data, err := nfc.ReadBinaryFromOffset(offset, min(maxReadAmount, remaining))
+	if err == nil {
+		return data, maxReadAmount, nil
+	}
+
+	slog.Warn("[ReadFile] read failed, attempting maxReadAmount fallback",
+		"maxReadAmount", maxReadAmount, "error", err)
+
+	for _, fallback := range readFileMaxReadFallbacks {
+		if fallback >= maxReadAmount {
+			continue
+		}
+		slog.Warn("[ReadFile] retrying with smaller maxReadAmount",
+			"from", maxReadAmount, "to", fallback)
+		data, err = nfc.ReadBinaryFromOffset(offset, min(fallback, remaining))
+		if err == nil {
+			slog.Warn("[ReadFile] fallback succeeded", "effectiveMaxReadAmount", fallback)
+			return data, fallback, nil
+		}
+	}
+
+	return nil, maxReadAmount, err
 }
 
 func (nfc *NfcSession) DoAPDU(cApdu *CApdu, desc string) (rApdu *RApdu, err error) {
