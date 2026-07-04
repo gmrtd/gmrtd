@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.44.1](https://github.com/gmrtd/gmrtd/compare/v0.44.0...v0.44.1) (2026-07-04)
+
+
+### Bug Fixes
+
+* **iso7816:** graceful ReadFile fallback for passports with limited READ BINARY Le ([#410](https://github.com/gmrtd/gmrtd/issues/410)) ([44cc730](https://github.com/gmrtd/gmrtd/commit/44cc730b3004fceebbc54c174fcf2e8ce7b95ed6))
+
 ## [0.44.0](https://github.com/gmrtd/gmrtd/compare/v0.43.0...v0.44.0) (2026-06-29)
 
 
