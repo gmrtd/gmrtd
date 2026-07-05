@@ -206,8 +206,11 @@ func (nfc *NfcSession) SelectMF() (err error) {
 			return nil
 		} else if rapdu.Status == RAPDU_STATUS_INCORRECT_P1_OR_P2_PARAMETER {
 			// NB observed for AU passport - silently tolerate
-			// TODO - could be an indicator that we should support other variants also for select-MF
 			slog.Warn("SelectMF", "Tolerating error (RAPDU_STATUS_INCORRECT_P1_OR_P2_PARAMETER)", rapdu.Status)
+			return nil
+		} else if rapdu.Status == RAPDU_STATUS_LC_INCONSISTENT_WITH_P1P2 {
+			// NB observed for Ukrainian passport - silently tolerate
+			slog.Warn("SelectMF", "Tolerating error (RAPDU_STATUS_LC_INCONSISTENT_WITH_P1P2)", rapdu.Status)
 			return nil
 		} else {
 			return fmt.Errorf("[SelectMF] Invalid status:%x", rapdu.Status)
