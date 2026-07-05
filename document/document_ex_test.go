@@ -1,6 +1,9 @@
 package document
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 func TestGenerateSummaryPassiveAuthSuccess(t *testing.T) {
 	docEx := &DocumentEx{
@@ -41,6 +44,25 @@ func TestGenerateSummaryPassiveAuthFail(t *testing.T) {
 	}
 	if docEx.Session.Summary.ChipAuthenticity != CHIP_AUTH_STATUS_NONE {
 		t.Errorf("expected ChipAuthenticity NONE, got %d", docEx.Session.Summary.ChipAuthenticity)
+	}
+}
+
+func TestGenerateSummaryDocumentVerifyErr(t *testing.T) {
+	docEx := &DocumentEx{
+		Session: Session{
+			ChipAuthResult:    &ChipAuthResult{Success: true},
+			PassiveAuthResult: &PassiveAuthResult{Success: true, Sod: NewPassiveAuth(nil)},
+			DocumentVerifyErr: errors.New("DG14 file missing but referenced by SOD"),
+		},
+	}
+
+	docEx.GenerateSummary()
+
+	if docEx.Session.Summary == nil {
+		t.Fatal("expected Summary to be non-nil")
+	}
+	if docEx.Session.Summary.DataTrusted {
+		t.Error("expected DataTrusted to be false when DocumentVerifyErr is set, even if PassiveAuth succeeded")
 	}
 }
 

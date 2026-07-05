@@ -12,7 +12,8 @@ type DocumentEx struct {
 
 func (docEx *DocumentEx) GenerateSummary() {
 	docEx.Session.Summary = &DocumentSummary{
-		DataTrusted: docEx.Session.PassiveAuthResult != nil &&
+		DataTrusted: docEx.Session.DocumentVerifyErr == nil &&
+			docEx.Session.PassiveAuthResult != nil &&
 			docEx.Session.PassiveAuthResult.Success,
 		ChipAuthenticity: docEx.Session.VerifiedChipAuthStatus(),
 		LdsVersion:       docEx.Document.LdsVersion(),

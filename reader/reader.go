@@ -400,12 +400,12 @@ func performPassiveAuthentication(reader *Reader, state *ReaderState) error {
 	return nil
 }
 
-func verifyDocument(reader *Reader, state *ReaderState) (err error) {
+func verifyDocument(reader *Reader, state *ReaderState) error {
+	// NB errors are just recorded at this point - see Session.DocumentVerifyErr / DocumentSummary.DataTrusted
 	reader.status.Status("Verifying Document")
-	err = state.docEx.Document.Verify()
-	if err != nil {
-		slog.Error("Document.Verify", "error", err)
-		return fmt.Errorf("[verifyDocument] Document.Verify error: %w", err)
+	state.docEx.Session.DocumentVerifyErr = state.docEx.Document.Verify()
+	if state.docEx.Session.DocumentVerifyErr != nil {
+		slog.Error("Document.Verify", "error", state.docEx.Session.DocumentVerifyErr)
 	}
 	return nil
 }

@@ -66,6 +66,8 @@ func (v *Verifier) Verify(data []byte) (*document.DocumentEx, error) {
 
 	docEx.Session.PassiveAuthResult, docEx.Session.PassiveAuthErr = passiveauth.PassiveAuth(doc, v.cscaCertPool)
 
+	docEx.Session.DocumentVerifyErr = doc.Verify()
+
 	docEx.GenerateSummary()
 
 	return &docEx, nil

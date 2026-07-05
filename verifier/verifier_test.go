@@ -111,6 +111,35 @@ func TestVerifyAANonceMismatch(t *testing.T) {
 	}
 }
 
+// verifies that Verify() actually runs Document.Verify() and surfaces its
+// result via Session.DocumentVerifyErr (previously it didn't - this path
+// used to skip the structural/completeness checks that the NFC Reader flow
+// enforces via verifyDocument, e.g. mandatory DG1/SOD, or SOD referencing a
+// DG that has been stripped from the document).
+func TestVerifyDocumentVerifyErrMissingDG1(t *testing.T) {
+	var docEx document.DocumentEx
+
+	// NB DG1 deliberately not set - Document.Verify requires it
+
+	data, err := docEx.ToCbor()
+	if err != nil {
+		t.Fatalf("ToCbor error: %s", err)
+	}
+
+	result, err := emptyVerifier().Verify(data)
+	if err != nil {
+		t.Fatalf("unexpected hard error: %s", err)
+	}
+
+	if result.Session.DocumentVerifyErr == nil {
+		t.Fatalf("expected DocumentVerifyErr to be set when mandatory DG1/SOD are missing")
+	}
+
+	if result.Session.Summary == nil || result.Session.Summary.DataTrusted {
+		t.Errorf("expected DataTrusted to be false when DocumentVerifyErr is set")
+	}
+}
+
 func TestVerifyNoAAChallenge(t *testing.T) {
 	// Without a caller-supplied challenge the verifier should still verify the
 	// AA signature cryptographically and record a successful result.

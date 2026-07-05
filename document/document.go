@@ -193,16 +193,35 @@ func (doc *Document) DgHash(dgNumber int) ([]byte, error) {
 
 }
 
-// verifies the files within the document (e.g. mandatory/conditional files and content)
-// does NOT perform Passive-Authentication against the document files!
+// Verify checks that the document's files are structurally complete and
+// internally consistent. It does NOT perform Passive-Authentication - it
+// doesn't validate the SOD signature/cert chain, nor compute or compare any
+// DG hashes; see the passiveauth package for that.
+//
+// Specifically, Verify checks that:
+//   - EF.SOD and DG1 are present (mandatory files). NB EF.COM and DG2 are
+//     NOT required: EF.COM is largely superseded by SOD and may be absent
+//     from imported/LDS2-only documents, and callers may choose to skip
+//     reading DG2 (the face image).
+//   - DG14 is present if EF.SOD's hash list references DG14 (i.e. the file
+//     wasn't stripped after the SOD was signed).
+//   - DG15 is present if EF.SOD's hash list references DG15 (same, for
+//     Active Authentication).
+//   - if both EF.CardAccess and DG14 are present, DG14's SecurityInfos are
+//     a superset of EF.CardAccess's SecurityInfos.
+//
+// Callers should treat a non-nil error as informational rather than
+// necessarily fatal: both Reader.ReadDocument and Verifier.Verify record the
+// result on Session.DocumentVerifyErr (which also gates
+// DocumentSummary.DataTrusted) instead of aborting outright.
 func (doc *Document) Verify() error {
-	// TODO - these are quite strict and based more on direct NFC read... may need a relaxed version for docs loaded from other sources
-
-	// TODO - not sure why we enforce presence of EF.COM
-	// verify that the mandatory files (COM,DG1,SOD) are present
+	// verify that the mandatory files (DG1,SOD) are present
+	// NB EF.COM is not required - it's largely deprecated by SOD and may be absent from
+	//    imported/LDS2-only documents (live NFC reads always have it, as ReadFile would
+	//    already have failed the read otherwise)
 	// NB we don't require DG2 as caller may choose to skip reading the image
-	if (doc.Mf.Lds1.Com == nil) || (doc.Mf.Lds1.Dg1 == nil) || (doc.Mf.Lds1.Sod == nil) {
-		return fmt.Errorf("(doc.Verify) One or more mandatory files are missing (COM,SOD,DG1)")
+	if (doc.Mf.Lds1.Dg1 == nil) || (doc.Mf.Lds1.Sod == nil) {
+		return fmt.Errorf("(doc.Verify) One or more mandatory files are missing (SOD,DG1)")
 	}
 
 	// error if DG14 is not present, but is referenced by SOD
