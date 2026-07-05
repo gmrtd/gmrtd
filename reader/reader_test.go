@@ -736,7 +736,8 @@ func TestCalculateDocumentSummaryEmptyDoc(t *testing.T) {
 }
 
 func TestVerifyDocumentEmptyDocErr(t *testing.T) {
-	// note: empty document will fail verification
+	// note: empty document will fail verification, but the step itself is soft-fail -
+	// the error is recorded on the session, not returned (see Session.DocumentVerifyErr)
 
 	var status MockStatus
 	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&PanicTransceiver{P: "will panic if called"})
@@ -747,8 +748,12 @@ func TestVerifyDocumentEmptyDocErr(t *testing.T) {
 	var err error
 
 	err = verifyDocument(reader, state)
-	if err == nil {
-		t.Fatalf("expected error")
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	if state.docEx.Session.DocumentVerifyErr == nil {
+		t.Fatalf("expected DocumentVerifyErr to be set")
 	}
 }
 

@@ -26,6 +26,9 @@ type Session struct {
 	ActiveAuthErr    error             `json:"activeAuthErr,omitempty"`
 	ActiveAuthResult *ActiveAuthResult `json:"activeAuthResult,omitempty"`
 
+	// Document structural/completeness checks (see Document.Verify)
+	DocumentVerifyErr error `json:"documentVerifyErr,omitempty"`
+
 	// Passive Authentication
 	PassiveAuthErr    error              `json:"passiveAuthErr,omitempty"`
 	PassiveAuthResult *PassiveAuthResult `json:"passiveAuthResult,omitempty"`
@@ -317,6 +320,7 @@ func NewPassiveAuth(certChain [][]byte) *PassiveAuth {
 	return &PassiveAuth{CertChain: certChain}
 }
 
+// TODO - maybe we can remove from session.. and build on-demand?
 type DocumentSummary struct {
 	DataTrusted      bool           `json:"dataTrusted"`
 	ChipAuthenticity ChipAuthStatus `json:"chipAuthenticity"`
