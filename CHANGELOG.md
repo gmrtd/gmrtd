@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.44.2](https://github.com/gmrtd/gmrtd/compare/v0.44.1...v0.44.2) (2026-07-05)
+
+
+### Bug Fixes
+
+* **iso7816:** tolerate SW 6A87 in SelectMF for Ukrainian passports ([#414](https://github.com/gmrtd/gmrtd/issues/414)) ([f706fe0](https://github.com/gmrtd/gmrtd/commit/f706fe0e390959695892aee7d75b698c5902810c))
+* **verifier:** close Passive-Auth completeness gap in offline/mobile verification path ([#412](https://github.com/gmrtd/gmrtd/issues/412)) ([106cb4f](https://github.com/gmrtd/gmrtd/commit/106cb4f04d20e7402c079e50cf7c1e27ededc505))
+
 ## [0.44.1](https://github.com/gmrtd/gmrtd/compare/v0.44.0...v0.44.1) (2026-07-04)
 
 
