@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.45.0](https://github.com/gmrtd/gmrtd/compare/v0.44.2...v0.45.0) (2026-07-06)
+
+
+### Features
+
+* decouple ApduLog from DocumentEx, pass it as a separate value ([#416](https://github.com/gmrtd/gmrtd/issues/416)) ([89ba49f](https://github.com/gmrtd/gmrtd/commit/89ba49f8ae6c72dfab030a57382ef799dd78d033))
+
 ## [0.44.2](https://github.com/gmrtd/gmrtd/compare/v0.44.1...v0.44.2) (2026-07-05)
 
 
