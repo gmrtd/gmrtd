@@ -139,8 +139,8 @@ func NewReaderState(atr []byte, ats []byte, password *password.Password) *Reader
 
 // reads the document using the specified transceiver and password
 // - also performs doc.Verify() and Passive Authentication!
-// NB returns partial data (docEx) in the event of an error
-func (reader *Reader) ReadDocument(password *password.Password, atr []byte, ats []byte) (docEx *document.DocumentEx, err error) {
+// NB returns partial data (docEx, apduLog) in the event of an error
+func (reader *Reader) ReadDocument(password *password.Password, atr []byte, ats []byte) (docEx *document.DocumentEx, apduLog *iso7816.ApduLog, err error) {
 	defer func() {
 		if e := recover(); e != nil {
 			switch x := e.(type) {
@@ -175,15 +175,13 @@ func (reader *Reader) ReadDocument(password *password.Password, atr []byte, ats 
 		calculateDocumentSummary,
 	)
 	if err != nil {
-		return state.docEx, fmt.Errorf("[ReadDocument] runSteps error: %w", err)
+		return state.docEx, reader.nfc.ApduLog(), fmt.Errorf("[ReadDocument] runSteps error: %w", err)
 	}
-
-	state.docEx.ApduLog = reader.nfc.ApduLog()
 
 	reader.status.Status("Finished!")
 	slog.Info("** ReadDocument FINISHED **", "VerifiedChipAuthStatus", state.docEx.Session.VerifiedChipAuthStatus())
 
-	return state.docEx, nil
+	return state.docEx, reader.nfc.ApduLog(), nil
 }
 
 type ReaderStep func(*Reader, *ReaderState) error

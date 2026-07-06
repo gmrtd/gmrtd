@@ -11,6 +11,7 @@ import (
 	"github.com/gmrtd/gmrtd/cms"
 	"github.com/gmrtd/gmrtd/document"
 	"github.com/gmrtd/gmrtd/htmlreport"
+	"github.com/gmrtd/gmrtd/iso7816"
 	"github.com/gmrtd/gmrtd/password"
 	"github.com/gmrtd/gmrtd/utils"
 )
@@ -41,7 +42,7 @@ func TestGenerateDocument(t *testing.T) {
 
 	// TODO - add in some apdu logs.. should increase test coverage for APDU output
 
-	docByteBuf, err := htmlreport.Generate(&docEx)
+	docByteBuf, err := htmlreport.Generate(&docEx, nil)
 	if err != nil {
 		t.Fatalf("Unexpected error: %s", err)
 	}
@@ -227,7 +228,7 @@ func TestCmdParamsError(t *testing.T) {
 }
 
 func TestGenerateDocumentNilDocument(t *testing.T) {
-	out, err := htmlreport.Generate(nil)
+	out, err := htmlreport.Generate(nil, nil)
 	if err == nil {
 		t.Fatalf("expected error")
 	}
@@ -355,8 +356,8 @@ func TestRunWithDepsReadDocumentFromCardError(t *testing.T) {
 		skipImages bool,
 		card smartCard,
 		cscaCertPool cms.CertPool,
-	) (*document.DocumentEx, error) {
-		return nil, wantErr
+	) (*document.DocumentEx, *iso7816.ApduLog, error) {
+		return nil, nil, wantErr
 	}
 
 	err := runWithDeps([]string{"-can", "123456"}, deps)
@@ -386,10 +387,10 @@ func TestRunWithDepsGenerateDocumentError(t *testing.T) {
 		skipImages bool,
 		card smartCard,
 		cscaCertPool cms.CertPool,
-	) (*document.DocumentEx, error) {
-		return &document.DocumentEx{}, nil
+	) (*document.DocumentEx, *iso7816.ApduLog, error) {
+		return &document.DocumentEx{}, nil, nil
 	}
-	deps.generateDocument = func(*document.DocumentEx) (*bytes.Buffer, error) {
+	deps.generateDocument = func(*document.DocumentEx, *iso7816.ApduLog) (*bytes.Buffer, error) {
 		return nil, wantErr
 	}
 
@@ -420,10 +421,10 @@ func TestRunWithDepsOpenBrowserError(t *testing.T) {
 		skipImages bool,
 		card smartCard,
 		cscaCertPool cms.CertPool,
-	) (*document.DocumentEx, error) {
-		return &document.DocumentEx{}, nil
+	) (*document.DocumentEx, *iso7816.ApduLog, error) {
+		return &document.DocumentEx{}, nil, nil
 	}
-	deps.generateDocument = func(*document.DocumentEx) (*bytes.Buffer, error) {
+	deps.generateDocument = func(*document.DocumentEx, *iso7816.ApduLog) (*bytes.Buffer, error) {
 		return bytes.NewBufferString("html"), nil
 	}
 	deps.openBrowser = func(io.Reader) error {
@@ -442,7 +443,7 @@ func TestRunWithDepsOpenBrowserError(t *testing.T) {
 func TestReadDocumentFromCardReturnsReaderError(t *testing.T) {
 	card := &fakeCard{}
 
-	_, err := readDocumentFromCard(
+	_, _, err := readDocumentFromCard(
 		password.NewPasswordCan("123456"),
 		0,
 		false,
@@ -471,7 +472,7 @@ func (c *fakeCardWithAtrAtsError) ATS() ([]byte, error) {
 func TestReadDocumentFromCardIgnoresAtrAtsErrors(t *testing.T) {
 	card := &fakeCardWithAtrAtsError{}
 
-	_, err := readDocumentFromCard(
+	_, _, err := readDocumentFromCard(
 		password.NewPasswordCan("123456"),
 		0,
 		false,
@@ -501,7 +502,7 @@ func (c *fakeCardApduError) Apdu([]byte) ([]byte, error) {
 func TestReadDocumentFromCardPropagatesReaderFailureFromApdu(t *testing.T) {
 	card := &fakeCardApduError{}
 
-	_, err := readDocumentFromCard(
+	_, _, err := readDocumentFromCard(
 		password.NewPasswordCan("123456"),
 		1000,
 		true,

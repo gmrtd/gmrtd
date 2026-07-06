@@ -28,7 +28,7 @@ func TestExecuteDocumentTemplateError(t *testing.T) {
 }
 
 func TestGenerateNilError(t *testing.T) {
-	buf, err := Generate(nil)
+	buf, err := Generate(nil, nil)
 	if err == nil {
 		t.Fatal("expected error for nil documentEx")
 	}
@@ -38,7 +38,7 @@ func TestGenerateNilError(t *testing.T) {
 }
 
 func TestGenerateEmptyDocumentEx(t *testing.T) {
-	buf, err := Generate(&document.DocumentEx{})
+	buf, err := Generate(&document.DocumentEx{}, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -77,7 +77,7 @@ func TestGenerateWithSession(t *testing.T) {
 		},
 	}
 
-	buf, err := Generate(docEx)
+	buf, err := Generate(docEx, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -97,7 +97,7 @@ func TestGenerateWithSessionErrors(t *testing.T) {
 		},
 	}
 
-	buf, err := Generate(docEx)
+	buf, err := Generate(docEx, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -120,7 +120,7 @@ func TestGenerateWithApduLog(t *testing.T) {
 	entryWithChild.Finalise([]byte{0x01, 0x02, 0x90, 0x00})
 	log.Add(entryWithChild)
 
-	buf, err := Generate(&document.DocumentEx{ApduLog: log})
+	buf, err := Generate(&document.DocumentEx{}, log)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}

@@ -155,9 +155,9 @@ func (p *pcscCardProvider) ConnectCard() (smartCard, error) {
 type appDeps struct {
 	cardProvider         func() (cardProvider, error)
 	cscaMasterList       func() (cms.CertPool, error)
-	generateDocument     func(*document.DocumentEx) (*bytes.Buffer, error)
+	generateDocument     func(*document.DocumentEx, *iso7816.ApduLog) (*bytes.Buffer, error)
 	openBrowser          func(io.Reader) error
-	readDocumentFromCard func(pass *password.Password, maxRead uint, skipPace bool, skipImages bool, card smartCard, cscaCertPool cms.CertPool) (*document.DocumentEx, error)
+	readDocumentFromCard func(pass *password.Password, maxRead uint, skipPace bool, skipImages bool, card smartCard, cscaCertPool cms.CertPool) (*document.DocumentEx, *iso7816.ApduLog, error)
 }
 
 func defaultAppDeps() appDeps {
@@ -208,14 +208,14 @@ func runWithDeps(args []string, deps appDeps) error {
 		return err
 	}
 
-	documentEx, err := deps.readDocumentFromCard(pass, maxRead, skipPace, skipImages, card, cscaCertPool)
+	documentEx, apduLog, err := deps.readDocumentFromCard(pass, maxRead, skipPace, skipImages, card, cscaCertPool)
 	if err != nil {
 		slog.Error("readDocumentFromCard", "error", err)
 		return err
 	}
 
 	// generate the HTML document
-	docByteBuf, err := deps.generateDocument(documentEx)
+	docByteBuf, err := deps.generateDocument(documentEx, apduLog)
 	if err != nil {
 		slog.Error("generateDocument", "error", err)
 		return err
@@ -238,7 +238,7 @@ func readDocumentFromCard(
 	skipImages bool,
 	card smartCard,
 	cscaCertPool cms.CertPool,
-) (*document.DocumentEx, error) {
+) (*document.DocumentEx, *iso7816.ApduLog, error) {
 	atr, err := card.ATR()
 	if err != nil {
 		slog.Warn("ATR error", "error", err)

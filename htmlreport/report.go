@@ -23,6 +23,7 @@ var templateFS embed.FS
 
 type templateData struct {
 	*document.DocumentEx
+	ApduLog    *iso7816.ApduLog
 	CborBase64 string
 }
 
@@ -73,8 +74,9 @@ func executeDocumentTemplate(tmpl *template.Template, data *templateData) (*byte
 	return byteBuf, nil
 }
 
-// Generate renders a DocumentEx to an HTML report.
-func Generate(documentEx *document.DocumentEx) (*bytes.Buffer, error) {
+// Generate renders a DocumentEx (plus, if available, the APDU log captured during the
+// read/verify) to an HTML report.
+func Generate(documentEx *document.DocumentEx, apduLog *iso7816.ApduLog) (*bytes.Buffer, error) {
 	if documentEx == nil {
 		return nil, fmt.Errorf("[generateDocument] documentEx cannot be nil")
 	}
@@ -84,7 +86,7 @@ func Generate(documentEx *document.DocumentEx) (*bytes.Buffer, error) {
 		return nil, fmt.Errorf("[generateDocument] ParseFS error: %w", err)
 	}
 
-	data := &templateData{DocumentEx: documentEx}
+	data := &templateData{DocumentEx: documentEx, ApduLog: apduLog}
 
 	cborBytes, err := documentEx.ToCbor()
 	if err != nil {
