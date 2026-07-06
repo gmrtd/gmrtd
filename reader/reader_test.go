@@ -782,7 +782,7 @@ func TestReadDocumentTransceiverPanicIsHandled(t *testing.T) {
 			reader := NewReader(&status, nfc, EmptyCscaTrustStore(t))
 			pass := password.NewPasswordCan("123456")
 
-			_, err := reader.ReadDocument(pass, nil, nil)
+			_, _, err := reader.ReadDocument(pass, nil, nil)
 			if err == nil {
 				t.Fatalf("expected error")
 			}

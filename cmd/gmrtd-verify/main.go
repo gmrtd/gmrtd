@@ -15,6 +15,7 @@ import (
 	"github.com/gmrtd/gmrtd/document"
 	"github.com/gmrtd/gmrtd/htmlreport"
 	"github.com/gmrtd/gmrtd/internal/version"
+	"github.com/gmrtd/gmrtd/iso7816"
 	"github.com/gmrtd/gmrtd/verifier"
 	"github.com/pkg/browser"
 )
@@ -92,7 +93,7 @@ type appDeps struct {
 	cscaMasterList   func() (cms.CertPool, error)
 	readFile         func(path string) ([]byte, error)
 	verify           func(cscaCertPool cms.CertPool, challenge []byte, data []byte) (*document.DocumentEx, error)
-	generateDocument func(*document.DocumentEx) (*bytes.Buffer, error)
+	generateDocument func(*document.DocumentEx, *iso7816.ApduLog) (*bytes.Buffer, error)
 	openBrowser      func(io.Reader) error
 }
 
@@ -138,7 +139,7 @@ func runWithDeps(args []string, deps appDeps) error {
 		return err
 	}
 
-	docByteBuf, err := deps.generateDocument(documentEx)
+	docByteBuf, err := deps.generateDocument(documentEx, nil)
 	if err != nil {
 		slog.Error("generateDocument error", "error", err)
 		return err

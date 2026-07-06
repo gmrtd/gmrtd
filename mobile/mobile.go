@@ -98,6 +98,7 @@ type Reader struct {
 
 type Document struct {
 	documentEx *document.DocumentEx
+	apduLog    *iso7816.ApduLog
 }
 
 func NewReader(status ReaderStatus, transceiver Transceiver) *Reader {
@@ -192,7 +193,7 @@ func (r *Reader) ReadDocument(password *MrtdPassword, atr []byte, ats []byte) (d
 		}
 	}
 
-	doc.documentEx, err = gmrtdReader.ReadDocument(password.password, atr, ats)
+	doc.documentEx, doc.apduLog, err = gmrtdReader.ReadDocument(password.password, atr, ats)
 
 	return doc, err
 }
@@ -280,4 +281,16 @@ func (doc *Document) DocumentExCbor() (cborData []byte, err error) {
 	}
 
 	return doc.documentEx.ToCbor()
+}
+
+// ApduLogJson returns the APDU trace captured during Reader.ReadDocument, as JSON.
+// Not populated by Verifier.Verify, which never talks to a chip - an empty log is
+// returned in that case rather than an error.
+func (doc *Document) ApduLogJson() (jsonData []byte, err error) {
+	apduLog := doc.apduLog
+	if apduLog == nil {
+		apduLog = iso7816.NewApduLog()
+	}
+
+	return json.Marshal(apduLog)
 }

@@ -1,13 +1,8 @@
 package document
 
-import (
-	"github.com/gmrtd/gmrtd/iso7816"
-)
-
 type DocumentEx struct {
-	Document Document         `json:"document"`
-	Session  Session          `json:"session"`
-	ApduLog  *iso7816.ApduLog `json:"apduLog,omitempty"`
+	Document Document `json:"document"`
+	Session  Session  `json:"session"`
 }
 
 func (docEx *DocumentEx) GenerateSummary() {

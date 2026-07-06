@@ -11,6 +11,7 @@ import (
 
 	"github.com/gmrtd/gmrtd/cms"
 	"github.com/gmrtd/gmrtd/document"
+	"github.com/gmrtd/gmrtd/iso7816"
 )
 
 func TestCmdParamsSuccess(t *testing.T) {
@@ -159,7 +160,7 @@ func makeDeps(overrides func(*appDeps)) appDeps {
 		verify: func(cms.CertPool, []byte, []byte) (*document.DocumentEx, error) {
 			return &document.DocumentEx{}, nil
 		},
-		generateDocument: func(*document.DocumentEx) (*bytes.Buffer, error) {
+		generateDocument: func(*document.DocumentEx, *iso7816.ApduLog) (*bytes.Buffer, error) {
 			return bytes.NewBufferString("html"), nil
 		},
 		openBrowser: func(io.Reader) error { return nil },
@@ -248,7 +249,7 @@ func TestRunWithDepsGenerateDocumentError(t *testing.T) {
 	wantErr := errors.New("generate boom")
 
 	err := runWithDeps([]string{"-file", "document.gmrtd"}, makeDeps(func(d *appDeps) {
-		d.generateDocument = func(*document.DocumentEx) (*bytes.Buffer, error) {
+		d.generateDocument = func(*document.DocumentEx, *iso7816.ApduLog) (*bytes.Buffer, error) {
 			return nil, wantErr
 		}
 	}))
