@@ -180,9 +180,8 @@ func (reader *Reader) ReadDocument(password *password.Password, atr []byte, ats 
 
 	state.docEx.ApduLog = reader.nfc.ApduLog()
 
-	// TODO - should get from summary...
-	reader.status.Status("Valid Document!")
-	slog.Info("** ReadDocument FINISHED **", "ChipAuthProtocolCompleted", state.docEx.Session.ChipAuthProtocolCompleted())
+	reader.status.Status("Finished!")
+	slog.Info("** ReadDocument FINISHED **", "VerifiedChipAuthStatus", state.docEx.Session.VerifiedChipAuthStatus())
 
 	return state.docEx, nil
 }
