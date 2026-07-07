@@ -14,6 +14,7 @@ import (
 	"github.com/gmrtd/gmrtd/iso3166"
 	"github.com/gmrtd/gmrtd/iso7816"
 	"github.com/gmrtd/gmrtd/oid"
+	"github.com/gmrtd/gmrtd/passiveauth"
 	"github.com/gmrtd/gmrtd/password"
 	"github.com/gmrtd/gmrtd/reader"
 	"github.com/gmrtd/gmrtd/verifier"
@@ -263,6 +264,35 @@ func (v *Verifier) Verify(data []byte) (doc *Document, err error) {
 	}
 
 	return &Document{documentEx: docEx}, nil
+}
+
+// NewSampleDocument returns a Document populated with static ICAO 9303
+// test-vector data, for use in UI development/testing without needing an
+// actual chip read. No ChipAuthResult is populated (evidence intentionally
+// left blank). Passive Authentication IS run against the data (matching what
+// Reader.ReadDocument/Verifier.Verify do), but since the data groups are
+// sourced from different worked examples (see document.SampleDocument), it
+// is expected to fail - Session.PassiveAuthResult.Success will be false and
+// Session.PassiveAuthErr will be set, giving callers a realistic example of
+// a failed-verification result.
+func NewSampleDocument() (*Document, error) {
+	sampleDoc, err := document.SampleDocument()
+	if err != nil {
+		return nil, fmt.Errorf("[NewSampleDocument] error: %w", err)
+	}
+
+	certPool, err := getCscaCertPool()
+	if err != nil {
+		return nil, fmt.Errorf("[NewSampleDocument] getCscaCertPool error: %w", err)
+	}
+
+	documentEx := &document.DocumentEx{Document: *sampleDoc}
+
+	documentEx.Session.PassiveAuthResult, documentEx.Session.PassiveAuthErr = passiveauth.PassiveAuth(sampleDoc, certPool)
+
+	documentEx.GenerateSummary()
+
+	return &Document{documentEx: documentEx}, nil
 }
 
 func (doc *Document) DocumentExJson() (jsonData []byte, err error) {
