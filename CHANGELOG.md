@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.46.0](https://github.com/gmrtd/gmrtd/compare/v0.45.0...v0.46.0) (2026-07-07)
+
+
+### Features
+
+* add sample-document generation for mobile bindings and gmrtd-reader CLI ([#418](https://github.com/gmrtd/gmrtd/issues/418)) ([fe7a838](https://github.com/gmrtd/gmrtd/commit/fe7a83865d3642ba95e2843933ad5fac089a1c69))
+
 ## [0.45.0](https://github.com/gmrtd/gmrtd/compare/v0.44.2...v0.45.0) (2026-07-06)
 
 
