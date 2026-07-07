@@ -131,7 +131,7 @@ func TestCmdParamsSuccess(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			pass, debug, apduMaxRead, skipPace, skipImages, err := cmdParams(tc.args)
+			pass, debug, apduMaxRead, skipPace, skipImages, sampleDoc, err := cmdParams(tc.args)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -149,6 +149,9 @@ func TestCmdParamsSuccess(t *testing.T) {
 			}
 			if skipImages != tc.wantSkipImages {
 				t.Fatalf("skipImages = %v, want %v", skipImages, tc.wantSkipImages)
+			}
+			if sampleDoc {
+				t.Fatalf("sampleDoc = true, want false")
 			}
 		})
 	}
@@ -204,7 +207,7 @@ func TestCmdParamsError(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			pass, debug, apduMaxRead, skipPace, _, err := cmdParams(tc.args)
+			pass, debug, apduMaxRead, skipPace, _, _, err := cmdParams(tc.args)
 			if err == nil {
 				t.Fatalf("expected error, got nil")
 			}
@@ -222,6 +225,32 @@ func TestCmdParamsError(t *testing.T) {
 			}
 			if skipPace != false {
 				t.Fatalf("skipPace = %v, want false on error", skipPace)
+			}
+		})
+	}
+}
+
+func TestCmdParamsSampleDoc(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{name: "sampleDoc alone", args: []string{"-sampleDoc"}},
+		{name: "sampleDoc ignores credential flags", args: []string{"-sampleDoc", "-doc", "D23145890", "-dob", "740812", "-exp", "120415"}},
+		{name: "sampleDoc ignores can", args: []string{"-sampleDoc", "-can", "123456"}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			pass, _, _, _, _, sampleDoc, err := cmdParams(tc.args)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !sampleDoc {
+				t.Fatalf("sampleDoc = false, want true")
+			}
+			if pass != nil {
+				t.Fatalf("expected nil password in sample-doc mode")
 			}
 		})
 	}
@@ -287,6 +316,92 @@ type fakeCardProvider struct {
 
 func (p fakeCardProvider) ConnectCard() (smartCard, error) {
 	return p.card, p.err
+}
+
+func TestRunWithDepsSampleDoc(t *testing.T) {
+	deps := defaultAppDeps()
+
+	cardProviderCalled := false
+	deps.cardProvider = func() (cardProvider, error) {
+		cardProviderCalled = true
+		return nil, errors.New("cardProvider should not be called in sample-doc mode")
+	}
+
+	cscaMasterListCalled := false
+	deps.cscaMasterList = func() (cms.CertPool, error) {
+		cscaMasterListCalled = true
+		return &cms.GenericCertPool{}, nil
+	}
+
+	deps.sampleDocument = func(cms.CertPool) (*document.DocumentEx, error) {
+		return &document.DocumentEx{}, nil
+	}
+
+	deps.generateDocument = func(*document.DocumentEx, *iso7816.ApduLog) (*bytes.Buffer, error) {
+		return bytes.NewBufferString("html"), nil
+	}
+	deps.openBrowser = func(io.Reader) error { return nil }
+
+	err := runWithDeps([]string{"-sampleDoc"}, deps)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cardProviderCalled {
+		t.Errorf("cardProvider should not be called in sample-doc mode")
+	}
+	if !cscaMasterListCalled {
+		t.Errorf("cscaMasterList should still be called in sample-doc mode (needed for PA)")
+	}
+}
+
+func TestRunWithDepsSampleDocumentError(t *testing.T) {
+	wantErr := errors.New("sample document boom")
+
+	deps := defaultAppDeps()
+	deps.cscaMasterList = func() (cms.CertPool, error) {
+		return &cms.GenericCertPool{}, nil
+	}
+	deps.sampleDocument = func(cms.CertPool) (*document.DocumentEx, error) {
+		return nil, wantErr
+	}
+
+	err := runWithDeps([]string{"-sampleDoc"}, deps)
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("got %v, want %v", err, wantErr)
+	}
+}
+
+// TestSampleDocumentReport exercises the real document.SampleDocument +
+// passiveauth.PassiveAuth + htmlreport.Generate pipeline together (the same
+// pipeline the -sampleDoc CLI flag drives), without needing a browser.
+func TestSampleDocumentReport(t *testing.T) {
+	certPool, err := cscaMasterList()
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	docEx, err := sampleDocument(certPool)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	if docEx.Session.PassiveAuthResult == nil {
+		t.Fatalf("expected PassiveAuthResult to be populated")
+	}
+	if docEx.Session.PassiveAuthResult.Success {
+		t.Errorf("expected PassiveAuthResult.Success to be false")
+	}
+
+	docByteBuf, err := htmlreport.Generate(docEx, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	var expDocBytes int = 100000
+
+	if docByteBuf.Len() < expDocBytes {
+		t.Fatalf("Expected at least %d bytes, got %d bytes", expDocBytes, docByteBuf.Len())
+	}
 }
 
 func TestRunWithDepsCardProviderError(t *testing.T) {

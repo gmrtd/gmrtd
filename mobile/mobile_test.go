@@ -388,6 +388,53 @@ func TestOidDesc(t *testing.T) {
 	}
 }
 
+func TestNewSampleDocument(t *testing.T) {
+	doc, err := NewSampleDocument()
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	// Passive Authentication is run against the sample data, but is expected
+	// to fail - the DGs are sourced from different worked examples.
+	session := doc.documentEx.Session
+	if session.PassiveAuthResult == nil {
+		t.Fatalf("expected PassiveAuthResult to be populated")
+	}
+	if session.PassiveAuthResult.Success {
+		t.Errorf("expected PassiveAuthResult.Success to be false")
+	}
+	if session.PassiveAuthErr == nil {
+		t.Errorf("expected PassiveAuthErr to be set")
+	}
+	if session.Summary == nil || session.Summary.DataTrusted {
+		t.Errorf("expected Summary.DataTrusted to be false")
+	}
+
+	json, err := doc.DocumentExJson()
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if len(json) < 1 {
+		t.Error("expected some JSON data")
+	}
+
+	cborData, err := doc.DocumentExCbor()
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if len(cborData) < 1 {
+		t.Error("expected some CBOR data")
+	}
+
+	apduLogJson, err := doc.ApduLogJson()
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if len(apduLogJson) < 1 {
+		t.Error("expected some (empty-log) APDU log JSON data")
+	}
+}
+
 func TestVersion(t *testing.T) {
 	version := Version()
 
