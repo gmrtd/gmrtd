@@ -172,7 +172,6 @@ func (reader *Reader) ReadDocument(password *password.Password, atr []byte, ats 
 		performChipAuthentication,
 		verifyDocument,
 		performPassiveAuthentication,
-		calculateDocumentSummary,
 	)
 	if err != nil {
 		return state.docEx, reader.nfc.ApduLog(), fmt.Errorf("[ReadDocument] runSteps error: %w", err)
@@ -404,10 +403,5 @@ func verifyDocument(reader *Reader, state *ReaderState) error {
 	if state.docEx.Session.DocumentVerifyErr != nil {
 		slog.Error("Document.Verify", "error", state.docEx.Session.DocumentVerifyErr)
 	}
-	return nil
-}
-
-func calculateDocumentSummary(_ *Reader, state *ReaderState) error {
-	state.docEx.GenerateSummary()
 	return nil
 }

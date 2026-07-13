@@ -68,7 +68,5 @@ func (v *Verifier) Verify(data []byte) (*document.DocumentEx, error) {
 
 	docEx.Session.DocumentVerifyErr = doc.Verify()
 
-	docEx.GenerateSummary()
-
 	return &docEx, nil
 }

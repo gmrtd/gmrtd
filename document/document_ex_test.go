@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestGenerateSummaryPassiveAuthSuccess(t *testing.T) {
+func TestSummaryPassiveAuthSuccess(t *testing.T) {
 	docEx := &DocumentEx{
 		Session: Session{
 			ChipAuthResult:    &ChipAuthResult{Success: true},
@@ -13,20 +13,20 @@ func TestGenerateSummaryPassiveAuthSuccess(t *testing.T) {
 		},
 	}
 
-	docEx.GenerateSummary()
+	summary := docEx.Summary()
 
-	if docEx.Session.Summary == nil {
+	if summary == nil {
 		t.Fatal("expected Summary to be non-nil")
 	}
-	if !docEx.Session.Summary.DataTrusted {
+	if !summary.DataTrusted {
 		t.Error("expected DataTrusted to be true")
 	}
-	if docEx.Session.Summary.ChipAuthenticity != CHIP_AUTH_STATUS_CA {
-		t.Errorf("expected ChipAuthenticity CA, got %d", docEx.Session.Summary.ChipAuthenticity)
+	if summary.ChipAuthenticity != CHIP_AUTH_STATUS_CA {
+		t.Errorf("expected ChipAuthenticity CA, got %d", summary.ChipAuthenticity)
 	}
 }
 
-func TestGenerateSummaryPassiveAuthFail(t *testing.T) {
+func TestSummaryPassiveAuthFail(t *testing.T) {
 	docEx := &DocumentEx{
 		Session: Session{
 			ChipAuthResult:    &ChipAuthResult{Success: true},
@@ -34,20 +34,20 @@ func TestGenerateSummaryPassiveAuthFail(t *testing.T) {
 		},
 	}
 
-	docEx.GenerateSummary()
+	summary := docEx.Summary()
 
-	if docEx.Session.Summary == nil {
+	if summary == nil {
 		t.Fatal("expected Summary to be non-nil")
 	}
-	if docEx.Session.Summary.DataTrusted {
+	if summary.DataTrusted {
 		t.Error("expected DataTrusted to be false")
 	}
-	if docEx.Session.Summary.ChipAuthenticity != CHIP_AUTH_STATUS_NONE {
-		t.Errorf("expected ChipAuthenticity NONE, got %d", docEx.Session.Summary.ChipAuthenticity)
+	if summary.ChipAuthenticity != CHIP_AUTH_STATUS_NONE {
+		t.Errorf("expected ChipAuthenticity NONE, got %d", summary.ChipAuthenticity)
 	}
 }
 
-func TestGenerateSummaryDocumentVerifyErr(t *testing.T) {
+func TestSummaryDocumentVerifyErr(t *testing.T) {
 	docEx := &DocumentEx{
 		Session: Session{
 			ChipAuthResult:    &ChipAuthResult{Success: true},
@@ -56,48 +56,62 @@ func TestGenerateSummaryDocumentVerifyErr(t *testing.T) {
 		},
 	}
 
-	docEx.GenerateSummary()
+	summary := docEx.Summary()
 
-	if docEx.Session.Summary == nil {
+	if summary == nil {
 		t.Fatal("expected Summary to be non-nil")
 	}
-	if docEx.Session.Summary.DataTrusted {
+	if summary.DataTrusted {
 		t.Error("expected DataTrusted to be false when DocumentVerifyErr is set, even if PassiveAuth succeeded")
 	}
 }
 
-func TestGenerateSummaryNoPassiveAuth(t *testing.T) {
+func TestSummaryNoPassiveAuth(t *testing.T) {
 	docEx := &DocumentEx{
 		Session: Session{
 			ChipAuthResult: &ChipAuthResult{Success: true},
 		},
 	}
 
-	docEx.GenerateSummary()
+	summary := docEx.Summary()
 
-	if docEx.Session.Summary == nil {
+	if summary == nil {
 		t.Fatal("expected Summary to be non-nil")
 	}
-	if docEx.Session.Summary.DataTrusted {
+	if summary.DataTrusted {
 		t.Error("expected DataTrusted to be false when no PassiveAuthResult")
 	}
-	if docEx.Session.Summary.ChipAuthenticity != CHIP_AUTH_STATUS_NONE {
-		t.Errorf("expected ChipAuthenticity NONE, got %d", docEx.Session.Summary.ChipAuthenticity)
+	if summary.ChipAuthenticity != CHIP_AUTH_STATUS_NONE {
+		t.Errorf("expected ChipAuthenticity NONE, got %d", summary.ChipAuthenticity)
 	}
 }
 
-func TestGenerateSummaryEmpty(t *testing.T) {
+func TestSummaryEmpty(t *testing.T) {
 	docEx := &DocumentEx{}
 
-	docEx.GenerateSummary()
+	summary := docEx.Summary()
 
-	if docEx.Session.Summary == nil {
+	if summary == nil {
 		t.Fatal("expected Summary to be non-nil")
 	}
-	if docEx.Session.Summary.DataTrusted {
+	if summary.DataTrusted {
 		t.Error("expected DataTrusted to be false")
 	}
-	if docEx.Session.Summary.ChipAuthenticity != CHIP_AUTH_STATUS_NONE {
-		t.Errorf("expected ChipAuthenticity NONE, got %d", docEx.Session.Summary.ChipAuthenticity)
+	if summary.ChipAuthenticity != CHIP_AUTH_STATUS_NONE {
+		t.Errorf("expected ChipAuthenticity NONE, got %d", summary.ChipAuthenticity)
+	}
+}
+
+func TestSummaryIsComputedFreshNotCached(t *testing.T) {
+	docEx := &DocumentEx{}
+
+	if docEx.Summary().DataTrusted {
+		t.Fatal("expected DataTrusted to be false before PassiveAuthResult is set")
+	}
+
+	docEx.Session.PassiveAuthResult = &PassiveAuthResult{Success: true, Sod: NewPassiveAuth(nil)}
+
+	if !docEx.Summary().DataTrusted {
+		t.Error("expected DataTrusted to be true after PassiveAuthResult is set - Summary must reflect current state, not a stale snapshot")
 	}
 }

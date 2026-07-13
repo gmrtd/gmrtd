@@ -135,7 +135,7 @@ func TestVerifyDocumentVerifyErrMissingDG1(t *testing.T) {
 		t.Fatalf("expected DocumentVerifyErr to be set when mandatory DG1/SOD are missing")
 	}
 
-	if result.Session.Summary == nil || result.Session.Summary.DataTrusted {
+	if summary := result.Summary(); summary == nil || summary.DataTrusted {
 		t.Errorf("expected DataTrusted to be false when DocumentVerifyErr is set")
 	}
 }

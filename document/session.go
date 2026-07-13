@@ -32,9 +32,6 @@ type Session struct {
 	// Passive Authentication
 	PassiveAuthErr    error              `json:"passiveAuthErr,omitempty"`
 	PassiveAuthResult *PassiveAuthResult `json:"passiveAuthResult,omitempty"`
-
-	// Summary (generated from above data)
-	Summary *DocumentSummary `json:"summary,omitempty"`
 }
 
 // ChipAuthProtocolCompleted reports whether a chip authentication protocol (PACE-CAM/CA/AA)
@@ -318,12 +315,4 @@ type PassiveAuth struct {
 
 func NewPassiveAuth(certChain [][]byte) *PassiveAuth {
 	return &PassiveAuth{CertChain: certChain}
-}
-
-// TODO - maybe we can remove from session.. and build on-demand?
-type DocumentSummary struct {
-	DataTrusted      bool           `json:"dataTrusted"`
-	ChipAuthenticity ChipAuthStatus `json:"chipAuthenticity"`
-	LdsVersion       string         `json:"ldsVersion,omitempty"`
-	UnicodeVersion   string         `json:"unicodeVersion,omitempty"`
 }
