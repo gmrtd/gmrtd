@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.47.0](https://github.com/gmrtd/gmrtd/compare/v0.46.0...v0.47.0) (2026-07-13)
+
+
+### Features
+
+* add DocumentSummary; compute Summary on demand ([#422](https://github.com/gmrtd/gmrtd/issues/422)) ([8dfb6eb](https://github.com/gmrtd/gmrtd/commit/8dfb6ebb31e4f6e4c09d701edc03784418a14b0c))
+
 ## [0.46.0](https://github.com/gmrtd/gmrtd/compare/v0.45.0...v0.46.0) (2026-07-07)
 
 
