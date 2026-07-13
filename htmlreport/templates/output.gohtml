@@ -591,19 +591,59 @@ document.addEventListener('DOMContentLoaded', () => {
 </pre></div>
 {{end}}
 
+{{define "personsToNotify"}}
+{{if .}}
+<div>
+<table class="striped">
+  <thead>
+    <tr>
+      <th>Date Recorded</th>
+      <th>Name</th>
+      <th>Telephone</th>
+      <th>Address</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{range .}}
+    <tr>
+      <td>{{.DateRecorded}}</td>
+      <td>{{.Name}}</td>
+      <td>{{.Telephone}}</td>
+      <td>{{.Address}}</td>
+    </tr>
+    {{end}}
+  </tbody>
+</table>
+</div>
+{{else}}
+<i>No data</i>
+{{end}}
+{{end}}
+
+{{define "identityAttributesImage"}}
+<h4>Image size (bytes): {{len .Data}}</h4>
+<img src="data:{{.Format}};base64, {{.Data | BytesToBase64}}" />
+<br/>
+{{end}}
+
+{{define "identityAttributesImages"}}
+{{range .}}
+{{template "identityAttributesImage" .}}
+{{end}}
+{{end}}
+
 <h1><a href="https://github.com/gmrtd/gmrtd">GMRTD</a> <sub>(v{{ GmrtdVersion }})</sub></h1>
 
 <div>
-<a href="#session">Session</a> | <a href="#document">Document</a> | <a href="#apdu">APDU</a> | <a href="#json">JSON</a> | <a href="#cbor">CBOR</a>
+<a href="#summary">Summary</a> | <a href="#session">Session</a> | <a href="#document">Document</a> | <a href="#apdu">APDU</a> | <a href="#json">JSON</a> | <a href="#cbor">CBOR</a>
 </div>
 
 <br/>
 
-<div id="session">
-<h1>Session</h1>
+<div id="summary">
+<h1>Summary</h1>
 
-<h2>Summary</h2>
-{{if .Session.Summary}}
+<h2>Trust</h2>
 <div>
 <table class="striped">
   <thead>
@@ -615,26 +655,182 @@ document.addEventListener('DOMContentLoaded', () => {
   <tbody>
     <tr>
       <td>Trusted Data</td>
-      <td>{{.Session.Summary.DataTrusted}}</td>
+      <td>{{.Summary.DataTrusted}}</td>
     </tr>
     <tr>
       <td>Authentic Chip</td>
-      <td>{{.Session.Summary.ChipAuthenticity}}</td>
+      <td>{{.Summary.ChipAuthenticity}}</td>
     </tr>
     <tr>
       <td>LDS version</td>
-      <td>{{.Session.Summary.LdsVersion}}</td>
+      <td>{{.Summary.LdsVersion}}</td>
     </tr>
     <tr>
       <td>Unicode version</td>
-      <td>{{.Session.Summary.UnicodeVersion}}</td>
+      <td>{{.Summary.UnicodeVersion}}</td>
     </tr>
   </tbody>
 </table>
 </div>
-{{else}}
-<i>Missing Summary! DO NOT TRUST this Document!</i>
+
+<h2>Identity Attributes</h2>
+{{if .Summary.IdentityAttributes}}
+{{if not .Summary.DataTrusted}}
+<p><i>&#9888; Not cryptographically verified - see "Trusted Data" above. This data is sourced
+from the document but has not been authenticated, and may be forged or tampered with.</i></p>
 {{end}}
+<div>
+<table class="striped">
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Value</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Document Code</td>
+      <td>{{.Summary.IdentityAttributes.DocumentCode}}</td>
+    </tr>
+    <tr>
+      <td>Document Number</td>
+      <td>{{.Summary.IdentityAttributes.DocumentNumber}}</td>
+    </tr>
+    <tr>
+      <td>Sex</td>
+      <td>{{.Summary.IdentityAttributes.Sex}}</td>
+    </tr>
+    <tr>
+      <td>Issuing State</td>
+      <td>{{.Summary.IdentityAttributes.IssuingState}}</td>
+    </tr>
+    <tr>
+      <td>Nationality</td>
+      <td>{{.Summary.IdentityAttributes.Nationality}}</td>
+    </tr>
+    <tr>
+      <td>Name</td>
+      <td>{{.Summary.IdentityAttributes.Name}}</td>
+    </tr>
+    <tr>
+      <td>Name (MRZ, raw)</td>
+      <td>{{.Summary.IdentityAttributes.NameMrzRaw}}</td>
+    </tr>
+    <tr>
+      <td>Other Names</td>
+      <td>{{.Summary.IdentityAttributes.OtherNames}}</td>
+    </tr>
+    <tr>
+      <td>Date Of Birth</td>
+      <td>{{.Summary.IdentityAttributes.DateOfBirth}}</td>
+    </tr>
+    <tr>
+      <td>Date Of Birth (MRZ, raw)</td>
+      <td>{{.Summary.IdentityAttributes.DateOfBirthMrzRaw}}</td>
+    </tr>
+    <tr>
+      <td>Date Of Birth (DG11, raw)</td>
+      <td>{{.Summary.IdentityAttributes.DateOfBirthDg11Raw}}</td>
+    </tr>
+    <tr>
+      <td>Date Of Expiry</td>
+      <td>{{.Summary.IdentityAttributes.DateOfExpiry}}</td>
+    </tr>
+    <tr>
+      <td>Date Of Expiry (MRZ, raw)</td>
+      <td>{{.Summary.IdentityAttributes.DateOfExpiryMrzRaw}}</td>
+    </tr>
+    <tr>
+      <td>Place Of Birth</td>
+      <td>{{.Summary.IdentityAttributes.PlaceOfBirth}}</td>
+    </tr>
+    <tr>
+      <td>Address</td>
+      <td>{{.Summary.IdentityAttributes.Address}}</td>
+    </tr>
+    <tr>
+      <td>Telephone</td>
+      <td>{{.Summary.IdentityAttributes.Telephone}}</td>
+    </tr>
+    <tr>
+      <td>Profession</td>
+      <td>{{.Summary.IdentityAttributes.Profession}}</td>
+    </tr>
+    <tr>
+      <td>Title</td>
+      <td>{{.Summary.IdentityAttributes.Title}}</td>
+    </tr>
+    <tr>
+      <td>Personal Number</td>
+      <td>{{.Summary.IdentityAttributes.PersonalNumber}}</td>
+    </tr>
+    <tr>
+      <td>MRZ Optional Data</td>
+      <td>{{.Summary.IdentityAttributes.MrzOptionalData}}</td>
+    </tr>
+    <tr>
+      <td>MRZ Optional Data 2</td>
+      <td>{{.Summary.IdentityAttributes.MrzOptionalData2}}</td>
+    </tr>
+    <tr>
+      <td>Issuing Authority</td>
+      <td>{{.Summary.IdentityAttributes.IssuingAuthority}}</td>
+    </tr>
+    <tr>
+      <td>Date Of Issue</td>
+      <td>{{.Summary.IdentityAttributes.DateOfIssue}}</td>
+    </tr>
+    <tr>
+      <td>Date Of Issue (raw)</td>
+      <td>{{.Summary.IdentityAttributes.DateOfIssueRaw}}</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Face Image(s)</h3>
+{{if .Summary.IdentityAttributes.FaceImages}}
+{{template "identityAttributesImages" .Summary.IdentityAttributes.FaceImages}}
+{{else}}
+<i>No data</i>
+{{end}}
+
+<h3>Signature Image(s)</h3>
+{{if .Summary.IdentityAttributes.SignatureImages}}
+{{template "identityAttributesImages" .Summary.IdentityAttributes.SignatureImages}}
+{{else}}
+<i>No data</i>
+{{end}}
+
+<h3>Document Image (Front)</h3>
+{{if .Summary.IdentityAttributes.DocumentImageFront}}
+{{template "identityAttributesImage" .Summary.IdentityAttributes.DocumentImageFront}}
+{{else}}
+<i>No data</i>
+{{end}}
+
+<h3>Document Image (Rear)</h3>
+{{if .Summary.IdentityAttributes.DocumentImageRear}}
+{{template "identityAttributesImage" .Summary.IdentityAttributes.DocumentImageRear}}
+{{else}}
+<i>No data</i>
+{{end}}
+
+<h3>Persons To Notify</h3>
+{{template "personsToNotify" .Summary.IdentityAttributes.PersonsToNotify}}
+
+{{else}}
+<i>No data</i>
+{{end}}
+
+<h2>JSON</h2>
+<div><pre>
+{{ IndentedJson .Summary }}
+</pre></div>
+</div>
+
+<div id="session">
+<h1>Session</h1>
 
 <h2>Chip Activation Response</h2>
 {{if .Session.ChipActivationRsp}}

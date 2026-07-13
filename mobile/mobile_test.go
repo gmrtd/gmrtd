@@ -310,6 +310,17 @@ func TestDocumentExJsonError(t *testing.T) {
 	}
 }
 
+func TestSummaryJsonError(t *testing.T) {
+	// error expected as we attempt to get Summary-Json before ReadDocument
+
+	doc := &Document{}
+
+	_, err := doc.SummaryJson()
+	if err == nil {
+		t.Errorf("error expected")
+	}
+}
+
 type PanicTransceiver struct {
 }
 
@@ -406,8 +417,18 @@ func TestNewSampleDocument(t *testing.T) {
 	if session.PassiveAuthErr == nil {
 		t.Errorf("expected PassiveAuthErr to be set")
 	}
-	if session.Summary == nil || session.Summary.DataTrusted {
+
+	summary := doc.documentEx.Summary()
+	if summary == nil || summary.DataTrusted {
 		t.Errorf("expected Summary.DataTrusted to be false")
+	}
+
+	summaryJson, err := doc.SummaryJson()
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if len(summaryJson) < 1 {
+		t.Error("expected some Summary JSON data")
 	}
 
 	json, err := doc.DocumentExJson()

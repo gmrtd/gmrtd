@@ -11,7 +11,6 @@ import (
 	"github.com/gmrtd/gmrtd/cms"
 	"github.com/gmrtd/gmrtd/document"
 	"github.com/gmrtd/gmrtd/internal/version"
-	"github.com/gmrtd/gmrtd/iso3166"
 	"github.com/gmrtd/gmrtd/iso7816"
 	"github.com/gmrtd/gmrtd/oid"
 	"github.com/gmrtd/gmrtd/passiveauth"
@@ -202,17 +201,12 @@ func (r *Reader) ReadDocument(password *MrtdPassword, atr []byte, ats []byte) (d
 // CountryName returns the country name for an MRZ alpha-3 country code.
 // Handles ICAO 9303 quirks such as Germany's special code "D" (mapped to "DEU").
 func CountryName(mrzAlpha3 string) (string, error) {
-	// special handling for Germany per ICAO9303p3 (5. CODES FOR NATIONALITY...)
-	if mrzAlpha3 == "D" {
-		mrzAlpha3 = "DEU"
+	info, err := document.ResolveCountry(mrzAlpha3)
+	if err != nil {
+		return "", fmt.Errorf("[CountryName] %w", err)
 	}
 
-	country := iso3166.ByAlpha3(mrzAlpha3)
-	if country == nil {
-		return "", fmt.Errorf("[CountryName] unable to resolve alpha-3 country code (%s)", mrzAlpha3)
-	}
-
-	return country.Name, nil
+	return info.Name, nil
 }
 
 // OidDesc returns the description associated with an OID string (e.g. "0.4.0.127.0.7").
@@ -290,8 +284,6 @@ func NewSampleDocument() (*Document, error) {
 
 	documentEx.Session.PassiveAuthResult, documentEx.Session.PassiveAuthErr = passiveauth.PassiveAuth(sampleDoc, certPool)
 
-	documentEx.GenerateSummary()
-
 	return &Document{documentEx: documentEx}, nil
 }
 
@@ -301,6 +293,19 @@ func (doc *Document) DocumentExJson() (jsonData []byte, err error) {
 	}
 
 	jsonData, err = json.Marshal(doc.documentEx)
+
+	return jsonData, err
+}
+
+// SummaryJson returns the document's current DocumentSummary (see
+// document.DocumentEx.Summary) as JSON. It is computed fresh on every call from the
+// document/session state, rather than being carried in DocumentExJson's output.
+func (doc *Document) SummaryJson() (jsonData []byte, err error) {
+	if doc.documentEx == nil {
+		return nil, fmt.Errorf("[SummaryJson] No document available")
+	}
+
+	jsonData, err = json.Marshal(doc.documentEx.Summary())
 
 	return jsonData, err
 }

@@ -713,28 +713,6 @@ func TestPerformPassiveAuthenticationBadSignatureErr(t *testing.T) {
 	}
 }
 
-func TestCalculateDocumentSummaryEmptyDoc(t *testing.T) {
-	var status MockStatus
-	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&PanicTransceiver{P: "will panic if called"})
-	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
-	var password *password.Password = password.NewPasswordNil()
-	var state *ReaderState = NewReaderState(nil, nil, password)
-
-	var err error
-
-	err = calculateDocumentSummary(reader, state)
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
-
-	// note: summary should be generated even for empty document, but will indicate no trust for data/chip
-	expSummary := &document.DocumentSummary{DataTrusted: false, ChipAuthenticity: document.CHIP_AUTH_STATUS_NONE}
-
-	if !reflect.DeepEqual(expSummary, state.docEx.Session.Summary) {
-		t.Fatalf("Summary differs to expected [Exp] %+v [Act] %+v", expSummary, state.docEx.Session.Summary)
-	}
-}
-
 func TestVerifyDocumentEmptyDocErr(t *testing.T) {
 	// note: empty document will fail verification, but the step itself is soft-fail -
 	// the error is recorded on the session, not returned (see Session.DocumentVerifyErr)

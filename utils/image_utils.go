@@ -5,9 +5,17 @@ import (
 	"log/slog"
 )
 
-// determines whether the data constitutes an image
-// return: 'true' if image detected, otherwise 'false'
-func IsImage(imageBytes []byte) bool {
+type ImageFormat string
+
+const (
+	ImageFormatJPEG     ImageFormat = "image/jpeg"
+	ImageFormatJPEG2000 ImageFormat = "image/jp2"
+)
+
+// DetectImageFormat inspects the magic bytes of imageBytes and reports the recognized
+// image format. The second return value is 'false' if the bytes don't match a known
+// image format.
+func DetectImageFormat(imageBytes []byte) (ImageFormat, bool) {
 	/*
 	* Classic JPEG (JFIF/Exif/SPIF/Adobe) files begin with these bytes:
 	* 	- FF D8 — SOI
@@ -19,7 +27,7 @@ func IsImage(imageBytes []byte) bool {
 		prefixJpeg := HexToBytes("ffd8ff")
 
 		if bytes.HasPrefix(imageBytes, prefixJpeg) {
-			return true
+			return ImageFormatJPEG, true
 		}
 	}
 
@@ -34,12 +42,19 @@ func IsImage(imageBytes []byte) bool {
 
 		if bytes.HasPrefix(imageBytes, prefixJp2Bitmap) ||
 			bytes.HasPrefix(imageBytes, prefixJp2CodestreamBitmap) {
-			return true
+			return ImageFormatJPEG2000, true
 		}
 
 	}
 
 	slog.Debug("Unknown image type", "prefix", SafePrefix(imageBytes, 10))
 
-	return false
+	return "", false
+}
+
+// determines whether the data constitutes an image
+// return: 'true' if image detected, otherwise 'false'
+func IsImage(imageBytes []byte) bool {
+	_, ok := DetectImageFormat(imageBytes)
+	return ok
 }

@@ -193,7 +193,6 @@ func sampleDocument(cscaCertPool cms.CertPool) (*document.DocumentEx, error) {
 
 	docEx := &document.DocumentEx{Document: *doc}
 	docEx.Session.PassiveAuthResult, docEx.Session.PassiveAuthErr = passiveauth.PassiveAuth(doc, cscaCertPool)
-	docEx.GenerateSummary()
 
 	return docEx, nil
 }
