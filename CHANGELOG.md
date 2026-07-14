@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.47.1](https://github.com/gmrtd/gmrtd/compare/v0.47.0...v0.47.1) (2026-07-14)
+
+
+### Bug Fixes
+
+* accept legacy ICAO and Sdu (NL) ldsSecurityObject content-type OIDs ([#425](https://github.com/gmrtd/gmrtd/issues/425)) ([d48f112](https://github.com/gmrtd/gmrtd/commit/d48f11221de5f4ffdd19b2a648cadb8f24f1b6bd))
+
 ## [0.47.0](https://github.com/gmrtd/gmrtd/compare/v0.46.0...v0.47.0) (2026-07-13)
 
 
