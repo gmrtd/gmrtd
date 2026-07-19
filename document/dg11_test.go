@@ -316,6 +316,30 @@ func TestProcessTagDG11(t *testing.T) {
 			tlvNode:          tlv.NewTlvConstructedNode(0x6C).AddChild(tlv.NewTlvSimpleNode(0x5F2B, utils.HexToBytes("3230313730393035"))),
 			expPersonDetails: PersonDetails{FullDateOfBirth: "20170905"},
 		},
+		{
+			// 5F42: "<1 RUE DE LA PAIX<PARIS" - leading filler char (e.g. seen on French passports)
+			// should not produce a leading empty string in the Address slice
+			name:             "5F42 Address - leading filler char",
+			tlvTag:           0x5F42,
+			tlvNode:          tlv.NewTlvConstructedNode(0x6C).AddChild(tlv.NewTlvSimpleNode(0x5F42, []byte("<1 RUE DE LA PAIX<PARIS"))),
+			expPersonDetails: PersonDetails{Address: []string{"1 RUE DE LA PAIX", "PARIS"}},
+		},
+		{
+			// 5F42: "1 RUE DE LA PAIX<PARIS<" - trailing filler char
+			// should not produce a trailing empty string in the Address slice
+			name:             "5F42 Address - trailing filler char",
+			tlvTag:           0x5F42,
+			tlvNode:          tlv.NewTlvConstructedNode(0x6C).AddChild(tlv.NewTlvSimpleNode(0x5F42, []byte("1 RUE DE LA PAIX<PARIS<"))),
+			expPersonDetails: PersonDetails{Address: []string{"1 RUE DE LA PAIX", "PARIS"}},
+		},
+		{
+			// 5F42: "1 RUE DE LA PAIX<<PARIS" - repeated filler chars between fields
+			// should not produce an empty string between the two real fields
+			name:             "5F42 Address - repeated filler chars",
+			tlvTag:           0x5F42,
+			tlvNode:          tlv.NewTlvConstructedNode(0x6C).AddChild(tlv.NewTlvSimpleNode(0x5F42, []byte("1 RUE DE LA PAIX<<PARIS"))),
+			expPersonDetails: PersonDetails{Address: []string{"1 RUE DE LA PAIX", "PARIS"}},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
