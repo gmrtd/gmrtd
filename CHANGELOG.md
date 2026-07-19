@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.47.2](https://github.com/gmrtd/gmrtd/compare/v0.47.1...v0.47.2) (2026-07-19)
+
+
+### Bug Fixes
+
+* **dg12:** json output, changed 'details' to 'documentDetails' ([#429](https://github.com/gmrtd/gmrtd/issues/429)) ([09f131f](https://github.com/gmrtd/gmrtd/commit/09f131febbd15e33af2a38fa45b35745d78ed275))
+* trim empty strings from DG11 fields caused by leading/trailing/repeated filler chars ([#427](https://github.com/gmrtd/gmrtd/issues/427)) ([33582a6](https://github.com/gmrtd/gmrtd/commit/33582a6e8a3f12504f3900ef6b7697dce9c47abe))
+
 ## [0.47.1](https://github.com/gmrtd/gmrtd/compare/v0.47.0...v0.47.1) (2026-07-14)
 
 
