@@ -150,6 +150,12 @@ func (details *PersonDetails) processTag5F0F(parentNode tlv.TlvNode) error {
 	return nil
 }
 
+// splits on '<' filler chars, discarding any empty strings caused by
+// leading/trailing/repeated separators (e.g. seen on French passports)
+func splitFieldsFiltered(s string) []string {
+	return strings.FieldsFunc(s, func(r rune) bool { return r == '<' })
+}
+
 // processes the 'tag', getting the data from the TLV and populating PersonDetails
 func (details *PersonDetails) processTag(tag tlv.TlvTag, node tlv.TlvNode) error {
 	value := node.NodeByTag(tag).Value()
@@ -172,9 +178,9 @@ func (details *PersonDetails) processTag(tag tlv.TlvTag, node tlv.TlvNode) error
 		// should be 8 bytes (YYYYMMDD) but we've also seen 4 bytes (BCD) - e.g. Malaysia passport
 		details.FullDateOfBirth = parseDateYYYYMMDD(value)
 	case 0x5F11:
-		details.PlaceOfBirth = strings.Split(string(value), "<")
+		details.PlaceOfBirth = splitFieldsFiltered(string(value))
 	case 0x5F42:
-		details.Address = strings.Split(string(value), "<")
+		details.Address = splitFieldsFiltered(string(value))
 	case 0x5F12:
 		details.Telephone = string(value)
 	case 0x5F13:
@@ -187,7 +193,7 @@ func (details *PersonDetails) processTag(tag tlv.TlvTag, node tlv.TlvNode) error
 		// image data
 		details.ProofOfCitizenship = value
 	case 0x5F17:
-		details.OtherTravelDocuments = strings.Split(string(value), "<")
+		details.OtherTravelDocuments = splitFieldsFiltered(string(value))
 	case 0x5F18:
 		details.CustodyInformation = mrz.DecodeValue(string(value))
 	default:
