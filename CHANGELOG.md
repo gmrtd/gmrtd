@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.47.3](https://github.com/gmrtd/gmrtd/compare/v0.47.2...v0.47.3) (2026-07-20)
+
+
+### Bug Fixes
+
+* **document:** resolve DateOfExpiry to full 4-digit year in IdentityAttributes ([#431](https://github.com/gmrtd/gmrtd/issues/431)) ([07a2227](https://github.com/gmrtd/gmrtd/commit/07a22272de4be3d1cee02789fff9e647745df5b8))
+
 ## [0.47.2](https://github.com/gmrtd/gmrtd/compare/v0.47.1...v0.47.2) (2026-07-19)
 
 
