@@ -98,10 +98,11 @@ func TestBuildIdentityAttributesSampleDocument(t *testing.T) {
 		t.Errorf("DateOfBirthDg11Raw = %q, want empty (sample has no FullDateOfBirth tag)", summary.DateOfBirthDg11Raw)
 	}
 
-	// DG1 MRZ is DateOfExpiry's only source, so both fields hold the same raw value
-	// (120415) - no century is guessed
-	if summary.DateOfExpiry != "120415" {
-		t.Errorf("DateOfExpiry = %q, want %q", summary.DateOfExpiry, "120415")
+	// DG1 MRZ is DateOfExpiry's only source; its 2-digit year (12) is expanded to an
+	// explicit century since that's unambiguous for expiry dates (unlike DOB) - see
+	// resolveExpiryDate. DateOfExpiryMrzRaw keeps the untouched MRZ value.
+	if summary.DateOfExpiry != "20120415" {
+		t.Errorf("DateOfExpiry = %q, want %q", summary.DateOfExpiry, "20120415")
 	}
 	if summary.DateOfExpiryMrzRaw != "120415" {
 		t.Errorf("DateOfExpiryMrzRaw = %q, want %q", summary.DateOfExpiryMrzRaw, "120415")

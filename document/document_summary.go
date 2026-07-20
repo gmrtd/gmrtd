@@ -2,6 +2,7 @@ package document
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/gmrtd/gmrtd/iso3166"
 	"github.com/gmrtd/gmrtd/mrz"
@@ -85,7 +86,9 @@ type IdentityAttributes struct {
 	DateOfBirthMrzRaw  string `json:"dateOfBirthMrzRaw,omitempty"`  // DG1 MRZ, raw YYMMDD (2-digit year)
 	DateOfBirthDg11Raw string `json:"dateOfBirthDg11Raw,omitempty"` // DG11, raw YYYYMMDD
 
-	// DateOfExpiry is the raw DG1 MRZ value (YYMMDD, no century), its only source.
+	// DateOfExpiry is DG1 MRZ's only source of expiry date, with its 2-digit year expanded
+	// to an explicit century (YYYYMMDD) - see resolveExpiryDate for why that's safe to do
+	// here, unlike DateOfBirth. DateOfExpiryMrzRaw is the untouched MRZ value.
 	DateOfExpiry       string `json:"dateOfExpiry,omitempty"`
 	DateOfExpiryMrzRaw string `json:"dateOfExpiryMrzRaw,omitempty"` // DG1 MRZ, raw YYMMDD (2-digit year)
 
@@ -128,6 +131,25 @@ type DocumentSummary struct {
 	// signal for whether this data has been cryptographically verified; callers must check
 	// it before treating IdentityAttributes as authentic.
 	IdentityAttributes *IdentityAttributes `json:"identityAttributes,omitempty"`
+}
+
+// resolveExpiryDate expands DG1 MRZ's 2-digit-year DateOfExpiry (YYMMDD) to an explicit
+// 4-digit year (20YYMMDD). Unlike DateOfBirth, this is safe to assume without a pivot
+// heuristic: DG1 (and therefore any expiry date) only exists on chip-enabled ePassports,
+// which weren't issued before 2004, and realistic document validity periods (well under a
+// century) mean a "19xx" reading isn't just unlikely, it's physically impossible given that
+// history. This assumption holds only up to the year 2100 - revisit if gmrtd is still
+// around by then. Falls back to the raw MRZ value if the constructed date doesn't parse
+// (e.g. some issuers use sentinel values like "999999" for non-expiring documents, which
+// ICAO 9303 doesn't officially support).
+func resolveExpiryDate(mrzRaw string) string {
+	fullYear := "20" + mrzRaw
+
+	if _, err := time.Parse("20060102", fullYear); err != nil {
+		return mrzRaw
+	}
+
+	return fullYear
 }
 
 // buildIdentityAttributes resolves an IdentityAttributes from doc's Data Groups. Every DG
@@ -175,7 +197,7 @@ func buildIdentityAttributes(doc *Document) *IdentityAttributes {
 		}
 		if len(m.DateOfExpiry) > 0 {
 			summary.DateOfExpiryMrzRaw = m.DateOfExpiry
-			summary.DateOfExpiry = m.DateOfExpiry
+			summary.DateOfExpiry = resolveExpiryDate(m.DateOfExpiry)
 		}
 	}
 
