@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sync"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/cms"
@@ -827,4 +828,30 @@ func TestRunStepsError(t *testing.T) {
 	if called != 2 {
 		t.Fatalf("expected 2 steps to run, got %d", called)
 	}
+}
+
+// Regression test for a heap-corruption crash observed under concurrent use:
+// a shared Reader's fields (skipPace/skipImages/aaChallenge) were written by
+// the configuration methods while ReadDocument read them from another
+// goroutine, unsynchronised. Run with `go test -race` to confirm the mutex
+// added to Reader closes the race - without it, this reliably trips the race
+// detector (and, in production, can corrupt the Go heap).
+func TestReaderConcurrentAccess(t *testing.T) {
+	var status MockStatus
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{RApdu: utils.HexToBytes("6A82")}) // 6A82: file not found
+	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
+	var pass *password.Password = password.NewPasswordNil()
+
+	var wg sync.WaitGroup
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			reader.SkipPace()
+			reader.SkipImages()
+			_, _ = reader.WithAAChallenge(make([]byte, 8))
+			_, _, _ = reader.ReadDocument(pass, nil, nil) // expected to fail fast (file not found)
+		}()
+	}
+	wg.Wait()
 }
