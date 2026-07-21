@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -19,6 +20,8 @@
 }
 
 *{ box-sizing: border-box; }
+
+img{ max-width: 100%; height: auto; }
 
 body{
   margin:0;
@@ -279,6 +282,7 @@ pre.raw-hex, .hex-data.raw-hex{
 }
 .raw-toolbar{
   display:flex;
+  flex-wrap: wrap;
   align-items:center;
   justify-content: space-between;
   gap: 10px;
@@ -293,8 +297,9 @@ pre.raw-hex, .hex-data.raw-hex{
 }
 .raw-actions{
   display:flex;
+  flex-wrap: wrap;
   gap: 8px;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
 }
 .btn{
   appearance:none;
