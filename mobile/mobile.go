@@ -87,7 +87,17 @@ func NewPasswordCan(can string) (*MrtdPassword, error) {
 	return &MrtdPassword{password: password.NewPasswordCan(can)}, nil
 }
 
+// Reader is not safe for concurrent use: it is a single-use, single-goroutine
+// object for driving one document read. mu guards the mutable configuration
+// fields (set via SetApduMaxLe/SkipPace/SkipImages/WithAAChallenge) and
+// serialises ReadDocument, so a Reader that a host app accidentally shares
+// and calls from multiple threads (e.g. gomobile bindings invoked from
+// several Swift/Kotlin dispatch queues) fails safe - calls queue up - rather
+// than racing on these fields and corrupting the Go heap. Callers should
+// still construct a new Reader per read rather than relying on this lock.
 type Reader struct {
+	mu sync.Mutex
+
 	status      ReaderStatus
 	transceiver Transceiver
 	maxRead     int
@@ -113,17 +123,23 @@ func (r *Reader) SetApduMaxLe(maxRead int) error {
 	if maxRead < 0 || maxRead > 65536 {
 		return fmt.Errorf("[SetApduMaxLe] maxRead must be 0 or between 1 and 65536")
 	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.maxRead = maxRead
 	return nil
 }
 
 // SkipPace configures the reader to skip PACE during document reading
 func (r *Reader) SkipPace() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.skipPace = true
 }
 
 // SkipImages configures the reader to skip image data groups (DG2, DG7)
 func (r *Reader) SkipImages() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.skipImages = true
 }
 
@@ -144,11 +160,17 @@ func (r *Reader) WithAAChallenge(challenge []byte) (*Reader, error) {
 	if len(challenge) != 8 {
 		return nil, fmt.Errorf("[WithAAChallenge] challenge must be exactly 8 bytes, got %d", len(challenge))
 	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.aaChallenge = bytes.Clone(challenge)
 	return r, nil
 }
 
 func (r *Reader) ReadDocument(password *MrtdPassword, atr []byte, ats []byte) (doc *Document, err error) {
+	// Locked for the whole call: see the Reader docstring above.
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	defer func() {
 		if e := recover(); e != nil {
 			switch x := e.(type) {
@@ -215,7 +237,13 @@ func OidDesc(oidStr string) string {
 	return oid.OidDescStr(oidStr)
 }
 
+// Verifier is not safe for concurrent use: it is a single-use,
+// single-goroutine object for verifying one piece of evidence. mu guards
+// aaChallenge (set via WithAAChallenge) and serialises Verify - see the
+// Reader docstring above for why this matters for gomobile-bound callers.
 type Verifier struct {
+	mu sync.Mutex
+
 	aaChallenge []byte
 }
 
@@ -234,11 +262,17 @@ func (v *Verifier) WithAAChallenge(challenge []byte) (*Verifier, error) {
 	if len(challenge) != 8 {
 		return nil, fmt.Errorf("[WithAAChallenge] challenge must be exactly 8 bytes, got %d", len(challenge))
 	}
+	v.mu.Lock()
+	defer v.mu.Unlock()
 	v.aaChallenge = bytes.Clone(challenge)
 	return v, nil
 }
 
 func (v *Verifier) Verify(data []byte) (doc *Document, err error) {
+	// Locked for the whole call: see the Verifier docstring above.
+	v.mu.Lock()
+	defer v.mu.Unlock()
+
 	certPool, err := getCscaCertPool()
 	if err != nil {
 		return nil, fmt.Errorf("[Verify] getCscaCertPool error: %w", err)

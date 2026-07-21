@@ -2,6 +2,7 @@ package mobile
 
 import (
 	"regexp"
+	"sync"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/document"
@@ -454,6 +455,53 @@ func TestNewSampleDocument(t *testing.T) {
 	if len(apduLogJson) < 1 {
 		t.Error("expected some (empty-log) APDU log JSON data")
 	}
+}
+
+// Regression test for a heap-corruption crash observed under concurrent use
+// on iOS: a shared mobile.Reader's fields (maxRead/skipPace/skipImages/
+// aaChallenge) were written by the configuration methods while ReadDocument
+// read them from another goroutine, unsynchronised - exactly the kind of
+// race that manifests as a Go runtime fatal error (e.g.
+// "bulkBarrierPreWrite: unaligned arguments") rather than a clean panic. Run
+// with `go test -race` to confirm the mutex added to Reader closes the race.
+func TestReaderConcurrentAccess(t *testing.T) {
+	reader := NewReader(&testReaderStatus{}, &iso7816.StaticTransceiver{})
+
+	pass, err := NewPasswordMrz("I<UTOSTEVENSON<<PETER<JOHN<<<<<<<<<<D23145890<UTO3407127M95071227349<<<8")
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	var wg sync.WaitGroup
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_ = reader.SetApduMaxLe(1000)
+			reader.SkipPace()
+			reader.SkipImages()
+			_, _ = reader.WithAAChallenge(make([]byte, 8))
+			_, _ = reader.ReadDocument(pass, nil, nil) // expected to fail fast (static transceiver)
+		}()
+	}
+	wg.Wait()
+}
+
+// Regression test for the same class of race as TestReaderConcurrentAccess,
+// but for mobile.Verifier's aaChallenge field.
+func TestVerifierConcurrentAccess(t *testing.T) {
+	v := NewVerifier()
+
+	var wg sync.WaitGroup
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, _ = v.WithAAChallenge(make([]byte, 8))
+			_, _ = v.Verify([]byte{0xff, 0xff, 0xff}) // expected to fail fast (invalid CBOR)
+		}()
+	}
+	wg.Wait()
 }
 
 func TestVersion(t *testing.T) {
