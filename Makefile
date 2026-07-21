@@ -29,6 +29,18 @@ ANDROID_JAVAPKG     ?= io.github.gmrtd
 # Optional build tags for the mobile facade (leave blank if unused)
 GO_TAGS             ?= mobile
 
+# -------- GODEBUG defaults (baked into the compiled Go runtime) --------
+# `gomobile bind` builds every target from a throwaway go.mod it fabricates
+# itself, so a `godebug` line in *this* repo's go.mod never reaches it - and
+# asyncpreemptoff isn't on Go's godebug-directive allowlist anyway (it's
+# only settable via the GODEBUG env var, which the iOS static archive's Go
+# runtime constructor can init before any Swift code runs to set it).
+# Setting runtime.godebugDefault via -ldflags is the same mechanism cmd/go
+# uses internally for allowlisted settings; it bakes in a default that
+# applies before GODEBUG is even read.
+GODEBUG_DEFAULT     ?= asyncpreemptoff=1
+LDFLAGS_GODEBUG     := -X=runtime.godebugDefault=$(GODEBUG_DEFAULT)
+
 # -------- Env --------
 export GOPATH        ?= $(HOME)/go
 export PATH          := $(GOPATH)/bin:$(PATH)
@@ -80,6 +92,7 @@ $(IOS_OUT)/$(IOS_NAME).xcframework:
 		-iosversion=$(MIN_IOS) \
 		-o $(IOS_OUT)/$(IOS_NAME).xcframework \
 		-prefix $(OBJC_PREFIX) \
+		-ldflags="$(LDFLAGS_GODEBUG)" \
 		$(if $(GO_TAGS),-tags "$(GO_TAGS)",) \
 		$(PKG_MOBILE)
 	@echo ">> iOS XCFramework at $(IOS_OUT)/$(IOS_NAME).xcframework"
@@ -96,6 +109,7 @@ $(ANDROID_OUT)/$(AAR_NAME):
 		-androidapi=$(MIN_ANDROID_SDK) \
 		-javapkg $(ANDROID_JAVAPKG) \
 		-o $(ANDROID_OUT)/$(AAR_NAME) \
+		-ldflags="$(LDFLAGS_GODEBUG)" \
 		$(if $(GO_TAGS),-tags "$(GO_TAGS)",) \
 		$(PKG_MOBILE)
 	@echo ">> Android AAR at $(ANDROID_OUT)/$(AAR_NAME)"
@@ -108,7 +122,7 @@ $(ANDROID_OUT)/$(AAR_16KB_NAME):
 		-target=android/arm64,android/amd64 \
 		-androidapi=$(MIN_ANDROID_SDK) \
 		-javapkg $(ANDROID_JAVAPKG) \
-		-ldflags='-R=16384' \
+		-ldflags="$(LDFLAGS_GODEBUG) -R=16384" \
 		-o $(ANDROID_OUT)/$(AAR_16KB_NAME) \
 		$(if $(GO_TAGS),-tags "$(GO_TAGS)",) \
 		$(PKG_MOBILE)
