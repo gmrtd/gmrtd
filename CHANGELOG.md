@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.47.5](https://github.com/gmrtd/gmrtd/compare/v0.47.4...v0.47.5) (2026-07-21)
+
+
+### Bug Fixes
+
+* **makefile:** disabled async preempt for mobile builds ([#438](https://github.com/gmrtd/gmrtd/issues/438)) ([703d859](https://github.com/gmrtd/gmrtd/commit/703d85949e532fe56d07d9a838b45d0f0a08f074))
+
 ## [0.47.4](https://github.com/gmrtd/gmrtd/compare/v0.47.3...v0.47.4) (2026-07-21)
 
 
