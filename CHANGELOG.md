@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.47.4](https://github.com/gmrtd/gmrtd/compare/v0.47.3...v0.47.4) (2026-07-21)
+
+
+### Bug Fixes
+
+* Concurrent use of Reader/Verifier corrupts Go heap (fatal error: bulkBarrierPreWrite) ([#434](https://github.com/gmrtd/gmrtd/issues/434)) ([15167b6](https://github.com/gmrtd/gmrtd/commit/15167b60824597e1e7cb27eadeb04c464a5157b0))
+
 ## [0.47.3](https://github.com/gmrtd/gmrtd/compare/v0.47.2...v0.47.3) (2026-07-20)
 
 
