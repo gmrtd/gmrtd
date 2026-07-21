@@ -1,4 +1,15 @@
 // Package password provides utilities for generating MRTD passwords (MRZ,MRZi,CAN) used during BAC/PACE authentication.
+//
+// "Password" is not a user-chosen login credential - it's the ICAO 9303 term for a shared
+// secret that proves the reader has physical/optical access to the document itself. It's
+// one of:
+//   - MRZi: derived from the document number, date of birth, and date of expiry printed in
+//     the MRZ (see NewPasswordMrz / NewPasswordMrzi).
+//   - CAN: the Card Access Number, a short number printed on the document (see NewPasswordCan).
+//
+// PACE takes its name directly from this term: "Password Authenticated Connection
+// Establishment" (9303 p11 s4). BAC uses the same secret to derive its session keys, which
+// the spec calls the "Basic Access Keys" (KEnc/KMAC) - see Password.Key.
 package password
 
 import (
@@ -23,6 +34,8 @@ const (
 	PASSWORD_TYPE_CAN
 )
 
+// Password holds the shared secret (MRZi or CAN) used to authenticate with the document
+// chip. It is not a login password; see the package doc comment for the ICAO 9303 context.
 type Password struct {
 	PasswordType PasswordType
 	Password     string
@@ -94,6 +107,9 @@ func (password *Password) Type() (byte, error) {
 	return passwordTypeValue, nil
 }
 
+// Key returns the raw secret bytes derived from the password (SHA1(MRZi) or the CAN
+// itself). This is an input to BAC/PACE key derivation (e.g. K_seed), not a final
+// session key on its own.
 func (password *Password) Key() ([]byte, error) {
 	// generate K
 	var key []byte
