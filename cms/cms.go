@@ -29,6 +29,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf16"
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
 	"github.com/gmrtd/gmrtd/oid"
@@ -619,7 +620,7 @@ func (rdnSeq RDNSequence) Equal(other RDNSequence) bool {
 			if matched[j] {
 				continue
 			}
-			if aa.Type.Equal(ba.Type) && bytes.Equal(aa.Values.FullBytes, ba.Values.FullBytes) {
+			if aa.Type.Equal(ba.Type) && attributeValuesEqual(aa.Values, ba.Values) {
 				matched[j] = true
 				found = true
 				break
@@ -630,6 +631,59 @@ func (rdnSeq RDNSequence) Equal(other RDNSequence) bool {
 		}
 	}
 	return true
+}
+
+// attributeValuesEqual compares two RDN AttributeValues. It first tries an exact
+// byte match (the common case), then falls back to a normalized string comparison
+// so that the same Distinguished Name still matches when the SignerInfo issuer and
+// the embedded certificate issuer encode a value with a different DER string type
+// (e.g. PrintableString vs UTF8String), letter case, or insignificant whitespace.
+func attributeValuesEqual(a, b asn1.RawValue) bool {
+	if bytes.Equal(a.FullBytes, b.FullBytes) {
+		return true
+	}
+
+	na, okA := normalizedDirectoryString(a)
+	nb, okB := normalizedDirectoryString(b)
+	return okA && okB && na == nb
+}
+
+// normalizedDirectoryString decodes a DirectoryString-style AttributeValue and
+// applies the RFC 5280 §7.1 / RFC 4518 comparison rules used for Name matching:
+// case-fold, and treat leading, trailing and repeated inner whitespace as
+// insignificant. The bool is false when the value is not a recognized string
+// type, in which case the caller falls back to a raw byte comparison.
+func normalizedDirectoryString(v asn1.RawValue) (string, bool) {
+	if v.Class != asn1.ClassUniversal {
+		return "", false
+	}
+
+	var s string
+	switch v.Tag {
+	case asn1.TagUTF8String, asn1.TagPrintableString, asn1.TagIA5String, asn1.TagT61String, asn1.TagGeneralString:
+		// 8-bit string types: the content octets are the (ASCII/UTF-8/Latin-1) text.
+		s = string(v.Bytes)
+	case asn1.TagBMPString:
+		s = decodeBMPString(v.Bytes)
+	default:
+		return "", false
+	}
+
+	// caseIgnoreMatch + insignificant whitespace: strings.Fields trims and
+	// collapses any run of whitespace, then we case-fold the result.
+	return strings.ToLower(strings.Join(strings.Fields(s), " ")), true
+}
+
+// decodeBMPString decodes a BMPString (UTF-16BE) into a Go string.
+func decodeBMPString(b []byte) string {
+	if len(b)%2 != 0 {
+		return string(b)
+	}
+	u16 := make([]uint16, len(b)/2)
+	for i := range u16 {
+		u16[i] = uint16(b[2*i])<<8 | uint16(b[2*i+1])
+	}
+	return string(utf16.Decode(u16))
 }
 
 // Flatten returns all attributes across all RDN SETs as a single slice.
@@ -1003,6 +1057,19 @@ func (si *SignerInfo) selectCertificate(sd *SignedData) (*Certificate, error) {
 		return nil, fmt.Errorf("[selectCertificate] CertPool.Add error: %w", err)
 	}
 
+	// Diagnostics: surface exactly which certificates are embedded in the SOD.
+	// When selection fails (got:0) this is the only way to distinguish "DS cert
+	// absent" from "DS cert present but issuer/serial mismatch" from logs alone.
+	slog.Debug("selectCertificate - embedded certificates in SignedData", "cnt", sdCerts.Count())
+	for i := range sdCerts.certificates {
+		c := &sdCerts.certificates[i]
+		issuer := "<unparsable>"
+		if rdn, e := c.TbsCertificate.IssuerRDN(); e == nil {
+			issuer = rdn.String()
+		}
+		slog.Debug("selectCertificate - embedded cert", "idx", i, "serial", c.TbsCertificate.SerialNumber, "issuer", issuer)
+	}
+
 	var tmpCerts []Certificate
 
 	switch {
@@ -1020,6 +1087,20 @@ func (si *SignerInfo) selectCertificate(sd *SignedData) (*Certificate, error) {
 	}
 
 	if len(tmpCerts) != 1 {
+		// Fallback: the SignerIdentifier did not select exactly one embedded
+		// certificate. When the SOD embeds exactly one certificate we use it
+		// regardless of the SID, matching the reference implementation (JMRTD,
+		// which never selects by SID) and gmrtd's own pre-#353 behaviour. This
+		// is safe: the DS-cert's public key must still verify the SignedData
+		// signature, and the DS-cert must still chain to a trusted CSCA - both
+		// enforced downstream in SignerInfo.VerifyWithConfig - so a wrong cert
+		// cannot pass. It rescues passports (e.g. Ukraine) whose SID issuer is
+		// encoded differently from the embedded DS-cert issuer.
+		if sdCerts.Count() == 1 {
+			slog.Warn("[selectCertificate] SignerIdentifier did not match; using the sole embedded certificate (JMRTD-style fallback)",
+				"sid", utils.BytesToHex(si.Sid.FullBytes))
+			return &sdCerts.certificates[0], nil
+		}
 		return nil, fmt.Errorf("[selectCertificate] Expected a single matching Cert from within the SignedData (got:%d) (sid:%x)", len(tmpCerts), si.Sid.FullBytes)
 	}
 

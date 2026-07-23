@@ -126,6 +126,106 @@ func TestRDNSequenceEqualMultiValuedSET(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// RDNSequence.Equal - normalized string matching (issue #440)
+//
+// The SignerInfo issuer copy and the embedded DS certificate issuer can encode
+// the same Distinguished Name with a different DER string type, letter case, or
+// insignificant whitespace. These must still compare equal so the DS cert can be
+// selected from the SOD.
+// ---------------------------------------------------------------------------
+
+const (
+	tagUTF8String      = 12
+	tagPrintableString = 19
+	tagBMPString       = 30
+)
+
+// makeAttrTagged builds an Attribute whose value uses an explicit universal
+// string tag (short-form length; sufficient for test values).
+func makeAttrTagged(oidVal asn1.ObjectIdentifier, tag int, content []byte) Attribute {
+	full := append([]byte{byte(tag), byte(len(content))}, content...)
+	return Attribute{
+		Type:   oidVal,
+		Values: asn1.RawValue{Class: asn1.ClassUniversal, Tag: tag, Bytes: content, FullBytes: full},
+	}
+}
+
+func bmpBytes(s string) []byte {
+	out := make([]byte, 0, len(s)*2)
+	for _, r := range s {
+		out = append(out, byte(r>>8), byte(r&0xff))
+	}
+	return out
+}
+
+func TestRDNSequenceEqualDifferentStringEncoding(t *testing.T) {
+	t.Parallel()
+	// Same DN, but one side is PrintableString and the other UTF8String.
+	a := RDNSequence{
+		RelativeDistinguishedNameSET{makeAttrTagged(oid.OidCommonName, tagPrintableString, []byte("CSCA-UKRAINE"))},
+	}
+	b := RDNSequence{
+		RelativeDistinguishedNameSET{makeAttrTagged(oid.OidCommonName, tagUTF8String, []byte("CSCA-UKRAINE"))},
+	}
+	if !a.Equal(b) {
+		t.Fatal("same DN with PrintableString vs UTF8String encoding should be equal")
+	}
+}
+
+func TestRDNSequenceEqualCaseInsensitive(t *testing.T) {
+	t.Parallel()
+	a := RDNSequence{
+		RelativeDistinguishedNameSET{makeAttrTagged(oid.OidOrganizationName, tagPrintableString, []byte("bund"))},
+	}
+	b := RDNSequence{
+		RelativeDistinguishedNameSET{makeAttrTagged(oid.OidOrganizationName, tagUTF8String, []byte("BUND"))},
+	}
+	if !a.Equal(b) {
+		t.Fatal("DN differing only in letter case should be equal")
+	}
+}
+
+func TestRDNSequenceEqualWhitespaceInsensitive(t *testing.T) {
+	t.Parallel()
+	a := RDNSequence{
+		RelativeDistinguishedNameSET{makeAttrTagged(oid.OidCommonName, tagPrintableString, []byte("Malaysia  Country Signer"))},
+	}
+	b := RDNSequence{
+		RelativeDistinguishedNameSET{makeAttrTagged(oid.OidCommonName, tagPrintableString, []byte(" Malaysia Country Signer "))},
+	}
+	if !a.Equal(b) {
+		t.Fatal("DN differing only in insignificant whitespace should be equal")
+	}
+}
+
+func TestRDNSequenceEqualBMPString(t *testing.T) {
+	t.Parallel()
+	a := RDNSequence{
+		RelativeDistinguishedNameSET{makeAttrTagged(oid.OidCommonName, tagBMPString, bmpBytes("CSCA-UKRAINE"))},
+	}
+	b := RDNSequence{
+		RelativeDistinguishedNameSET{makeAttrTagged(oid.OidCommonName, tagUTF8String, []byte("CSCA-UKRAINE"))},
+	}
+	if !a.Equal(b) {
+		t.Fatal("same DN encoded as BMPString vs UTF8String should be equal")
+	}
+}
+
+func TestRDNSequenceEqualDifferentValueStillUnequal(t *testing.T) {
+	t.Parallel()
+	// Guard: normalization must not collapse genuinely different values.
+	a := RDNSequence{
+		RelativeDistinguishedNameSET{makeAttrTagged(oid.OidCommonName, tagPrintableString, []byte("CSCA-UKRAINE"))},
+	}
+	b := RDNSequence{
+		RelativeDistinguishedNameSET{makeAttrTagged(oid.OidCommonName, tagUTF8String, []byte("CSCA-GERMANY"))},
+	}
+	if a.Equal(b) {
+		t.Fatal("different common names must not be equal despite encoding normalization")
+	}
+}
+
+// ---------------------------------------------------------------------------
 // RDNSequence.Flatten
 // ---------------------------------------------------------------------------
 
@@ -284,7 +384,11 @@ func TestSelectCertificateUnsupportedSIDTag(t *testing.T) {
 // selectCertificate – IssuerAndSerialNumber SID with no matching cert
 // ---------------------------------------------------------------------------
 
-func TestSelectCertificateIssuerSerialNoMatch(t *testing.T) {
+// When the IssuerAndSerialNumber SID matches no embedded cert but the SOD embeds
+// exactly one certificate, selectCertificate falls back to that sole cert (issue
+// #440, JMRTD-style). Trust remains gated by the downstream signature and
+// CSCA-chain checks.
+func TestSelectCertificateIssuerSerialNoMatchFallsBackToSoleCert(t *testing.T) {
 	t.Parallel()
 
 	certBytes := utils.HexToBytes("308203df30820366a00302010202086189db18b6ede857300a06082a8648ce3d040303303f310b3009060355040613024154310b3009060355040a0c024756310c300a060355040b0c03424d493115301306035504030c0c435343412d41555354524941301e170d3233303133313038303430325a170d3333303530363038303430325a3054310b3009060355040613024154310b3009060355040a0c024756310c300a060355040b0c03424d49310f300d060355040513063030343031353119301706035504030c1044532d415553545249412d654d525444308201333081ec06072a8648ce3d02013081e0020101302c06072a8648ce3d0101022100a9fb57dba1eea9bc3e660a909d838d726e3bf623d52620282013481d1f6e5377304404207d5a0975fc2c3057eef67530417affe7fb8055c126dc5c6ce94a4b44f330b5d9042026dc5c6ce94a4b44f330b5d9bbd77cbf958416295cf7e1ce6bccdc18ff8c07b60441048bd2aeb9cb7e57cb2c4b482ffc81b7afb9de27e1e3bd23c23a4453bd9ace3262547ef835c3dac4fd97f8461a14611dc9c27745132ded8e545c1d54c72f046997022100a9fb57dba1eea9bc3e660a909d838d718c397aa3b561a6f7901e0e82974856a7020101034200048893905193f315ee2e2f1eee3fd5a496f6637deb3778cfe7cc2f6c7f0682acc795b0290265a2cb83119343544f2bbfe42974159ac77b113dafbee860c2523c06a382015930820155301d0603551d0e04160414e76eaa567acf6568c660c985717c3c8a50bd024b301f0603551d230418301680142692c7e398abfbe35192d3f26e9a317d1fed53bd301a0603551d1004133011810f32303233303530363038303430325a30160603551d20040f300d300b06092a28000a0102010101303e0603551d1f043730353033a031a02f862d687474703a2f2f7777772e626d692e67762e61742f637363612f63726c2f43534341415553545249412e63726c300e0603551d0f0101ff04040302078030370603551d120430302ea410300e310c300a06035504070c03415554861a687474703a2f2f7777772e626d692e67762e61742f637363612f30370603551d110430302ea410300e310c300a06035504070c03415554861a687474703a2f2f7777772e626d692e67762e61742f637363612f301d06076781080101060204123010020100310b1301501302415213024944300a06082a8648ce3d040303036700306402303af7ae31ca6b8fafca6ec51985997f7119fb2e6d20d61b5327d5740109aa310b410bfb44f354e086f207fcab721e69ae023046c68fb7909f994350a2d1c84d1ae5dff8c00de6d86b7891a6cf90ceea09159402e6e2ed3fa548db28d33146319eefda")
@@ -309,11 +413,16 @@ func TestSelectCertificateIssuerSerialNoMatch(t *testing.T) {
 
 	si := &sd.SignerInfos[0]
 	cert, err := si.selectCertificate(sd)
-	if err == nil {
-		t.Fatal("expected error when no cert matches IssuerAndSerialNumber")
+	if err != nil {
+		t.Fatalf("expected fallback to the sole embedded cert, got error: %v", err)
 	}
-	if cert != nil {
-		t.Fatal("cert should be nil on error")
+	if cert == nil {
+		t.Fatal("expected the sole embedded cert, got nil")
+	}
+	// AT DS cert serial 0x6189db18b6ede857
+	expSerial, _ := new(big.Int).SetString("6189db18b6ede857", 16)
+	if cert.TbsCertificate.SerialNumber.Cmp(expSerial) != 0 {
+		t.Errorf("unexpected cert selected (serial %x)", cert.TbsCertificate.SerialNumber)
 	}
 }
 
