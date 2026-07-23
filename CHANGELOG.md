@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.47.6](https://github.com/gmrtd/gmrtd/compare/v0.47.5...v0.47.6) (2026-07-23)
+
+
+### Bug Fixes
+
+* **cms:** tolerant DS certificate selection for issuerAndSerial SODs … ([#441](https://github.com/gmrtd/gmrtd/issues/441)) ([632311e](https://github.com/gmrtd/gmrtd/commit/632311e627d36d3d9f5d0dfe1f30f879481b885c))
+
 ## [0.47.5](https://github.com/gmrtd/gmrtd/compare/v0.47.4...v0.47.5) (2026-07-21)
 
 
