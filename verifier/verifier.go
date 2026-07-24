@@ -6,6 +6,7 @@ package verifier
 import (
 	"bytes"
 	"fmt"
+	"sync"
 
 	"github.com/gmrtd/gmrtd/activeauth"
 	"github.com/gmrtd/gmrtd/chipauth"
@@ -15,7 +16,14 @@ import (
 	"github.com/gmrtd/gmrtd/passiveauth"
 )
 
+// Verifier is not safe for concurrent use: it is a single-use, single-goroutine
+// object for verifying one piece of evidence. mu guards aaChallenge (set via
+// WithAAChallenge) and serialises Verify, so a Verifier that is accidentally
+// shared and called from multiple goroutines fails safe (calls queue up)
+// rather than corrupting the Go heap.
 type Verifier struct {
+	mu sync.Mutex
+
 	cscaCertPool cms.CertPool
 	aaChallenge  []byte
 }
@@ -34,12 +42,18 @@ func (v *Verifier) WithAAChallenge(challenge []byte) (*Verifier, error) {
 	if len(challenge) != 8 {
 		return nil, fmt.Errorf("[WithAAChallenge] challenge must be exactly 8 bytes, got %d", len(challenge))
 	}
+	v.mu.Lock()
+	defer v.mu.Unlock()
 	v.aaChallenge = bytes.Clone(challenge)
 	return v, nil
 }
 
 // TODO - need to think about hard errors for PA, and CA.. currently only have hard-error for AA nonce mismatch. Should we also hard-error if PA fails, or CA fails? Or just return the result in the DocumentEx.Session?
 func (v *Verifier) Verify(data []byte) (*document.DocumentEx, error) {
+	// Locked for the whole call: see the Verifier docstring above.
+	v.mu.Lock()
+	defer v.mu.Unlock()
+
 	doc, caBundle, err := document.UnmarshalVerifiableDoc(data)
 	if err != nil {
 		return nil, fmt.Errorf("[Verify] UnmarshalVerifiableDoc error: %w", err)
@@ -67,8 +81,6 @@ func (v *Verifier) Verify(data []byte) (*document.DocumentEx, error) {
 	docEx.Session.PassiveAuthResult, docEx.Session.PassiveAuthErr = passiveauth.PassiveAuth(doc, v.cscaCertPool)
 
 	docEx.Session.DocumentVerifyErr = doc.Verify()
-
-	docEx.GenerateSummary()
 
 	return &docEx, nil
 }

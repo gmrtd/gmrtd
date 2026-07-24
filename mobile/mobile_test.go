@@ -2,6 +2,7 @@ package mobile
 
 import (
 	"regexp"
+	"sync"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/document"
@@ -310,6 +311,17 @@ func TestDocumentExJsonError(t *testing.T) {
 	}
 }
 
+func TestSummaryJsonError(t *testing.T) {
+	// error expected as we attempt to get Summary-Json before ReadDocument
+
+	doc := &Document{}
+
+	_, err := doc.SummaryJson()
+	if err == nil {
+		t.Errorf("error expected")
+	}
+}
+
 type PanicTransceiver struct {
 }
 
@@ -386,6 +398,110 @@ func TestOidDesc(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewSampleDocument(t *testing.T) {
+	doc, err := NewSampleDocument()
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	// Passive Authentication is run against the sample data, but is expected
+	// to fail - the DGs are sourced from different worked examples.
+	session := doc.documentEx.Session
+	if session.PassiveAuthResult == nil {
+		t.Fatalf("expected PassiveAuthResult to be populated")
+	}
+	if session.PassiveAuthResult.Success {
+		t.Errorf("expected PassiveAuthResult.Success to be false")
+	}
+	if session.PassiveAuthErr == nil {
+		t.Errorf("expected PassiveAuthErr to be set")
+	}
+
+	summary := doc.documentEx.Summary()
+	if summary == nil || summary.DataTrusted {
+		t.Errorf("expected Summary.DataTrusted to be false")
+	}
+
+	summaryJson, err := doc.SummaryJson()
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if len(summaryJson) < 1 {
+		t.Error("expected some Summary JSON data")
+	}
+
+	json, err := doc.DocumentExJson()
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if len(json) < 1 {
+		t.Error("expected some JSON data")
+	}
+
+	cborData, err := doc.DocumentExCbor()
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if len(cborData) < 1 {
+		t.Error("expected some CBOR data")
+	}
+
+	apduLogJson, err := doc.ApduLogJson()
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if len(apduLogJson) < 1 {
+		t.Error("expected some (empty-log) APDU log JSON data")
+	}
+}
+
+// Regression test for a heap-corruption crash observed under concurrent use
+// on iOS: a shared mobile.Reader's fields (maxRead/skipPace/skipImages/
+// aaChallenge) were written by the configuration methods while ReadDocument
+// read them from another goroutine, unsynchronised - exactly the kind of
+// race that manifests as a Go runtime fatal error (e.g.
+// "bulkBarrierPreWrite: unaligned arguments") rather than a clean panic. Run
+// with `go test -race` to confirm the mutex added to Reader closes the race.
+func TestReaderConcurrentAccess(t *testing.T) {
+	reader := NewReader(&testReaderStatus{}, &iso7816.StaticTransceiver{})
+
+	pass, err := NewPasswordMrz("I<UTOSTEVENSON<<PETER<JOHN<<<<<<<<<<D23145890<UTO3407127M95071227349<<<8")
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	var wg sync.WaitGroup
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_ = reader.SetApduMaxLe(1000)
+			reader.SkipPace()
+			reader.SkipImages()
+			_, _ = reader.WithAAChallenge(make([]byte, 8))
+			_, _ = reader.ReadDocument(pass, nil, nil) // expected to fail fast (static transceiver)
+		}()
+	}
+	wg.Wait()
+}
+
+// Regression test for the same class of race as TestReaderConcurrentAccess,
+// but for mobile.Verifier's aaChallenge field.
+func TestVerifierConcurrentAccess(t *testing.T) {
+	v := NewVerifier()
+
+	var wg sync.WaitGroup
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, _ = v.WithAAChallenge(make([]byte, 8))
+			_, _ = v.Verify([]byte{0xff, 0xff, 0xff}) // expected to fail fast (invalid CBOR)
+		}()
+	}
+	wg.Wait()
 }
 
 func TestVersion(t *testing.T) {

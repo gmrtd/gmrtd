@@ -2,12 +2,32 @@ package document
 
 import (
 	"bytes"
+	"encoding/asn1"
 	"strings"
 	"testing"
 
 	cms "github.com/gmrtd/gmrtd/cms"
+	"github.com/gmrtd/gmrtd/oid"
 	"github.com/gmrtd/gmrtd/utils"
 )
+
+func TestIsValidEContentType(t *testing.T) {
+	testCases := []struct {
+		oid asn1.ObjectIdentifier
+		exp bool
+	}{
+		{oid: oid.OidLdsSecurityObject, exp: true},       // 2.23.136.1.1.1 (standard ICAO)
+		{oid: oid.OidLdsSecurityObjectLegacy, exp: true}, // 1.3.27.1.1.1 (legacy ICAO, BE/FR)
+		{oid: oid.OidLdsSecurityObjectSdu, exp: true},    // 1.2.528.1.1006.1.20.1 (Sdu/NL)
+		{oid: oid.OidIdData, exp: true},                  // 1.2.840.113549.1.7.1 (China passport)
+		{oid: oid.OidSignedData, exp: false},             // unrelated OID
+	}
+	for _, tc := range testCases {
+		if act := isValidEContentType(tc.oid); act != tc.exp {
+			t.Errorf("isValidEContentType(%s): expected %t, got %t", tc.oid.String(), tc.exp, act)
+		}
+	}
+}
 
 func TestNewSodInvalidCases(t *testing.T) {
 	testCases := []struct {

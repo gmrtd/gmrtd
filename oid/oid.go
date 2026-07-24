@@ -77,6 +77,7 @@ var (
 	OidPaceEcdhCamAesCbcCmac192         = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 6, 3}
 	OidPaceEcdhCamAesCbcCmac256         = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 6, 4}
 	OidSecurityObject                   = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 3, 2, 1}
+	OidLdsSecurityObjectSdu             = asn1.ObjectIdentifier{1, 2, 528, 1, 1006, 1, 20, 1} // Sdu Identification (NL) variant of ldsSecurityObject content-type
 	OidPrimeField                       = asn1.ObjectIdentifier{1, 2, 840, 10045, 1, 1}
 	OidEcPublicKey                      = asn1.ObjectIdentifier{1, 2, 840, 10045, 2, 1}
 	OidPrime192v1                       = asn1.ObjectIdentifier{1, 2, 840, 10045, 3, 1, 1}
@@ -102,6 +103,7 @@ var (
 	OidSigningTime                      = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 5}
 	OidHashAlgorithmMD5                 = asn1.ObjectIdentifier{1, 2, 840, 113549, 2, 5}
 	OidHashAlgorithmSHA1                = asn1.ObjectIdentifier{1, 3, 14, 3, 2, 26}
+	OidLdsSecurityObjectLegacy          = asn1.ObjectIdentifier{1, 3, 27, 1, 1, 1} // legacy ICAO icao(27) arc for ldsSecurityObject; seen on Belgian/French MRTDs
 	OidEfDir                            = asn1.ObjectIdentifier{1, 3, 27, 1, 1, 13}
 	OidBrainpoolP192r1                  = asn1.ObjectIdentifier{1, 3, 36, 3, 3, 2, 8, 1, 1, 3}
 	OidBrainpoolP224r1                  = asn1.ObjectIdentifier{1, 3, 36, 3, 3, 2, 8, 1, 1, 5}
@@ -258,6 +260,8 @@ var oidLookup = map[string]string{
 	OidIcao.String():                             "id-icao",
 	OidIcaoMrtdSecurity.String():                 "id-icao-mrtd-security",
 	OidLdsSecurityObject.String():                "ldsSecurityObject",
+	OidLdsSecurityObjectLegacy.String():          "ldsSecurityObject-legacy",
+	OidLdsSecurityObjectSdu.String():             "ldsSecurityObject-sdu",
 	OidIcaoMrtdSecurityAaProtocolObject.String(): "id-icao-mrtd-security-aaProtocolObject",
 	OidDocumentTypeList.String():                 "documentTypeList",
 }

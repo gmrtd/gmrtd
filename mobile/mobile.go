@@ -11,9 +11,9 @@ import (
 	"github.com/gmrtd/gmrtd/cms"
 	"github.com/gmrtd/gmrtd/document"
 	"github.com/gmrtd/gmrtd/internal/version"
-	"github.com/gmrtd/gmrtd/iso3166"
 	"github.com/gmrtd/gmrtd/iso7816"
 	"github.com/gmrtd/gmrtd/oid"
+	"github.com/gmrtd/gmrtd/passiveauth"
 	"github.com/gmrtd/gmrtd/password"
 	"github.com/gmrtd/gmrtd/reader"
 	"github.com/gmrtd/gmrtd/verifier"
@@ -87,7 +87,17 @@ func NewPasswordCan(can string) (*MrtdPassword, error) {
 	return &MrtdPassword{password: password.NewPasswordCan(can)}, nil
 }
 
+// Reader is not safe for concurrent use: it is a single-use, single-goroutine
+// object for driving one document read. mu guards the mutable configuration
+// fields (set via SetApduMaxLe/SkipPace/SkipImages/WithAAChallenge) and
+// serialises ReadDocument, so a Reader that a host app accidentally shares
+// and calls from multiple threads (e.g. gomobile bindings invoked from
+// several Swift/Kotlin dispatch queues) fails safe - calls queue up - rather
+// than racing on these fields and corrupting the Go heap. Callers should
+// still construct a new Reader per read rather than relying on this lock.
 type Reader struct {
+	mu sync.Mutex
+
 	status      ReaderStatus
 	transceiver Transceiver
 	maxRead     int
@@ -113,17 +123,23 @@ func (r *Reader) SetApduMaxLe(maxRead int) error {
 	if maxRead < 0 || maxRead > 65536 {
 		return fmt.Errorf("[SetApduMaxLe] maxRead must be 0 or between 1 and 65536")
 	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.maxRead = maxRead
 	return nil
 }
 
 // SkipPace configures the reader to skip PACE during document reading
 func (r *Reader) SkipPace() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.skipPace = true
 }
 
 // SkipImages configures the reader to skip image data groups (DG2, DG7)
 func (r *Reader) SkipImages() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.skipImages = true
 }
 
@@ -144,11 +160,17 @@ func (r *Reader) WithAAChallenge(challenge []byte) (*Reader, error) {
 	if len(challenge) != 8 {
 		return nil, fmt.Errorf("[WithAAChallenge] challenge must be exactly 8 bytes, got %d", len(challenge))
 	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.aaChallenge = bytes.Clone(challenge)
 	return r, nil
 }
 
 func (r *Reader) ReadDocument(password *MrtdPassword, atr []byte, ats []byte) (doc *Document, err error) {
+	// Locked for the whole call: see the Reader docstring above.
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	defer func() {
 		if e := recover(); e != nil {
 			switch x := e.(type) {
@@ -201,17 +223,12 @@ func (r *Reader) ReadDocument(password *MrtdPassword, atr []byte, ats []byte) (d
 // CountryName returns the country name for an MRZ alpha-3 country code.
 // Handles ICAO 9303 quirks such as Germany's special code "D" (mapped to "DEU").
 func CountryName(mrzAlpha3 string) (string, error) {
-	// special handling for Germany per ICAO9303p3 (5. CODES FOR NATIONALITY...)
-	if mrzAlpha3 == "D" {
-		mrzAlpha3 = "DEU"
+	info, err := document.ResolveCountry(mrzAlpha3)
+	if err != nil {
+		return "", fmt.Errorf("[CountryName] %w", err)
 	}
 
-	country := iso3166.ByAlpha3(mrzAlpha3)
-	if country == nil {
-		return "", fmt.Errorf("[CountryName] unable to resolve alpha-3 country code (%s)", mrzAlpha3)
-	}
-
-	return country.Name, nil
+	return info.Name, nil
 }
 
 // OidDesc returns the description associated with an OID string (e.g. "0.4.0.127.0.7").
@@ -220,7 +237,13 @@ func OidDesc(oidStr string) string {
 	return oid.OidDescStr(oidStr)
 }
 
+// Verifier is not safe for concurrent use: it is a single-use,
+// single-goroutine object for verifying one piece of evidence. mu guards
+// aaChallenge (set via WithAAChallenge) and serialises Verify - see the
+// Reader docstring above for why this matters for gomobile-bound callers.
 type Verifier struct {
+	mu sync.Mutex
+
 	aaChallenge []byte
 }
 
@@ -239,11 +262,17 @@ func (v *Verifier) WithAAChallenge(challenge []byte) (*Verifier, error) {
 	if len(challenge) != 8 {
 		return nil, fmt.Errorf("[WithAAChallenge] challenge must be exactly 8 bytes, got %d", len(challenge))
 	}
+	v.mu.Lock()
+	defer v.mu.Unlock()
 	v.aaChallenge = bytes.Clone(challenge)
 	return v, nil
 }
 
 func (v *Verifier) Verify(data []byte) (doc *Document, err error) {
+	// Locked for the whole call: see the Verifier docstring above.
+	v.mu.Lock()
+	defer v.mu.Unlock()
+
 	certPool, err := getCscaCertPool()
 	if err != nil {
 		return nil, fmt.Errorf("[Verify] getCscaCertPool error: %w", err)
@@ -265,12 +294,52 @@ func (v *Verifier) Verify(data []byte) (doc *Document, err error) {
 	return &Document{documentEx: docEx}, nil
 }
 
+// NewSampleDocument returns a Document populated with static ICAO 9303
+// test-vector data, for use in UI development/testing without needing an
+// actual chip read. No ChipAuthResult is populated (evidence intentionally
+// left blank). Passive Authentication IS run against the data (matching what
+// Reader.ReadDocument/Verifier.Verify do), but since the data groups are
+// sourced from different worked examples (see document.SampleDocument), it
+// is expected to fail - Session.PassiveAuthResult.Success will be false and
+// Session.PassiveAuthErr will be set, giving callers a realistic example of
+// a failed-verification result.
+func NewSampleDocument() (*Document, error) {
+	sampleDoc, err := document.SampleDocument()
+	if err != nil {
+		return nil, fmt.Errorf("[NewSampleDocument] error: %w", err)
+	}
+
+	certPool, err := getCscaCertPool()
+	if err != nil {
+		return nil, fmt.Errorf("[NewSampleDocument] getCscaCertPool error: %w", err)
+	}
+
+	documentEx := &document.DocumentEx{Document: *sampleDoc}
+
+	documentEx.Session.PassiveAuthResult, documentEx.Session.PassiveAuthErr = passiveauth.PassiveAuth(sampleDoc, certPool)
+
+	return &Document{documentEx: documentEx}, nil
+}
+
 func (doc *Document) DocumentExJson() (jsonData []byte, err error) {
 	if doc.documentEx == nil {
 		return nil, fmt.Errorf("[DocumentJson] No document available")
 	}
 
 	jsonData, err = json.Marshal(doc.documentEx)
+
+	return jsonData, err
+}
+
+// SummaryJson returns the document's current DocumentSummary (see
+// document.DocumentEx.Summary) as JSON. It is computed fresh on every call from the
+// document/session state, rather than being carried in DocumentExJson's output.
+func (doc *Document) SummaryJson() (jsonData []byte, err error) {
+	if doc.documentEx == nil {
+		return nil, fmt.Errorf("[SummaryJson] No document available")
+	}
+
+	jsonData, err = json.Marshal(doc.documentEx.Summary())
 
 	return jsonData, err
 }

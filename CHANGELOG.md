@@ -1,5 +1,69 @@
 # Changelog
 
+## [0.48.0](https://github.com/gmrtd/gmrtd/compare/v0.47.6...v0.48.0) (2026-07-23)
+
+
+### Features
+
+* **csca:** update to latest NL CSCA master-list, dated 22/07/2026 (fixes [#443](https://github.com/gmrtd/gmrtd/issues/443)) ([#444](https://github.com/gmrtd/gmrtd/issues/444)) ([d2ada80](https://github.com/gmrtd/gmrtd/commit/d2ada809cef97b56b9642a4a7813b4627198e3d0))
+
+## [0.47.6](https://github.com/gmrtd/gmrtd/compare/v0.47.5...v0.47.6) (2026-07-23)
+
+
+### Bug Fixes
+
+* **cms:** tolerant DS certificate selection for issuerAndSerial SODs … ([#441](https://github.com/gmrtd/gmrtd/issues/441)) ([632311e](https://github.com/gmrtd/gmrtd/commit/632311e627d36d3d9f5d0dfe1f30f879481b885c))
+
+## [0.47.5](https://github.com/gmrtd/gmrtd/compare/v0.47.4...v0.47.5) (2026-07-21)
+
+
+### Bug Fixes
+
+* **makefile:** disabled async preempt for mobile builds ([#438](https://github.com/gmrtd/gmrtd/issues/438)) ([703d859](https://github.com/gmrtd/gmrtd/commit/703d85949e532fe56d07d9a838b45d0f0a08f074))
+
+## [0.47.4](https://github.com/gmrtd/gmrtd/compare/v0.47.3...v0.47.4) (2026-07-21)
+
+
+### Bug Fixes
+
+* Concurrent use of Reader/Verifier corrupts Go heap (fatal error: bulkBarrierPreWrite) ([#434](https://github.com/gmrtd/gmrtd/issues/434)) ([15167b6](https://github.com/gmrtd/gmrtd/commit/15167b60824597e1e7cb27eadeb04c464a5157b0))
+
+## [0.47.3](https://github.com/gmrtd/gmrtd/compare/v0.47.2...v0.47.3) (2026-07-20)
+
+
+### Bug Fixes
+
+* **document:** resolve DateOfExpiry to full 4-digit year in IdentityAttributes ([#431](https://github.com/gmrtd/gmrtd/issues/431)) ([07a2227](https://github.com/gmrtd/gmrtd/commit/07a22272de4be3d1cee02789fff9e647745df5b8))
+
+## [0.47.2](https://github.com/gmrtd/gmrtd/compare/v0.47.1...v0.47.2) (2026-07-19)
+
+
+### Bug Fixes
+
+* **dg12:** json output, changed 'details' to 'documentDetails' ([#429](https://github.com/gmrtd/gmrtd/issues/429)) ([09f131f](https://github.com/gmrtd/gmrtd/commit/09f131febbd15e33af2a38fa45b35745d78ed275))
+* trim empty strings from DG11 fields caused by leading/trailing/repeated filler chars ([#427](https://github.com/gmrtd/gmrtd/issues/427)) ([33582a6](https://github.com/gmrtd/gmrtd/commit/33582a6e8a3f12504f3900ef6b7697dce9c47abe))
+
+## [0.47.1](https://github.com/gmrtd/gmrtd/compare/v0.47.0...v0.47.1) (2026-07-14)
+
+
+### Bug Fixes
+
+* accept legacy ICAO and Sdu (NL) ldsSecurityObject content-type OIDs ([#425](https://github.com/gmrtd/gmrtd/issues/425)) ([d48f112](https://github.com/gmrtd/gmrtd/commit/d48f11221de5f4ffdd19b2a648cadb8f24f1b6bd))
+
+## [0.47.0](https://github.com/gmrtd/gmrtd/compare/v0.46.0...v0.47.0) (2026-07-13)
+
+
+### Features
+
+* add DocumentSummary; compute Summary on demand ([#422](https://github.com/gmrtd/gmrtd/issues/422)) ([8dfb6eb](https://github.com/gmrtd/gmrtd/commit/8dfb6ebb31e4f6e4c09d701edc03784418a14b0c))
+
+## [0.46.0](https://github.com/gmrtd/gmrtd/compare/v0.45.0...v0.46.0) (2026-07-07)
+
+
+### Features
+
+* add sample-document generation for mobile bindings and gmrtd-reader CLI ([#418](https://github.com/gmrtd/gmrtd/issues/418)) ([fe7a838](https://github.com/gmrtd/gmrtd/commit/fe7a83865d3642ba95e2843933ad5fac089a1c69))
+
 ## [0.45.0](https://github.com/gmrtd/gmrtd/compare/v0.44.2...v0.45.0) (2026-07-06)
 
 

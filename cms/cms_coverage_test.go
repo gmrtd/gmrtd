@@ -33,7 +33,7 @@ type lcExt struct {
 }
 
 type lcTBS struct {
-	Version    int          `asn1:"explicit,optional,tag:0"`
+	Version    int `asn1:"explicit,optional,tag:0"`
 	Serial     *big.Int
 	SigAlg     lcAlgID
 	Issuer     asn1.RawValue
@@ -80,13 +80,13 @@ func buildTestCertDER(t *testing.T, skiBytes []byte, extraExtensions []lcExt, va
 
 	cert := lcCert{
 		TBS: lcTBS{
-			Version: 2,
-			Serial:  big.NewInt(42),
-			SigAlg:  lcAlgID{Algorithm: oid.OidEcdsaWithSHA256},
-			Issuer:  asn1.RawValue{Tag: asn1.TagSequence, Class: asn1.ClassUniversal},
-			Validity: v,
-			Subject: asn1.RawValue{Tag: asn1.TagSequence, Class: asn1.ClassUniversal},
-			SPKI:    asn1.RawValue{Tag: asn1.TagSequence, Class: asn1.ClassUniversal},
+			Version:    2,
+			Serial:     big.NewInt(42),
+			SigAlg:     lcAlgID{Algorithm: oid.OidEcdsaWithSHA256},
+			Issuer:     asn1.RawValue{Tag: asn1.TagSequence, Class: asn1.ClassUniversal},
+			Validity:   v,
+			Subject:    asn1.RawValue{Tag: asn1.TagSequence, Class: asn1.ClassUniversal},
+			SPKI:       asn1.RawValue{Tag: asn1.TagSequence, Class: asn1.ClassUniversal},
 			Extensions: exts,
 		},
 		SigAlg: lcAlgID{Algorithm: oid.OidEcdsaWithSHA256},
@@ -161,7 +161,7 @@ func TestTBSCertificateSubjectRDN(t *testing.T) {
 // prepareVerificationData tests.
 func buildSimpleSI(attrs AttributeList) *SignerInfo {
 	return &SignerInfo{
-		DigestAlgorithm: AlgorithmIdentifier{Algorithm: oid.OidHashAlgorithmSHA256},
+		DigestAlgorithm:         AlgorithmIdentifier{Algorithm: oid.OidHashAlgorithmSHA256},
 		AuthenticatedAttributes: attrs,
 	}
 }
@@ -861,8 +861,8 @@ func TestCertVerifyParentUnrecognizedCritExt(t *testing.T) {
 	for j := range parents {
 		parents[j].TbsCertificate.Extensions = append(parents[j].TbsCertificate.Extensions,
 			Extension{
-				ObjectId: fakeOid,
-				Critical: true,
+				ObjectId:  fakeOid,
+				Critical:  true,
 				ExtnValue: asn1.RawValue{Bytes: []byte{0x05, 0x00}},
 			},
 		)
@@ -1037,6 +1037,74 @@ func TestCertVerifyParentExpired(t *testing.T) {
 		t.Fatal("expected no-valid-CA error when all parents are expired")
 	}
 	if !strings.Contains(err.Error(), "no valid CA parent found") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// selectCertificate - JMRTD-style fallback (issue #440)
+// ---------------------------------------------------------------------------
+
+// When the SignerIdentifier matches no embedded certificate but the SOD embeds
+// exactly one certificate, selectCertificate falls back to that sole cert
+// (matching JMRTD, which never selects by SID). Trust is still gated downstream
+// by the signature and CSCA-chain checks.
+func TestSelectCertificateFallbackSingleEmbeddedCert(t *testing.T) {
+	t.Parallel()
+
+	certDER := buildTestCertDER(t, testSKIBytes, nil, nil)
+	sd := &SignedData{Certificates: asn1.RawValue{Bytes: certDER}}
+
+	// SKI-based SID whose bytes match no embedded cert.
+	si := SignerInfo{Sid: asn1.RawValue{Tag: 0, Class: asn1.ClassContextSpecific, Bytes: []byte{0xde, 0xad, 0xbe, 0xef}}}
+
+	cert, err := si.selectCertificate(sd)
+	if err != nil {
+		t.Fatalf("expected fallback to succeed, got error: %v", err)
+	}
+	if cert == nil {
+		t.Fatal("expected the sole embedded cert, got nil")
+	}
+	if cert.TbsCertificate.SerialNumber.Cmp(big.NewInt(42)) != 0 {
+		t.Errorf("unexpected cert selected (serial %v)", cert.TbsCertificate.SerialNumber)
+	}
+}
+
+// When the SID matches nothing and MORE than one certificate is embedded, the
+// choice is ambiguous, so selectCertificate must NOT fall back - it errors.
+func TestSelectCertificateNoFallbackMultipleEmbeddedCerts(t *testing.T) {
+	t.Parallel()
+
+	cert1 := buildTestCertDER(t, testSKIBytes, nil, nil)
+	ski2 := []byte{0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f, 0x30, 0x31, 0x32, 0x33, 0x34}
+	cert2 := buildTestCertDER(t, ski2, nil, nil)
+
+	both := append(append([]byte{}, cert1...), cert2...)
+	sd := &SignedData{Certificates: asn1.RawValue{Bytes: both}}
+
+	si := SignerInfo{Sid: asn1.RawValue{Tag: 0, Class: asn1.ClassContextSpecific, Bytes: []byte{0xde, 0xad, 0xbe, 0xef}}}
+
+	_, err := si.selectCertificate(sd)
+	if err == nil {
+		t.Fatal("expected error when SID matches nothing and multiple certs are embedded")
+	}
+	if !strings.Contains(err.Error(), "got:") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+// With no embedded certificates at all there is nothing to fall back to.
+func TestSelectCertificateNoFallbackWhenNoCerts(t *testing.T) {
+	t.Parallel()
+
+	sd := &SignedData{}
+	si := SignerInfo{Sid: asn1.RawValue{Tag: 0, Class: asn1.ClassContextSpecific, Bytes: []byte{0xde, 0xad, 0xbe, 0xef}}}
+
+	_, err := si.selectCertificate(sd)
+	if err == nil {
+		t.Fatal("expected error when no certs are embedded")
+	}
+	if !strings.Contains(err.Error(), "got:0") {
 		t.Errorf("unexpected error: %v", err)
 	}
 }

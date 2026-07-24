@@ -70,10 +70,6 @@ func TestGenerateWithSession(t *testing.T) {
 				Sod:     document.NewPassiveAuth([][]byte{certDer}),
 				CardSec: document.NewPassiveAuth([][]byte{certDer}),
 			},
-			Summary: &document.DocumentSummary{
-				DataTrusted:      true,
-				ChipAuthenticity: document.CHIP_AUTH_STATUS_CA,
-			},
 		},
 	}
 
@@ -83,6 +79,77 @@ func TestGenerateWithSession(t *testing.T) {
 	}
 	if buf == nil || buf.Len() == 0 {
 		t.Fatal("expected non-empty output")
+	}
+}
+
+// sampleDocEx builds a DocumentEx from document.SampleDocument (DG1/DG2/DG7/DG11/DG12/DG16
+// worked-example data) with the given PassiveAuthResult success, for exercising the Person
+// Summary section of the report.
+func sampleDocEx(t *testing.T, passiveAuthSuccess bool) *document.DocumentEx {
+	t.Helper()
+
+	doc, err := document.SampleDocument()
+	if err != nil {
+		t.Fatalf("SampleDocument error: %s", err)
+	}
+
+	return &document.DocumentEx{
+		Document: *doc,
+		Session: document.Session{
+			PassiveAuthResult: &document.PassiveAuthResult{Success: passiveAuthSuccess},
+		},
+	}
+}
+
+func TestGenerateWithSessionIdentityAttributesTrusted(t *testing.T) {
+	docEx := sampleDocEx(t, true)
+
+	buf, err := Generate(docEx, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, "<h2>Identity Attributes</h2>") {
+		t.Error("expected Identity Attributes section")
+	}
+	if !strings.Contains(out, "D23145890") {
+		t.Error("expected Document Number in output")
+	}
+	if !strings.Contains(out, "SMITH") {
+		t.Error("expected Name in output")
+	}
+	if !strings.Contains(out, `src="data:image/jpeg;base64,`) {
+		t.Error("expected an embedded face/signature image")
+	}
+	if !strings.Contains(out, "20020101") {
+		t.Error("expected a Persons To Notify row")
+	}
+	if strings.Contains(out, "Not cryptographically verified") {
+		t.Error("did not expect the untrusted-data warning when PassiveAuthResult.Success is true")
+	}
+	if !strings.Contains(out, "<h2>JSON</h2>") {
+		t.Error("expected a JSON section under Summary")
+	}
+	if !strings.Contains(out, `&#34;documentNumber&#34;: &#34;D23145890&#34;`) {
+		t.Error("expected the Summary JSON to include the marshaled documentNumber field")
+	}
+}
+
+func TestGenerateWithSessionIdentityAttributesUntrusted(t *testing.T) {
+	docEx := sampleDocEx(t, false)
+
+	buf, err := Generate(docEx, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, "D23145890") {
+		t.Error("expected Person data to still be surfaced when untrusted")
+	}
+	if !strings.Contains(out, "Not cryptographically verified") {
+		t.Error("expected the untrusted-data warning when PassiveAuthResult.Success is false")
 	}
 }
 

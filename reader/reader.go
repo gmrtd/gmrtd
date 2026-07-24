@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
 
 	"github.com/gmrtd/gmrtd/activeauth"
 	"github.com/gmrtd/gmrtd/bac"
@@ -73,7 +74,17 @@ type ReaderStatus interface {
 	Status(msg string)
 }
 
+// Reader is not safe for concurrent use: it is a single-use, single-goroutine
+// object for driving one document read. The mu mutex guards the mutable
+// configuration fields below (set via SkipPace/SkipImages/WithAAChallenge)
+// and serialises ReadDocument, so a Reader that is accidentally shared and
+// called from multiple goroutines fails safe (calls queue up) rather than
+// corrupting the Go heap - see mobile.Reader for the same concern one layer
+// up, which is where callers are most likely to accidentally share an
+// instance across threads.
 type Reader struct {
+	mu sync.Mutex
+
 	status       ReaderStatus
 	nfc          *iso7816.NfcSession
 	cscaCertPool cms.CertPool
@@ -91,10 +102,14 @@ func NewReader(status ReaderStatus, nfc *iso7816.NfcSession, cscaCertPool cms.Ce
 }
 
 func (reader *Reader) SkipPace() {
+	reader.mu.Lock()
+	defer reader.mu.Unlock()
 	reader.skipPace = true
 }
 
 func (reader *Reader) SkipImages() {
+	reader.mu.Lock()
+	defer reader.mu.Unlock()
 	reader.skipImages = true
 }
 
@@ -115,6 +130,8 @@ func (reader *Reader) WithAAChallenge(challenge []byte) (*Reader, error) {
 	if len(challenge) != 8 {
 		return nil, fmt.Errorf("[WithAAChallenge] challenge must be exactly 8 bytes, got %d", len(challenge))
 	}
+	reader.mu.Lock()
+	defer reader.mu.Unlock()
 	reader.aaChallenge = bytes.Clone(challenge)
 	return reader, nil
 }
@@ -141,6 +158,12 @@ func NewReaderState(atr []byte, ats []byte, password *password.Password) *Reader
 // - also performs doc.Verify() and Passive Authentication!
 // NB returns partial data (docEx, apduLog) in the event of an error
 func (reader *Reader) ReadDocument(password *password.Password, atr []byte, ats []byte) (docEx *document.DocumentEx, apduLog *iso7816.ApduLog, err error) {
+	// Locked for the whole call: Reader is single-use/single-session, and this
+	// also serialises accidental concurrent calls on a shared instance instead
+	// of racing on skipPace/skipImages/aaChallenge and corrupting the heap.
+	reader.mu.Lock()
+	defer reader.mu.Unlock()
+
 	defer func() {
 		if e := recover(); e != nil {
 			switch x := e.(type) {
@@ -172,7 +195,6 @@ func (reader *Reader) ReadDocument(password *password.Password, atr []byte, ats 
 		performChipAuthentication,
 		verifyDocument,
 		performPassiveAuthentication,
-		calculateDocumentSummary,
 	)
 	if err != nil {
 		return state.docEx, reader.nfc.ApduLog(), fmt.Errorf("[ReadDocument] runSteps error: %w", err)
@@ -404,10 +426,5 @@ func verifyDocument(reader *Reader, state *ReaderState) error {
 	if state.docEx.Session.DocumentVerifyErr != nil {
 		slog.Error("Document.Verify", "error", state.docEx.Session.DocumentVerifyErr)
 	}
-	return nil
-}
-
-func calculateDocumentSummary(_ *Reader, state *ReaderState) error {
-	state.docEx.GenerateSummary()
 	return nil
 }

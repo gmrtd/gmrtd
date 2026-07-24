@@ -1,6 +1,7 @@
 package verifier
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/cms"
@@ -135,7 +136,7 @@ func TestVerifyDocumentVerifyErrMissingDG1(t *testing.T) {
 		t.Fatalf("expected DocumentVerifyErr to be set when mandatory DG1/SOD are missing")
 	}
 
-	if result.Session.Summary == nil || result.Session.Summary.DataTrusted {
+	if summary := result.Summary(); summary == nil || summary.DataTrusted {
 		t.Errorf("expected DataTrusted to be false when DocumentVerifyErr is set")
 	}
 }
@@ -153,4 +154,26 @@ func TestVerifyNoAAChallenge(t *testing.T) {
 	if docEx.Session.ActiveAuthResult == nil || !docEx.Session.ActiveAuthResult.Success {
 		t.Errorf("expected successful AA result without challenge binding")
 	}
+}
+
+// Regression test for a heap-corruption crash observed under concurrent use:
+// a shared Verifier's aaChallenge field was written by WithAAChallenge while
+// Verify read it from another goroutine, unsynchronised. Run with
+// `go test -race` to confirm the mutex added to Verifier closes the race -
+// without it, this reliably trips the race detector (and, in production, can
+// corrupt the Go heap).
+func TestVerifierConcurrentAccess(t *testing.T) {
+	v := emptyVerifier()
+	data := buildVerifiableDocWithAA(t, testAANonce, testAASig)
+
+	var wg sync.WaitGroup
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, _ = v.WithAAChallenge(make([]byte, 8))
+			_, _ = v.Verify(data)
+		}()
+	}
+	wg.Wait()
 }
