@@ -484,6 +484,55 @@ func TestRunWithDepsReadDocumentFromCardError(t *testing.T) {
 	}
 }
 
+func TestRunWithDepsSurfacesPaceErr(t *testing.T) {
+	wantPace := errors.New("synthetic pace fail")
+	card := &fakeCard{}
+	generateCalled := false
+	browserCalled := false
+
+	deps := defaultAppDeps()
+	deps.cardProvider = func() (cardProvider, error) {
+		return fakeCardProvider{card: card}, nil
+	}
+	deps.cscaMasterList = func() (cms.CertPool, error) {
+		return &cms.GenericCertPool{}, nil
+	}
+	deps.readDocumentFromCard = func(
+		pass *password.Password,
+		maxRead uint,
+		skipPace bool,
+		skipImages bool,
+		card smartCard,
+		cscaCertPool cms.CertPool,
+	) (*document.DocumentEx, *iso7816.ApduLog, error) {
+		docEx := &document.DocumentEx{}
+		docEx.Session.PaceErr = wantPace
+		return docEx, nil, nil
+	}
+	deps.generateDocument = func(*document.DocumentEx, *iso7816.ApduLog) (*bytes.Buffer, error) {
+		generateCalled = true
+		return bytes.NewBufferString("html"), nil
+	}
+	deps.openBrowser = func(io.Reader) error {
+		browserCalled = true
+		return nil
+	}
+
+	err := runWithDeps([]string{"-can", "123456"}, deps)
+	if !errors.Is(err, wantPace) {
+		t.Fatalf("got %v, want wrapped %v", err, wantPace)
+	}
+	if !strings.Contains(err.Error(), "PACE failed") {
+		t.Fatalf("unexpected error text: %v", err)
+	}
+	if generateCalled || browserCalled {
+		t.Fatalf("expected abort before HTML/browser after PaceErr")
+	}
+	if !card.disconnectCalled {
+		t.Fatalf("expected card to be disconnected")
+	}
+}
+
 func TestRunWithDepsGenerateDocumentError(t *testing.T) {
 	wantErr := errors.New("generate document boom")
 	card := &fakeCard{}
