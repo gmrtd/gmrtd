@@ -214,6 +214,16 @@ func runWithDeps(args []string, deps appDeps) error {
 		return err
 	}
 
+	// Surface recorded PACE failure at the reference-client boundary.
+	// reader.performPace records Session.PaceErr but always returns nil so BAC
+	// can still run; without this check, gmrtd-reader treats a PACE-fail-then-BAC
+	// session as a clean success (same asymmetry already avoided for PA via
+	// DocumentSummary.DataTrusted / PassiveAuthResult).
+	if err := surfacePaceErr(documentEx); err != nil {
+		slog.Error("PACE failed", "error", err)
+		return err
+	}
+
 	// generate the HTML document
 	docByteBuf, err := deps.generateDocument(documentEx, apduLog)
 	if err != nil {
@@ -229,6 +239,20 @@ func runWithDeps(args []string, deps appDeps) error {
 	}
 
 	return nil
+}
+
+// surfacePaceErr returns a non-nil error when ReadDocument recorded a PACE
+// failure on the session. Library code intentionally records (not returns)
+// PaceErr so downstream BAC can proceed; the shipped reader should still tell
+// the operator that PACE failed.
+func surfacePaceErr(documentEx *document.DocumentEx) error {
+	if documentEx == nil {
+		return nil
+	}
+	if documentEx.Session.PaceErr == nil {
+		return nil
+	}
+	return fmt.Errorf("PACE failed: %w", documentEx.Session.PaceErr)
 }
 
 func readDocumentFromCard(
