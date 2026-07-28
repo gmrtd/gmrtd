@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.48.1](https://github.com/gmrtd/gmrtd/compare/v0.48.0...v0.48.1) (2026-07-28)
+
+
+### Bug Fixes
+
+* **pace:** select the CAM chip authentication key by KeyId ([#447](https://github.com/gmrtd/gmrtd/issues/447)) ([33dc6de](https://github.com/gmrtd/gmrtd/commit/33dc6de38fd043cafafd9c710d1a5432416cf969))
+
 ## [0.48.0](https://github.com/gmrtd/gmrtd/compare/v0.47.6...v0.48.0) (2026-07-23)
 
 
