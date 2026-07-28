@@ -878,6 +878,24 @@ func TestVerifyEvidence(t *testing.T) {
 	}
 }
 
+// PACE-CAM must verify against the same document when EF.CardSecurity presents the generic
+// Chip Authentication key before the CAM key, which the domain parameters cannot distinguish
+func TestVerifyEvidenceGenericCaKeyFirst(t *testing.T) {
+	doc, evidence := setupDeCamEvidence(t)
+
+	caPubKeyInfos := deCaPubKeyInfos(t, doc)
+	caPubKeyInfos[0], caPubKeyInfos[1] = caPubKeyInfos[1], caPubKeyInfos[0]
+
+	result, err := VerifyEvidence(doc, evidence)
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+
+	if !result.Success {
+		t.Errorf("Expected success")
+	}
+}
+
 func TestVerifyEvidenceNilEvidence(t *testing.T) {
 	doc, _ := setupDeCamEvidence(t)
 
@@ -988,7 +1006,6 @@ func TestVerifyEvidenceTamperedChipMapPub(t *testing.T) {
 		t.Fatalf("Expected error for tampered ChipMapPub")
 	}
 }
-
 
 func TestVerifyEvidenceTamperedTermMapPub(t *testing.T) {
 	doc, evidence := setupDeCamEvidence(t)
@@ -1132,6 +1149,19 @@ func TestDecryptEcadICBadPadding(t *testing.T) {
 
 // ---- icPubKeyECForCAM ----
 
+/*
+ * X coordinates of the two Chip Authentication public keys in the EF.CardSecurity of the
+ * German ePassport used by setupDeCamEvidence. Both are on Brainpool P256r1 (paramId 13),
+ * so the domain parameters alone cannot tell them apart.
+ *
+ *	KeyId 13 - PACE-CAM key   - referenced by PACEInfo.parameterId
+ *	KeyId 72 - generic CA key - referenced by ChipAuthenticationInfo.keyId
+ */
+const (
+	deCamPubKeyXHex = "614cd88b00821a887869d0060b44a9d18789353e8cf7dfbc3f29f79327de30b9"
+	deGmPubKeyXHex  = "8488a2dc34b6b36d6c01a8dfbd70a874610c53b32893a1de3b1c4bbf477eef37"
+)
+
 func TestIcPubKeyECForCAMNotECDH(t *testing.T) {
 	dp := &DomainParams{isECDH: false}
 	cardSec := &document.CardSecurity{SecurityInfos: &document.SecurityInfos{}}
@@ -1139,6 +1169,86 @@ func TestIcPubKeyECForCAMNotECDH(t *testing.T) {
 	if err == nil {
 		t.Fatalf("Expected error for non-ECDH domain params")
 	}
+}
+
+func TestIcPubKeyECForCAMNoKeys(t *testing.T) {
+	cardSec := &document.CardSecurity{SecurityInfos: &document.SecurityInfos{}}
+	_, err := icPubKeyECForCAM(mustStandardisedDomainParams(t, 13), cardSec)
+	if err == nil {
+		t.Fatalf("Expected error for CardSecurity without Chip Authentication public keys")
+	}
+}
+
+// the CAM key must be selected on its KeyId, whichever order EF.CardSecurity presents the
+// two keys in. EF.CardSecurity holds the SecurityInfos in a SET, whose DER order follows the
+// encoding of its members, so which key comes first depends on the key bytes themselves.
+func TestIcPubKeyECForCAMSelectsKeyByKeyId(t *testing.T) {
+	testCases := []struct {
+		name    string
+		reorder bool
+	}{
+		{name: "CAM key first", reorder: false},
+		{name: "generic CA key first", reorder: true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			doc, _ := setupDeCamEvidence(t)
+
+			caPubKeyInfos := deCaPubKeyInfos(t, doc)
+			if tc.reorder {
+				caPubKeyInfos[0], caPubKeyInfos[1] = caPubKeyInfos[1], caPubKeyInfos[0]
+			}
+
+			pubKey, err := icPubKeyECForCAM(mustStandardisedDomainParams(t, 13), doc.Mf.CardSecurity)
+			if err != nil {
+				t.Fatalf("icPubKeyECForCAM error: %s", err)
+			}
+
+			if actX := pubKey.X.Text(16); actX != deCamPubKeyXHex {
+				t.Fatalf("Wrong public-key selected for CAM (Exp:%s, Act:%s)", deCamPubKeyXHex, actX)
+			}
+		})
+	}
+}
+
+// a document carrying a single Chip Authentication key has no KeyId to prefer, so that key
+// is used even though its KeyId does not match the PACE parameterId
+func TestIcPubKeyECForCAMSingleKey(t *testing.T) {
+	doc, _ := setupDeCamEvidence(t)
+
+	caPubKeyInfos := deCaPubKeyInfos(t, doc)
+	doc.Mf.CardSecurity.SecurityInfos.ChipAuthPubKeyInfos = caPubKeyInfos[1:]
+
+	pubKey, err := icPubKeyECForCAM(mustStandardisedDomainParams(t, 13), doc.Mf.CardSecurity)
+	if err != nil {
+		t.Fatalf("icPubKeyECForCAM error: %s", err)
+	}
+
+	if actX := pubKey.X.Text(16); actX != deGmPubKeyXHex {
+		t.Fatalf("Wrong public-key selected for CAM (Exp:%s, Act:%s)", deGmPubKeyXHex, actX)
+	}
+}
+
+// returns the document's Chip Authentication public keys, asserting that it holds the two
+// keys (KeyId 13 then KeyId 72) the key-selection tests rely on
+func deCaPubKeyInfos(t *testing.T, doc *document.Document) []document.ChipAuthenticationPublicKeyInfo {
+	t.Helper()
+
+	caPubKeyInfos := doc.Mf.CardSecurity.SecurityInfos.ChipAuthPubKeyInfos
+
+	if len(caPubKeyInfos) != 2 {
+		t.Fatalf("Expected 2 Chip Authentication public keys (Act:%d)", len(caPubKeyInfos))
+	}
+
+	for i, expKeyId := range []int64{13, 72} {
+		keyId := caPubKeyInfos[i].KeyId
+		if keyId == nil || keyId.Int64() != expKeyId {
+			t.Fatalf("Unexpected KeyId at index %1d (Exp:%d, Act:%s)", i, expKeyId, keyId)
+		}
+	}
+
+	return caPubKeyInfos
 }
 
 // ---- doGenericMappingGmCam ----
@@ -1205,7 +1315,7 @@ func TestGetNonceMalformedResponse(t *testing.T) {
 
 // termMapPri/PubXY from TestDoPace_CAM_ECDH_DE (idx=0) on Brainpool P256r1 (paramId=13)
 const (
-	testTermMapPriHex = "01fd26013f5bc41fad8bb09811e435f16fbe2eb3c2e1d999b0f63da8c3d58bb5"
+	testTermMapPriHex  = "01fd26013f5bc41fad8bb09811e435f16fbe2eb3c2e1d999b0f63da8c3d58bb5"
 	testTermMapPubXHex = "303f340815eea501772393e299a4a6f6694600189c249c63a8513ff3fefa66e3"
 	testTermMapPubYHex = "46d11970b5f76fb564c3b0e54b215528f647ec5a9ab209cdbe262e763d6119a1"
 )

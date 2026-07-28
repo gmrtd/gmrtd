@@ -481,6 +481,11 @@ func (pace *Pace) mutualAuthGmEcDh(paceConfig *PaceConfig, domainParams *DomainP
 	return ecadIC, nil
 }
 
+// a document may carry more than one Chip Authentication public key on the same curve, e.g. one
+// for the mapping and one for generic Chip Authentication, in which case the domain parameters
+// alone cannot tell them apart. BSI TR-03110 part 3 s A.1.1.2 states that for PACE-CAM the
+// parameterId in PACEInfo also references the KeyId of the key used for the mapping, so prefer
+// that key and only fall back to the first key on the curve when no KeyId matches.
 func icPubKeyECForCAM(domainParams *DomainParams, cardSecurity *document.CardSecurity) (*cryptoutils.EcPoint, error) {
 	slog.Debug("icPubKeyECForCAM")
 
@@ -490,20 +495,39 @@ func icPubKeyECForCAM(domainParams *DomainParams, cardSecurity *document.CardSec
 		return nil, fmt.Errorf("[icPubKeyECForCAM] Cannot get EC public key for !EC crypto")
 	}
 
+	var fallbackPoint *cryptoutils.EcPoint
+
 	for i := range caPubKeyInfos {
 		var subjectPubKeyInfo *cms.SubjectPublicKeyInfo = &caPubKeyInfos[i].ChipAuthenticationPublicKey
 
 		// only evaluate EC keys
-		if subjectPubKeyInfo.Algorithm.Algorithm.Equal(oid.OidBsiDeEcKeyType) {
-			if utils.BytesToInt(subjectPubKeyInfo.Algorithm.Parameters.Bytes) == domainParams.id {
-				var tmpKey []byte = subjectPubKeyInfo.SubjectPublicKey.Bytes
-				point, err := cryptoutils.DecodeX962EcPoint(domainParams.ec, tmpKey)
-				if err != nil {
-					return nil, fmt.Errorf("[icPubKeyECForCAM] %w", err)
-				}
-				return point, nil
-			}
+		if !subjectPubKeyInfo.Algorithm.Algorithm.Equal(oid.OidBsiDeEcKeyType) {
+			continue
 		}
+
+		if utils.BytesToInt(subjectPubKeyInfo.Algorithm.Parameters.Bytes) != domainParams.id {
+			continue
+		}
+
+		var tmpKey []byte = subjectPubKeyInfo.SubjectPublicKey.Bytes
+		point, err := cryptoutils.DecodeX962EcPoint(domainParams.ec, tmpKey)
+		if err != nil {
+			return nil, fmt.Errorf("[icPubKeyECForCAM] %w", err)
+		}
+
+		var keyId *big.Int = caPubKeyInfos[i].KeyId
+		if (keyId != nil) && keyId.IsInt64() && (keyId.Int64() == int64(domainParams.id)) {
+			slog.Debug("icPubKeyECForCAM - selected key by KeyId", "keyId", keyId)
+			return point, nil
+		}
+
+		if fallbackPoint == nil {
+			fallbackPoint = point
+		}
+	}
+
+	if fallbackPoint != nil {
+		return fallbackPoint, nil
 	}
 
 	return nil, fmt.Errorf("[icPubKeyECForCAM] Unable to get Public-Key for CAM")
