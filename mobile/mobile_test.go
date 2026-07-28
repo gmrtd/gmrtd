@@ -3,6 +3,7 @@ package mobile
 import (
 	"reflect"
 	"regexp"
+	"strings"
 	"sync"
 	"testing"
 
@@ -617,5 +618,24 @@ func TestVersion(t *testing.T) {
 
 	if !semverRegex.MatchString(version) {
 		t.Errorf("invalid version format: %s", version)
+	}
+}
+
+// a host application that passes null for the ReaderStatus must still get the real
+// error back, not the nil dereference from reporting the first phase
+func TestReadDocumentNilStatusReportsRealError(t *testing.T) {
+	rdr := NewReader(nil, &iso7816.StaticTransceiver{})
+
+	pass, err := NewPasswordCan("123456")
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	if _, err = rdr.ReadDocument(pass, nil, nil); err == nil {
+		t.Fatalf("expected error")
+	}
+
+	if strings.Contains(err.Error(), "nil pointer") {
+		t.Errorf("nil ReaderStatus masked the read error (act:%s)", err)
 	}
 }

@@ -45,24 +45,29 @@ type Transceiver interface {
 	Transceive(cla int, ins int, p1 int, p2 int, data []byte, le int, encodedData []byte) []byte
 }
 
-// bind doesn't like referencing reader.ReaderStatus
-// so we redefine the interface here
-//
+// NB notes for maintainers of this package, deliberately kept out of the doc
+// comment below so that gobind does not copy them into the generated Java and
+// Objective-C that host application developers read:
+//   - bind doesn't like referencing reader.ReaderStatus, so the interface is
+//     redefined here rather than reused.
+//   - the phase crosses the binding as a plain int rather than as
+//     reader.StatusPhase: gomobile only binds named types whose underlying type is
+//     an interface or a struct pointer, so a Go named integer type - and any
+//     constant declared with one - is silently dropped from the generated code.
+
+// ReaderStatus receives progress updates while a document is being read.
 // The phase is one of the STATUS_PHASE_* constants below and dataGroup is the
 // LDS1 data-group number (1..16), which is only set for
 // STATUS_PHASE_READING_DATA_GROUP and 0 for every other phase.
-//
-// NB the phase crosses the binding as a plain int rather than as reader.StatusPhase:
-// gomobile only binds named types whose underlying type is an interface or a struct
-// pointer, so a Go named integer type - and any constant declared with one - is
-// silently dropped from the generated Java and Objective-C.
 type ReaderStatus interface {
 	Status(phase int, dataGroup int)
 }
 
 // Phases of a document read, as passed to ReaderStatus.Status.
-// The values are those of reader.StatusPhase - see reader/status.go for what each
-// phase means, and mobile_test.go for the check that the two lists agree.
+// Each is defined as the corresponding reader.STATUS_PHASE_* value, so the two
+// lists cannot drift apart; see reader/status.go for what each phase means, and
+// TestStatusPhaseValues in mobile_test.go for the check that pins the numbers,
+// which are part of this package's contract with a host application.
 const (
 	STATUS_PHASE_CONNECTING              int = reader.STATUS_PHASE_CONNECTING
 	STATUS_PHASE_READING_CARD_ACCESS     int = reader.STATUS_PHASE_READING_CARD_ACCESS
@@ -87,7 +92,14 @@ type readerStatusAdapter struct {
 
 var _ reader.ReaderStatus = (*readerStatusAdapter)(nil)
 
+// NB the nil check is here as well as in the engine: the engine always has a
+// non-nil ReaderStatus on this path (this adapter), so a host that passed null to
+// NewReader would otherwise panic inside the adapter instead.
 func (adapter *readerStatusAdapter) Status(status reader.Status) {
+	if adapter.status == nil {
+		return
+	}
+
 	adapter.status.Status(int(status.Phase), status.DataGroup)
 }
 

@@ -326,3 +326,24 @@ func TestReadDocumentFailureReportsNoFinishedPhase(t *testing.T) {
 		t.Errorf("recorded statuses differ to expected (act:%v) (exp:%v)", act, exp)
 	}
 }
+
+// a nil ReaderStatus must not panic: the first phase is now reported by the very
+// first read step, so a caller that passes nil would otherwise lose the real error
+func TestReadDocumentNilStatusReportsRealError(t *testing.T) {
+	// 6FFF: card dead - the read fails on the first APDU
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{RApdu: utils.HexToBytes("6FFF")})
+	var reader *Reader = NewReader(nil, nfc, EmptyCscaTrustStore(t))
+
+	_, _, err := reader.ReadDocument(password.NewPasswordNil(), nil, nil)
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+
+	if strings.Contains(err.Error(), "nil pointer") {
+		t.Errorf("nil ReaderStatus masked the read error (act:%s)", err)
+	}
+
+	if !strings.Contains(err.Error(), "SelectMF") {
+		t.Errorf("expected the SelectMF failure to be reported (act:%s)", err)
+	}
+}

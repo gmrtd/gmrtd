@@ -10,6 +10,13 @@ import "fmt"
 // Phases the Dart machine owns rather than the engine (NFC availability, pending,
 // cancelling, cancelled, failed) are deliberately absent: the engine never reaches
 // them, and a read that fails reports the failure through the returned error.
+//
+// A phase says which step the read has entered, not that the step found anything to
+// do. STATUS_PHASE_ACTIVE_AUTHENTICATION and STATUS_PHASE_CHIP_AUTHENTICATION are
+// both reported before the engine knows whether the document supports either
+// protocol (DG15 and DG14 respectively), so they are reported even for a document
+// that supports neither. A host that needs to know what actually ran should read the
+// session results after the read rather than infer it from the phases.
 type StatusPhase int
 
 // intentionally use explicit values instead of iota, so the numbers stay stable
@@ -90,10 +97,22 @@ type ReaderStatus interface {
 
 // reportPhase emits a status update for a phase that carries no data-group.
 func (reader *Reader) reportPhase(phase StatusPhase) {
-	reader.status.Status(Status{Phase: phase})
+	reader.report(Status{Phase: phase})
 }
 
 // reportDataGroup emits a status update for the data-group currently being read.
 func (reader *Reader) reportDataGroup(dataGroup int) {
-	reader.status.Status(Status{Phase: STATUS_PHASE_READING_DATA_GROUP, DataGroup: dataGroup})
+	reader.report(Status{Phase: STATUS_PHASE_READING_DATA_GROUP, DataGroup: dataGroup})
+}
+
+// report passes a status update on, if a ReaderStatus was provided.
+// NB a nil ReaderStatus is tolerated because the first update is emitted by the very
+// first read step, so without this a caller that passes nil panics before the read
+// can report the error it actually failed on.
+func (reader *Reader) report(status Status) {
+	if reader.status == nil {
+		return
+	}
+
+	reader.status.Status(status)
 }
