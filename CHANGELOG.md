@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0](https://github.com/gmrtd/gmrtd/compare/v0.48.1...v1.0.0) (2026-07-30)
+
+
+### ⚠ BREAKING CHANGES
+
+* **reader:** report read progress as a typed status ([#449](https://github.com/gmrtd/gmrtd/issues/449))
+
+### Features
+
+* **reader:** report read progress as a typed status ([#449](https://github.com/gmrtd/gmrtd/issues/449)) ([147c2d5](https://github.com/gmrtd/gmrtd/commit/147c2d5dea9a418c299952f14a3410600db2c769))
+
 ## [0.48.1](https://github.com/gmrtd/gmrtd/compare/v0.48.0...v0.48.1) (2026-07-28)
 
 
