@@ -15,10 +15,23 @@ import (
 	"github.com/gmrtd/gmrtd/utils"
 )
 
-type MockStatus struct{}
+// MockStatus records the status updates it receives, so tests can assert on them.
+// NB guarded by a mutex because TestReaderConcurrentAccess shares one instance.
+type MockStatus struct {
+	mu       sync.Mutex
+	statuses []Status
+}
 
-func (s *MockStatus) Status(_ string) {
-	// NB do nothing
+func (s *MockStatus) Status(status Status) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.statuses = append(s.statuses, status)
+}
+
+func (s *MockStatus) Recorded() []Status {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]Status(nil), s.statuses...)
 }
 
 func EmptyCscaTrustStore(t *testing.T) cms.CertPool {

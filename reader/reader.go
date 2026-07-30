@@ -70,10 +70,6 @@ var dgToFileId = map[int]uint16{
 	16: MRTDFileIdDG16,
 }
 
-type ReaderStatus interface {
-	Status(msg string)
-}
-
 // Reader is not safe for concurrent use: it is a single-use, single-goroutine
 // object for driving one document read. The mu mutex guards the mutable
 // configuration fields below (set via SkipPace/SkipImages/WithAAChallenge)
@@ -200,7 +196,7 @@ func (reader *Reader) ReadDocument(password *password.Password, atr []byte, ats 
 		return state.docEx, reader.nfc.ApduLog(), fmt.Errorf("[ReadDocument] runSteps error: %w", err)
 	}
 
-	reader.status.Status("Finished!")
+	reader.reportPhase(STATUS_PHASE_FINISHED)
 	slog.Info("** ReadDocument FINISHED **", "VerifiedChipAuthStatus", state.docEx.Session.VerifiedChipAuthStatus())
 
 	return state.docEx, reader.nfc.ApduLog(), nil
@@ -237,6 +233,9 @@ func recordAtrAts(_ *Reader, state *ReaderState) (err error) {
 
 func selectMF(reader *Reader, _ *ReaderState) (err error) {
 	// NB spec recommends not to use, but iOS may pre-select the MRTD AID
+	// NB selecting the MF is the first exchange with the chip, so this is where
+	//    the read reports that it is connecting
+	reader.reportPhase(STATUS_PHASE_CONNECTING)
 	slog.Info("Selecting MF")
 	if err = reader.nfc.SelectMF(); err != nil {
 		return fmt.Errorf("[selectMF] nfc.SelectMF error: %w", err)
@@ -256,7 +255,7 @@ func selectMrtdApplication(reader *Reader, _ *ReaderState) (err error) {
 // reads EF.SOD
 func readEfSod(reader *Reader, state *ReaderState) (err error) {
 	slog.Info("Read EF.SOD")
-	reader.status.Status("Reading EF.SOD")
+	reader.reportPhase(STATUS_PHASE_READING_SECURITY_OBJECT)
 	sodData, err := reader.nfc.ReadFile(MRTDFileIdEFSOD)
 	if err != nil {
 		return fmt.Errorf("[readEfSod] ReadFile error: %w", err)
@@ -272,7 +271,7 @@ func readEfSod(reader *Reader, state *ReaderState) (err error) {
 // reads EF.COM
 func readEfCom(reader *Reader, state *ReaderState) (err error) {
 	slog.Info("Read EF.COM")
-	reader.status.Status("Reading EF.COM")
+	reader.reportPhase(STATUS_PHASE_READING_COMMON_DATA)
 	efComData, err := reader.nfc.ReadFile(MRTDFileIdEFCOM)
 	if err != nil {
 		return fmt.Errorf("[readEfCom] ReadFile error: %w", err)
@@ -292,7 +291,7 @@ func readEfDir(reader *Reader, state *ReaderState) (err error) {
 	//        - not a big deal as this file is not used for any processing
 	//		  - EF.DIR observed on NL passport
 	slog.Info("Read EF.DIR")
-	reader.status.Status("Reading EF.DIR")
+	reader.reportPhase(STATUS_PHASE_READING_DIR)
 	efDirData, err := reader.nfc.ReadFile(MRTDFileIdEFDIR)
 	if err != nil {
 		return fmt.Errorf("[readEfDir] Read EF.DIR error: %w", err)
@@ -308,7 +307,7 @@ func readEfDir(reader *Reader, state *ReaderState) (err error) {
 // reads EF.CardAccess
 func readEfCardAccess(reader *Reader, state *ReaderState) (err error) {
 	slog.Info("Read EF.CardAccess")
-	reader.status.Status("Reading EF.CardAccess")
+	reader.reportPhase(STATUS_PHASE_READING_CARD_ACCESS)
 	// may not be present (OR may be present but not have PACE info)
 	cardAccessData, err := reader.nfc.ReadFile(MRTDFileIdCardAccess)
 	if err != nil {
@@ -344,7 +343,7 @@ func readLDS1dgs(reader *Reader, state *ReaderState) (err error) {
 		}
 
 		slog.Info("Reading DG", "DG", dgHash.DataGroupNumber)
-		reader.status.Status(fmt.Sprintf("Reading DG%02d", dgHash.DataGroupNumber))
+		reader.reportDataGroup(dgHash.DataGroupNumber)
 
 		var dgBytes []byte
 
@@ -366,7 +365,7 @@ func performPace(reader *Reader, state *ReaderState) error {
 	if reader.skipPace {
 		return nil
 	}
-	reader.status.Status("PACE")
+	reader.reportPhase(STATUS_PHASE_ACCESS_CONTROL_PACE)
 	// NB errors are just recorded at this point
 	state.docEx.Session.PaceResult, state.docEx.Session.PaceCamResult, state.docEx.Session.PaceErr = pace.NewPace(reader.nfc, &state.docEx.Document, state.password).DoPACE()
 	return nil
@@ -377,7 +376,7 @@ func performBac(reader *Reader, state *ReaderState) error {
 	if reader.nfc.SM() != nil {
 		return nil
 	}
-	reader.status.Status("BAC")
+	reader.reportPhase(STATUS_PHASE_ACCESS_CONTROL_BAC)
 	// NB errors are just recorded at this point
 	state.docEx.Session.BacResult, state.docEx.Session.BacErr = bac.NewBAC(reader.nfc, &state.docEx.Document, state.password).DoBAC()
 	return nil
@@ -385,10 +384,11 @@ func performBac(reader *Reader, state *ReaderState) error {
 
 func performChipAuthentication(reader *Reader, state *ReaderState) error {
 	slog.Info("Chip Authentication (AA/CA)")
-	reader.status.Status("Chip Authentication (AA/CA)")
 
 	// note: AA has the strongest backend verification level, so always execute if available (even if PACE-CAM has completed)
 	{
+		reader.reportPhase(STATUS_PHASE_ACTIVE_AUTHENTICATION)
+
 		// attempt active-authentication (if supported)
 		// NB errors are just recorded at this point
 		aa := activeauth.NewActiveAuth(reader.nfc, &state.docEx.Document)
@@ -403,6 +403,8 @@ func performChipAuthentication(reader *Reader, state *ReaderState) error {
 
 	// CA has a lower backend verification level, so only perform if ChipAuth not already completed (e.g. via AA or PACE-CAM)
 	if !state.docEx.Session.ChipAuthProtocolCompleted() {
+		reader.reportPhase(STATUS_PHASE_CHIP_AUTHENTICATION)
+
 		// attempt chip-authentication (if supported)
 		// NB errors are just recorded at this point
 		state.docEx.Session.ChipAuthResult, state.docEx.Session.ChipAuthErr = chipauth.NewChipAuth(reader.nfc, &state.docEx.Document).DoChipAuth()
@@ -414,14 +416,14 @@ func performChipAuthentication(reader *Reader, state *ReaderState) error {
 func performPassiveAuthentication(reader *Reader, state *ReaderState) error {
 	// perform passive authentication
 	// NB errors are just recorded at this point
-	reader.status.Status("Passive Authentication")
+	reader.reportPhase(STATUS_PHASE_PASSIVE_AUTHENTICATION)
 	state.docEx.Session.PassiveAuthResult, state.docEx.Session.PassiveAuthErr = passiveauth.PassiveAuth(&state.docEx.Document, reader.cscaCertPool)
 	return nil
 }
 
 func verifyDocument(reader *Reader, state *ReaderState) error {
 	// NB errors are just recorded at this point - see Session.DocumentVerifyErr / DocumentSummary.DataTrusted
-	reader.status.Status("Verifying Document")
+	reader.reportPhase(STATUS_PHASE_VERIFYING_DOCUMENT)
 	state.docEx.Session.DocumentVerifyErr = state.docEx.Document.Verify()
 	if state.docEx.Session.DocumentVerifyErr != nil {
 		slog.Error("Document.Verify", "error", state.docEx.Session.DocumentVerifyErr)

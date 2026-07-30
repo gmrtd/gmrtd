@@ -45,8 +45,8 @@ type PCSCReaderStatus struct {
 
 var _ reader.ReaderStatus = (*PCSCReaderStatus)(nil)
 
-func (status *PCSCReaderStatus) Status(msg string) {
-	slog.Info("Status", "msg", msg)
+func (pcscStatus *PCSCReaderStatus) Status(status reader.Status) {
+	slog.Info("Status", "status", status.String())
 }
 
 func cmdParams(args []string) (pass *password.Password, debug bool, apduMaxRead uint, skipPace bool, skipImages bool, sampleDoc bool, err error) {

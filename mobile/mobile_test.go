@@ -1,12 +1,15 @@
 package mobile
 
 import (
+	"reflect"
 	"regexp"
+	"strings"
 	"sync"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/document"
 	"github.com/gmrtd/gmrtd/iso7816"
+	"github.com/gmrtd/gmrtd/reader"
 )
 
 func TestNewPasswordMrz(t *testing.T) {
@@ -186,10 +189,113 @@ func TestWithAAChallenge(t *testing.T) {
 	}
 }
 
+// testReaderStatus records the status updates a host application would receive
+// through the binding.
+// NB guarded by a mutex because TestReaderConcurrentAccess shares one instance.
 type testReaderStatus struct {
+	mu       sync.Mutex
+	statuses [][2]int
 }
 
-func (status *testReaderStatus) Status(_ string) {
+func (status *testReaderStatus) Status(phase int, dataGroup int) {
+	status.mu.Lock()
+	defer status.mu.Unlock()
+	status.statuses = append(status.statuses, [2]int{phase, dataGroup})
+}
+
+func (status *testReaderStatus) Recorded() [][2]int {
+	status.mu.Lock()
+	defer status.mu.Unlock()
+	return append([][2]int(nil), status.statuses...)
+}
+
+// the phase values are part of the binding's contract: a host application built
+// against an earlier release compares the ints it receives against these, so they
+// must not be renumbered
+func TestStatusPhaseValues(t *testing.T) {
+	exp := map[string]int{
+		"connecting":              1,
+		"reading card access":     2,
+		"access control (PACE)":   3,
+		"access control (BAC)":    4,
+		"reading EF.DIR":          5,
+		"reading security object": 6,
+		"reading common data":     7,
+		"reading data group":      8,
+		"active authentication":   9,
+		"chip authentication":     10,
+		"verifying document":      11,
+		"passive authentication":  12,
+		"finished":                13,
+	}
+
+	act := map[string]int{
+		"connecting":              STATUS_PHASE_CONNECTING,
+		"reading card access":     STATUS_PHASE_READING_CARD_ACCESS,
+		"access control (PACE)":   STATUS_PHASE_ACCESS_CONTROL_PACE,
+		"access control (BAC)":    STATUS_PHASE_ACCESS_CONTROL_BAC,
+		"reading EF.DIR":          STATUS_PHASE_READING_DIR,
+		"reading security object": STATUS_PHASE_READING_SECURITY_OBJECT,
+		"reading common data":     STATUS_PHASE_READING_COMMON_DATA,
+		"reading data group":      STATUS_PHASE_READING_DATA_GROUP,
+		"active authentication":   STATUS_PHASE_ACTIVE_AUTHENTICATION,
+		"chip authentication":     STATUS_PHASE_CHIP_AUTHENTICATION,
+		"verifying document":      STATUS_PHASE_VERIFYING_DOCUMENT,
+		"passive authentication":  STATUS_PHASE_PASSIVE_AUTHENTICATION,
+		"finished":                STATUS_PHASE_FINISHED,
+	}
+
+	if !reflect.DeepEqual(act, exp) {
+		t.Errorf("phase values differ to expected (act:%v) (exp:%v)", act, exp)
+	}
+}
+
+// the engine's typed status has to arrive at the host as the phase and, for a
+// data-group read, the data-group number
+func TestReaderStatusAdapter(t *testing.T) {
+	tests := []struct {
+		name   string
+		status reader.Status
+		exp    [2]int
+	}{
+		{"phase only", reader.Status{Phase: reader.STATUS_PHASE_CONNECTING}, [2]int{STATUS_PHASE_CONNECTING, 0}},
+		{"data group", reader.Status{Phase: reader.STATUS_PHASE_READING_DATA_GROUP, DataGroup: 7}, [2]int{STATUS_PHASE_READING_DATA_GROUP, 7}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			hostStatus := &testReaderStatus{}
+
+			(&readerStatusAdapter{status: hostStatus}).Status(tc.status)
+
+			exp := [][2]int{tc.exp}
+			if act := hostStatus.Recorded(); !reflect.DeepEqual(act, exp) {
+				t.Errorf("recorded statuses differ to expected (act:%v) (exp:%v)", act, exp)
+			}
+		})
+	}
+}
+
+// NB basic test that will fail quickly due to static transceiver, so only the
+// first phase of the read is reported
+func TestReadDocumentReportsStatus(t *testing.T) {
+	status := &testReaderStatus{}
+
+	rdr := NewReader(status, &iso7816.StaticTransceiver{})
+
+	pass, err := NewPasswordCan("123456")
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	if _, err = rdr.ReadDocument(pass, nil, nil); err == nil {
+		t.Fatalf("expected error")
+	}
+
+	exp := [][2]int{{STATUS_PHASE_CONNECTING, 0}}
+	if act := status.Recorded(); !reflect.DeepEqual(act, exp) {
+		t.Errorf("recorded statuses differ to expected (act:%v) (exp:%v)", act, exp)
+	}
 }
 
 // NB basic test that will fail quickly due to static transceiver
@@ -344,10 +450,10 @@ func TestReadDocumentNilPassword(t *testing.T) {
 
 func TestCountryName(t *testing.T) {
 	tests := []struct {
-		name        string
-		mrzAlpha3   string
-		wantName    string
-		wantErr     bool
+		name      string
+		mrzAlpha3 string
+		wantName  string
+		wantErr   bool
 	}{
 		{name: "standard alpha-3", mrzAlpha3: "GBR", wantName: "United Kingdom"},
 		{name: "standard alpha-3 lowercase", mrzAlpha3: "gbr", wantName: "United Kingdom"},
@@ -512,5 +618,24 @@ func TestVersion(t *testing.T) {
 
 	if !semverRegex.MatchString(version) {
 		t.Errorf("invalid version format: %s", version)
+	}
+}
+
+// a host application that passes null for the ReaderStatus must still get the real
+// error back, not the nil dereference from reporting the first phase
+func TestReadDocumentNilStatusReportsRealError(t *testing.T) {
+	rdr := NewReader(nil, &iso7816.StaticTransceiver{})
+
+	pass, err := NewPasswordCan("123456")
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	if _, err = rdr.ReadDocument(pass, nil, nil); err == nil {
+		t.Fatalf("expected error")
+	}
+
+	if strings.Contains(err.Error(), "nil pointer") {
+		t.Errorf("nil ReaderStatus masked the read error (act:%s)", err)
 	}
 }

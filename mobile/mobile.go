@@ -45,10 +45,62 @@ type Transceiver interface {
 	Transceive(cla int, ins int, p1 int, p2 int, data []byte, le int, encodedData []byte) []byte
 }
 
-// bind doesn't like referencing reader.ReaderStatus
-// so we redefine the interface here
+// NB notes for maintainers of this package, deliberately kept out of the doc
+// comment below so that gobind does not copy them into the generated Java and
+// Objective-C that host application developers read:
+//   - bind doesn't like referencing reader.ReaderStatus, so the interface is
+//     redefined here rather than reused.
+//   - the phase crosses the binding as a plain int rather than as
+//     reader.StatusPhase: gomobile only binds named types whose underlying type is
+//     an interface or a struct pointer, so a Go named integer type - and any
+//     constant declared with one - is silently dropped from the generated code.
+
+// ReaderStatus receives progress updates while a document is being read.
+// The phase is one of the STATUS_PHASE_* constants below and dataGroup is the
+// LDS1 data-group number (1..16), which is only set for
+// STATUS_PHASE_READING_DATA_GROUP and 0 for every other phase.
 type ReaderStatus interface {
-	Status(msg string)
+	Status(phase int, dataGroup int)
+}
+
+// Phases of a document read, as passed to ReaderStatus.Status.
+// Each is defined as the corresponding reader.STATUS_PHASE_* value, so the two
+// lists cannot drift apart; see reader/status.go for what each phase means, and
+// TestStatusPhaseValues in mobile_test.go for the check that pins the numbers,
+// which are part of this package's contract with a host application.
+const (
+	STATUS_PHASE_CONNECTING              int = reader.STATUS_PHASE_CONNECTING
+	STATUS_PHASE_READING_CARD_ACCESS     int = reader.STATUS_PHASE_READING_CARD_ACCESS
+	STATUS_PHASE_ACCESS_CONTROL_PACE     int = reader.STATUS_PHASE_ACCESS_CONTROL_PACE
+	STATUS_PHASE_ACCESS_CONTROL_BAC      int = reader.STATUS_PHASE_ACCESS_CONTROL_BAC
+	STATUS_PHASE_READING_DIR             int = reader.STATUS_PHASE_READING_DIR
+	STATUS_PHASE_READING_SECURITY_OBJECT int = reader.STATUS_PHASE_READING_SECURITY_OBJECT
+	STATUS_PHASE_READING_COMMON_DATA     int = reader.STATUS_PHASE_READING_COMMON_DATA
+	STATUS_PHASE_READING_DATA_GROUP      int = reader.STATUS_PHASE_READING_DATA_GROUP
+	STATUS_PHASE_ACTIVE_AUTHENTICATION   int = reader.STATUS_PHASE_ACTIVE_AUTHENTICATION
+	STATUS_PHASE_CHIP_AUTHENTICATION     int = reader.STATUS_PHASE_CHIP_AUTHENTICATION
+	STATUS_PHASE_VERIFYING_DOCUMENT      int = reader.STATUS_PHASE_VERIFYING_DOCUMENT
+	STATUS_PHASE_PASSIVE_AUTHENTICATION  int = reader.STATUS_PHASE_PASSIVE_AUTHENTICATION
+	STATUS_PHASE_FINISHED                int = reader.STATUS_PHASE_FINISHED
+)
+
+// readerStatusAdapter passes the engine's typed status to the bound ReaderStatus
+// as the two ints the binding can carry.
+type readerStatusAdapter struct {
+	status ReaderStatus
+}
+
+var _ reader.ReaderStatus = (*readerStatusAdapter)(nil)
+
+// NB the nil check is here as well as in the engine: the engine always has a
+// non-nil ReaderStatus on this path (this adapter), so a host that passed null to
+// NewReader would otherwise panic inside the adapter instead.
+func (adapter *readerStatusAdapter) Status(status reader.Status) {
+	if adapter.status == nil {
+		return
+	}
+
+	adapter.status.Status(int(status.Phase), status.DataGroup)
 }
 
 type MrtdPassword struct {
@@ -199,7 +251,7 @@ func (r *Reader) ReadDocument(password *MrtdPassword, atr []byte, ats []byte) (d
 	}
 
 	var gmrtdReader *reader.Reader
-	gmrtdReader = reader.NewReader(r.status, nfc, certPool)
+	gmrtdReader = reader.NewReader(&readerStatusAdapter{status: r.status}, nfc, certPool)
 
 	if r.skipPace {
 		gmrtdReader.SkipPace()
