@@ -711,6 +711,63 @@ func TestEcdsaValidateActiveAuthSignatureDERFormat(t *testing.T) {
 	}
 }
 
+// TestEcdsaValidateActiveAuthSignatureShorterHash verifies that AA succeeds when
+// the chip signs the nonce with a hash that is *shorter* than the curve-matched
+// default. ICAO 9303 (6.1.2.3) permits any hash whose output length is <= the key
+// length, and the exact hash is only signalled via DG14.ActiveAuthenticationInfo.
+// Cards that omit DG14 (e.g. the Portuguese Cartão de Cidadão: a P-384 AA key
+// signed with SHA-256) previously failed because only the curve-matched hash
+// (SHA-384) was tried. See privacybydesign/gmrtd (Portugal ID card AA regression).
+func TestEcdsaValidateActiveAuthSignatureShorterHash(t *testing.T) {
+	// P-384 key, but signed with SHA-256 (shorter than the curve-matched SHA-384)
+	priv, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	if err != nil {
+		t.Fatalf("keygen: %v", err)
+	}
+
+	dg15bytes, err := makeDG15FromECPublicKey(&priv.PublicKey)
+	if err != nil {
+		t.Fatalf("DG15 build: %v", err)
+	}
+
+	rndIfd := cryptoutils.RandomBytes(8)
+	hash := cryptoutils.CryptoHash(crypto.SHA256, rndIfd) // deliberately NOT the curve-matched SHA-384
+
+	r, s, err := ecdsa.Sign(rand.Reader, priv, hash)
+	if err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+
+	plainSig := concatRSFixed(elliptic.P384(), r, s)
+	derSig, err := encodeDERSignature(r, s)
+	if err != nil {
+		t.Fatalf("DER encode: %v", err)
+	}
+
+	cases := []struct {
+		name string
+		sig  []byte
+	}{
+		{"plain r||s", plainSig},
+		{"DER", derSig},
+	}
+
+	for _, tc := range cases {
+		dg15, err := document.NewDG15(dg15bytes)
+		if err != nil {
+			t.Fatalf("%s: NewDG15 error: %v", tc.name, err)
+		}
+
+		aaResult, err := ValidateActiveAuthSignature(dg15, tc.sig, rndIfd)
+		if err != nil {
+			t.Errorf("%s: unexpected error: %v", tc.name, err)
+		}
+		if aaResult == nil || !aaResult.Success {
+			t.Errorf("%s: expected AA success with shorter hash (SHA-256 on P-384 key)", tc.name)
+		}
+	}
+}
+
 // TestParseEcdsaSignaturePlain tests the parseEcdsaSignaturePlain function
 func TestParseEcdsaSignaturePlain(t *testing.T) {
 	curve := elliptic.P256()
