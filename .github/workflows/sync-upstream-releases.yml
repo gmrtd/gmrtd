@@ -1,0 +1,72 @@
+name: Sync upstream releases
+
+# Mirrors git tags and GitHub Releases from the upstream gmrtd/gmrtd repo into
+# this fork. Tags travel with git, but GitHub Release objects (title + notes +
+# "Latest" flag) live in GitHub's database and do NOT propagate through a normal
+# fork sync, so we recreate them here via the API.
+
+on:
+  schedule:
+    - cron: "0 */6 * * *" # every 6 hours
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-upstream-releases
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      UPSTREAM: gmrtd/gmrtd
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Sync tags from upstream
+        run: |
+          set -euo pipefail
+          git remote add upstream "https://github.com/${UPSTREAM}.git"
+          git fetch --tags --no-recurse-submodules upstream
+          # Push any tags not yet on origin (never force-updates existing tags).
+          git push origin --tags
+
+      - name: Mirror releases from upstream
+        run: |
+          set -euo pipefail
+          FORK="${GITHUB_REPOSITORY}"
+
+          LATEST_TAG=$(gh api "repos/${UPSTREAM}/releases/latest" --jq '.tag_name')
+          EXISTING=" $(gh api "repos/${FORK}/releases" --paginate --jq '.[].tag_name' | tr '\n' ' ') "
+
+          created=0
+          while IFS=$'\t' read -r tag prerelease name; do
+            [ -z "$tag" ] && continue
+            case "$EXISTING" in
+              *" $tag "*) continue ;;   # already mirrored
+            esac
+
+            body=$(gh api "repos/${UPSTREAM}/releases/tags/${tag}" --jq '.body // ""')
+
+            args=(--repo "$FORK" --title "$name" --notes "$body" --verify-tag)
+            [ "$prerelease" = "true" ] && args+=(--prerelease)
+            if [ "$tag" = "$LATEST_TAG" ]; then
+              args+=(--latest)
+            else
+              args+=(--latest=false)
+            fi
+
+            echo "Creating release ${tag} (prerelease=${prerelease})"
+            gh release create "$tag" "${args[@]}"
+            created=$((created + 1))
+          done < <(gh api "repos/${UPSTREAM}/releases" --paginate \
+                     --jq 'reverse[] | [.tag_name, (.prerelease|tostring), (.name // .tag_name)] | @tsv')
+
+          echo "Created ${created} new release(s)."
