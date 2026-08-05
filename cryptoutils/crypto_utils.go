@@ -350,6 +350,41 @@ func CryptoHashFromEcPubKey(pub *ecdsa.PublicKey) crypto.Hash {
 	}
 }
 
+// CandidateAaHashes returns the hash algorithms permitted by ICAO 9303 for
+// ECDSA Active Authentication with the given public key, ordered by preference
+// (most likely first).
+//
+// ICAO 9303 (6.1.2.3) permits a hash whose output length is the same as, or
+// shorter than, the length of the ECDSA key, restricted to SHA-224, SHA-256,
+// SHA-384 and SHA-512. Which one a chip actually uses is only signalled via
+// DG14's ActiveAuthenticationInfo; when that is absent (e.g. the Portuguese
+// Cartão de Cidadão, which carries no DG14) the verifier cannot know the hash
+// in advance and must try each permitted algorithm. The curve-matched default
+// (see CryptoHashFromEcPubKey) is returned first so the common case still
+// verifies on the first attempt, followed by the remaining permitted hashes
+// from strongest to weakest.
+func CandidateAaHashes(pub *ecdsa.PublicKey) []crypto.Hash {
+	keyBits := pub.Params().N.BitLen()
+
+	// curve-matched default first (preserves prior behaviour for the common case)
+	preferred := CryptoHashFromEcPubKey(pub)
+	candidates := []crypto.Hash{preferred}
+
+	// then any other ICAO-permitted hash (output length <= key length),
+	// strongest first, so cards that sign with a hash shorter than the curve
+	// (e.g. a P-384 key signed with SHA-256) still verify.
+	for _, h := range []crypto.Hash{crypto.SHA512, crypto.SHA384, crypto.SHA256, crypto.SHA224} {
+		if h == preferred {
+			continue
+		}
+		if CryptoHashDigestSize(h)*8 <= keyBits {
+			candidates = append(candidates, h)
+		}
+	}
+
+	return candidates
+}
+
 // support for P192 (secp-192r1) which is required by some countries but not supported by the go libraries
 func EllipticP192() elliptic.Curve {
 	var curveParams *elliptic.CurveParams = &elliptic.CurveParams{
