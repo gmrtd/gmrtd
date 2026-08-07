@@ -219,6 +219,17 @@ This library is intended for **legitimate, consent-based MRTD reading**.
 
 Handle personal data in accordance with applicable laws and regulations.
 
+# 📱 Apps Using gmrtd
+Projects using gmrtd to read and verify MRTDs in production:
+
+- **[Inspekt.ID](https://apps.apple.com/us/app/inspekt-id/id6794529798)**
+
+  <a href="https://apps.apple.com/us/app/inspekt-id/id6794529798?itscg=30200&itsct=apps_box_badge&mttnsubad=6794529798" style="display: inline-block;">
+  <img src="https://toolbox.marketingtools.apple.com/api/v2/badges/download-on-the-app-store/white/en-us?releaseDate=1785888000" alt="Download on the App Store" style="width: 245px; height: 82px; vertical-align: middle; object-fit: contain;" />
+  </a>
+
+Using gmrtd in your app? Open a PR to add it here.
+
 # 🤝 Contributing
 Issues and pull requests are welcome.
 
