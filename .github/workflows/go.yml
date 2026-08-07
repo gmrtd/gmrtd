@@ -66,10 +66,11 @@ jobs:
         with:
           # Additional arguments for the sonarcloud scanner
           args:
-            # Unique keys of your project and organization. You can find them in SonarCloud > Information (bottom-left menu)
+            # Unique keys of your project and organization, sourced from repo variables
+            # (Settings > Secrets and variables > Actions > Variables); values from SonarCloud > Information (bottom-left menu)
             # mandatory
-            -Dsonar.projectKey=gmrtd_gmrtd
-            -Dsonar.organization=gmrtd
+            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
+            -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
             -Dsonar.sources=.
             -Dsonar.exclusions=**/*_test.go,**/vendor/**,**/*.md,**/*.ml,**/*.yml
             -Dsonar.tests=.
