@@ -68,8 +68,8 @@ jobs:
           args:
             # Unique keys of your project and organization. You can find them in SonarCloud > Information (bottom-left menu)
             # mandatory
-            -Dsonar.projectKey=gmrtd_gmrtd
-            -Dsonar.organization=gmrtd
+            -Dsonar.projectKey=privacybydesign_gmrtd
+            -Dsonar.organization=privacybydesign
             -Dsonar.sources=.
             -Dsonar.exclusions=**/*_test.go,**/vendor/**,**/*.md,**/*.ml,**/*.yml
             -Dsonar.tests=.
