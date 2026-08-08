@@ -214,6 +214,103 @@ func TestSSCIncrement(t *testing.T) {
 	}
 }
 
+func TestSSCDecrement(t *testing.T) {
+	testCases := []struct {
+		alg    cryptoutils.BlockCipherAlg
+		ksEnc  []byte
+		ksMac  []byte
+		ssc    []byte
+		expSsc []byte
+	}{
+		{
+			alg:    cryptoutils.TDES,
+			ksEnc:  utils.HexToBytes("979ec13b1cbfe9dcd01ab0fed307eae5"),
+			ksMac:  utils.HexToBytes("f1cb1f1fb5adf208806b89dc579dc1f8"),
+			ssc:    utils.HexToBytes("0000000000000001"),
+			expSsc: utils.HexToBytes("0000000000000000"),
+		},
+		{
+			alg:    cryptoutils.TDES,
+			ksEnc:  utils.HexToBytes("979ec13b1cbfe9dcd01ab0fed307eae5"),
+			ksMac:  utils.HexToBytes("f1cb1f1fb5adf208806b89dc579dc1f8"),
+			ssc:    utils.HexToBytes("0123456789abcdf0"),
+			expSsc: utils.HexToBytes("0123456789abcdef"),
+		},
+		{
+			// underflow condition - wraps to max value, mirroring the overflow wrap in sscIncrement
+			alg:    cryptoutils.TDES,
+			ksEnc:  utils.HexToBytes("979ec13b1cbfe9dcd01ab0fed307eae5"),
+			ksMac:  utils.HexToBytes("f1cb1f1fb5adf208806b89dc579dc1f8"),
+			ssc:    utils.HexToBytes("0000000000000000"),
+			expSsc: utils.HexToBytes("ffffffffffffffff"),
+		},
+		{
+			alg:    cryptoutils.AES,
+			ksEnc:  utils.HexToBytes("f5f0e35c0d7161ee6724ee513a0d9a7f"),
+			ksMac:  utils.HexToBytes("fe251c7858b356b24514b3bd5f4297d1"),
+			ssc:    utils.HexToBytes("00000000000000000000000000000001"),
+			expSsc: utils.HexToBytes("00000000000000000000000000000000"),
+		},
+		{
+			alg:    cryptoutils.AES,
+			ksEnc:  utils.HexToBytes("f5f0e35c0d7161ee6724ee513a0d9a7f"),
+			ksMac:  utils.HexToBytes("fe251c7858b356b24514b3bd5f4297d1"),
+			ssc:    utils.HexToBytes("000102030405060708090a0b0c0d0e10"),
+			expSsc: utils.HexToBytes("000102030405060708090a0b0c0d0e0f"),
+		},
+		{
+			// underflow condition - wraps to max value, mirroring the overflow wrap in sscIncrement
+			alg:    cryptoutils.AES,
+			ksEnc:  utils.HexToBytes("f5f0e35c0d7161ee6724ee513a0d9a7f"),
+			ksMac:  utils.HexToBytes("fe251c7858b356b24514b3bd5f4297d1"),
+			ssc:    utils.HexToBytes("00000000000000000000000000000000"),
+			expSsc: utils.HexToBytes("ffffffffffffffffffffffffffffffff"),
+		},
+		{
+			alg:    cryptoutils.AES,
+			ksEnc:  utils.HexToBytes("74b94f408bbb2cd92571fd5b6370a94cce7a2fa42ae3eb4da47b97ce6eaa24c6"),
+			ksMac:  utils.HexToBytes("9e28d5d9ff1d979be752e8926bf0e1d35a440fc0aefc4aa3bc5610055ac8b113"),
+			ssc:    utils.HexToBytes("000102030405060708090a0b0c0d0e10"),
+			expSsc: utils.HexToBytes("000102030405060708090a0b0c0d0e0f"),
+		},
+		{
+			// underflow condition - wraps to max value, mirroring the overflow wrap in sscIncrement
+			alg:    cryptoutils.AES,
+			ksEnc:  utils.HexToBytes("74b94f408bbb2cd92571fd5b6370a94cce7a2fa42ae3eb4da47b97ce6eaa24c6"),
+			ksMac:  utils.HexToBytes("9e28d5d9ff1d979be752e8926bf0e1d35a440fc0aefc4aa3bc5610055ac8b113"),
+			ssc:    utils.HexToBytes("00000000000000000000000000000000"),
+			expSsc: utils.HexToBytes("ffffffffffffffffffffffffffffffff"),
+		},
+	}
+	for _, tc := range testCases {
+		sm, err := NewSecureMessaging(tc.alg, tc.ksEnc, tc.ksMac)
+		if err != nil {
+			t.Errorf("Unexpected error: %s", err)
+		} else {
+			err = sm.SetSSC(tc.ssc)
+			if err != nil {
+				t.Fatalf("Unexpected error: %s", err)
+			}
+			sm.sscDecrement()
+
+			// verify SSC
+			if !bytes.Equal(sm.SSC(), tc.expSsc) {
+				t.Errorf("SSC mismatch (Exp:%x) (Act:%x)", tc.expSsc, sm.SSC())
+			}
+
+			// verify KsEnc has NOT changed
+			if !bytes.Equal(sm.KsEnc(), tc.ksEnc) {
+				t.Errorf("KsEnc has changed (Exp:%x) (Act:%x)", tc.ksEnc, sm.KsEnc())
+			}
+
+			// verify KsMac has NOT changed
+			if !bytes.Equal(sm.ksMac, tc.ksMac) {
+				t.Errorf("KsMac has changed (Exp:%x) (Act:%x)", tc.ksMac, sm.ksMac)
+			}
+		}
+	}
+}
+
 func TestSecureMessageEncode(t *testing.T) {
 	testCases := []struct {
 		alg         cryptoutils.BlockCipherAlg

@@ -128,6 +128,24 @@ func (sm *SecureMessaging) sscIncrement() {
 	}
 }
 
+// decrements the SSC (mirror of sscIncrement) - used to undo a prior increment
+// when we believe the corresponding capdu was not processed by the chip.
+func (sm *SecureMessaging) sscDecrement() {
+	var sscPre *big.Int = new(big.Int).SetBytes(sm.ssc)
+
+	if sscPre.Sign() == 0 {
+		// handle underflow condition - wrap to max value, mirroring the
+		// overflow wrap in sscIncrement
+		for i := range sm.ssc {
+			sm.ssc[i] = 0xFF
+		}
+		return
+	}
+
+	var sscPost *big.Int = new(big.Int).Sub(sscPre, big.NewInt(1))
+	sscPost.FillBytes(sm.ssc)
+}
+
 func (sm *SecureMessaging) cbcCrypt(data []byte, encrypt bool) ([]byte, error) {
 	// create 0'd IV
 	iv := make([]byte, sm.encCipher.BlockSize())
@@ -349,9 +367,6 @@ func (sm *SecureMessaging) decodeSmRApduData(encodedData []byte) (out []byte, er
 func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
 	slog.Debug("sm.Decode", "SM(pre)", sm.String())
 
-	// increment SSC
-	sm.sscIncrement()
-
 	var smRApdu *RApdu
 	if smRApdu, err = ParseRApdu(rApduBytes); err != nil {
 		return nil, fmt.Errorf("(sm.Decode) ParseRApdu error: %w", err)
@@ -359,8 +374,18 @@ func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
 
 	// Return error if the rApdu doesn't contain any data, as this is mandatory for an SM response
 	if len(smRApdu.Data) < 1 {
+		// naked response - the chip almost certainly never accepted our SM-wrapped
+		// capdu, so undo the increment Encode() made for it, keeping this SM
+		// instance's counter aligned with the chip's for any future command.
+		slog.Warn("sm.Decode: naked response received, decrementing SSC", "SSC", utils.BytesToHex(sm.ssc), "Status", fmt.Sprintf("%4x", smRApdu.Status))
+		sm.sscDecrement()
+
 		return nil, fmt.Errorf("[SM.Decode] Unable to decode SM-RApdu due to missing data. Advertised(insecure) status:%4x", smRApdu.Status)
 	}
+
+	// increment SSC
+	// - we only increment if it looks like we got an SM-wrapped rapdu (i.e. we got some data)
+	sm.sscIncrement()
 
 	/*
 	* Response APDU: [DO‘85’ or DO‘87’] [DO‘99’] DO‘8E’.
