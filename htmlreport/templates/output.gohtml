@@ -738,6 +738,14 @@ from the document but has not been authenticated, and may be forged or tampered 
       <td>{{.Summary.IdentityAttributes.DateOfBirthDg11Raw}}</td>
     </tr>
     <tr>
+      <td>Age</td>
+      <td>{{if .Summary.IdentityAttributes.Age}}{{.Summary.IdentityAttributes.Age}}{{end}}</td>
+    </tr>
+    <tr>
+      <td>Possible Ages</td>
+      <td>{{.Summary.IdentityAttributes.PossibleAges}}</td>
+    </tr>
+    <tr>
       <td>Date Of Expiry</td>
       <td>{{.Summary.IdentityAttributes.DateOfExpiry}}</td>
     </tr>
