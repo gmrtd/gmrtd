@@ -313,7 +313,9 @@ func TestReadDocumentReportsPhases(t *testing.T) {
 // a read that fails does not report completion
 func TestReadDocumentFailureReportsNoFinishedPhase(t *testing.T) {
 	var status MockStatus
-	// 6FFF: card dead - the read fails on the first APDU
+	// 6FFF: card dead. SelectMF now tolerates any error (it's not essential to the read), so
+	// the read proceeds past STATUS_PHASE_CONNECTING and actually fails on the next exchange,
+	// reading EF.CardAccess.
 	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{RApdu: utils.HexToBytes("6FFF")})
 	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
 
@@ -321,7 +323,7 @@ func TestReadDocumentFailureReportsNoFinishedPhase(t *testing.T) {
 		t.Fatalf("expected error")
 	}
 
-	exp := []Status{{Phase: STATUS_PHASE_CONNECTING}}
+	exp := []Status{{Phase: STATUS_PHASE_CONNECTING}, {Phase: STATUS_PHASE_READING_CARD_ACCESS}}
 	if act := status.Recorded(); !reflect.DeepEqual(act, exp) {
 		t.Errorf("recorded statuses differ to expected (act:%v) (exp:%v)", act, exp)
 	}
@@ -330,7 +332,8 @@ func TestReadDocumentFailureReportsNoFinishedPhase(t *testing.T) {
 // a nil ReaderStatus must not panic: the first phase is now reported by the very
 // first read step, so a caller that passes nil would otherwise lose the real error
 func TestReadDocumentNilStatusReportsRealError(t *testing.T) {
-	// 6FFF: card dead - the read fails on the first APDU
+	// 6FFF: card dead. SelectMF tolerates this and the read proceeds to reading
+	// EF.CardAccess, which is where it actually fails.
 	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{RApdu: utils.HexToBytes("6FFF")})
 	var reader *Reader = NewReader(nil, nfc, EmptyCscaTrustStore(t))
 
@@ -343,7 +346,7 @@ func TestReadDocumentNilStatusReportsRealError(t *testing.T) {
 		t.Errorf("nil ReaderStatus masked the read error (act:%s)", err)
 	}
 
-	if !strings.Contains(err.Error(), "SelectMF") {
-		t.Errorf("expected the SelectMF failure to be reported (act:%s)", err)
+	if !strings.Contains(err.Error(), "readEfCardAccess") {
+		t.Errorf("expected the readEfCardAccess failure to be reported (act:%s)", err)
 	}
 }

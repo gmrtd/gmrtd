@@ -180,44 +180,46 @@ func (nfc *NfcSession) MseSetAT(p1 uint8, p2 uint8, data []byte) (err error) {
 	return nil
 }
 
-// 0 0 0 0 1 0 0 0	– Select from MF (data field=path without the identifier of the MF)
+// Select Master-File (MF)
 func (nfc *NfcSession) SelectMF() (err error) {
 	slog.Debug("SelectMF")
 
-	// NB as per 9303 specs, but explicitly specifying MF (x3f00)
-	//	  - If P1-P2=’0000′ and if the data field is empty or equal to ‘3F00’, then select the MF.
-	//      https://cardwerk.com/smart-card-standard-iso7816-4-section-6-basic-interindustry-commands/
-
-	var capdu *CApdu = NewCApdu(0x00, INS_SELECT, 0x00, 0x0C, []byte{0x3f, 0x00}, 0)
-
-	rapdu, err := nfc.DoAPDU(capdu, "Select MF")
-	if err != nil {
-		return fmt.Errorf("[SelectMF] DoAPDU error: %w", err)
+	// some chips only support the implicit form (no data field), others only the
+	// explicit form (data field=3F00), so try both in turn
+	variants := []struct {
+		label string
+		data  []byte
+	}{
+		{"implicit", nil},
+		{"explicit", []byte{0x3f, 0x00}},
 	}
 
-	if !rapdu.IsSuccess() {
-		if rapdu.Status == RAPDU_SECURITY_CONDITION_NOT_SATIFIED {
-			// NB observed for NZ passport - silently tolerate
-			slog.Warn("SelectMF", "Tolerating error (RAPDU_SECURITY_CONDITION_NOT_SATIFIED)", rapdu.Status)
+	var rapdu *RApdu
+
+	for i, variant := range variants {
+		rapdu, err = nfc.DoAPDU(NewCApdu(0x00, INS_SELECT, 0x00, 0x0C, variant.data, 0), fmt.Sprintf("Select MF (%s)", variant.label))
+		if err != nil {
+			// NB a genuine card always returns at least a status word (SW1/SW2), so a DoAPDU
+			// error here means the response itself was malformed/missing - i.e. a transport or
+			// reader problem, not a chip that dislikes this particular SELECT form. Retrying
+			// with the other data field wouldn't fix that, so we abort immediately rather than
+			// falling through to the next variant (which we do for a well-formed but
+			// unsuccessful status word, below).
+			return fmt.Errorf("[SelectMF] DoAPDU error: %w", err)
+		}
+
+		if rapdu.IsSuccess() {
 			return nil
-		} else if rapdu.Status == RAPDU_STATUS_FUNCTION_NOT_SUPPORTED {
-			// NB observed for CN passport - silently tolerate
-			slog.Warn("SelectMF", "Tolerating error (RAPDU_STATUS_FUNCTION_NOT_SUPPORTED)", rapdu.Status)
-			return nil
-		} else if rapdu.Status == RAPDU_STATUS_INCORRECT_P1_OR_P2_PARAMETER {
-			// NB observed for AU passport - silently tolerate
-			slog.Warn("SelectMF", "Tolerating error (RAPDU_STATUS_INCORRECT_P1_OR_P2_PARAMETER)", rapdu.Status)
-			return nil
-		} else if rapdu.Status == RAPDU_STATUS_LC_INCONSISTENT_WITH_P1P2 {
-			// NB observed for Ukrainian passport - silently tolerate
-			slog.Warn("SelectMF", "Tolerating error (RAPDU_STATUS_LC_INCONSISTENT_WITH_P1P2)", rapdu.Status)
-			return nil
+		}
+
+		if i < len(variants)-1 {
+			slog.Warn("SelectMF: form failed, trying next variant", "form", variant.label, "status", fmt.Sprintf("%x", rapdu.Status))
 		} else {
-			return fmt.Errorf("[SelectMF] Invalid status:%x", rapdu.Status)
+			slog.Warn("SelectMF: all forms failed", "form", variant.label, "status", fmt.Sprintf("%x", rapdu.Status))
 		}
 	}
 
-	return nil
+	return fmt.Errorf("[SelectMF] Invalid status:%x", rapdu.Status)
 }
 
 // returns: false if file-not-found, otherwise true

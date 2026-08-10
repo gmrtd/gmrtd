@@ -276,8 +276,9 @@ func TestReaderStatusAdapter(t *testing.T) {
 	}
 }
 
-// NB basic test that will fail quickly due to static transceiver, so only the
-// first phase of the read is reported
+// NB basic test that will fail quickly due to static transceiver. SelectMF tolerates its
+// own (empty-response) error, so the read proceeds one phase further before failing on the
+// next real exchange (reading EF.CardAccess).
 func TestReadDocumentReportsStatus(t *testing.T) {
 	status := &testReaderStatus{}
 
@@ -292,7 +293,7 @@ func TestReadDocumentReportsStatus(t *testing.T) {
 		t.Fatalf("expected error")
 	}
 
-	exp := [][2]int{{STATUS_PHASE_CONNECTING, 0}}
+	exp := [][2]int{{STATUS_PHASE_CONNECTING, 0}, {STATUS_PHASE_READING_CARD_ACCESS, 0}}
 	if act := status.Recorded(); !reflect.DeepEqual(act, exp) {
 		t.Errorf("recorded statuses differ to expected (act:%v) (exp:%v)", act, exp)
 	}
