@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.1.0](https://github.com/gmrtd/gmrtd/compare/v1.0.0...v1.1.0) (2026-08-10)
+
+
+### Features
+
+* add computed Age/PossibleAges to IdentityAttributes and HTML report (fixes [#462](https://github.com/gmrtd/gmrtd/issues/462)) ([#463](https://github.com/gmrtd/gmrtd/issues/463)) ([d0c37b2](https://github.com/gmrtd/gmrtd/commit/d0c37b275475ef6b950deabca636d3f288b873dc))
+
+
+### Bug Fixes
+
+* extended length fallback issue with Chinese passport (fixes [#457](https://github.com/gmrtd/gmrtd/issues/457)) ([#458](https://github.com/gmrtd/gmrtd/issues/458)) ([d645bb1](https://github.com/gmrtd/gmrtd/commit/d645bb17dbbe7a633ac57022d3cb7445518ca08b))
+* Improve SelectMF robustness across passport vendors (fixes [#460](https://github.com/gmrtd/gmrtd/issues/460)) ([#461](https://github.com/gmrtd/gmrtd/issues/461)) ([2be14ef](https://github.com/gmrtd/gmrtd/commit/2be14efc0ddfc86fb26eb50eda06e6baebd049a5))
+
 ## [1.0.0](https://github.com/gmrtd/gmrtd/compare/v0.48.1...v1.0.0) (2026-07-30)
 
 
