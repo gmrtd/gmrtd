@@ -2,6 +2,7 @@ package document
 
 import (
 	"testing"
+	"time"
 
 	"github.com/gmrtd/gmrtd/mrz"
 	"github.com/gmrtd/gmrtd/utils"
@@ -186,6 +187,67 @@ func TestBuildIdentityAttributesMrzOnlyDobNoCenturyGuessed(t *testing.T) {
 	// no DG11, so DateOfBirth is the raw MRZ value as-is - gmrtd does not guess a century
 	if summary.DateOfBirth != "050615" {
 		t.Errorf("DateOfBirth = %q, want %q", summary.DateOfBirth, "050615")
+	}
+}
+
+func TestBuildIdentityAttributesAgeFromDg11UnambiguousDob(t *testing.T) {
+	doc := &Document{}
+	dob := time.Now().AddDate(-30, 0, 0)
+	doc.Mf.Lds1.Dg11 = &DG11{Details: PersonDetails{FullDateOfBirth: dob.Format("20060102")}}
+
+	summary := buildIdentityAttributes(doc)
+
+	if summary.Age == nil || *summary.Age != 30 {
+		t.Errorf("Age = %v, want 30", summary.Age)
+	}
+	if len(summary.PossibleAges) != 0 {
+		t.Errorf("PossibleAges = %v, want empty (unambiguous DOB)", summary.PossibleAges)
+	}
+}
+
+func TestBuildIdentityAttributesPossibleAgesFromMrzOnlyAmbiguousDob(t *testing.T) {
+	doc := &Document{}
+	// "050615": interpreted as 1905-06-15 gives an implausible age (>maxPlausibleAge), so
+	// only the 2005-06-15 interpretation should survive
+	doc.Mf.Lds1.Dg1 = &DG1{Mrz: &mrz.MRZ{DateOfBirth: "050615"}}
+
+	summary := buildIdentityAttributes(doc)
+
+	if summary.Age != nil {
+		t.Errorf("Age = %v, want nil (ambiguous DOB)", summary.Age)
+	}
+	wantAge := calculateAge(time.Date(2005, 6, 15, 0, 0, 0, 0, time.UTC), time.Now())
+	if len(summary.PossibleAges) != 1 || summary.PossibleAges[0] != wantAge {
+		t.Errorf("PossibleAges = %v, want [%d]", summary.PossibleAges, wantAge)
+	}
+}
+
+func TestBuildIdentityAttributesPossibleAgesBothCenturiesPlausible(t *testing.T) {
+	doc := &Document{}
+	// "250101": both the 1925-01-01 and 2025-01-01 interpretations are plausible (neither
+	// in the future, neither over maxPlausibleAge), so both survive as PossibleAges
+	doc.Mf.Lds1.Dg1 = &DG1{Mrz: &mrz.MRZ{DateOfBirth: "250101"}}
+
+	summary := buildIdentityAttributes(doc)
+
+	if summary.Age != nil {
+		t.Errorf("Age = %v, want nil (ambiguous DOB)", summary.Age)
+	}
+	wantOld := calculateAge(time.Date(1925, 1, 1, 0, 0, 0, 0, time.UTC), time.Now())
+	wantYoung := calculateAge(time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), time.Now())
+	if len(summary.PossibleAges) != 2 || summary.PossibleAges[0] != wantYoung || summary.PossibleAges[1] != wantOld {
+		t.Errorf("PossibleAges = %v, want [%d %d] (youngest first)", summary.PossibleAges, wantYoung, wantOld)
+	}
+}
+
+func TestBuildIdentityAttributesNoAgeWhenDobMissing(t *testing.T) {
+	summary := buildIdentityAttributes(&Document{})
+
+	if summary.Age != nil {
+		t.Errorf("Age = %v, want nil", summary.Age)
+	}
+	if len(summary.PossibleAges) != 0 {
+		t.Errorf("PossibleAges = %v, want empty", summary.PossibleAges)
 	}
 }
 

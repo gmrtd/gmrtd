@@ -86,6 +86,23 @@ type IdentityAttributes struct {
 	DateOfBirthMrzRaw  string `json:"dateOfBirthMrzRaw,omitempty"`  // DG1 MRZ, raw YYMMDD (2-digit year)
 	DateOfBirthDg11Raw string `json:"dateOfBirthDg11Raw,omitempty"` // DG11, raw YYYYMMDD
 
+	// Age is the document holder's current age in whole years, set only when DateOfBirth
+	// has an explicit century (DG11's 8-digit FullDateOfBirth). See PossibleAges for the
+	// ambiguous DG1-MRZ-only case (6-digit YYMMDD, no century) - see resolveAge.
+	Age *int `json:"age,omitempty"`
+
+	// PossibleAges holds the candidate ages when DateOfBirth's century is ambiguous
+	// (DG1-MRZ-only, 6-digit YYMMDD). Both the 19YY and 20YY interpretations of the 2-digit
+	// year are tried, keeping whichever yield a plausible age (see resolveAge) - typically
+	// both survive, since a 2-digit year is usually consistent with two centuries apart.
+	// Ordered youngest to oldest (e.g. [12, 112]). Empty whenever Age is set, or
+	// DateOfBirth is missing/unparseable.
+	//
+	// A single surviving entry is still a guess, not a confirmation: it means one century
+	// was implausible, not that the other is certain. Don't treat len(PossibleAges) == 1
+	// as equivalent to Age being set.
+	PossibleAges []int `json:"possibleAges,omitempty"`
+
 	// DateOfExpiry is DG1 MRZ's only source of expiry date, with its 2-digit year expanded
 	// to an explicit century (YYYYMMDD) - see resolveExpiryDate for why that's safe to do
 	// here, unlike DateOfBirth. DateOfExpiryMrzRaw is the untouched MRZ value.
@@ -150,6 +167,54 @@ func resolveExpiryDate(mrzRaw string) string {
 	}
 
 	return fullYear
+}
+
+// maxPlausibleAge bounds age inference from a DOB with an ambiguous century (see
+// resolveAge). It's an oldest-known-living-person-plus-margin threshold, not a biological
+// limit - used only to discard century interpretations that can't be right (e.g. a "19xx"
+// reading that would make the holder centuries old is impossible; the "20xx" reading is
+// then the only plausible one).
+const maxPlausibleAge = 120
+
+// resolveAge computes the document holder's current age from dob, which is either an
+// unambiguous 8-digit YYYYMMDD (DG11's FullDateOfBirth) or an ambiguous 6-digit YYMMDD
+// with no century (DG1 MRZ only). For the unambiguous case it returns a single age. For
+// the ambiguous case it tries both the 20YY and 19YY interpretations of the 2-digit year
+// and returns whichever produce a plausible age (not in the future, at most
+// maxPlausibleAge) as possibleAges, youngest first - in practice this is usually both,
+// since a 2-digit year is typically consistent with two birth years a century apart.
+func resolveAge(dob string) (age *int, possibleAges []int) {
+	now := time.Now()
+
+	switch len(dob) {
+	case 8:
+		if birthDate, err := time.Parse("20060102", dob); err == nil {
+			a := calculateAge(birthDate, now)
+			age = &a
+		}
+	case 6:
+		// Iterate 20YY before 19YY so possibleAges comes out youngest-first (e.g. [12, 112]).
+		for _, century := range [...]string{"20", "19"} {
+			birthDate, err := time.Parse("20060102", century+dob)
+			if err != nil || birthDate.After(now) {
+				continue
+			}
+			if a := calculateAge(birthDate, now); a <= maxPlausibleAge {
+				possibleAges = append(possibleAges, a)
+			}
+		}
+	}
+
+	return age, possibleAges
+}
+
+// calculateAge returns the number of whole years elapsed between birthDate and now.
+func calculateAge(birthDate, now time.Time) int {
+	age := now.Year() - birthDate.Year()
+	if now.Month() < birthDate.Month() || (now.Month() == birthDate.Month() && now.Day() < birthDate.Day()) {
+		age--
+	}
+	return age
 }
 
 // buildIdentityAttributes resolves an IdentityAttributes from doc's Data Groups. Every DG
@@ -219,6 +284,10 @@ func buildIdentityAttributes(doc *Document) *IdentityAttributes {
 			summary.DateOfBirthDg11Raw = d.FullDateOfBirth
 			summary.DateOfBirth = d.FullDateOfBirth
 		}
+	}
+
+	if len(summary.DateOfBirth) > 0 {
+		summary.Age, summary.PossibleAges = resolveAge(summary.DateOfBirth)
 	}
 
 	if dg12 != nil {

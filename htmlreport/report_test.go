@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gmrtd/gmrtd/document"
 	"github.com/gmrtd/gmrtd/iso7816"
@@ -133,6 +134,37 @@ func TestGenerateWithSessionIdentityAttributesTrusted(t *testing.T) {
 	}
 	if !strings.Contains(out, `&#34;documentNumber&#34;: &#34;D23145890&#34;`) {
 		t.Error("expected the Summary JSON to include the marshaled documentNumber field")
+	}
+	// SampleDocument's DG11 carries no FullDateOfBirth, so DOB is only known from the DG1
+	// MRZ's 2-digit year - Age stays unset (its row is present but left empty) and
+	// PossibleAges is shown instead (even though it happens to collapse to a single
+	// plausible candidate here, that's still a guess, not a confirmed age).
+	if !strings.Contains(out, "<td>Age</td>\n      <td></td>") {
+		t.Error("expected an empty Age row for an ambiguous MRZ-only date of birth")
+	}
+	if !strings.Contains(out, "<td>Possible Ages</td>") {
+		t.Error("expected a Possible Ages row for an ambiguous MRZ-only date of birth")
+	}
+	if strings.Contains(out, "<nil>") {
+		t.Error("did not expect a literal <nil> in the output")
+	}
+}
+
+func TestGenerateWithSessionIdentityAttributesAge(t *testing.T) {
+	dob := time.Now().AddDate(-30, 0, 0)
+
+	doc := document.Document{}
+	doc.Mf.Lds1.Dg11 = &document.DG11{Details: document.PersonDetails{FullDateOfBirth: dob.Format("20060102")}}
+	docEx := &document.DocumentEx{Document: doc}
+
+	buf, err := Generate(docEx, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, "<td>Age</td>\n      <td>30</td>") {
+		t.Error("expected an Age row with value 30 for an unambiguous (DG11) date of birth")
 	}
 }
 
