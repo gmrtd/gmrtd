@@ -193,16 +193,20 @@ func TestSelectMF(t *testing.T) {
 	}
 }
 
-func TestSelectMFCardDeadError(t *testing.T) {
+func TestSelectMFToleratesError(t *testing.T) {
+	// NB the selectMF reader-step tolerates any error from nfc.SelectMF (e.g. an unrecognised
+	// vendor-specific status here, or the chip being otherwise unreachable) since selecting the
+	// MF is not essential - a genuinely dead/unreachable chip will instead fail clearly on a
+	// later step.
 	var status MockStatus
-	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{RApdu: utils.HexToBytes("6FFF")}) // 6FFF: card dead
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{RApdu: utils.HexToBytes("6FFF")})
 	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
 	var password *password.Password = password.NewPasswordNil()
 	var state *ReaderState = NewReaderState(nil, nil, password)
 
 	err := selectMF(reader, state)
-	if err == nil {
-		t.Errorf("Expected error")
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
 	}
 }
 

@@ -397,24 +397,27 @@ func TestSelectMF(t *testing.T) {
 			expError:    false,
 		},
 		{
-			// happy - new zealand passport returning 6982
+			// unhappy - new zealand passport returning 6982
+			// NB SelectMF itself is strict; tolerance for vendor-specific error statuses like
+			// this now lives in reader.go's selectMF step, not here (see TestSelectMF in
+			// reader/reader_test.go for the tolerant, reader-level behaviour)
 			transceiver: &StaticTransceiver{utils.HexToBytes("6982")},
-			expError:    false,
+			expError:    true,
 		},
 		{
-			// happy - china passport returning 6A81
+			// unhappy - china passport returning 6A81
 			transceiver: &StaticTransceiver{utils.HexToBytes("6A81")},
-			expError:    false,
+			expError:    true,
 		},
 		{
-			// happy - australia passport returning 6A86
+			// unhappy - australia passport returning 6A86
 			transceiver: &StaticTransceiver{utils.HexToBytes("6A86")},
-			expError:    false,
+			expError:    true,
 		},
 		{
-			// happy - ukraine passport returning 6A87
+			// unhappy - ukraine passport returning 6A87
 			transceiver: &StaticTransceiver{utils.HexToBytes("6A87")},
-			expError:    false,
+			expError:    true,
 		},
 		{
 			// unhappy - empty response
@@ -422,7 +425,7 @@ func TestSelectMF(t *testing.T) {
 			expError:    true,
 		},
 		{
-			// unhappy - card dead response
+			// unhappy - unrecognised/vendor-specific status
 			transceiver: &StaticTransceiver{utils.HexToBytes("6FFF")},
 			expError:    true,
 		},
@@ -435,6 +438,34 @@ func TestSelectMF(t *testing.T) {
 		if tc.expError != (err != nil) {
 			t.Errorf("Error state differs to expected (Exp:%t) (Act:%t)", tc.expError, (err != nil))
 		}
+	}
+}
+
+func TestSelectMFFallback(t *testing.T) {
+	// 1st attempt (implicit, no data) fails, 2nd attempt (explicit, data=3F00) succeeds
+	var transceiver *MockTransceiver = new(MockTransceiver)
+
+	transceiver.AddReqRsp("00A4000C", "6A86")
+	transceiver.AddReqRsp("00A4000C023F00", "9000")
+
+	var nfc *NfcSession = NewNfcSession(transceiver)
+
+	if err := nfc.SelectMF(); err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+}
+
+func TestSelectMFFallbackBothFail(t *testing.T) {
+	// both 1st (implicit) and 2nd (explicit) attempts fail
+	var transceiver *MockTransceiver = new(MockTransceiver)
+
+	transceiver.AddReqRsp("00A4000C", "6A86")
+	transceiver.AddReqRsp("00A4000C023F00", "6A86")
+
+	var nfc *NfcSession = NewNfcSession(transceiver)
+
+	if err := nfc.SelectMF(); err == nil {
+		t.Errorf("Expected error but got none")
 	}
 }
 

@@ -238,7 +238,13 @@ func selectMF(reader *Reader, _ *ReaderState) (err error) {
 	reader.reportPhase(STATUS_PHASE_CONNECTING)
 	slog.Info("Selecting MF")
 	if err = reader.nfc.SelectMF(); err != nil {
-		return fmt.Errorf("[selectMF] nfc.SelectMF error: %w", err)
+		// NB SelectMF is not essential to the read (see spec note above), and we've seen a
+		// growing list of vendor/passport-specific error statuses here over time (e.g. NZ, CN,
+		// AU, Ukraine) that each had to be tolerated individually to keep the read working.
+		// Rather than extending that allow-list per-passport indefinitely, tolerate any error
+		// here and continue - if the chip is genuinely unreachable, a later step will fail with
+		// a clearer error anyway.
+		slog.Warn("selectMF", "Tolerating error", err)
 	}
 	return nil
 }
