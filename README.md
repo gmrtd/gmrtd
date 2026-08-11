@@ -198,7 +198,7 @@ For convenience and interoperability testing, gmrtd includes built-in CSCA trust
 Together these cover **121 countries**. These defaults can be replaced, extended, or disabled depending on your trust model.
 
 # 📌 Compatibility
-- Go: 1.19+
+- Go: 1.26+
 - Transports: PC/SC, Core NFC, Android NFC, custom APDU transceivers
 - Platforms: Desktop, mobile, embedded
 
