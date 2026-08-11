@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/gmrtd/gmrtd/compare/v1.1.0...v1.1.1) (2026-08-11)
+
+
+### Bug Fixes
+
+* go version bump to address ios crash ([#465](https://github.com/gmrtd/gmrtd/issues/465)) ([690f365](https://github.com/gmrtd/gmrtd/commit/690f365ad30c352dfe004a8261d840e70141d55a))
+
 ## [1.1.0](https://github.com/gmrtd/gmrtd/compare/v1.0.0...v1.1.0) (2026-08-10)
 
 
