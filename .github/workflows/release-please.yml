@@ -101,3 +101,11 @@ jobs:
             dist/checksums.txt
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Notify gmrtd-ios
+        env:
+          GH_TOKEN: ${{ secrets.GMRTD_IOS_DISPATCH_TOKEN }}
+          TAG: ${{ needs.release.outputs.tag_name }}
+        run: |
+          gh api repos/gmrtd/gmrtd-ios/dispatches \
+            -f event_type=gmrtd-release \
+            -f "client_payload[version]=${TAG#v}"
