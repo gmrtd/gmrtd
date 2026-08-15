@@ -257,8 +257,6 @@ func (doc *Document) Verify() error {
 	return nil
 }
 
-// TODO - add specific UTs for parseDateYYYYMMDD / parseDatetimeYYYYMMDDHHMISS
-
 // should be 8-byte (YYYYMMDD) encoded, but we're seen passports with 4-byte BCD encoding
 func parseDateYYYYMMDD(data []byte) string {
 	var out string

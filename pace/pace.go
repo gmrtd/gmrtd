@@ -180,7 +180,6 @@ func selectPaceConfig(cardAccess *document.CardAccess) (*PaceConfig, *DomainPara
 
 		config, err := paceConfigGetByOID(paceInfo.Protocol)
 		if err != nil {
-			// TODO - we probably want to log this somewhere..
 			slog.Warn("selectPaceConfig: skipping unsupported PACE protocol", "protocol", paceInfo.Protocol, "error", err)
 			continue
 		}
