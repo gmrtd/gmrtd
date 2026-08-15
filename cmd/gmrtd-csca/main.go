@@ -48,30 +48,42 @@ func (cc *CountryCerts) GetOrCreate(cert cms.Certificate) *CertRecord {
 	return cr
 }
 
-// BrokenLinkCerts returns link certs whose AKI does not match any CSCA SKI in this country.
-func (cc *CountryCerts) BrokenLinkCerts() []*CertRecord {
-	cscaSkis := make(map[string]struct{})
-	for _, cr := range cc.ByFingerprint {
-		if !isLinkCert(cr.Cert) {
-			ski, _ := cr.Cert.TbsCertificate.Extensions.SubjectKeyIdentifier()
-			if ski != nil {
-				cscaSkis[utils.BytesToHex([]byte(*ski))] = struct{}{}
-			}
-		}
-	}
-
-	var broken []*CertRecord
-	for _, cr := range cc.ByFingerprint {
+func cscaSkiSet(certs map[string]*CertRecord) map[string]struct{} {
+	skis := make(map[string]struct{})
+	for _, cr := range certs {
 		if isLinkCert(cr.Cert) {
-			aki, _ := cr.Cert.TbsCertificate.Extensions.AuthorityKeyIdentifier()
-			if aki != nil {
-				if _, found := cscaSkis[utils.BytesToHex(aki.KeyIdentifier)]; !found {
-					broken = append(broken, cr)
-				}
-			}
+			continue
 		}
+		ski, _ := cr.Cert.TbsCertificate.Extensions.SubjectKeyIdentifier()
+		if ski == nil {
+			continue
+		}
+		skis[utils.BytesToHex([]byte(*ski))] = struct{}{}
+	}
+	return skis
+}
+
+func filterBrokenLinkCerts(certs map[string]*CertRecord, cscaSkis map[string]struct{}) []*CertRecord {
+	var broken []*CertRecord
+	for _, cr := range certs {
+		if !isLinkCert(cr.Cert) {
+			continue
+		}
+		aki, _ := cr.Cert.TbsCertificate.Extensions.AuthorityKeyIdentifier()
+		if aki == nil {
+			continue
+		}
+		if _, found := cscaSkis[utils.BytesToHex(aki.KeyIdentifier)]; found {
+			continue
+		}
+		broken = append(broken, cr)
 	}
 	return broken
+}
+
+// BrokenLinkCerts returns link certs whose AKI does not match any CSCA SKI in this country.
+func (cc *CountryCerts) BrokenLinkCerts() []*CertRecord {
+	return filterBrokenLinkCerts(cc.ByFingerprint, cscaSkiSet(cc.ByFingerprint))
 }
 
 type AllCerts struct {
