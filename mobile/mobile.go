@@ -60,7 +60,7 @@ type Transceiver interface {
 // LDS1 data-group number (1..16), which is only set for
 // STATUS_PHASE_READING_DATA_GROUP and 0 for every other phase.
 type ReaderStatus interface {
-	Status(phase int, dataGroup int)
+	Status(phase, dataGroup int)
 }
 
 // Phases of a document read, as passed to ReaderStatus.Status.
