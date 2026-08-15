@@ -795,6 +795,27 @@ func (v Validity) Parse() (notBefore time.Time, notAfter time.Time, err error) {
 	return notBefore, notAfter, nil
 }
 
+// checkValidityPeriod verifies that refTime falls within validity's notBefore/notAfter
+// window. A nil refTime (reference time not established) skips the check.
+func checkValidityPeriod(validity Validity, refTime *time.Time) error {
+	if refTime == nil {
+		return nil
+	}
+
+	notBefore, notAfter, err := validity.Parse()
+	if err != nil {
+		return fmt.Errorf("validity parse error: %w", err)
+	}
+	if refTime.Before(notBefore) {
+		return fmt.Errorf("not yet valid (notBefore: %s, refTime: %s)", notBefore.UTC(), refTime.UTC())
+	}
+	if refTime.After(notAfter) {
+		return fmt.Errorf("expired (notAfter: %s, refTime: %s)", notAfter.UTC(), refTime.UTC())
+	}
+
+	return nil
+}
+
 type Extension struct {
 	Raw       asn1.RawContent       `json:"raw"`
 	ObjectId  asn1.ObjectIdentifier `json:"objectId"`
@@ -899,16 +920,7 @@ func (si *SignerInfo) VerifyWithConfig(config *CMSConfig, sd *SignedData, truste
 	// extract signing-time as the reference time for certificate validity checks
 	// (only if not already set externally via config)
 	if config.ReferenceTime == nil {
-		if aaSigningTime := si.AuthenticatedAttributes.ByOID(oid.OidSigningTime); aaSigningTime != nil {
-			var st time.Time
-			if _, stErr := asn1.Unmarshal(aaSigningTime.Values.Bytes, &st); stErr == nil {
-				config.ReferenceTime = &st
-			} else {
-				slog.Warn("Verify - unable to parse signingTime, skipping validity check", "err", stErr)
-			}
-		} else {
-			slog.Warn("Verify - signingTime attribute absent, skipping validity check")
-		}
+		config.ReferenceTime = si.resolveSigningTime()
 	}
 
 	var digest []byte
@@ -924,41 +936,15 @@ func (si *SignerInfo) VerifyWithConfig(config *CMSConfig, sd *SignedData, truste
 		return nil, fmt.Errorf("[Verify] selectCertificate error: %w", err)
 	}
 
-	// reject DS cert with unrecognized critical extensions (RFC 5280 4.2)
-	if unrecognized := cert.TbsCertificate.Extensions.UnrecognizedCriticalExtensions(); len(unrecognized) > 0 {
-		return nil, fmt.Errorf("[Verify] DS cert has unrecognized critical extension: %v", unrecognized[0].ObjectId)
-	}
-
-	// DS cert must have keyUsage with digitalSignature (ICAO 9303 Part 12)
-	ku, kuErr := cert.TbsCertificate.Extensions.KeyUsage()
-	if kuErr != nil {
-		return nil, fmt.Errorf("[Verify] DS cert KeyUsage parse error: %w", kuErr)
-	}
-	if ku == nil {
-		return nil, fmt.Errorf("[Verify] DS cert missing keyUsage extension")
-	}
-	if !ku.HasBit(KeyUsageDigitalSignature) {
-		return nil, fmt.Errorf("[Verify] DS cert missing digitalSignature keyUsage")
-	}
-
-	// validate EKU if present (parse to confirm well-formed)
-	if _, ekuErr := cert.TbsCertificate.Extensions.ExtKeyUsage(); ekuErr != nil {
-		return nil, fmt.Errorf("[Verify] DS cert ExtKeyUsage parse error: %w", ekuErr)
+	// DS cert must satisfy RFC-5280/ICAO-9303 extension requirements (critical
+	// extensions recognized, keyUsage present with digitalSignature, EKU well-formed)
+	if err := validateDSCertExtensions(cert); err != nil {
+		return nil, fmt.Errorf("[Verify] DS cert %w", err)
 	}
 
 	// enforce DS cert validity period against reference time (ICAO 9303 Part 11 §5.1)
-	if config.ReferenceTime != nil {
-		refTime := *config.ReferenceTime
-		notBefore, notAfter, vErr := cert.TbsCertificate.Validity.Parse()
-		if vErr != nil {
-			return nil, fmt.Errorf("[Verify] DS cert validity parse error: %w", vErr)
-		}
-		if refTime.Before(notBefore) {
-			return nil, fmt.Errorf("[Verify] DS cert not yet valid (notBefore: %s, refTime: %s)", notBefore.UTC(), refTime.UTC())
-		}
-		if refTime.After(notAfter) {
-			return nil, fmt.Errorf("[Verify] DS cert expired (notAfter: %s, refTime: %s)", notAfter.UTC(), refTime.UTC())
-		}
+	if err := checkValidityPeriod(cert.TbsCertificate.Validity, config.ReferenceTime); err != nil {
+		return nil, fmt.Errorf("[Verify] DS cert %w", err)
 	}
 
 	/*
@@ -987,6 +973,54 @@ func (si *SignerInfo) VerifyWithConfig(config *CMSConfig, sd *SignedData, truste
 	}
 
 	return certChain, nil
+}
+
+// resolveSigningTime extracts and parses the signingTime authenticated attribute, for use
+// as the reference time in certificate validity checks. Returns nil (with a warning logged)
+// if the attribute is absent or malformed.
+func (si *SignerInfo) resolveSigningTime() *time.Time {
+	aaSigningTime := si.AuthenticatedAttributes.ByOID(oid.OidSigningTime)
+	if aaSigningTime == nil {
+		slog.Warn("Verify - signingTime attribute absent, skipping validity check")
+		return nil
+	}
+
+	var st time.Time
+	if _, err := asn1.Unmarshal(aaSigningTime.Values.Bytes, &st); err != nil {
+		slog.Warn("Verify - unable to parse signingTime, skipping validity check", "err", err)
+		return nil
+	}
+
+	return &st
+}
+
+// validateDSCertExtensions enforces RFC-5280/ICAO-9303 extension requirements on the
+// document signer certificate: no unrecognized critical extensions, keyUsage present
+// with digitalSignature, and a well-formed EKU (if present).
+func validateDSCertExtensions(cert *Certificate) error {
+	// reject DS cert with unrecognized critical extensions (RFC 5280 4.2)
+	if unrecognized := cert.TbsCertificate.Extensions.UnrecognizedCriticalExtensions(); len(unrecognized) > 0 {
+		return fmt.Errorf("has unrecognized critical extension: %v", unrecognized[0].ObjectId)
+	}
+
+	// DS cert must have keyUsage with digitalSignature (ICAO 9303 Part 12)
+	ku, kuErr := cert.TbsCertificate.Extensions.KeyUsage()
+	if kuErr != nil {
+		return fmt.Errorf("KeyUsage parse error: %w", kuErr)
+	}
+	if ku == nil {
+		return fmt.Errorf("missing keyUsage extension")
+	}
+	if !ku.HasBit(KeyUsageDigitalSignature) {
+		return fmt.Errorf("missing digitalSignature keyUsage")
+	}
+
+	// validate EKU if present (parse to confirm well-formed)
+	if _, ekuErr := cert.TbsCertificate.Extensions.ExtKeyUsage(); ekuErr != nil {
+		return fmt.Errorf("ExtKeyUsage parse error: %w", ekuErr)
+	}
+
+	return nil
 }
 
 func (si *SignerInfo) Verify(sd *SignedData, trustedCerts CertPool) (certChain [][]byte, err error) {
@@ -1147,18 +1181,8 @@ func (cert *Certificate) VerifyWithConfig(config *CMSConfig, trustedCerts CertPo
 	}
 
 	// enforce cert validity period (ICAO 9303 Part 11 §5.1)
-	if config.ReferenceTime != nil {
-		refTime := *config.ReferenceTime
-		notBefore, notAfter, vErr := cert.TbsCertificate.Validity.Parse()
-		if vErr != nil {
-			return certChain, fmt.Errorf("[Certificate.Verify] cert validity parse error: %w", vErr)
-		}
-		if refTime.Before(notBefore) {
-			return certChain, fmt.Errorf("[Certificate.Verify] cert not yet valid (notBefore: %s, refTime: %s)", notBefore.UTC(), refTime.UTC())
-		}
-		if refTime.After(notAfter) {
-			return certChain, fmt.Errorf("[Certificate.Verify] cert expired (notAfter: %s, refTime: %s)", notAfter.UTC(), refTime.UTC())
-		}
+	if err := checkValidityPeriod(cert.TbsCertificate.Validity, config.ReferenceTime); err != nil {
+		return certChain, fmt.Errorf("[Certificate.Verify] cert %w", err)
 	}
 
 	// get the parent certificate (authority) key identifier
@@ -1198,81 +1222,7 @@ func (cert *Certificate) VerifyWithConfig(config *CMSConfig, trustedCerts CertPo
 
 	// test each parent cert until we find one that passes all checks
 	for i := range parentCerts {
-		// reject parent with unrecognized critical extensions
-		if unrecognized := parentCerts[i].TbsCertificate.Extensions.UnrecognizedCriticalExtensions(); len(unrecognized) > 0 {
-			slog.Warn("Certificate.Verify - skipping parent cert with unrecognized critical extension", "idx", i, "oid", unrecognized[0].ObjectId)
-			continue
-		}
-
-		// parent must have basicConstraints CA:TRUE
-		bc, bcErr := parentCerts[i].TbsCertificate.Extensions.BasicConstraints()
-		if bcErr != nil {
-			slog.Warn("Certificate.Verify - skipping parent cert, BasicConstraints parse error", "idx", i, "err", bcErr)
-			continue
-		}
-		if bc == nil || !bc.IsCA {
-			slog.Warn("Certificate.Verify - skipping parent cert, not a CA", "idx", i)
-			continue
-		}
-
-		// enforce pathLenConstraint: MaxPathLen >= 0 limits intermediate CAs below this CA.
-		// intermediateDepth is 0 here (DS is directly issued by CSCA, no intermediates).
-		const intermediateDepth = 0
-		if bc.MaxPathLen >= 0 && intermediateDepth > bc.MaxPathLen {
-			slog.Debug("Certificate.Verify - skipping parent cert, pathLen exceeded", "idx", i, "maxPathLen", bc.MaxPathLen)
-			continue
-		}
-
-		// parent must have keyUsage with keyCertSign (ICAO 9303 Part 12)
-		ku, kuErr := parentCerts[i].TbsCertificate.Extensions.KeyUsage()
-		if kuErr != nil {
-			slog.Warn("Certificate.Verify - skipping parent cert, KeyUsage parse error", "idx", i, "err", kuErr)
-			continue
-		}
-		if ku == nil {
-			slog.Warn("Certificate.Verify - skipping parent cert, missing keyUsage extension", "idx", i)
-			continue
-		}
-		if !ku.HasBit(KeyUsageKeyCertSign) {
-			slog.Warn("Certificate.Verify - skipping parent cert, missing keyCertSign", "idx", i)
-			continue
-		}
-
-		// if parent has critical EKU, it must include anyExtendedKeyUsage (RFC 5280 4.2.1.12)
-		eku, ekuErr := parentCerts[i].TbsCertificate.Extensions.ExtKeyUsage()
-		if ekuErr != nil {
-			slog.Warn("Certificate.Verify - skipping parent cert, ExtKeyUsage parse error", "idx", i, "err", ekuErr)
-			continue
-		}
-		if eku != nil && parentCerts[i].TbsCertificate.Extensions.ExtKeyUsageIsCritical() {
-			if !eku.HasOID(oid.OidAnyExtendedKeyUsage) {
-				slog.Warn("Certificate.Verify - skipping parent cert, critical EKU without anyExtendedKeyUsage", "idx", i)
-				continue
-			}
-		}
-
-		// parent cert must be within validity period at reference time (ICAO 9303 Part 11 §5.1)
-		if config.ReferenceTime != nil {
-			refTime := *config.ReferenceTime
-			pNotBefore, pNotAfter, pVErr := parentCerts[i].TbsCertificate.Validity.Parse()
-			if pVErr != nil {
-				slog.Warn("Certificate.Verify - skipping parent cert, Validity parse error", "idx", i, "err", pVErr)
-				continue
-			}
-			if refTime.Before(pNotBefore) {
-				slog.Debug("Certificate.Verify - skipping parent cert, not yet valid", "idx", i, "notBefore", pNotBefore)
-				continue
-			}
-			if refTime.After(pNotAfter) {
-				slog.Debug("Certificate.Verify - skipping parent cert, expired", "idx", i, "notAfter", pNotAfter)
-				continue
-			}
-		}
-
-		// verify the cryptographic signature
-		tmpErr := VerifySignature(parentCerts[i].TbsCertificate.SubjectPublicKeyInfo.FullBytes, *certDigestAlg, certDigest, cert.SignatureAlgorithm.Algorithm, cert.SignatureValue.Bytes)
-		if tmpErr != nil {
-			slog.Debug("Certificate.Verify - skipping parent cert as it failed to verify the signature", "idx", i)
+		if verifyErr := verifyParentCandidate(config, cert, &parentCerts[i], i, certDigestAlg, certDigest); verifyErr != nil {
 			continue
 		}
 
@@ -1283,6 +1233,101 @@ func (cert *Certificate) VerifyWithConfig(config *CMSConfig, trustedCerts CertPo
 	}
 
 	return certChain, fmt.Errorf("[Certificate.Verify] no valid CA parent found (matchCnt:%d,aki:%x)", len(parentCerts), aki.KeyIdentifier)
+}
+
+// verifyParentCandidate checks whether parent is an eligible CA (basicConstraints,
+// pathLen, keyUsage, EKU), within its validity period, and the actual signer of cert.
+// Rejection is logged at Warn when it indicates likely cert misconfiguration, or at
+// Debug for benign non-matches (e.g. trying alternate candidates from cross-signing).
+func verifyParentCandidate(config *CMSConfig, cert *Certificate, parent *Certificate, idx int, certDigestAlg *asn1.ObjectIdentifier, certDigest []byte) error {
+	// reject parent with unrecognized critical extensions
+	if unrecognized := parent.TbsCertificate.Extensions.UnrecognizedCriticalExtensions(); len(unrecognized) > 0 {
+		slog.Warn("Certificate.Verify - skipping parent cert with unrecognized critical extension", "idx", idx, "oid", unrecognized[0].ObjectId)
+		return fmt.Errorf("unrecognized critical extension: %v", unrecognized[0].ObjectId)
+	}
+
+	// parent must have basicConstraints CA:TRUE
+	bc, bcErr := parent.TbsCertificate.Extensions.BasicConstraints()
+	if bcErr != nil {
+		slog.Warn("Certificate.Verify - skipping parent cert, BasicConstraints parse error", "idx", idx, "err", bcErr)
+		return fmt.Errorf("BasicConstraints parse error: %w", bcErr)
+	}
+	if bc == nil || !bc.IsCA {
+		slog.Warn("Certificate.Verify - skipping parent cert, not a CA", "idx", idx)
+		return fmt.Errorf("not a CA")
+	}
+
+	// enforce pathLenConstraint: MaxPathLen >= 0 limits intermediate CAs below this CA.
+	// intermediateDepth is 0 here (DS is directly issued by CSCA, no intermediates).
+	const intermediateDepth = 0
+	if bc.MaxPathLen >= 0 && intermediateDepth > bc.MaxPathLen {
+		slog.Debug("Certificate.Verify - skipping parent cert, pathLen exceeded", "idx", idx, "maxPathLen", bc.MaxPathLen)
+		return fmt.Errorf("pathLen exceeded (maxPathLen:%d)", bc.MaxPathLen)
+	}
+
+	// parent must have keyUsage with keyCertSign (ICAO 9303 Part 12)
+	ku, kuErr := parent.TbsCertificate.Extensions.KeyUsage()
+	if kuErr != nil {
+		slog.Warn("Certificate.Verify - skipping parent cert, KeyUsage parse error", "idx", idx, "err", kuErr)
+		return fmt.Errorf("KeyUsage parse error: %w", kuErr)
+	}
+	if ku == nil {
+		slog.Warn("Certificate.Verify - skipping parent cert, missing keyUsage extension", "idx", idx)
+		return fmt.Errorf("missing keyUsage extension")
+	}
+	if !ku.HasBit(KeyUsageKeyCertSign) {
+		slog.Warn("Certificate.Verify - skipping parent cert, missing keyCertSign", "idx", idx)
+		return fmt.Errorf("missing keyCertSign")
+	}
+
+	// if parent has critical EKU, it must include anyExtendedKeyUsage (RFC 5280 4.2.1.12)
+	eku, ekuErr := parent.TbsCertificate.Extensions.ExtKeyUsage()
+	if ekuErr != nil {
+		slog.Warn("Certificate.Verify - skipping parent cert, ExtKeyUsage parse error", "idx", idx, "err", ekuErr)
+		return fmt.Errorf("ExtKeyUsage parse error: %w", ekuErr)
+	}
+	if eku != nil && parent.TbsCertificate.Extensions.ExtKeyUsageIsCritical() && !eku.HasOID(oid.OidAnyExtendedKeyUsage) {
+		slog.Warn("Certificate.Verify - skipping parent cert, critical EKU without anyExtendedKeyUsage", "idx", idx)
+		return fmt.Errorf("critical EKU without anyExtendedKeyUsage")
+	}
+
+	// parent cert must be within validity period at reference time (ICAO 9303 Part 11 §5.1)
+	if err := checkParentValidityPeriod(parent.TbsCertificate.Validity, config.ReferenceTime, idx); err != nil {
+		return err
+	}
+
+	// verify the cryptographic signature
+	if tmpErr := VerifySignature(parent.TbsCertificate.SubjectPublicKeyInfo.FullBytes, *certDigestAlg, certDigest, cert.SignatureAlgorithm.Algorithm, cert.SignatureValue.Bytes); tmpErr != nil {
+		slog.Debug("Certificate.Verify - skipping parent cert as it failed to verify the signature", "idx", idx)
+		return fmt.Errorf("signature verification failed: %w", tmpErr)
+	}
+
+	return nil
+}
+
+// checkParentValidityPeriod verifies a parent cert's validity period against refTime,
+// logging at Warn for a validity parse error (likely cert misconfiguration) and at
+// Debug for a benign not-yet-valid/expired mismatch (e.g. trying other cross-signed candidates).
+func checkParentValidityPeriod(validity Validity, refTime *time.Time, idx int) error {
+	if refTime == nil {
+		return nil
+	}
+
+	pNotBefore, pNotAfter, pVErr := validity.Parse()
+	if pVErr != nil {
+		slog.Warn("Certificate.Verify - skipping parent cert, Validity parse error", "idx", idx, "err", pVErr)
+		return fmt.Errorf("Validity parse error: %w", pVErr)
+	}
+	if refTime.Before(pNotBefore) {
+		slog.Debug("Certificate.Verify - skipping parent cert, not yet valid", "idx", idx, "notBefore", pNotBefore)
+		return fmt.Errorf("not yet valid (notBefore: %s)", pNotBefore.UTC())
+	}
+	if refTime.After(pNotAfter) {
+		slog.Debug("Certificate.Verify - skipping parent cert, expired", "idx", idx, "notAfter", pNotAfter)
+		return fmt.Errorf("expired (notAfter: %s)", pNotAfter.UTC())
+	}
+
+	return nil
 }
 
 func (cert *Certificate) Verify(trustedCerts CertPool) (certChain [][]byte, err error) {
