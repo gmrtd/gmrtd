@@ -197,7 +197,7 @@ type testReaderStatus struct {
 	statuses [][2]int
 }
 
-func (status *testReaderStatus) Status(phase int, dataGroup int) {
+func (status *testReaderStatus) Status(phase, dataGroup int) {
 	status.mu.Lock()
 	defer status.mu.Unlock()
 	status.statuses = append(status.statuses, [2]int{phase, dataGroup})
