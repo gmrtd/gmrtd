@@ -201,132 +201,177 @@ func subjectDN(cert *cms.Certificate) string {
 	return s
 }
 
-func run(pools []namedPool, countries []iso3166.Country, w io.Writer) {
+func buildAllCerts(pools []namedPool, countries []iso3166.Country) *AllCerts {
 	ac := NewAllCerts()
 
 	for _, np := range pools {
 		for _, country := range countries {
-			countryCerts := np.pool.ByIssuerCountry(country.Alpha2)
 			cc := ac.GetOrCreate(country.Alpha2)
-			for _, cert := range countryCerts {
+			for _, cert := range np.pool.ByIssuerCountry(country.Alpha2) {
 				cr := cc.GetOrCreate(cert)
 				cr.Sources[np.name] = struct{}{}
 			}
 		}
 	}
 
-	var cscaCertCnt int
-	var linkCertCnt int
-	var brokenLinkCnt int
-	var countriesWithCscaCertCnt int
-	var countriesWithLinkCertCnt int
+	return ac
+}
 
-	for _, country := range countries {
-		var countryCscaCnt int
-		var countryLinkCertCnt int
+func akiHexOf(cert *cms.Certificate) string {
+	aki, _ := cert.TbsCertificate.Extensions.AuthorityKeyIdentifier()
+	if aki == nil {
+		return "?"
+	}
+	return fmt.Sprintf("%X", aki.KeyIdentifier)
+}
 
-		cc := ac.GetOrCreate(country.Alpha2)
+func toCertRecordSet(records []*CertRecord) map[*CertRecord]struct{} {
+	set := make(map[*CertRecord]struct{}, len(records))
+	for _, cr := range records {
+		set[cr] = struct{}{}
+	}
+	return set
+}
 
-		if len(cc.ByFingerprint) < 1 {
+func sortBySki(records []*CertRecord) {
+	sort.Slice(records, func(i, j int) bool { return skiHex(records[i].Cert) < skiHex(records[j].Cert) })
+}
+
+// printCscaTable prints the CSCA table for a country and returns the CSCA cert count.
+func printCscaTable(w io.Writer, cc *CountryCerts) int {
+	var cscaCnt int
+
+	fmt.Fprintf(w, "  CSCA:\n")
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "    SKI\tVALID\tKEY\tSOURCES\tSUBJECT")
+	for _, fp := range sortedFingerprints(cc.ByFingerprint) {
+		cr := cc.ByFingerprint[fp]
+		if isLinkCert(cr.Cert) {
 			continue
 		}
+		cscaCnt++
+		fmt.Fprintf(tw, "    %s\t%s\t%s\t%s\t%s\n",
+			skiHex(cr.Cert),
+			formatValidity(cr.Cert.TbsCertificate.Validity),
+			formatKeyType(cr.Cert),
+			formatSources(cr.Sources),
+			subjectDN(cr.Cert),
+		)
+	}
+	tw.Flush()
+	fmt.Fprintf(w, "\n")
 
-		fmt.Fprintf(w, "[%-2s] %s [cnt:%1d]\n\n", country.Alpha2, country.Name, len(cc.ByFingerprint))
+	return cscaCnt
+}
 
-		fmt.Fprintf(w, "  CSCA:\n")
-		{
-			tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-			fmt.Fprintln(tw, "    SKI\tVALID\tKEY\tSOURCES\tSUBJECT")
-			for _, fp := range sortedFingerprints(cc.ByFingerprint) {
-				cr := cc.ByFingerprint[fp]
-				if !isLinkCert(cr.Cert) {
-					countryCscaCnt++
-					fmt.Fprintf(tw, "    %s\t%s\t%s\t%s\t%s\n",
-						skiHex(cr.Cert),
-						formatValidity(cr.Cert.TbsCertificate.Validity),
-						formatKeyType(cr.Cert),
-						formatSources(cr.Sources),
-						subjectDN(cr.Cert),
-					)
-				}
-			}
-			tw.Flush()
+// printLinkTable prints the LINK table for a country (excluding broken links) and returns the link cert count.
+func printLinkTable(w io.Writer, cc *CountryCerts, brokenSet map[*CertRecord]struct{}) int {
+	var linkCnt int
+
+	fmt.Fprintf(w, "  LINK:\n")
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "    AKI\t\tSKI\tVALID\tKEY\tSOURCES")
+	for _, fp := range sortedFingerprints(cc.ByFingerprint) {
+		cr := cc.ByFingerprint[fp]
+		if !isLinkCert(cr.Cert) {
+			continue
 		}
-		fmt.Fprintf(w, "\n")
-
-		broken := cc.BrokenLinkCerts()
-		sort.Slice(broken, func(i, j int) bool { return skiHex(broken[i].Cert) < skiHex(broken[j].Cert) })
-		brokenLinkCnt += len(broken)
-
-		brokenSet := make(map[*CertRecord]struct{}, len(broken))
-		for _, cr := range broken {
-			brokenSet[cr] = struct{}{}
+		linkCnt++
+		if _, isBroken := brokenSet[cr]; isBroken {
+			continue
 		}
+		fmt.Fprintf(tw, "    %s\t->\t%s\t%s\t%s\t%s\n",
+			akiHexOf(cr.Cert),
+			skiHex(cr.Cert),
+			formatValidity(cr.Cert.TbsCertificate.Validity),
+			formatKeyType(cr.Cert),
+			formatSources(cr.Sources),
+		)
+	}
+	tw.Flush()
 
-		fmt.Fprintf(w, "  LINK:\n")
-		{
-			tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-			fmt.Fprintln(tw, "    AKI\t\tSKI\tVALID\tKEY\tSOURCES")
-			for _, fp := range sortedFingerprints(cc.ByFingerprint) {
-				cr := cc.ByFingerprint[fp]
-				if isLinkCert(cr.Cert) {
-					countryLinkCertCnt++
-					if _, isBroken := brokenSet[cr]; isBroken {
-						continue
-					}
-					aki, _ := cr.Cert.TbsCertificate.Extensions.AuthorityKeyIdentifier()
-					akiHex := "?"
-					if aki != nil {
-						akiHex = fmt.Sprintf("%X", aki.KeyIdentifier)
-					}
-					fmt.Fprintf(tw, "    %s\t->\t%s\t%s\t%s\t%s\n",
-						akiHex,
-						skiHex(cr.Cert),
-						formatValidity(cr.Cert.TbsCertificate.Validity),
-						formatKeyType(cr.Cert),
-						formatSources(cr.Sources),
-					)
-				}
-			}
-			tw.Flush()
+	return linkCnt
+}
+
+func printBrokenLinksTable(w io.Writer, broken []*CertRecord) {
+	if len(broken) == 0 {
+		return
+	}
+
+	fmt.Fprintf(w, "\n")
+	fmt.Fprintf(w, "  BROKEN LINKS:\n")
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "    AKI\tSKI\tNOTE")
+	for _, cr := range broken {
+		fmt.Fprintf(tw, "    %s\t%s\t%s\n", akiHexOf(cr.Cert), skiHex(cr.Cert), "parent CSCA not in master list")
+	}
+	tw.Flush()
+}
+
+type countryStats struct {
+	cscaCnt   int
+	linkCnt   int
+	brokenCnt int
+}
+
+// printCountryReport prints the full report block for a country (CSCA/LINK/BROKEN LINKS
+// tables) and returns its cert counts. It prints nothing and returns a zero countryStats
+// if the country has no certs.
+func printCountryReport(w io.Writer, country iso3166.Country, cc *CountryCerts) countryStats {
+	if len(cc.ByFingerprint) < 1 {
+		return countryStats{}
+	}
+
+	fmt.Fprintf(w, "[%-2s] %s [cnt:%1d]\n\n", country.Alpha2, country.Name, len(cc.ByFingerprint))
+
+	cscaCnt := printCscaTable(w, cc)
+
+	broken := cc.BrokenLinkCerts()
+	sortBySki(broken)
+	brokenSet := toCertRecordSet(broken)
+
+	linkCnt := printLinkTable(w, cc, brokenSet)
+	printBrokenLinksTable(w, broken)
+
+	fmt.Fprintf(w, "\n")
+
+	return countryStats{cscaCnt: cscaCnt, linkCnt: linkCnt, brokenCnt: len(broken)}
+}
+
+func printSummary(w io.Writer, total countryStats, countriesWithCscaCnt, countriesWithLinkCnt int) {
+	fmt.Fprintf(w, "\n\n\n")
+	fmt.Fprintf(w, "CSCA certificate count (unique): %d\n", total.cscaCnt)
+	fmt.Fprintf(w, "Link certificate count (unique): %d\n", total.linkCnt)
+	fmt.Fprintf(w, "Broken link count:               %d\n", total.brokenCnt)
+	fmt.Fprintf(w, "\n")
+	fmt.Fprintf(w, "Countries with CSCA certificates: %d\n", countriesWithCscaCnt)
+	fmt.Fprintf(w, "Countries with Link certificates: %d\n", countriesWithLinkCnt)
+	fmt.Fprintf(w, "\n")
+}
+
+func run(pools []namedPool, countries []iso3166.Country, w io.Writer) {
+	ac := buildAllCerts(pools, countries)
+
+	var total countryStats
+	var countriesWithCscaCnt int
+	var countriesWithLinkCnt int
+
+	for _, country := range countries {
+		cc := ac.GetOrCreate(country.Alpha2)
+		stats := printCountryReport(w, country, cc)
+
+		total.cscaCnt += stats.cscaCnt
+		total.linkCnt += stats.linkCnt
+		total.brokenCnt += stats.brokenCnt
+		if stats.cscaCnt > 0 {
+			countriesWithCscaCnt++
 		}
-
-		if len(broken) > 0 {
-			fmt.Fprintf(w, "\n")
-			fmt.Fprintf(w, "  BROKEN LINKS:\n")
-			tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-			fmt.Fprintln(tw, "    AKI\tSKI\tNOTE")
-			for _, cr := range broken {
-				aki, _ := cr.Cert.TbsCertificate.Extensions.AuthorityKeyIdentifier()
-				akiHex := "?"
-				if aki != nil {
-					akiHex = fmt.Sprintf("%X", aki.KeyIdentifier)
-				}
-				fmt.Fprintf(tw, "    %s\t%s\t%s\n", akiHex, skiHex(cr.Cert), "parent CSCA not in master list")
-			}
-			tw.Flush()
-		}
-
-		fmt.Fprintf(w, "\n")
-
-		cscaCertCnt += countryCscaCnt
-		linkCertCnt += countryLinkCertCnt
-		if countryCscaCnt > 0 {
-			countriesWithCscaCertCnt++
-		}
-		if countryLinkCertCnt > 0 {
-			countriesWithLinkCertCnt++
+		if stats.linkCnt > 0 {
+			countriesWithLinkCnt++
 		}
 	}
 
-	fmt.Fprintf(w, "\n\n\n")
-	fmt.Fprintf(w, "CSCA certificate count (unique): %d\n", cscaCertCnt)
-	fmt.Fprintf(w, "Link certificate count (unique): %d\n", linkCertCnt)
-	fmt.Fprintf(w, "Broken link count:               %d\n", brokenLinkCnt)
-	fmt.Fprintf(w, "\n")
-	fmt.Fprintf(w, "Countries with CSCA certificates: %d\n", countriesWithCscaCertCnt)
-	fmt.Fprintf(w, "Countries with Link certificates: %d\n", countriesWithLinkCertCnt)
-	fmt.Fprintf(w, "\n")
+	printSummary(w, total, countriesWithCscaCnt, countriesWithLinkCnt)
 }
 
 func main() { os.Exit(realMain(os.Stdout, os.Stderr)) }

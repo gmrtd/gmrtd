@@ -233,6 +233,21 @@ func TestBrokenLinkCerts_NoLinkCerts_ReturnsEmpty(t *testing.T) {
 	}
 }
 
+// --- cscaSkiSet ---
+
+func TestCscaSkiSet_CscaMissingSKI_Excluded(t *testing.T) {
+	cc := NewCountryCerts()
+
+	// CSCA (no AKI), but also no SKI extension.
+	cr := cc.GetOrCreate(buildCert([]byte{10}, nil, nil))
+	cr.Sources["DE"] = struct{}{}
+
+	skis := cscaSkiSet(cc.ByFingerprint)
+	if len(skis) != 0 {
+		t.Errorf("expected no SKIs when CSCA lacks an SKI extension, got %d", len(skis))
+	}
+}
+
 // --- AllCerts.GetOrCreate ---
 
 func TestAllCertsGetOrCreate_CaseNormalisation(t *testing.T) {
@@ -328,6 +343,22 @@ func TestSkiHex_NoSKI(t *testing.T) {
 	}
 }
 
+// --- akiHexOf ---
+
+func TestAkiHexOf_WithAKI(t *testing.T) {
+	cert := buildCert([]byte{1}, nil, []byte{0xAA, 0xBB})
+	if got := akiHexOf(&cert); got != "AABB" {
+		t.Errorf("expected AABB, got %s", got)
+	}
+}
+
+func TestAkiHexOf_NoAKI(t *testing.T) {
+	cert := buildCert([]byte{1}, nil, nil)
+	if got := akiHexOf(&cert); got != "?" {
+		t.Errorf("expected ?, got %s", got)
+	}
+}
+
 // --- subjectDN ---
 
 // buildSubjectRDN encodes an RDNSequence from a list of (OID, value) pairs.
@@ -366,6 +397,20 @@ func TestSubjectDN_WithCN(t *testing.T) {
 
 func TestSubjectDN_EmptySubject(t *testing.T) {
 	cert := buildCert([]byte{1}, []byte{0xAA}, nil)
+	if got := subjectDN(&cert); got != "?" {
+		t.Errorf("expected ?, got %s", got)
+	}
+}
+
+func TestSubjectDN_EmptyRDNSequence_ReturnsPlaceholder(t *testing.T) {
+	// A validly-parsed but attribute-less RDN sequence stringifies to "".
+	subject := buildSubjectRDN(nil)
+	cert := cms.Certificate{
+		Raw: asn1.RawContent([]byte{1}),
+		TbsCertificate: cms.TBSCertificate{
+			Subject: subject,
+		},
+	}
 	if got := subjectDN(&cert); got != "?" {
 		t.Errorf("expected ?, got %s", got)
 	}
@@ -527,8 +572,8 @@ func TestFormatKeyType_UnknownAlgorithm(t *testing.T) {
 
 type mockCertPool map[string][]cms.Certificate
 
-func (m mockCertPool) ByIssuerCountry(alpha2 string) []cms.Certificate    { return m[alpha2] }
-func (m mockCertPool) BySKI(_ []byte) []cms.Certificate                   { return nil }
+func (m mockCertPool) ByIssuerCountry(alpha2 string) []cms.Certificate       { return m[alpha2] }
+func (m mockCertPool) BySKI(_ []byte) []cms.Certificate                      { return nil }
 func (m mockCertPool) ByIssuerAndSerial(_ []byte) ([]cms.Certificate, error) { return nil, nil }
 func (m mockCertPool) All() []cms.Certificate {
 	var all []cms.Certificate
