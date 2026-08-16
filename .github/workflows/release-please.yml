@@ -102,6 +102,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Notify gmrtd-ios
+        if: github.repository == 'gmrtd/gmrtd'
         env:
           GH_TOKEN: ${{ secrets.GMRTD_IOS_DISPATCH_TOKEN }}
           TAG: ${{ needs.release.outputs.tag_name }}
