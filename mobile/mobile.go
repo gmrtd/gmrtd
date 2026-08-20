@@ -141,21 +141,23 @@ func NewPasswordCan(can string) (*MrtdPassword, error) {
 
 // Reader is not safe for concurrent use: it is a single-use, single-goroutine
 // object for driving one document read. mu guards the mutable configuration
-// fields (set via SetApduMaxLe/SkipPace/SkipImages/WithAAChallenge) and
-// serialises ReadDocument, so a Reader that a host app accidentally shares
-// and calls from multiple threads (e.g. gomobile bindings invoked from
-// several Swift/Kotlin dispatch queues) fails safe - calls queue up - rather
-// than racing on these fields and corrupting the Go heap. Callers should
-// still construct a new Reader per read rather than relying on this lock.
+// fields (set via SetApduMaxLe/SkipPace/SkipImages/
+// AllowBacFallbackOnPaceError/WithAAChallenge) and serialises ReadDocument, so
+// a Reader that a host app accidentally shares and calls from multiple
+// threads (e.g. gomobile bindings invoked from several Swift/Kotlin dispatch
+// queues) fails safe - calls queue up - rather than racing on these fields
+// and corrupting the Go heap. Callers should still construct a new Reader per
+// read rather than relying on this lock.
 type Reader struct {
 	mu sync.Mutex
 
-	status      ReaderStatus
-	transceiver Transceiver
-	maxRead     int
-	skipPace    bool
-	skipImages  bool
-	aaChallenge []byte
+	status                      ReaderStatus
+	transceiver                 Transceiver
+	maxRead                     int
+	skipPace                    bool
+	skipImages                  bool
+	allowBacFallbackOnPaceError bool
+	aaChallenge                 []byte
 }
 
 type Document struct {
@@ -193,6 +195,14 @@ func (r *Reader) SkipImages() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.skipImages = true
+}
+
+// AllowBacFallbackOnPaceError configures the reader to continue to BAC when
+// PACE is attempted and fails. The default is fail-closed.
+func (r *Reader) AllowBacFallbackOnPaceError() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.allowBacFallbackOnPaceError = true
 }
 
 // WithAAChallenge sets a caller-supplied 8-byte RND.IFD challenge for Active
@@ -259,6 +269,10 @@ func (r *Reader) ReadDocument(password *MrtdPassword, atr []byte, ats []byte) (d
 
 	if r.skipImages {
 		gmrtdReader.SkipImages()
+	}
+
+	if r.allowBacFallbackOnPaceError {
+		gmrtdReader.AllowBacFallbackOnPaceError()
 	}
 
 	if r.aaChallenge != nil {

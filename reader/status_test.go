@@ -141,7 +141,13 @@ func TestAccessControlStepsReportPhase(t *testing.T) {
 
 			state.docEx.Document.Mf.CardAccess = cardAccess
 
-			if err = tc.step(reader, state); err != nil {
+			err = tc.step(reader, state)
+			if tc.name == "performPace" {
+				// Default is fail-closed on PACE error; phase is still reported first.
+				if err == nil {
+					t.Fatalf("expected PACE error (fail-closed default)")
+				}
+			} else if err != nil {
 				t.Fatalf("unexpected error: %s", err)
 			}
 

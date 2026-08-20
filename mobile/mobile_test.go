@@ -159,6 +159,20 @@ func TestSkipImages(t *testing.T) {
 	}
 }
 
+func TestAllowBacFallbackOnPaceError(t *testing.T) {
+	reader := &Reader{}
+
+	if reader.allowBacFallbackOnPaceError {
+		t.Fatalf("allowBacFallbackOnPaceError should default to false")
+	}
+
+	reader.AllowBacFallbackOnPaceError()
+
+	if !reader.allowBacFallbackOnPaceError {
+		t.Fatalf("allowBacFallbackOnPaceError should be true after calling AllowBacFallbackOnPaceError()")
+	}
+}
+
 func TestWithAAChallenge(t *testing.T) {
 	t.Run("valid 8 bytes", func(t *testing.T) {
 		r, err := (&Reader{}).WithAAChallenge(make([]byte, 8))
@@ -587,6 +601,7 @@ func TestReaderConcurrentAccess(t *testing.T) {
 			_ = reader.SetApduMaxLe(1000)
 			reader.SkipPace()
 			reader.SkipImages()
+			reader.AllowBacFallbackOnPaceError()
 			_, _ = reader.WithAAChallenge(make([]byte, 8))
 			_, _ = reader.ReadDocument(pass, nil, nil) // expected to fail fast (static transceiver)
 		}()
