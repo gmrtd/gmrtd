@@ -49,7 +49,7 @@ func (pcscStatus *PCSCReaderStatus) Status(status reader.Status) {
 	slog.Info("Status", "status", status.String())
 }
 
-func cmdParams(args []string) (pass *password.Password, debug bool, apduMaxRead uint, skipPace bool, skipImages bool, sampleDoc bool, err error) {
+func cmdParams(args []string) (pass *password.Password, debug bool, apduMaxRead uint, skipPace bool, skipImages bool, allowBacFallbackOnPaceError bool, sampleDoc bool, err error) {
 	fs := flag.NewFlagSet("gmrtd-reader", flag.ContinueOnError)
 
 	documentNo := fs.String("doc", "", "Document Number")
@@ -60,34 +60,35 @@ func cmdParams(args []string) (pass *password.Password, debug bool, apduMaxRead 
 	maxRead := fs.Uint("maxRead", 0, "Maximum read amount (bytes) e.g. 1..65536")
 	skipPaceFlag := fs.Bool("skipPace", false, "Skip PACE")
 	skipImagesFlag := fs.Bool("skipImages", false, "Skip image data groups (DG2, DG7)")
+	allowBacFallbackOnPaceErrorFlag := fs.Bool("allowBacFallbackOnPaceError", false, "Allow BAC after a PACE error (default: fail closed)")
 	sampleDocFlag := fs.Bool("sampleDoc", false, "Generate the HTML report from static sample data instead of reading a card")
 
 	if err := fs.Parse(args); err != nil {
-		return nil, false, 0, false, false, false, err
+		return nil, false, 0, false, false, false, false, err
 	}
 
 	// sample-document mode bypasses card credentials entirely - no card is read
 	if *sampleDocFlag {
-		return nil, *debugFlag, *maxRead, *skipPaceFlag, *skipImagesFlag, true, nil
+		return nil, *debugFlag, *maxRead, *skipPaceFlag, *skipImagesFlag, *allowBacFallbackOnPaceErrorFlag, true, nil
 	}
 
 	if len(*documentNo) > 0 && len(*dateOfBirth) == 6 && len(*expiryDate) == 6 {
 		pass, err = password.NewPasswordMrzi(*documentNo, *dateOfBirth, *expiryDate)
 		if err != nil {
-			return nil, false, 0, false, false, false, err
+			return nil, false, 0, false, false, false, false, err
 		}
 	} else if len(*can) > 0 {
 		pass = password.NewPasswordCan(*can)
 	} else {
 		fs.PrintDefaults()
-		return nil, false, 0, false, false, false, fmt.Errorf("usage: must specify either doc+dob+exp *OR* can")
+		return nil, false, 0, false, false, false, false, fmt.Errorf("usage: must specify either doc+dob+exp *OR* can")
 	}
 
 	if *maxRead > 65536 {
-		return nil, false, 0, false, false, false, fmt.Errorf("maxRead must be 0 or between 1 and 65536")
+		return nil, false, 0, false, false, false, false, fmt.Errorf("maxRead must be 0 or between 1 and 65536")
 	}
 
-	return pass, *debugFlag, *maxRead, *skipPaceFlag, *skipImagesFlag, false, nil
+	return pass, *debugFlag, *maxRead, *skipPaceFlag, *skipImagesFlag, *allowBacFallbackOnPaceErrorFlag, false, nil
 }
 
 func initLogging(debug bool) {
@@ -164,7 +165,7 @@ type appDeps struct {
 	cscaMasterList       func() (cms.CertPool, error)
 	generateDocument     func(*document.DocumentEx, *iso7816.ApduLog) (*bytes.Buffer, error)
 	openBrowser          func(io.Reader) error
-	readDocumentFromCard func(pass *password.Password, maxRead uint, skipPace bool, skipImages bool, card smartCard, cscaCertPool cms.CertPool) (*document.DocumentEx, *iso7816.ApduLog, error)
+	readDocumentFromCard func(pass *password.Password, maxRead uint, skipPace bool, skipImages bool, allowBacFallbackOnPaceError bool, card smartCard, cscaCertPool cms.CertPool) (*document.DocumentEx, *iso7816.ApduLog, error)
 	sampleDocument       func(cscaCertPool cms.CertPool) (*document.DocumentEx, error)
 }
 
@@ -207,12 +208,13 @@ func runWithDeps(args []string, deps appDeps) error {
 	var maxRead uint = 0
 	var skipPace bool = false
 	var skipImages bool = false
+	var allowBacFallbackOnPaceError bool = false
 	var sampleDoc bool = false
 	var err error
 
 	fmt.Printf("GMRTD:v%s\n\n", version.Version)
 
-	pass, debug, maxRead, skipPace, skipImages, sampleDoc, err = cmdParams(args)
+	pass, debug, maxRead, skipPace, skipImages, allowBacFallbackOnPaceError, sampleDoc, err = cmdParams(args)
 	if err != nil {
 		return err
 	}
@@ -252,7 +254,7 @@ func runWithDeps(args []string, deps appDeps) error {
 			return err
 		}
 
-		documentEx, apduLog, err = deps.readDocumentFromCard(pass, maxRead, skipPace, skipImages, card, cscaCertPool)
+		documentEx, apduLog, err = deps.readDocumentFromCard(pass, maxRead, skipPace, skipImages, allowBacFallbackOnPaceError, card, cscaCertPool)
 		if err != nil {
 			slog.Error("readDocumentFromCard", "error", err)
 			return err
@@ -281,6 +283,7 @@ func readDocumentFromCard(
 	maxRead uint,
 	skipPace bool,
 	skipImages bool,
+	allowBacFallbackOnPaceError bool,
 	card smartCard,
 	cscaCertPool cms.CertPool,
 ) (*document.DocumentEx, *iso7816.ApduLog, error) {
@@ -309,6 +312,10 @@ func readDocumentFromCard(
 
 	if skipImages {
 		r.SkipImages()
+	}
+
+	if allowBacFallbackOnPaceError {
+		r.AllowBacFallbackOnPaceError()
 	}
 
 	return r.ReadDocument(pass, atr, ats)
