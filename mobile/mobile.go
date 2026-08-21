@@ -3,9 +3,7 @@ package mobile
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"runtime/debug"
 	"sync"
 
 	"github.com/gmrtd/gmrtd/cms"
@@ -223,23 +221,25 @@ func (r *Reader) ReadDocument(password *MrtdPassword, atr []byte, ats []byte) (d
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	// Recover at the public API boundary so an unexpected panic does not
+	// propagate through callers such as gomobile. Do not log here; leave
+	// logging decisions to the application.
 	defer func() {
-		if e := recover(); e != nil {
-			switch x := e.(type) {
-			case string:
-				err = errors.New(x)
+		if recovered := recover(); recovered != nil {
+			doc = nil
+
+			switch v := recovered.(type) {
 			case error:
-				err = x
+				err = fmt.Errorf("[ReadDocument] panic: %w", v)
 			default:
-				err = errors.New("unknown panic")
+				err = fmt.Errorf("[ReadDocument] panic: %v", v)
 			}
-			debug.PrintStack()
 		}
 	}()
 
 	doc = &Document{}
 
-	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(r.transceiver)
+	nfc := iso7816.NewNfcSession(r.transceiver)
 
 	if r.maxRead > 0 {
 		nfc.SetMaxLe(r.maxRead)
@@ -250,8 +250,11 @@ func (r *Reader) ReadDocument(password *MrtdPassword, atr []byte, ats []byte) (d
 		return nil, fmt.Errorf("[ReadDocument] getCscaCertPool error: %w", err)
 	}
 
-	var gmrtdReader *reader.Reader
-	gmrtdReader = reader.NewReader(&readerStatusAdapter{status: r.status}, nfc, certPool)
+	gmrtdReader := reader.NewReader(
+		&readerStatusAdapter{status: r.status},
+		nfc,
+		certPool,
+	)
 
 	if r.skipPace {
 		gmrtdReader.SkipPace()
@@ -262,14 +265,22 @@ func (r *Reader) ReadDocument(password *MrtdPassword, atr []byte, ats []byte) (d
 	}
 
 	if r.aaChallenge != nil {
-		if gmrtdReader, err = gmrtdReader.WithAAChallenge(r.aaChallenge); err != nil {
+		gmrtdReader, err = gmrtdReader.WithAAChallenge(r.aaChallenge)
+		if err != nil {
 			return nil, fmt.Errorf("[ReadDocument] WithAAChallenge error: %w", err)
 		}
 	}
 
-	doc.documentEx, doc.apduLog, err = gmrtdReader.ReadDocument(password.password, atr, ats)
+	doc.documentEx, doc.apduLog, err = gmrtdReader.ReadDocument(
+		password.password,
+		atr,
+		ats,
+	)
+	if err != nil {
+		return doc, err
+	}
 
-	return doc, err
+	return doc, nil
 }
 
 // CountryName returns the country name for an MRZ alpha-3 country code.
