@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.2](https://github.com/gmrtd/gmrtd/compare/v1.1.1...v1.1.2) (2026-08-21)
+
+
+### Bug Fixes
+
+* sonar warning for debug.PrintStack() ([#474](https://github.com/gmrtd/gmrtd/issues/474)) ([6331c71](https://github.com/gmrtd/gmrtd/commit/6331c71fb02ea978efa44a7001048b6a30451da0))
+
 ## [1.1.1](https://github.com/gmrtd/gmrtd/compare/v1.1.0...v1.1.1) (2026-08-11)
 
 
