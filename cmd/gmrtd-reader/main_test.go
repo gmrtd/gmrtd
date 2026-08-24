@@ -80,58 +80,73 @@ func TestCscaMasterList(t *testing.T) {
 
 func TestCmdParamsSuccess(t *testing.T) {
 	tests := []struct {
-		name             string
-		args             []string
-		wantDebug        bool
-		wantApduMaxRead  uint
-		wantSkipPace     bool
-		wantSkipImages   bool
+		name                           string
+		args                           []string
+		wantDebug                      bool
+		wantApduMaxRead                uint
+		wantSkipPace                   bool
+		wantSkipImages                 bool
+		wantAllowBacFallbackOnPaceError bool
 	}{
 		{
-			name:            "valid CAN only",
-			args:            []string{"-can", "123456"},
-			wantDebug:       false,
-			wantApduMaxRead: 0,
-			wantSkipPace:    false,
-			wantSkipImages:  false,
+			name:                            "valid CAN only",
+			args:                            []string{"-can", "123456"},
+			wantDebug:                       false,
+			wantApduMaxRead:                 0,
+			wantSkipPace:                    false,
+			wantSkipImages:                  false,
+			wantAllowBacFallbackOnPaceError: false,
 		},
 		{
-			name:            "valid CAN with flags",
-			args:            []string{"-can", "123456", "-debug", "-maxRead", "1024", "-skipPace"},
-			wantDebug:       true,
-			wantApduMaxRead: 1024,
-			wantSkipPace:    true,
-			wantSkipImages:  false,
+			name:                            "valid CAN with flags",
+			args:                            []string{"-can", "123456", "-debug", "-maxRead", "1024", "-skipPace"},
+			wantDebug:                       true,
+			wantApduMaxRead:                 1024,
+			wantSkipPace:                    true,
+			wantSkipImages:                  false,
+			wantAllowBacFallbackOnPaceError: false,
 		},
 		{
-			name:            "valid MRZ fields",
-			args:            []string{"-doc", "D23145890", "-dob", "740812", "-exp", "120415"},
-			wantDebug:       false,
-			wantApduMaxRead: 0,
-			wantSkipPace:    false,
-			wantSkipImages:  false,
+			name:                            "valid MRZ fields",
+			args:                            []string{"-doc", "D23145890", "-dob", "740812", "-exp", "120415"},
+			wantDebug:                       false,
+			wantApduMaxRead:                 0,
+			wantSkipPace:                    false,
+			wantSkipImages:                  false,
+			wantAllowBacFallbackOnPaceError: false,
 		},
 		{
-			name:            "valid MRZ fields with flags",
-			args:            []string{"-doc", "D23145890", "-dob", "740812", "-exp", "120415", "-debug", "-maxRead", "2048", "-skipPace"},
-			wantDebug:       true,
-			wantApduMaxRead: 2048,
-			wantSkipPace:    true,
-			wantSkipImages:  false,
+			name:                            "valid MRZ fields with flags",
+			args:                            []string{"-doc", "D23145890", "-dob", "740812", "-exp", "120415", "-debug", "-maxRead", "2048", "-skipPace"},
+			wantDebug:                       true,
+			wantApduMaxRead:                 2048,
+			wantSkipPace:                    true,
+			wantSkipImages:                  false,
+			wantAllowBacFallbackOnPaceError: false,
 		},
 		{
-			name:            "valid CAN with skipImages",
-			args:            []string{"-can", "123456", "-skipImages"},
-			wantDebug:       false,
-			wantApduMaxRead: 0,
-			wantSkipPace:    false,
-			wantSkipImages:  true,
+			name:                            "valid CAN with skipImages",
+			args:                            []string{"-can", "123456", "-skipImages"},
+			wantDebug:                       false,
+			wantApduMaxRead:                 0,
+			wantSkipPace:                    false,
+			wantSkipImages:                  true,
+			wantAllowBacFallbackOnPaceError: false,
+		},
+		{
+			name:                            "valid CAN with allowBacFallbackOnPaceError",
+			args:                            []string{"-can", "123456", "-allowBacFallbackOnPaceError"},
+			wantDebug:                       false,
+			wantApduMaxRead:                 0,
+			wantSkipPace:                    false,
+			wantSkipImages:                  false,
+			wantAllowBacFallbackOnPaceError: true,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			pass, debug, apduMaxRead, skipPace, skipImages, sampleDoc, err := cmdParams(tc.args)
+			pass, debug, apduMaxRead, skipPace, skipImages, allowBacFallbackOnPaceError, sampleDoc, err := cmdParams(tc.args)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -149,6 +164,9 @@ func TestCmdParamsSuccess(t *testing.T) {
 			}
 			if skipImages != tc.wantSkipImages {
 				t.Fatalf("skipImages = %v, want %v", skipImages, tc.wantSkipImages)
+			}
+			if allowBacFallbackOnPaceError != tc.wantAllowBacFallbackOnPaceError {
+				t.Fatalf("allowBacFallbackOnPaceError = %v, want %v", allowBacFallbackOnPaceError, tc.wantAllowBacFallbackOnPaceError)
 			}
 			if sampleDoc {
 				t.Fatalf("sampleDoc = true, want false")
@@ -207,7 +225,7 @@ func TestCmdParamsError(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			pass, debug, apduMaxRead, skipPace, _, _, err := cmdParams(tc.args)
+			pass, debug, apduMaxRead, skipPace, _, _, _, err := cmdParams(tc.args)
 			if err == nil {
 				t.Fatalf("expected error, got nil")
 			}
@@ -242,7 +260,7 @@ func TestCmdParamsSampleDoc(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			pass, _, _, _, _, sampleDoc, err := cmdParams(tc.args)
+			pass, _, _, _, _, _, sampleDoc, err := cmdParams(tc.args)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -469,6 +487,7 @@ func TestRunWithDepsReadDocumentFromCardError(t *testing.T) {
 		maxRead uint,
 		skipPace bool,
 		skipImages bool,
+		allowBacFallbackOnPaceError bool,
 		card smartCard,
 		cscaCertPool cms.CertPool,
 	) (*document.DocumentEx, *iso7816.ApduLog, error) {
@@ -500,6 +519,7 @@ func TestRunWithDepsGenerateDocumentError(t *testing.T) {
 		maxRead uint,
 		skipPace bool,
 		skipImages bool,
+		allowBacFallbackOnPaceError bool,
 		card smartCard,
 		cscaCertPool cms.CertPool,
 	) (*document.DocumentEx, *iso7816.ApduLog, error) {
@@ -534,6 +554,7 @@ func TestRunWithDepsOpenBrowserError(t *testing.T) {
 		maxRead uint,
 		skipPace bool,
 		skipImages bool,
+		allowBacFallbackOnPaceError bool,
 		card smartCard,
 		cscaCertPool cms.CertPool,
 	) (*document.DocumentEx, *iso7816.ApduLog, error) {
@@ -561,6 +582,7 @@ func TestReadDocumentFromCardReturnsReaderError(t *testing.T) {
 	_, _, err := readDocumentFromCard(
 		password.NewPasswordCan("123456"),
 		0,
+		false,
 		false,
 		false,
 		card,
@@ -592,6 +614,7 @@ func TestReadDocumentFromCardIgnoresAtrAtsErrors(t *testing.T) {
 		0,
 		false,
 		false,
+		false,
 		card,
 		&cms.GenericCertPool{},
 	)
@@ -621,6 +644,7 @@ func TestReadDocumentFromCardPropagatesReaderFailureFromApdu(t *testing.T) {
 		password.NewPasswordCan("123456"),
 		1000,
 		true,
+		false,
 		false,
 		card,
 		&cms.GenericCertPool{},

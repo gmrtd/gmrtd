@@ -557,12 +557,59 @@ func TestPerformPaceTransceiverError(t *testing.T) {
 	}
 
 	err = performPace(reader, state)
+	if err == nil {
+		t.Fatalf("expected PACE error to be returned (fail-closed default)")
+	}
+
+	if state.docEx.Session.PaceErr == nil {
+		t.Fatalf("Pace error expected")
+	}
+
+	if !errors.Is(err, state.docEx.Session.PaceErr) {
+		t.Fatalf("returned error should wrap PaceErr; got %v", err)
+	}
+
+	if state.docEx.Session.PaceResult == nil {
+		t.Fatalf("PaceResult expected")
+	}
+
+	if state.docEx.Session.PaceResult.Success {
+		t.Fatalf("PaceResult FAILURE expected")
+	}
+}
+
+func TestPerformPaceAllowsBacFallbackOnPaceError(t *testing.T) {
+	// Same transceiver failure as TestPerformPaceTransceiverError, but with
+	// AllowBacFallbackOnPaceError so the historical BAC-fallback path remains.
+
+	var err error
+
+	var status MockStatus
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.StaticTransceiver{RApdu: utils.HexToBytes("6FFF")}) // 6FFF: card dead
+	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
+	reader.AllowBacFallbackOnPaceError()
+
+	var pass *password.Password
+	pass, err = password.NewPasswordMrzi("123456", "100101", "301225")
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	var state *ReaderState = NewReaderState(nil, nil, pass)
+
+	var cardAccessBytes []byte = utils.HexToBytes("31143012060A04007F0007020204020402010202010D")
+	state.docEx.Document.Mf.CardAccess, err = document.NewCardAccess(cardAccessBytes)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	err = performPace(reader, state)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
 
 	if state.docEx.Session.PaceErr == nil {
-		t.Fatalf("Pace error expected")
+		t.Fatalf("Pace error expected to be recorded")
 	}
 
 	if state.docEx.Session.PaceResult == nil {
