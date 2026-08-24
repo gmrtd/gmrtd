@@ -1,3 +1,3 @@
 package version
 
-const Version = "1.1.2" // x-release-please-version
+const Version = "1.1.3" // x-release-please-version
