@@ -8,6 +8,7 @@ import (
 	"crypto/elliptic"
 	"encoding/asn1"
 	"math/big"
+	"reflect"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/oid"
@@ -835,6 +836,28 @@ func TestCryptoHashFromEcPubKey(t *testing.T) {
 		pub := &ecdsa.PublicKey{Curve: tc.curve, X: tc.curve.Params().Gx, Y: tc.curve.Params().Gy}
 		got := CryptoHashFromEcPubKey(pub)
 		if got != tc.want {
+			t.Errorf("curve %s: got %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
+func TestCandidateAaHashes(t *testing.T) {
+	cases := []struct {
+		name  string
+		curve elliptic.Curve
+		want  []crypto.Hash
+	}{
+		// curve-matched default first, then other ICAO-permitted hashes
+		// (output length <= key length) from strongest to weakest.
+		{"P-224", elliptic.P224(), []crypto.Hash{crypto.SHA224}},
+		{"P-256", elliptic.P256(), []crypto.Hash{crypto.SHA256, crypto.SHA224}},
+		{"P-384", elliptic.P384(), []crypto.Hash{crypto.SHA384, crypto.SHA256, crypto.SHA224}},
+		{"P-521", elliptic.P521(), []crypto.Hash{crypto.SHA512, crypto.SHA384, crypto.SHA256, crypto.SHA224}},
+	}
+	for _, tc := range cases {
+		pub := &ecdsa.PublicKey{Curve: tc.curve, X: tc.curve.Params().Gx, Y: tc.curve.Params().Gy}
+		got := CandidateAaHashes(pub)
+		if !reflect.DeepEqual(got, tc.want) {
 			t.Errorf("curve %s: got %v, want %v", tc.name, got, tc.want)
 		}
 	}

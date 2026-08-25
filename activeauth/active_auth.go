@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math/big"
+	"strings"
 
 	cms "github.com/gmrtd/gmrtd/cms"
 	"github.com/gmrtd/gmrtd/cryptoutils"
@@ -342,36 +343,45 @@ func ValidateActiveAuthSignature(dg15 *document.DG15, intAuthRspBytes, rndIfd []
 				Y:     ecPoint.Y,
 			}
 
-			var alg = cryptoutils.CryptoHashFromEcPubKey(pub)
-			var hash = cryptoutils.CryptoHash(alg, rndIfd)
+			// Parse the signature once in each supported encoding. ICAO 9303
+			// specifies plain r||s (TR-03111, used by most passports); some
+			// national ID cards (e.g. the Portuguese Cartão de Cidadão) use
+			// ASN.1/DER (X9.62), which starts with a 0x30 SEQUENCE tag.
+			plainSig, plainErr := parseEcdsaSignaturePlain(intAuthRspBytes)
+			var derSig *EcdsaSignature
+			if len(intAuthRspBytes) > 0 && intAuthRspBytes[0] == 0x30 {
+				derSig, _ = parseEcdsaSignatureDER(intAuthRspBytes)
+			}
 
-			// Try plain r||s format first (TR-03110, used by most passports)
-			sig, plainErr := parseEcdsaSignaturePlain(intAuthRspBytes)
-			if plainErr == nil {
-				slog.Debug("ValidateActiveAuthSignature", "format", "plain r||s")
-				if ecdsa.Verify(pub, hash, sig.R, sig.S) {
-					// Success with plain format
+			// The exact hash algorithm is only signalled via DG14's
+			// ActiveAuthenticationInfo. When that is absent the verifier cannot
+			// know it in advance, so try each ICAO-permitted hash for the curve
+			// (curve-matched default first). This lets cards that sign with a
+			// hash shorter than the curve (e.g. a P-384 key signed with SHA-256,
+			// as the Portuguese Cartão de Cidadão does) verify.
+			candidateHashes := cryptoutils.CandidateAaHashes(pub)
+
+			for _, alg := range candidateHashes {
+				hash := cryptoutils.CryptoHash(alg, rndIfd)
+
+				if plainErr == nil && ecdsa.Verify(pub, hash, plainSig.R, plainSig.S) {
+					slog.Debug("ValidateActiveAuthSignature", "format", "plain r||s", "hashAlg", alg.String())
+					result.Success = true
+					return result, nil
+				}
+				if derSig != nil && ecdsa.Verify(pub, hash, derSig.R, derSig.S) {
+					slog.Debug("ValidateActiveAuthSignature", "format", "DER/ASN.1", "hashAlg", alg.String())
 					result.Success = true
 					return result, nil
 				}
 			}
 
-			// If plain format failed or didn't verify, and signature starts with 0x30, try DER format
-			if len(intAuthRspBytes) > 0 && intAuthRspBytes[0] == 0x30 {
-				slog.Debug("ValidateActiveAuthSignature", "format", "trying DER/ASN.1 fallback")
-				sig, derErr := parseEcdsaSignatureDER(intAuthRspBytes)
-				if derErr == nil {
-					if ecdsa.Verify(pub, hash, sig.R, sig.S) {
-						// Success with DER format
-						slog.Debug("ValidateActiveAuthSignature", "format", "DER/ASN.1 succeeded")
-						result.Success = true
-						return result, nil
-					}
-				}
+			// No permitted hash / encoding combination verified.
+			triedHashes := make([]string, len(candidateHashes))
+			for i, alg := range candidateHashes {
+				triedHashes[i] = alg.String()
 			}
-
-			// Both formats failed
-			return result, fmt.Errorf("(ValidateActiveAuthSignature) AA signature did not verify with hash: %s for the provided nonce (tried plain r||s and DER formats)", alg.String())
+			return result, fmt.Errorf("(ValidateActiveAuthSignature) AA signature did not verify for the provided nonce (tried hashes: %s; formats: plain r||s and DER)", strings.Join(triedHashes, ", "))
 		}
 	default:
 		return result, fmt.Errorf("(ValidateActiveAuthSignature) unsupported SubjectPublicKeyInfo (OID:%s) (Context:%s)", subPubKeyInfo.Algorithm.Algorithm.String(), errContext)
