@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.4](https://github.com/gmrtd/gmrtd/compare/v1.1.3...v1.1.4) (2026-08-25)
+
+
+### Bug Fixes
+
+* **activeauth:** try all ICAO-permitted hashes for ECDSA AA ([#477](https://github.com/gmrtd/gmrtd/issues/477)) ([2068821](https://github.com/gmrtd/gmrtd/commit/206882148217822f88044bec1d9f0baf38e4492f))
+
 ## [1.1.3](https://github.com/gmrtd/gmrtd/compare/v1.1.2...v1.1.3) (2026-08-24)
 
 
