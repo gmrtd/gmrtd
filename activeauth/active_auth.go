@@ -242,10 +242,124 @@ func (activeAuth *ActiveAuth) DoActiveAuth() (result *document.ActiveAuthResult,
 	return result, err
 }
 
+// validateRsaAaSignature verifies an Active Authentication signature produced by an
+// RSA key, per ISO/IEC 9796-2 signature recovery.
+func validateRsaAaSignature(subPubKeyInfo *cms.SubjectPublicKeyInfo, intAuthRspBytes, rndIfd []byte) error {
+	pubKey, err := subPubKeyInfo.RsaPubKey()
+	if err != nil {
+		return fmt.Errorf("(ValidateActiveAuthSignature) RsaPubKey error: %w", err)
+	}
+
+	modulusBits := pubKey.N.BitLen()
+	if modulusBits < 1024 {
+		return fmt.Errorf("(ValidateActiveAuthSignature) RSA modulus too small (%d bits, minimum 1024)", modulusBits)
+	}
+	if modulusBits < 2048 {
+		slog.Warn("ValidateActiveAuthSignature - RSA modulus below ICAO recommended minimum of 2048 bits", "bits", modulusBits)
+	}
+
+	// S = rapdu-data
+	s := intAuthRspBytes
+
+	// Add context before decryption for debugging
+	keyWidth := (pubKey.N.BitLen() + 7) / 8
+	errContext := fmt.Sprintf("sigLen:%d,keyWidth:%d,sig:%x", len(s), keyWidth, s)
+
+	f, err := cryptoutils.RsaDecryptWithPublicKey(s, *pubKey)
+	if err != nil {
+		return fmt.Errorf("[ValidateActiveAuthSignature] RsaDecryptWithPublicKey error: %w", err)
+	}
+
+	// Log decrypted data for debugging
+	slog.Debug("ValidateActiveAuthSignature", "f_len", len(f), "f", utils.BytesToHex(f))
+
+	// ISO/IEC 9796-2: Strip leading zero bytes before decoding
+	// The meaningful signature data starts at 0x6A, any leading zeros are padding
+	f = utils.TrimLeadingZeroBytes(f)
+
+	m1, d, hashAlg, err := decodeF(f)
+	if err != nil {
+		return fmt.Errorf("(ValidateActiveAuthSignature) decodeF error: %w (Context:%s)", err, errContext)
+	}
+
+	// m is concat of m1 and m2 (rnd-ifd)
+	m := bytes.Clone(m1)
+	m = append(m, rndIfd...)
+	expD := cryptoutils.CryptoHash(hashAlg, m)
+
+	// verify the hash
+	if !bytes.Equal(d, expD) {
+		return fmt.Errorf("(ValidateActiveAuthSignature) hash mismatch (exp:%x,act:%x) (Context:%s)", expD, d, errContext)
+	}
+
+	return nil
+}
+
+/*
+6.1.2.3 ECDSA
+For ECDSA, the plain signature format according to [TR-03111] SHALL be used. Only prime curves with uncompressed
+points SHALL be used. A hash algorithm, whose output length is of the same length or shorter than the length of the
+ECDSA key in use, SHALL be used. Only SHA-224, SHA-256, SHA-384 or SHA-512 are supported as hash functions.
+RIPEMD-160 and SHA-1 SHALL NOT be used.
+The message M to be signed is the nonce RND.IFD provided by the Inspection System.
+
+Note: While ICAO 9303 specifies plain r||s format, some national ID cards (e.g., Portuguese Cartão de Cidadão)
+use ASN.1/DER encoded signatures (X9.62 standard). This implementation tries plain format first, then falls
+back to DER if plain fails and the signature starts with 0x30 (SEQUENCE tag).
+*/
+func validateEcdsaAaSignature(subPubKeyInfo *cms.SubjectPublicKeyInfo, intAuthRspBytes, rndIfd []byte) error {
+	curve, ecPoint, err := subPubKeyInfo.EcCurveAndPubKey(true)
+	if err != nil {
+		return fmt.Errorf("(ValidateActiveAuthSignature) EcCurveAndPubKey error: %w", err)
+	}
+
+	pub := &ecdsa.PublicKey{
+		Curve: *curve,
+		X:     ecPoint.X,
+		Y:     ecPoint.Y,
+	}
+
+	// Parse the signature once in each supported encoding. ICAO 9303
+	// specifies plain r||s (TR-03111, used by most passports); some
+	// national ID cards (e.g. the Portuguese Cartão de Cidadão) use
+	// ASN.1/DER (X9.62), which starts with a 0x30 SEQUENCE tag.
+	plainSig, plainErr := parseEcdsaSignaturePlain(intAuthRspBytes)
+	var derSig *EcdsaSignature
+	if len(intAuthRspBytes) > 0 && intAuthRspBytes[0] == 0x30 {
+		derSig, _ = parseEcdsaSignatureDER(intAuthRspBytes)
+	}
+
+	// The exact hash algorithm is only signalled via DG14's
+	// ActiveAuthenticationInfo. When that is absent the verifier cannot
+	// know it in advance, so try each ICAO-permitted hash for the curve
+	// (curve-matched default first). This lets cards that sign with a
+	// hash shorter than the curve (e.g. a P-384 key signed with SHA-256,
+	// as the Portuguese Cartão de Cidadão does) verify.
+	candidateHashes := cryptoutils.CandidateAaHashes(pub)
+
+	for _, alg := range candidateHashes {
+		hash := cryptoutils.CryptoHash(alg, rndIfd)
+
+		if plainErr == nil && ecdsa.Verify(pub, hash, plainSig.R, plainSig.S) {
+			slog.Debug("ValidateActiveAuthSignature", "format", "plain r||s", "hashAlg", alg.String())
+			return nil
+		}
+		if derSig != nil && ecdsa.Verify(pub, hash, derSig.R, derSig.S) {
+			slog.Debug("ValidateActiveAuthSignature", "format", "DER/ASN.1", "hashAlg", alg.String())
+			return nil
+		}
+	}
+
+	// No permitted hash / encoding combination verified.
+	triedHashes := make([]string, len(candidateHashes))
+	for i, alg := range candidateHashes {
+		triedHashes[i] = alg.String()
+	}
+	return fmt.Errorf("(ValidateActiveAuthSignature) AA signature did not verify for the provided nonce (tried hashes: %s; formats: plain r||s and DER)", strings.Join(triedHashes, ", "))
+}
+
 // - reduces dependency on 'activeAuth', which is not always be setup fully by caller
 func ValidateActiveAuthSignature(dg15 *document.DG15, intAuthRspBytes, rndIfd []byte) (result *document.ActiveAuthResult, err error) {
-	var errContext string
-
 	var subPubKeyInfo cms.SubjectPublicKeyInfo
 
 	subPubKeyInfo, err = cms.Asn1decodeSubjectPublicKeyInfo(dg15.SubjectPublicKeyInfoBytes)
@@ -265,132 +379,21 @@ func ValidateActiveAuthSignature(dg15 *document.DG15, intAuthRspBytes, rndIfd []
 
 	switch subPubKeyInfo.Algorithm.Algorithm.String() {
 	case oid.OidRsaEncryption.String():
-		{
-			var pubKey *cryptoutils.RsaPublicKey
-
-			pubKey, err = subPubKeyInfo.RsaPubKey()
-			if err != nil {
-				return result, fmt.Errorf("(ValidateActiveAuthSignature) RsaPubKey error: %w", err)
-			}
-
-			modulusBits := pubKey.N.BitLen()
-			if modulusBits < 1024 {
-				return result, fmt.Errorf("(ValidateActiveAuthSignature) RSA modulus too small (%d bits, minimum 1024)", modulusBits)
-			}
-			if modulusBits < 2048 {
-				slog.Warn("ValidateActiveAuthSignature - RSA modulus below ICAO recommended minimum of 2048 bits", "bits", modulusBits)
-			}
-
-			// S = rapdu-data
-			s := intAuthRspBytes
-
-			// Add context before decryption for debugging
-			keyWidth := (pubKey.N.BitLen() + 7) / 8
-			errContext = fmt.Sprintf("sigLen:%d,keyWidth:%d,sig:%x", len(s), keyWidth, s)
-
-			f, err := cryptoutils.RsaDecryptWithPublicKey(s, *pubKey)
-			if err != nil {
-				return result, fmt.Errorf("[ValidateActiveAuthSignature] RsaDecryptWithPublicKey error: %w", err)
-			}
-
-			// Log decrypted data for debugging
-			slog.Debug("ValidateActiveAuthSignature", "f_len", len(f), "f", utils.BytesToHex(f))
-
-			// ISO/IEC 9796-2: Strip leading zero bytes before decoding
-			// The meaningful signature data starts at 0x6A, any leading zeros are padding
-			f = utils.TrimLeadingZeroBytes(f)
-
-			m1, d, hashAlg, err := decodeF(f)
-			if err != nil {
-				return result, fmt.Errorf("(ValidateActiveAuthSignature) decodeF error: %w (Context:%s)", err, errContext)
-			}
-
-			// m is concat of m1 and m2 (rnd-ifd)
-			var expD []byte
-			{
-				m := bytes.Clone(m1)
-				m = append(m, rndIfd...)
-				expD = cryptoutils.CryptoHash(hashAlg, m)
-			}
-
-			// verify the hash
-			if !bytes.Equal(d, expD) {
-				return result, fmt.Errorf("(ValidateActiveAuthSignature) hash mismatch (exp:%x,act:%x) (Context:%s)", expD, d, errContext)
-			}
-		}
+		err = validateRsaAaSignature(&subPubKeyInfo, intAuthRspBytes, rndIfd)
 	case oid.OidEcPublicKey.String():
-		{
-			/*
-				6.1.2.3 ECDSA
-				For ECDSA, the plain signature format according to [TR-03111] SHALL be used. Only prime curves with uncompressed
-				points SHALL be used. A hash algorithm, whose output length is of the same length or shorter than the length of the
-				ECDSA key in use, SHALL be used. Only SHA-224, SHA-256, SHA-384 or SHA-512 are supported as hash functions.
-				RIPEMD-160 and SHA-1 SHALL NOT be used.
-				The message M to be signed is the nonce RND.IFD provided by the Inspection System.
-
-				Note: While ICAO 9303 specifies plain r||s format, some national ID cards (e.g., Portuguese Cartão de Cidadão)
-				use ASN.1/DER encoded signatures (X9.62 standard). This implementation tries plain format first, then falls
-				back to DER if plain fails and the signature starts with 0x30 (SEQUENCE tag).
-			*/
-			curve, ecPoint, err := subPubKeyInfo.EcCurveAndPubKey(true)
-			if err != nil {
-				return result, fmt.Errorf("(ValidateActiveAuthSignature) EcCurveAndPubKey error: %w (Context:%s)", err, errContext)
-			}
-
-			pub := &ecdsa.PublicKey{
-				Curve: *curve,
-				X:     ecPoint.X,
-				Y:     ecPoint.Y,
-			}
-
-			// Parse the signature once in each supported encoding. ICAO 9303
-			// specifies plain r||s (TR-03111, used by most passports); some
-			// national ID cards (e.g. the Portuguese Cartão de Cidadão) use
-			// ASN.1/DER (X9.62), which starts with a 0x30 SEQUENCE tag.
-			plainSig, plainErr := parseEcdsaSignaturePlain(intAuthRspBytes)
-			var derSig *EcdsaSignature
-			if len(intAuthRspBytes) > 0 && intAuthRspBytes[0] == 0x30 {
-				derSig, _ = parseEcdsaSignatureDER(intAuthRspBytes)
-			}
-
-			// The exact hash algorithm is only signalled via DG14's
-			// ActiveAuthenticationInfo. When that is absent the verifier cannot
-			// know it in advance, so try each ICAO-permitted hash for the curve
-			// (curve-matched default first). This lets cards that sign with a
-			// hash shorter than the curve (e.g. a P-384 key signed with SHA-256,
-			// as the Portuguese Cartão de Cidadão does) verify.
-			candidateHashes := cryptoutils.CandidateAaHashes(pub)
-
-			for _, alg := range candidateHashes {
-				hash := cryptoutils.CryptoHash(alg, rndIfd)
-
-				if plainErr == nil && ecdsa.Verify(pub, hash, plainSig.R, plainSig.S) {
-					slog.Debug("ValidateActiveAuthSignature", "format", "plain r||s", "hashAlg", alg.String())
-					result.Success = true
-					return result, nil
-				}
-				if derSig != nil && ecdsa.Verify(pub, hash, derSig.R, derSig.S) {
-					slog.Debug("ValidateActiveAuthSignature", "format", "DER/ASN.1", "hashAlg", alg.String())
-					result.Success = true
-					return result, nil
-				}
-			}
-
-			// No permitted hash / encoding combination verified.
-			triedHashes := make([]string, len(candidateHashes))
-			for i, alg := range candidateHashes {
-				triedHashes[i] = alg.String()
-			}
-			return result, fmt.Errorf("(ValidateActiveAuthSignature) AA signature did not verify for the provided nonce (tried hashes: %s; formats: plain r||s and DER)", strings.Join(triedHashes, ", "))
-		}
+		err = validateEcdsaAaSignature(&subPubKeyInfo, intAuthRspBytes, rndIfd)
 	default:
-		return result, fmt.Errorf("(ValidateActiveAuthSignature) unsupported SubjectPublicKeyInfo (OID:%s) (Context:%s)", subPubKeyInfo.Algorithm.Algorithm.String(), errContext)
+		err = fmt.Errorf("(ValidateActiveAuthSignature) unsupported SubjectPublicKeyInfo (OID:%s)", subPubKeyInfo.Algorithm.Algorithm.String())
+	}
+
+	if err != nil {
+		return result, err
 	}
 
 	// update result to indicate SUCCESS
 	result.Success = true
 
-	return result, err
+	return result, nil
 }
 
 const maxEvidenceFieldLen = 4096
