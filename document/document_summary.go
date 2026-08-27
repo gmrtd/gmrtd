@@ -229,102 +229,122 @@ func calculateAge(birthDate, now time.Time) int {
 func buildIdentityAttributes(doc *Document) *IdentityAttributes {
 	summary := &IdentityAttributes{}
 
-	dg1 := doc.Mf.Lds1.Dg1
-	dg2 := doc.Mf.Lds1.Dg2
-	dg7 := doc.Mf.Lds1.Dg7
-	dg11 := doc.Mf.Lds1.Dg11
-	dg12 := doc.Mf.Lds1.Dg12
-	dg16 := doc.Mf.Lds1.Dg16
+	applyDg1(summary, doc.Mf.Lds1.Dg1)
+	applyDg2(summary, doc.Mf.Lds1.Dg2)
+	applyDg7(summary, doc.Mf.Lds1.Dg7)
+	applyDg11(summary, doc.Mf.Lds1.Dg11)
+	applyDg12(summary, doc.Mf.Lds1.Dg12)
+	applyDg16(summary, doc.Mf.Lds1.Dg16)
 
-	if dg1 != nil && dg1.Mrz != nil {
-		m := dg1.Mrz
-
-		summary.DocumentCode = m.DocumentCode
-		summary.DocumentNumber = m.DocumentNumber
-		summary.Sex = m.Sex
-		summary.Name = m.NameOfHolder
-		summary.NameMrzRaw = m.NameOfHolder
-		summary.MrzOptionalData = m.OptionalData
-		summary.MrzOptionalData2 = m.OptionalData2
-
-		if len(m.IssuingState) > 0 {
-			summary.IssuingState = resolveCountryTolerant(m.IssuingState)
-		}
-		if len(m.Nationality) > 0 {
-			summary.Nationality = resolveCountryTolerant(m.Nationality)
-		}
-
-		if len(m.DateOfBirth) > 0 {
-			summary.DateOfBirthMrzRaw = m.DateOfBirth
-			// MRZ carries no century for DOB; surface the raw YYMMDD value as-is rather than
-			// guess. DG11's FullDateOfBirth (explicit century), if present, overrides below.
-			summary.DateOfBirth = m.DateOfBirth
-		}
-		if len(m.DateOfExpiry) > 0 {
-			summary.DateOfExpiryMrzRaw = m.DateOfExpiry
-			summary.DateOfExpiry = resolveExpiryDate(m.DateOfExpiry)
-		}
-	}
-
-	if dg11 != nil {
-		d := dg11.Details
-
-		if d.NameOfHolder != nil {
-			summary.Name = d.NameOfHolder
-		}
-		summary.OtherNames = d.OtherNames
-		summary.PersonalNumber = d.PersonalNumber
-		summary.PlaceOfBirth = d.PlaceOfBirth
-		summary.Address = d.Address
-		summary.Telephone = d.Telephone
-		summary.Profession = d.Profession
-		summary.Title = d.Title
-
-		if len(d.FullDateOfBirth) > 0 {
-			summary.DateOfBirthDg11Raw = d.FullDateOfBirth
-			summary.DateOfBirth = d.FullDateOfBirth
-		}
-	}
-
+	// DateOfBirth may be set by DG1 and/or overridden by DG11; resolve age only
+	// once both have had a chance to run.
 	if len(summary.DateOfBirth) > 0 {
 		summary.Age, summary.PossibleAges = resolveAge(summary.DateOfBirth)
 	}
 
-	if dg12 != nil {
-		d := dg12.Details
-
-		summary.IssuingAuthority = d.IssuingAuthority
-
-		if len(d.DateOfIssue) > 0 {
-			summary.DateOfIssueRaw = d.DateOfIssue
-			summary.DateOfIssue = d.DateOfIssue
-		}
-
-		if len(d.ImageFront) > 0 {
-			img := newImageData(d.ImageFront)
-			summary.DocumentImageFront = &img
-		}
-		if len(d.ImageRear) > 0 {
-			img := newImageData(d.ImageRear)
-			summary.DocumentImageRear = &img
-		}
-	}
-
-	if dg2 != nil {
-		for _, image := range dg2.Images {
-			summary.FaceImages = append(summary.FaceImages, newImageData(image.Image))
-		}
-	}
-
-	if dg7 != nil {
-		for _, image := range dg7.Images {
-			summary.SignatureImages = append(summary.SignatureImages, newImageData(image.Image))
-		}
-	}
-
-	if dg16 != nil {
-		summary.PersonsToNotify = dg16.PersonsToNotify
-	}
-
 	return summary
+}
+
+func applyDg1(summary *IdentityAttributes, dg1 *DG1) {
+	if dg1 == nil || dg1.Mrz == nil {
+		return
+	}
+	m := dg1.Mrz
+
+	summary.DocumentCode = m.DocumentCode
+	summary.DocumentNumber = m.DocumentNumber
+	summary.Sex = m.Sex
+	summary.Name = m.NameOfHolder
+	summary.NameMrzRaw = m.NameOfHolder
+	summary.MrzOptionalData = m.OptionalData
+	summary.MrzOptionalData2 = m.OptionalData2
+
+	if len(m.IssuingState) > 0 {
+		summary.IssuingState = resolveCountryTolerant(m.IssuingState)
+	}
+	if len(m.Nationality) > 0 {
+		summary.Nationality = resolveCountryTolerant(m.Nationality)
+	}
+
+	if len(m.DateOfBirth) > 0 {
+		summary.DateOfBirthMrzRaw = m.DateOfBirth
+		// MRZ carries no century for DOB; surface the raw YYMMDD value as-is rather than
+		// guess. DG11's FullDateOfBirth (explicit century), if present, overrides below.
+		summary.DateOfBirth = m.DateOfBirth
+	}
+	if len(m.DateOfExpiry) > 0 {
+		summary.DateOfExpiryMrzRaw = m.DateOfExpiry
+		summary.DateOfExpiry = resolveExpiryDate(m.DateOfExpiry)
+	}
+}
+
+func applyDg2(summary *IdentityAttributes, dg2 *DG2) {
+	if dg2 == nil {
+		return
+	}
+	for _, image := range dg2.Images {
+		summary.FaceImages = append(summary.FaceImages, newImageData(image.Image))
+	}
+}
+
+func applyDg7(summary *IdentityAttributes, dg7 *DG7) {
+	if dg7 == nil {
+		return
+	}
+	for _, image := range dg7.Images {
+		summary.SignatureImages = append(summary.SignatureImages, newImageData(image.Image))
+	}
+}
+
+func applyDg11(summary *IdentityAttributes, dg11 *DG11) {
+	if dg11 == nil {
+		return
+	}
+	d := dg11.Details
+
+	if d.NameOfHolder != nil {
+		summary.Name = d.NameOfHolder
+	}
+	summary.OtherNames = d.OtherNames
+	summary.PersonalNumber = d.PersonalNumber
+	summary.PlaceOfBirth = d.PlaceOfBirth
+	summary.Address = d.Address
+	summary.Telephone = d.Telephone
+	summary.Profession = d.Profession
+	summary.Title = d.Title
+
+	if len(d.FullDateOfBirth) > 0 {
+		summary.DateOfBirthDg11Raw = d.FullDateOfBirth
+		summary.DateOfBirth = d.FullDateOfBirth
+	}
+}
+
+func applyDg12(summary *IdentityAttributes, dg12 *DG12) {
+	if dg12 == nil {
+		return
+	}
+	d := dg12.Details
+
+	summary.IssuingAuthority = d.IssuingAuthority
+
+	if len(d.DateOfIssue) > 0 {
+		summary.DateOfIssueRaw = d.DateOfIssue
+		summary.DateOfIssue = d.DateOfIssue
+	}
+
+	if len(d.ImageFront) > 0 {
+		img := newImageData(d.ImageFront)
+		summary.DocumentImageFront = &img
+	}
+	if len(d.ImageRear) > 0 {
+		img := newImageData(d.ImageRear)
+		summary.DocumentImageRear = &img
+	}
+}
+
+func applyDg16(summary *IdentityAttributes, dg16 *DG16) {
+	if dg16 == nil {
+		return
+	}
+	summary.PersonsToNotify = dg16.PersonsToNotify
 }
