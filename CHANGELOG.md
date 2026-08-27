@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.5](https://github.com/gmrtd/gmrtd/compare/v1.1.4...v1.1.5) (2026-08-27)
+
+
+### Bug Fixes
+
+* address quick-win SonarQube findings in cms.go ([#479](https://github.com/gmrtd/gmrtd/issues/479)) ([03e0ec2](https://github.com/gmrtd/gmrtd/commit/03e0ec28a8ddc5733e5ae8ca6c2f901619ed01f8))
+
 ## [1.1.4](https://github.com/gmrtd/gmrtd/compare/v1.1.3...v1.1.4) (2026-08-25)
 
 
