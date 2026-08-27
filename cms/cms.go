@@ -730,13 +730,9 @@ func rdnEscapeValue(s string) string {
 	b.Grow(len(s))
 	for i, r := range s {
 		switch {
-		case r == ',' || r == '+' || r == '"' || r == '\\' || r == '<' || r == '>' || r == ';':
-			b.WriteByte('\\')
-			b.WriteRune(r)
-		case r == '#' && i == 0:
-			b.WriteByte('\\')
-			b.WriteRune(r)
-		case r == ' ' && (i == 0 || i == len(s)-1):
+		case r == ',' || r == '+' || r == '"' || r == '\\' || r == '<' || r == '>' || r == ';' ||
+			(r == '#' && i == 0) ||
+			(r == ' ' && (i == 0 || i == len(s)-1)):
 			b.WriteByte('\\')
 			b.WriteRune(r)
 		default:
@@ -1222,7 +1218,7 @@ func (cert *Certificate) VerifyWithConfig(config *CMSConfig, trustedCerts CertPo
 
 	// test each parent cert until we find one that passes all checks
 	for i := range parentCerts {
-		if verifyErr := verifyParentCandidate(config, cert, &parentCerts[i], i, certDigestAlg, certDigest); verifyErr != nil {
+		if verifyParentCandidate(config, cert, &parentCerts[i], i, certDigestAlg, certDigest) != nil {
 			continue
 		}
 
