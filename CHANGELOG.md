@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/gmrtd/gmrtd/compare/v1.1.5...v1.2.0) (2026-09-14)
+
+
+### Features
+
+* **cmd/gmrtd-csca:** add -country filter and -json output flags ([#483](https://github.com/gmrtd/gmrtd/issues/483)) ([a7c49d6](https://github.com/gmrtd/gmrtd/commit/a7c49d69c8347c5191bb8fd312e7c28c86e66d55))
+
 ## [1.1.5](https://github.com/gmrtd/gmrtd/compare/v1.1.4...v1.1.5) (2026-08-27)
 
 
