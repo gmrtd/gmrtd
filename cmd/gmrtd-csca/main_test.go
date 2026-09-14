@@ -3,6 +3,9 @@ package main
 import (
 	"bytes"
 	"encoding/asn1"
+	"encoding/json"
+	"errors"
+	"flag"
 	"fmt"
 	"math/big"
 	"strings"
@@ -57,12 +60,56 @@ func buildCert(raw, skiVal, akiVal []byte) cms.Certificate {
 
 func TestRealMain_Success(t *testing.T) {
 	var out, errOut strings.Builder
-	code := realMain(&out, &errOut)
+	code := realMain(nil, &out, &errOut)
 	if code != 0 {
 		t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut.String())
 	}
 	if !strings.HasPrefix(out.String(), "GMRTD:v") {
 		t.Errorf("expected output to start with GMRTD:v, got: %.50s", out.String())
+	}
+}
+
+func TestRealMain_CountryFilter(t *testing.T) {
+	var out, errOut strings.Builder
+	code := realMain([]string{"-country", "de"}, &out, &errOut)
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut.String())
+	}
+	if !strings.Contains(out.String(), "[DE]") {
+		t.Errorf("expected [DE] country block:\n%s", out.String())
+	}
+	if strings.Contains(out.String(), "[NL]") {
+		t.Errorf("expected other countries to be filtered out:\n%.500s", out.String())
+	}
+}
+
+func TestRealMain_UnknownCountry(t *testing.T) {
+	var out, errOut strings.Builder
+	code := realMain([]string{"-country", "ZZ"}, &out, &errOut)
+	if code != 1 {
+		t.Errorf("expected exit code 1, got %d", code)
+	}
+	if !strings.Contains(errOut.String(), "unknown -country code") {
+		t.Errorf("expected unknown country error, got: %s", errOut.String())
+	}
+}
+
+func TestRealMain_JSON(t *testing.T) {
+	var out, errOut strings.Builder
+	code := realMain([]string{"-json", "-country", "DE"}, &out, &errOut)
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d; stderr: %s", code, errOut.String())
+	}
+	if strings.HasPrefix(out.String(), "GMRTD:v") {
+		t.Errorf("expected no text banner in JSON output, got: %.50s", out.String())
+	}
+
+	var report jsonReport
+	if err := json.Unmarshal([]byte(out.String()), &report); err != nil {
+		t.Fatalf("expected valid JSON output: %v\n%s", err, out.String())
+	}
+	if len(report.Countries) != 1 || report.Countries[0].Alpha2 != "DE" {
+		t.Errorf("expected a single DE country block, got: %+v", report.Countries)
 	}
 }
 
@@ -72,7 +119,7 @@ func TestRealMain_GermanError(t *testing.T) {
 	germanMasterListFn = func() (*cms.SignedDataCertPool, error) { return nil, fmt.Errorf("boom") }
 
 	var out, errOut strings.Builder
-	if code := realMain(&out, &errOut); code != 1 {
+	if code := realMain(nil, &out, &errOut); code != 1 {
 		t.Errorf("expected exit code 1, got %d", code)
 	}
 	if !strings.Contains(errOut.String(), "German") {
@@ -86,7 +133,7 @@ func TestRealMain_DutchError(t *testing.T) {
 	dutchMasterListFn = func() (*cms.SignedDataCertPool, error) { return nil, fmt.Errorf("boom") }
 
 	var out, errOut strings.Builder
-	if code := realMain(&out, &errOut); code != 1 {
+	if code := realMain(nil, &out, &errOut); code != 1 {
 		t.Errorf("expected exit code 1, got %d", code)
 	}
 	if !strings.Contains(errOut.String(), "Dutch") {
@@ -100,7 +147,7 @@ func TestRealMain_IndonesianError(t *testing.T) {
 	indonesian2010SeriesCertsFn = func() (*cms.GenericCertPool, error) { return nil, fmt.Errorf("boom") }
 
 	var out, errOut strings.Builder
-	if code := realMain(&out, &errOut); code != 1 {
+	if code := realMain(nil, &out, &errOut); code != 1 {
 		t.Errorf("expected exit code 1, got %d", code)
 	}
 	if !strings.Contains(errOut.String(), "Indonesian") {
@@ -672,6 +719,142 @@ func TestRun_DuplicateCertAcrossPools(t *testing.T) {
 	}
 	if !strings.Contains(out, "[P1,P2]") {
 		t.Errorf("expected both sources [P1,P2]:\n%s", out)
+	}
+}
+
+// --- cmdParams ---
+
+func TestCmdParams_Defaults(t *testing.T) {
+	country, jsonOutput, err := cmdParams(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if country != "" || jsonOutput {
+		t.Errorf("expected empty country and jsonOutput=false, got country=%q jsonOutput=%v", country, jsonOutput)
+	}
+}
+
+func TestCmdParams_CountryNormalisedToUpper(t *testing.T) {
+	country, _, err := cmdParams([]string{"-country", "de"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if country != "DE" {
+		t.Errorf("expected DE, got %q", country)
+	}
+}
+
+func TestCmdParams_UnknownCountry(t *testing.T) {
+	_, _, err := cmdParams([]string{"-country", "ZZ"})
+	if err == nil || !strings.Contains(err.Error(), "unknown -country code") {
+		t.Errorf("expected unknown country error, got: %v", err)
+	}
+}
+
+func TestCmdParams_JSONFlag(t *testing.T) {
+	_, jsonOutput, err := cmdParams([]string{"-json"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !jsonOutput {
+		t.Error("expected jsonOutput=true")
+	}
+}
+
+func TestCmdParams_Help(t *testing.T) {
+	_, _, err := cmdParams([]string{"-h"})
+	if !errors.Is(err, flag.ErrHelp) {
+		t.Errorf("expected flag.ErrHelp, got: %v", err)
+	}
+}
+
+// --- filterCountries ---
+
+func TestFilterCountries_NoFilter(t *testing.T) {
+	countries := []iso3166.Country{{Alpha2: "DE"}, {Alpha2: "NL"}}
+	result := filterCountries(countries, "")
+	if len(result) != 2 {
+		t.Errorf("expected all countries unchanged, got %d", len(result))
+	}
+}
+
+func TestFilterCountries_MatchesOne(t *testing.T) {
+	countries := []iso3166.Country{{Alpha2: "DE"}, {Alpha2: "NL"}}
+	result := filterCountries(countries, "NL")
+	if len(result) != 1 || result[0].Alpha2 != "NL" {
+		t.Errorf("expected only NL, got %v", result)
+	}
+}
+
+func TestFilterCountries_NoMatch(t *testing.T) {
+	countries := []iso3166.Country{{Alpha2: "DE"}}
+	result := filterCountries(countries, "ZZ")
+	if len(result) != 0 {
+		t.Errorf("expected no countries, got %d", len(result))
+	}
+}
+
+// --- buildJSONReport / runJSON ---
+
+func TestBuildJSONReport_SingleCSCA(t *testing.T) {
+	cert := buildCert([]byte{1, 2, 3}, []byte{0xAA}, nil)
+	pool := mockCertPool{"DE": {cert}}
+	countries := []iso3166.Country{{Alpha2: "DE", Name: "Germany"}}
+
+	jr, total := buildJSONReport([]namedPool{{name: "TEST", pool: pool}}, countries)
+
+	if total.cscaCnt != 1 {
+		t.Errorf("expected 1 CSCA cert, got %d", total.cscaCnt)
+	}
+	if len(jr.Countries) != 1 || jr.Countries[0].Alpha2 != "DE" {
+		t.Fatalf("expected a single DE country block, got: %+v", jr.Countries)
+	}
+	if len(jr.Countries[0].CSCA) != 1 || jr.Countries[0].CSCA[0].SKI != "AA" {
+		t.Errorf("expected 1 CSCA entry with SKI AA, got: %+v", jr.Countries[0].CSCA)
+	}
+	if jr.Summary.CscaCount != 1 {
+		t.Errorf("expected summary CscaCount=1, got %d", jr.Summary.CscaCount)
+	}
+}
+
+func TestBuildJSONReport_BrokenLink(t *testing.T) {
+	csca := buildCert([]byte{1}, []byte{0xAA}, nil)
+	broken := buildCert([]byte{2}, []byte{0xBB}, []byte{0xFF})
+	pool := mockCertPool{"DE": {csca, broken}}
+	countries := []iso3166.Country{{Alpha2: "DE", Name: "Germany"}}
+
+	jr, total := buildJSONReport([]namedPool{{name: "TEST", pool: pool}}, countries)
+
+	if total.brokenCnt != 1 {
+		t.Errorf("expected 1 broken link, got %d", total.brokenCnt)
+	}
+	if len(jr.Countries[0].BrokenLinks) != 1 {
+		t.Errorf("expected 1 broken link entry, got %d", len(jr.Countries[0].BrokenLinks))
+	}
+	if len(jr.Countries[0].Link) != 0 {
+		t.Errorf("expected broken link excluded from Link entries, got %d", len(jr.Countries[0].Link))
+	}
+}
+
+func TestBuildJSONReport_EmptyCountry_Excluded(t *testing.T) {
+	countries := []iso3166.Country{{Alpha2: "DE", Name: "Germany"}}
+	jr, _ := buildJSONReport(nil, countries)
+	if len(jr.Countries) != 0 {
+		t.Errorf("expected no country blocks for empty pools, got %d", len(jr.Countries))
+	}
+}
+
+func TestRunJSON_ValidJSON(t *testing.T) {
+	var buf strings.Builder
+	cert := buildCert([]byte{1}, []byte{0xAA}, nil)
+	pool := mockCertPool{"DE": {cert}}
+	countries := []iso3166.Country{{Alpha2: "DE", Name: "Germany"}}
+
+	runJSON([]namedPool{{name: "TEST", pool: pool}}, countries, &buf)
+
+	var jr jsonReport
+	if err := json.Unmarshal([]byte(buf.String()), &jr); err != nil {
+		t.Fatalf("expected valid JSON: %v\n%s", err, buf.String())
 	}
 }
 
