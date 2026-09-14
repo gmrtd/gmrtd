@@ -113,6 +113,17 @@ func TestRealMain_JSON(t *testing.T) {
 	}
 }
 
+func TestRealMain_Help(t *testing.T) {
+	var out, errOut strings.Builder
+	code := realMain([]string{"-h"}, &out, &errOut)
+	if code != 0 {
+		t.Errorf("expected exit code 0 for -h, got %d", code)
+	}
+	if out.String() != "" {
+		t.Errorf("expected no stdout output for -h, got: %s", out.String())
+	}
+}
+
 func TestRealMain_GermanError(t *testing.T) {
 	orig := germanMasterListFn
 	t.Cleanup(func() { germanMasterListFn = orig })
@@ -841,6 +852,37 @@ func TestBuildJSONReport_EmptyCountry_Excluded(t *testing.T) {
 	jr, _ := buildJSONReport(nil, countries)
 	if len(jr.Countries) != 0 {
 		t.Errorf("expected no country blocks for empty pools, got %d", len(jr.Countries))
+	}
+}
+
+func TestBuildJSONReport_MultipleCountries_IncludesCountrySummary(t *testing.T) {
+	certDE := buildCert([]byte{1}, []byte{0xAA}, nil)
+	certNL := buildCert([]byte{2}, []byte{0xBB}, nil)
+	pool := mockCertPool{"DE": {certDE}, "NL": {certNL}}
+	countries := []iso3166.Country{
+		{Alpha2: "DE", Name: "Germany"},
+		{Alpha2: "NL", Name: "Netherlands"},
+	}
+
+	jr, _ := buildJSONReport([]namedPool{{name: "TEST", pool: pool}}, countries)
+
+	if jr.Summary.CountriesWithCsca == nil || *jr.Summary.CountriesWithCsca != 2 {
+		t.Errorf("expected CountriesWithCsca=2 for a multi-country report, got: %+v", jr.Summary.CountriesWithCsca)
+	}
+	if jr.Summary.CountriesWithLink == nil || *jr.Summary.CountriesWithLink != 0 {
+		t.Errorf("expected CountriesWithLink=0 for a multi-country report, got: %+v", jr.Summary.CountriesWithLink)
+	}
+}
+
+func TestBuildJSONReport_SingleCountry_OmitsCountrySummary(t *testing.T) {
+	cert := buildCert([]byte{1}, []byte{0xAA}, nil)
+	pool := mockCertPool{"DE": {cert}}
+	countries := []iso3166.Country{{Alpha2: "DE", Name: "Germany"}}
+
+	jr, _ := buildJSONReport([]namedPool{{name: "TEST", pool: pool}}, countries)
+
+	if jr.Summary.CountriesWithCsca != nil || jr.Summary.CountriesWithLink != nil {
+		t.Errorf("expected CountriesWith* to be omitted for a single-country report, got: %+v", jr.Summary)
 	}
 }
 
