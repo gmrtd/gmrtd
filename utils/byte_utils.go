@@ -106,6 +106,24 @@ func PrintableBytes(data []byte) bool {
 }
 
 func BytesFromBuffer(r io.Reader, length int) ([]byte, error) {
+	if length < 0 {
+		return nil, fmt.Errorf("[BytesFromBuffer] invalid length (%d)", length)
+	}
+
+	// bound the allocation to the reader's actually-available bytes, where known, so a
+	// hostile length field (e.g. a crafted TLV length) can't force a huge upfront
+	// allocation for a request that could never be satisfied anyway. Mirrors io.ReadFull's
+	// own EOF/ErrUnexpectedEOF convention so callers that distinguish the two (e.g. to
+	// detect a clean end-of-stream) keep working via errors.Is.
+	if b, ok := r.(interface{ Len() int }); ok {
+		if avail := b.Len(); length > avail {
+			if avail == 0 {
+				return nil, fmt.Errorf("[BytesFromBuffer] Req:%d, Act:%d: %w", length, avail, io.EOF)
+			}
+			return nil, fmt.Errorf("[BytesFromBuffer] Req:%d, Act:%d: %w", length, avail, io.ErrUnexpectedEOF)
+		}
+	}
+
 	tmp := make([]byte, length)
 
 	n, err := io.ReadFull(r, tmp)

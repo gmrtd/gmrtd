@@ -114,6 +114,19 @@ func TestDecodeExceedsMaxNodes(t *testing.T) {
 	}
 }
 
+func TestDecodeHugeLengthDoesNotOverAllocate(t *testing.T) {
+	// Evil TLV: tag 0x01, long-form length claiming ~4GB, but no actual value bytes.
+	// Found by fuzzing (FuzzDecode): before the fix, the declared length was passed
+	// straight to make([]byte, length) without checking how much data was actually
+	// available, so a ~7 byte input could force a multi-GB allocation attempt.
+	inp := utils.HexToBytes("0184FFFFFFFF")
+
+	_, err := Decode(inp)
+	if err == nil {
+		t.Errorf("Expected error for length exceeding available data")
+	}
+}
+
 func TestMustDecodeErrors(t *testing.T) {
 	// No need to check whether `recover()` is nil. Just turn off the panic.
 	defer func() { _ = recover() }()
