@@ -16,11 +16,12 @@ name: Fuzz
 # the library's TLV/BER decoder, CMS/SOD/certificate parsing, every
 # implemented data-group parser (including the nested ISO/IEC 19794 and
 # 39794 facial-image container formats DG2 embeds), the CBOR document
-# envelope, R-APDU parsing, and the secure-messaging response decoder (fixed
-# known-good session keys, fuzzing only the on-the-wire bytes an on-path
-# attacker actually controls). Fuzzing tlv.Decode during setup found a real
-# unbounded-allocation DoS (a ~10 byte crafted TLV length field could force
-# a multi-GB allocation) fixed in utils.BytesFromBuffer — see
+# envelope, R-APDU parsing, the secure-messaging response decoder, and Active
+# Authentication signature verification (each with a fixed known-good
+# key/session, fuzzing only the on-the-wire bytes an on-path attacker or a
+# malicious/cloned chip actually controls). Fuzzing tlv.Decode during setup
+# found a real unbounded-allocation DoS (a ~10 byte crafted TLV length field
+# could force a multi-GB allocation) fixed in utils.BytesFromBuffer — see
 # tlv.TestDecodeHugeLengthDoesNotOverAllocate for the regression test.
 #
 # Informational only: nothing in branch protection depends on this workflow,
@@ -52,6 +53,16 @@ jobs:
             name: FuzzDecode
           - pkg: ./mrz
             name: FuzzMrzDecode
+          - pkg: ./activeauth
+            name: FuzzParseEcdsaSignaturePlain
+          - pkg: ./activeauth
+            name: FuzzParseEcdsaSignatureDER
+          - pkg: ./activeauth
+            name: FuzzDecodeF
+          - pkg: ./activeauth
+            name: FuzzValidateActiveAuthSignatureRsa
+          - pkg: ./activeauth
+            name: FuzzValidateActiveAuthSignatureEcdsa
           - pkg: ./document/iso19794
             name: FuzzProcessISO19794
           - pkg: ./document/iso39794
