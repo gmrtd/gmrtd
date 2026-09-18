@@ -792,7 +792,7 @@ func TestGetNonceApduErr(t *testing.T) {
 	}
 }
 
-func setupDeCamEvidence(t *testing.T) (*document.Document, *document.PaceCamEvidence) {
+func setupDeCamEvidence(t testing.TB) (*document.Document, *document.PaceCamEvidence) {
 	t.Helper()
 
 	var transceiver *iso7816.MockTransceiver = new(iso7816.MockTransceiver)
