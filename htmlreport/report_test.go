@@ -300,6 +300,17 @@ func TestTemplateFuncMapOidDesc(t *testing.T) {
 	}
 }
 
+func TestTemplateFuncMapOidDescInvalidOid(t *testing.T) {
+	// oid.DecodeAsn1objectId panics on malformed OID bytes (empty being the simplest
+	// case); OidDesc must recover and return a placeholder instead of panicking, since
+	// this renders untrusted document data into the HTML report.
+	fn := templateFuncMap()["OidDesc"].(func([]byte) string)
+	got := fn([]byte{})
+	if got != "invalid OID" {
+		t.Errorf("OidDesc: expected 'invalid OID' placeholder, got %q", got)
+	}
+}
+
 func TestTemplateFuncMapIsPrintable(t *testing.T) {
 	fn := templateFuncMap()["IsPrintable"].(func([]byte) bool)
 	if !fn([]byte("hello")) {
