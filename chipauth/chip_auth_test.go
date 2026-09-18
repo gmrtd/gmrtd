@@ -951,6 +951,24 @@ func TestVerifyEvidence(t *testing.T) {
 		}
 	})
 
+	t.Run("oversized SmSsc does not panic", func(t *testing.T) {
+		// SmSsc wider than the algorithm's SSC (8 bytes for TDES) used to panic in
+		// big.Int.FillBytes (found by fuzzing FuzzVerifyEvidence); must error cleanly.
+		e := &document.ChipAuthEvidence{
+			TermPri:    validEvidence.TermPri,
+			TermPubKey: validEvidence.TermPubKey,
+			SmRapdu:    validEvidence.SmRapdu,
+			SmSsc:      make([]byte, 20), // wider than the 8-byte TDES SSC
+		}
+		for i := range e.SmSsc {
+			e.SmSsc[i] = 0xFF
+		}
+		_, err := VerifyEvidence(doc, e)
+		if err == nil {
+			t.Error("expected error for oversized SmSsc")
+		}
+	})
+
 	t.Run("mismatched TermPubKey", func(t *testing.T) {
 		// chip public key from DG14 — a valid curve point, but does not correspond to validEvidence.TermPri
 		chipPubKey := utils.HexToBytes("041983917269AC877C0B61544C2C022000D2A5ABA723E2D80141E648B40911DC3459761F27480E4B57181A53D8FE1190EA86C939AC14363178CAFFC621F0F905C3")
