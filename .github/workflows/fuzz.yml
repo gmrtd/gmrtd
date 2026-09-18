@@ -1,0 +1,112 @@
+name: Fuzz
+
+# Runs this repo's Go native fuzz targets (FuzzXxx functions, alongside their
+# package's own _test.go files) with actual mutation-based fuzzing
+# (`go test -fuzz=...`), not just their seed corpus — a plain `go test` run
+# (go.yml's own test step) only ever exercises the seed corpus and any
+# already-committed regression entries under testdata/fuzz/, so this is what
+# actually looks for new crashing/misbehaving inputs. Deliberately not
+# triggered on push/pull_request: each target needs real wall-clock time to
+# be worth anything, which would slow down every PR's feedback loop for a
+# check that isn't about that diff specifically. Scheduled instead, nightly,
+# plus available on demand.
+#
+# gmrtd parses untrusted, attacker-controllable data at its core (everything
+# read back from an NFC chip, plus the scanned MRZ), so these targets cover
+# the library's TLV/BER decoder, CMS/SOD/certificate parsing, every
+# implemented data-group parser, the CBOR document envelope, and R-APDU
+# parsing. Fuzzing tlv.Decode during setup found a real unbounded-allocation
+# DoS (a ~10 byte crafted TLV length field could force a multi-GB
+# allocation) fixed in utils.BytesFromBuffer — see
+# tlv.TestDecodeHugeLengthDoesNotOverAllocate for the regression test.
+#
+# Informational only: nothing in branch protection depends on this workflow,
+# since it never runs against a PR. A found failure fails the job and
+# uploads the failing input as a build artifact (go test -fuzz writes it
+# under testdata/fuzz/<FuzzName>/ itself, the same format already used for
+# this repo's own committed regression corpus) for a human to pull down,
+# inspect, and — once satisfied it's a real bug fixed or worth tracking —
+# commit into the repo as a permanent regression corpus entry; this workflow
+# never commits back on its own.
+
+on:
+  schedule:
+    - cron: '0 4 * * *' # daily, 4am UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - pkg: ./tlv
+            name: FuzzDecode
+          - pkg: ./mrz
+            name: FuzzMrzDecode
+          - pkg: ./cms
+            name: FuzzParseSignedData
+          - pkg: ./cms
+            name: FuzzParseCertificates
+          - pkg: ./cms
+            name: FuzzParseRDNSequence
+          - pkg: ./cms
+            name: FuzzAsn1decodeSubjectPublicKeyInfo
+          - pkg: ./iso7816
+            name: FuzzParseRApdu
+          - pkg: ./document
+            name: FuzzNewCOM
+          - pkg: ./document
+            name: FuzzNewCardAccess
+          - pkg: ./document
+            name: FuzzNewCardSecurity
+          - pkg: ./document
+            name: FuzzNewEFDIR
+          - pkg: ./document
+            name: FuzzNewSOD
+          - pkg: ./document
+            name: FuzzNewDG
+          - pkg: ./document
+            name: FuzzNewDG1
+          - pkg: ./document
+            name: FuzzNewDG2
+          - pkg: ./document
+            name: FuzzNewDG7
+          - pkg: ./document
+            name: FuzzNewDG11
+          - pkg: ./document
+            name: FuzzNewDG12
+          - pkg: ./document
+            name: FuzzNewDG13
+          - pkg: ./document
+            name: FuzzNewDG14
+          - pkg: ./document
+            name: FuzzNewDG15
+          - pkg: ./document
+            name: FuzzNewDG16
+          - pkg: ./document
+            name: FuzzNewDocumentFromCbor
+          - pkg: ./document
+            name: FuzzNewChipAuthEvidenceFromCbor
+    steps:
+      - uses: actions/checkout@master
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: go test -fuzz=${{ matrix.target.name }}
+        run: go test ${{ matrix.target.pkg }} -run='^$' -fuzz='^${{ matrix.target.name }}$' -fuzztime=5m
+
+      - name: Upload failing input
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-failure-${{ matrix.target.name }}
+          path: '**/testdata/fuzz/${{ matrix.target.name }}/'
+          retention-days: 30
