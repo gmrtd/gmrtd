@@ -36,7 +36,15 @@ func templateFuncMap() template.FuncMap {
 		"TagToHex":       func(tag tlv.TlvTag) string { return fmt.Sprintf("%X", tag) },
 		"DecodeTlvBytes": func(bytes []byte) []tlv.TlvNode { nodes := tlv.MustDecode(bytes); return nodes.Nodes() },
 		"BytesToBase64":    func(bytes []byte) string { return base64.StdEncoding.EncodeToString(bytes) },
-		"OidDesc": func(oidBytes []byte) string {
+		"OidDesc": func(oidBytes []byte) (out string) {
+			// oidBytes originates from the parsed document (untrusted chip/file data),
+			// and oid.DecodeAsn1objectId panics on malformed OID bytes by design, so
+			// guard against that crashing report generation.
+			defer func() {
+				if recover() != nil {
+					out = "invalid OID"
+				}
+			}()
 			tmpOid := oid.DecodeAsn1objectId(oidBytes)
 			tmpOidDesc := oid.OidDesc(tmpOid)
 			return fmt.Sprintf("%s %s", tmpOid.String(), tmpOidDesc)

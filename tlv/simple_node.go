@@ -55,10 +55,15 @@ func (node TlvSimpleNode) stringWithIndent(indent int) string {
 	sb.WriteString(indentString(indent))
 	sb.WriteString(fmt.Sprintf("%02x: %x", node.tag, node.value))
 	if node.tag == 0x06 {
-		// special handling for ASN1 OIDs
-		tmpOid := oid.DecodeAsn1objectId(node.value)
-		tmpOidDesc := oid.OidDesc(tmpOid)
-		sb.WriteString(fmt.Sprintf(" [%s: %s]", tmpOid.String(), tmpOidDesc))
+		// special handling for ASN1 OIDs. node.value is untrusted TLV data straight off
+		// the chip, and oid.DecodeAsn1objectId panics on malformed OID bytes (by design,
+		// see oid.TestDecodeAsn1objectIdErr), so guard against that crashing what is only
+		// a debug/display string.
+		if desc, ok := tryDescribeOid(node.value); ok {
+			sb.WriteString(fmt.Sprintf(" [%s]", desc))
+		} else {
+			sb.WriteString(" [invalid OID]")
+		}
 	} else if utils.PrintableBytes(node.value) {
 		// special handling for printable bytes
 		sb.WriteString(fmt.Sprintf(" [%s]", string(node.value)))
@@ -74,4 +79,16 @@ func (node TlvSimpleNode) String() string {
 func NewTlvSimpleNode(tag TlvTag, value []byte) *TlvSimpleNode {
 	// NB we don't enforce Tag being !constructed
 	return &TlvSimpleNode{tag: tag, value: value}
+}
+
+func tryDescribeOid(value []byte) (desc string, ok bool) {
+	defer func() {
+		if recover() != nil {
+			ok = false
+		}
+	}()
+
+	tmpOid := oid.DecodeAsn1objectId(value)
+
+	return fmt.Sprintf("%s: %s", tmpOid.String(), oid.OidDesc(tmpOid)), true
 }
