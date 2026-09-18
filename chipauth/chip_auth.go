@@ -577,6 +577,12 @@ func VerifyEvidence(doc *document.Document, evidence *document.ChipAuthEvidence)
 	// SmSsc default to 1, which is correct when SelectEF was the first SM command (SSC=2).
 	sscInit := big.NewInt(1)
 	if len(evidence.SmSsc) > 0 {
+		// evidence.SmSsc is untrusted (e.g. from a serialised file); big.Int.FillBytes below
+		// panics if the value doesn't fit the algorithm's fixed SSC width, so bound it first -
+		// subtracting 1 from a value that already fits in that width can never need more bytes.
+		if len(evidence.SmSsc) > len(sm.SSC()) {
+			return nil, fmt.Errorf("[VerifyEvidence] SmSsc length exceeds SSC width (len:%d, max:%d)", len(evidence.SmSsc), len(sm.SSC()))
+		}
 		sscInit.Sub(new(big.Int).SetBytes(evidence.SmSsc), big.NewInt(1))
 	}
 	ssc := make([]byte, len(sm.SSC()))
