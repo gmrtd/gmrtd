@@ -3,6 +3,7 @@ package utils
 import (
 	"bytes"
 	"encoding/asn1"
+	"io"
 	"strings"
 	"testing"
 )
@@ -250,6 +251,44 @@ func TestBytesFromBufferErr(t *testing.T) {
 	// NB error expected as we request more bytes than are available
 	_, err := BytesFromBuffer(buf, 9)
 
+	if err == nil {
+		t.Errorf("error expected")
+	}
+}
+
+func TestBytesFromBufferNegativeLength(t *testing.T) {
+	var buf *bytes.Buffer = bytes.NewBuffer([]byte{0x12, 0x34})
+
+	_, err := BytesFromBuffer(buf, -1)
+
+	if err == nil {
+		t.Errorf("error expected for negative length")
+	}
+}
+
+// plainReader implements only io.Reader (no Len() int), to exercise
+// BytesFromBuffer's fallback path for readers it can't bound-check upfront.
+type plainReader struct{ r io.Reader }
+
+func (p *plainReader) Read(b []byte) (int, error) { return p.r.Read(b) }
+
+func TestBytesFromBufferPlainReader(t *testing.T) {
+	r := &plainReader{r: bytes.NewReader([]byte{0x12, 0x34, 0x56})}
+
+	actBytes, err := BytesFromBuffer(r, 3)
+	if err != nil {
+		t.Errorf("unexpected error: %s", err)
+	}
+	if !bytes.Equal(actBytes, []byte{0x12, 0x34, 0x56}) {
+		t.Errorf("GetBytesFromBuffer data differs to expected (act:%x)", actBytes)
+	}
+}
+
+func TestBytesFromBufferPlainReaderErr(t *testing.T) {
+	r := &plainReader{r: bytes.NewReader([]byte{0x12})}
+
+	// NB no Len() to bound-check against upfront; error still surfaces via io.ReadFull
+	_, err := BytesFromBuffer(r, 2)
 	if err == nil {
 		t.Errorf("error expected")
 	}

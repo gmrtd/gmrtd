@@ -2,6 +2,7 @@ package tlv
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/utils"
@@ -41,5 +42,17 @@ func TestNewSimpleNode(t *testing.T) {
 	// basic check to ensure we got something
 	if len(nodeStr) < 1 {
 		t.Errorf("expected string()")
+	}
+}
+
+func TestSimpleNodeStringInvalidOid(t *testing.T) {
+	// oid.DecodeAsn1objectId panics on malformed OID bytes (empty being the simplest
+	// case); String() must recover and render a placeholder instead of panicking.
+	node := NewTlvSimpleNode(TlvTag(0x06), []byte{})
+
+	nodeStr := node.String()
+
+	if !strings.Contains(nodeStr, "invalid OID") {
+		t.Errorf("expected 'invalid OID' placeholder in string, got: %s", nodeStr)
 	}
 }
