@@ -14,10 +14,11 @@ name: Fuzz
 # gmrtd parses untrusted, attacker-controllable data at its core (everything
 # read back from an NFC chip, plus the scanned MRZ), so these targets cover
 # the library's TLV/BER decoder, CMS/SOD/certificate parsing, every
-# implemented data-group parser, the CBOR document envelope, and R-APDU
-# parsing. Fuzzing tlv.Decode during setup found a real unbounded-allocation
-# DoS (a ~10 byte crafted TLV length field could force a multi-GB
-# allocation) fixed in utils.BytesFromBuffer — see
+# implemented data-group parser (including the nested ISO/IEC 19794 and
+# 39794 facial-image container formats DG2 embeds), the CBOR document
+# envelope, and R-APDU parsing. Fuzzing tlv.Decode during setup found a real
+# unbounded-allocation DoS (a ~10 byte crafted TLV length field could force
+# a multi-GB allocation) fixed in utils.BytesFromBuffer — see
 # tlv.TestDecodeHugeLengthDoesNotOverAllocate for the regression test.
 #
 # Informational only: nothing in branch protection depends on this workflow,
@@ -49,6 +50,10 @@ jobs:
             name: FuzzDecode
           - pkg: ./mrz
             name: FuzzMrzDecode
+          - pkg: ./document/iso19794
+            name: FuzzProcessISO19794
+          - pkg: ./document/iso39794
+            name: FuzzProcessISO39794p5
           - pkg: ./cms
             name: FuzzParseSignedData
           - pkg: ./cms

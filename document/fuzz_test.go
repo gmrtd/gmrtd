@@ -119,6 +119,7 @@ func FuzzNewChipAuthEvidenceFromCbor(f *testing.F) {
 func FuzzNewDG(f *testing.F) {
 	f.Add(1, fuzzDg1Bytes)
 	f.Add(2, fuzzDg2Bytes)
+	f.Add(2, dg2AllFields39794)
 	f.Add(7, fuzzDg7Bytes)
 	f.Add(11, fuzzDg11Bytes)
 	f.Add(12, fuzzDg12Bytes)
@@ -149,6 +150,11 @@ func FuzzNewDG2(f *testing.F) {
 	f.Add([]byte(nil))
 	f.Add(utils.HexToBytes("7500"))
 	f.Add(fuzzDg2Bytes)
+	// fuzzDg2Bytes above is too shallow to reach the nested ISO19794/ISO39794
+	// biometric-image parsers (dg2.go calls them on the BIT/BHT-wrapped data);
+	// these real samples (already used by document's own DG2 tests) do.
+	f.Add(dg2AllFields39794)
+	f.Add(dg2MandFields39794)
 
 	f.Fuzz(func(t *testing.T, data []byte) {
 		_, _ = NewDG2(data)
