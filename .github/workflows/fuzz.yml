@@ -16,7 +16,9 @@ name: Fuzz
 # the library's TLV/BER decoder, CMS/SOD/certificate parsing, every
 # implemented data-group parser (including the nested ISO/IEC 19794 and
 # 39794 facial-image container formats DG2 embeds), the CBOR document
-# envelope, and R-APDU parsing. Fuzzing tlv.Decode during setup found a real
+# envelope, R-APDU parsing, and the secure-messaging response decoder (fixed
+# known-good session keys, fuzzing only the on-the-wire bytes an on-path
+# attacker actually controls). Fuzzing tlv.Decode during setup found a real
 # unbounded-allocation DoS (a ~10 byte crafted TLV length field could force
 # a multi-GB allocation) fixed in utils.BytesFromBuffer — see
 # tlv.TestDecodeHugeLengthDoesNotOverAllocate for the regression test.
@@ -64,6 +66,12 @@ jobs:
             name: FuzzAsn1decodeSubjectPublicKeyInfo
           - pkg: ./iso7816
             name: FuzzParseRApdu
+          - pkg: ./iso7816
+            name: FuzzSecureMessagingDecode
+          - pkg: ./iso7816
+            name: FuzzSecureMessagingDecodeSmRApduData
+          - pkg: ./cryptoutils
+            name: FuzzISO9797Method2Unpad
           - pkg: ./document
             name: FuzzNewCOM
           - pkg: ./document
