@@ -593,13 +593,13 @@ func TestUnrecognizedCriticalExtensions(t *testing.T) {
 	fakeOid := asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 99999, 1}
 	extensions := Extensions{
 		{
-			ObjectId: oid.OidCeKeyUsage,
-			Critical: true,
+			ObjectId:  oid.OidCeKeyUsage,
+			Critical:  true,
 			ExtnValue: asn1.RawValue{Bytes: []byte{0x03, 0x02, 0x05, 0xa0}},
 		},
 		{
-			ObjectId: fakeOid,
-			Critical: true,
+			ObjectId:  fakeOid,
+			Critical:  true,
 			ExtnValue: asn1.RawValue{Bytes: []byte{0x05, 0x00}},
 		},
 	}

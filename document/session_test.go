@@ -94,7 +94,7 @@ func TestSession(t *testing.T) {
 	}{
 		{
 			// empty session
-			session:           Session{},
+			session:                   Session{},
 			expChipAuthProtocolStatus: CHIP_AUTH_STATUS_NONE,
 		},
 		{

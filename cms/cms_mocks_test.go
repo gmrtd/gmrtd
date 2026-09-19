@@ -44,9 +44,9 @@ func (m *MockAsn1Parser) ParseAsn1(data []byte, allowExtraData bool, v interface
 
 // MockCurveLookup is a mock implementation of CurveLookup for testing
 type MockCurveLookup struct {
-	NamedCurves    []EcNamedCurve
-	LookupCurves   []elliptic.Curve
-	CallCountNamed int
+	NamedCurves     []EcNamedCurve
+	LookupCurves    []elliptic.Curve
+	CallCountNamed  int
 	CallCountLookup int
 }
 
@@ -73,7 +73,7 @@ func NewMockCMSConfigWithDefaults() *CMSConfig {
 func NewMockCMSConfigWithMocks() (*CMSConfig, *MockCryptoHasher, *MockAsn1Parser, *MockCurveLookup) {
 	mockHasher := &MockCryptoHasher{}
 	mockParser := &MockAsn1Parser{}
-	
+
 	// Get curves from default lookup
 	defaultLookup := DefaultCurveLookup{}
 	mockLookup := &MockCurveLookup{
@@ -160,14 +160,14 @@ func (r *RecordingCryptoHasher) CryptoHashByOid(oid asn1.ObjectIdentifier, data 
 // RecordingAsn1Parser records all parse calls
 type RecordingAsn1Parser struct {
 	Calls []struct {
-		Data          []byte
+		Data           []byte
 		AllowExtraData bool
 	}
 }
 
 func (r *RecordingAsn1Parser) ParseAsn1(data []byte, allowExtraData bool, v interface{}) error {
 	r.Calls = append(r.Calls, struct {
-		Data          []byte
+		Data           []byte
 		AllowExtraData bool
 	}{data, allowExtraData})
 	// Delegate to default parser for actual parsing

@@ -16,11 +16,11 @@ import (
 
 func TestCmdParamsSuccess(t *testing.T) {
 	tests := []struct {
-		name              string
-		args              []string
-		wantFile          string
-		wantDebug         bool
-		wantChallengeHex  string
+		name             string
+		args             []string
+		wantFile         string
+		wantDebug        bool
+		wantChallengeHex string
 	}{
 		{
 			name:      "file only",
