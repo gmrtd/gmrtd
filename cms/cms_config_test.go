@@ -114,7 +114,7 @@ func TestMockCurveLookupIntegration(t *testing.T) {
 	// Get pre-configured curves from default lookup
 	defaultLookup := DefaultCurveLookup{}
 	defaultCurves := defaultLookup.GetNamedCurves()
-	
+
 	// Use only the first curve as a custom list
 	customCurves := []EcNamedCurve{defaultCurves[2]} // P-256
 
@@ -435,7 +435,7 @@ func TestDefaultImplementationsDelegateCorrectly(t *testing.T) {
 // TestPrepareVerificationDataWithConfig verifies helper uses config
 func TestPrepareVerificationDataWithConfig(t *testing.T) {
 	testCases := []struct {
-		name     string
+		name      string
 		useConfig bool
 	}{
 		{

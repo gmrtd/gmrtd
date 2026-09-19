@@ -80,12 +80,12 @@ func TestCscaMasterList(t *testing.T) {
 
 func TestCmdParamsSuccess(t *testing.T) {
 	tests := []struct {
-		name                           string
-		args                           []string
-		wantDebug                      bool
-		wantApduMaxRead                uint
-		wantSkipPace                   bool
-		wantSkipImages                 bool
+		name                            string
+		args                            []string
+		wantDebug                       bool
+		wantApduMaxRead                 uint
+		wantSkipPace                    bool
+		wantSkipImages                  bool
 		wantAllowBacFallbackOnPaceError bool
 	}{
 		{

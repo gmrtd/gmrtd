@@ -269,7 +269,6 @@ func TestTemplateFuncMapTagToHex(t *testing.T) {
 	}
 }
 
-
 func TestTemplateFuncMapDecodeTlvBytes(t *testing.T) {
 	fn := templateFuncMap()["DecodeTlvBytes"].(func([]byte) []tlv.TlvNode)
 	nodes := fn([]byte{0x01, 0x01, 0xFF})
