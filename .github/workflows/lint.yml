@@ -1,0 +1,76 @@
+name: Lint
+
+# go vet and gofmt are enforced (blocking) - both are clean as of this workflow's
+# introduction.
+#
+# staticcheck and govulncheck are informational only for now (continue-on-error):
+#  - staticcheck currently reports ~50 pre-existing findings (mostly deprecated
+#    crypto/elliptic / ecdsa.PublicKey.X/Y usage newly flagged after the Go 1.26
+#    bump, plus a handful of style nits), spread across many unrelated files -
+#    fixing that is a separate cleanup pass, not something every future PR
+#    should be blocked on.
+#  - govulncheck currently reports 2 real vulnerabilities in the Go 1.26.5
+#    standard library itself (GO-2026-6091 in html/template, reachable via
+#    htmlreport.executeDocumentTemplate; GO-2026-5972, a missing recursion-depth
+#    limit in encoding/asn1, reachable via cms.Validity.Parse and
+#    iso39794.ProcessISO39794p5) - both already fixed upstream in Go 1.26.6, so
+#    this will go green on its own once the toolchain here is bumped, no gmrtd
+#    code change needed.
+# Revisit making these blocking once the above are addressed.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install libpcsclite-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install libpcsclite-dev
+
+      - name: go vet
+        run: make vet
+
+      - name: gofmt
+        run: make fmt
+
+      - name: Install staticcheck
+        run: go install honnef.co/go/tools/cmd/staticcheck@latest
+
+      - name: staticcheck (informational - see workflow header)
+        continue-on-error: true
+        run: staticcheck ./...
+
+  govulncheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install libpcsclite-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install libpcsclite-dev
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: govulncheck (informational - see workflow header)
+        continue-on-error: true
+        run: govulncheck ./...
