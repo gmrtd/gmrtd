@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.2.0](https://github.com/gmrtd/gmrtd/compare/v1.1.5...v1.2.0) (2026-09-18)
+
+
+### Features
+
+* **cmd/gmrtd-csca:** add -country filter and -json output flags ([#483](https://github.com/gmrtd/gmrtd/issues/483)) ([a7c49d6](https://github.com/gmrtd/gmrtd/commit/a7c49d69c8347c5191bb8fd312e7c28c86e66d55))
+
+
+### Bug Fixes
+
+* **chipauth:** bound evidence.SmSsc before FillBytes to avoid a panic ([9a5aa0d](https://github.com/gmrtd/gmrtd/commit/9a5aa0d0a8794ca8df15e8a6aa768323d3c0a8e9))
+* **tlv:** guard against panic when rendering untrusted OID bytes ([a561d37](https://github.com/gmrtd/gmrtd/commit/a561d379a10435af741416dce99a629aea361eb2))
+* **utils:** bound BytesFromBuffer allocation to avoid unbounded-length DoS ([33aefae](https://github.com/gmrtd/gmrtd/commit/33aefae6f3777870378c154af0f9446526268cf6))
+
 ## [1.1.5](https://github.com/gmrtd/gmrtd/compare/v1.1.4...v1.1.5) (2026-08-27)
 
 
