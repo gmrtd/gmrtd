@@ -23,6 +23,8 @@ jobs:
           sudo apt-get -y install libpcsclite-dev
       - name: Set up Go
         uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
       - name: Install dependencies
         run: go mod download
       - name: Run tests
