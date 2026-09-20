@@ -131,9 +131,9 @@ jobs:
           - pkg: ./document
             name: FuzzNewChipAuthEvidenceFromCbor
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
 
@@ -142,7 +142,7 @@ jobs:
 
       - name: Upload failing input
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: fuzz-failure-${{ matrix.target.name }}
           path: '**/testdata/fuzz/${{ matrix.target.name }}/'
