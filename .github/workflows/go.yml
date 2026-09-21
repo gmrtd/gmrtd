@@ -28,7 +28,12 @@ jobs:
     - name: Build
       run: go build -v ./...
     - name: Test Coverage
-      run: go test -race ./... -coverprofile=coverage.out
+      # -coverpkg=./..., not the bare default: Go's default coverage only
+      # credits a package for lines exercised by its OWN _test.go files, not
+      # lines exercised indirectly through another package's tests (e.g.
+      # verifier/passiveauth/bac exercised via higher-level integration-style
+      # tests) - which was under-reporting real coverage to SonarCloud.
+      run: go test -race -coverpkg=./... ./... -coverprofile=coverage.out
     - name: Archive code coverage results
       uses: actions/upload-artifact@v6
       with:
