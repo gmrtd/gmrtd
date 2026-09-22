@@ -126,65 +126,93 @@ func (doc *Document) DgHashes() (map[int][]byte, error) {
 	return dgHashes, nil
 }
 
+// dgRawDataAccessors maps DG number to a function returning that DG's raw
+// bytes (or nil if the DG is absent). A map of small accessors keeps each
+// nil-check isolated instead of nesting 9 of them inside one switch.
+var dgRawDataAccessors = map[int]func(*LDS1) []byte{
+	1: func(l *LDS1) []byte {
+		if l.Dg1 == nil {
+			return nil
+		}
+		return l.Dg1.RawData
+	},
+	2: func(l *LDS1) []byte {
+		if l.Dg2 == nil {
+			return nil
+		}
+		return l.Dg2.RawData
+	},
+	7: func(l *LDS1) []byte {
+		if l.Dg7 == nil {
+			return nil
+		}
+		return l.Dg7.RawData
+	},
+	11: func(l *LDS1) []byte {
+		if l.Dg11 == nil {
+			return nil
+		}
+		return l.Dg11.RawData
+	},
+	12: func(l *LDS1) []byte {
+		if l.Dg12 == nil {
+			return nil
+		}
+		return l.Dg12.RawData
+	},
+	13: func(l *LDS1) []byte {
+		if l.Dg13 == nil {
+			return nil
+		}
+		return l.Dg13.RawData
+	},
+	14: func(l *LDS1) []byte {
+		if l.Dg14 == nil {
+			return nil
+		}
+		return l.Dg14.RawData
+	},
+	15: func(l *LDS1) []byte {
+		if l.Dg15 == nil {
+			return nil
+		}
+		return l.Dg15.RawData
+	},
+	16: func(l *LDS1) []byte {
+		if l.Dg16 == nil {
+			return nil
+		}
+		return l.Dg16.RawData
+	},
+}
+
+// returns raw DG bytes, or nil if the DG is not present
+func (lds1 *LDS1) dgRawData(dgNumber int) ([]byte, error) {
+	accessor, ok := dgRawDataAccessors[dgNumber]
+	if !ok {
+		// NB hard error to catch cases where a new DG is added but not wired up properly
+		return nil, fmt.Errorf("[dgRawData] unsupported DG (DG:%d)", dgNumber)
+	}
+	return accessor(lds1), nil
+}
+
 // returns: hash for DG, or nil if not present
 // NB SoD must be defined, as it will be used to determine the hash algorithm
 func (doc *Document) DgHash(dgNumber int) ([]byte, error) {
-	var dgBytes []byte
-
-	switch dgNumber {
-	case 1:
-		if doc.Mf.Lds1.Dg1 != nil {
-			dgBytes = doc.Mf.Lds1.Dg1.RawData
-		}
-	case 2:
-		if doc.Mf.Lds1.Dg2 != nil {
-			dgBytes = doc.Mf.Lds1.Dg2.RawData
-		}
-	case 7:
-		if doc.Mf.Lds1.Dg7 != nil {
-			dgBytes = doc.Mf.Lds1.Dg7.RawData
-		}
-	case 11:
-		if doc.Mf.Lds1.Dg11 != nil {
-			dgBytes = doc.Mf.Lds1.Dg11.RawData
-		}
-	case 12:
-		if doc.Mf.Lds1.Dg12 != nil {
-			dgBytes = doc.Mf.Lds1.Dg12.RawData
-		}
-	case 13:
-		if doc.Mf.Lds1.Dg13 != nil {
-			dgBytes = doc.Mf.Lds1.Dg13.RawData
-		}
-	case 14:
-		if doc.Mf.Lds1.Dg14 != nil {
-			dgBytes = doc.Mf.Lds1.Dg14.RawData
-		}
-	case 15:
-		if doc.Mf.Lds1.Dg15 != nil {
-			dgBytes = doc.Mf.Lds1.Dg15.RawData
-		}
-	case 16:
-		if doc.Mf.Lds1.Dg16 != nil {
-			dgBytes = doc.Mf.Lds1.Dg16.RawData
-		}
-	default:
-		// NB hard error to catch cases where a new DG is added but not wired up properly
-		return nil, fmt.Errorf("[DgHash] unsupported DG (DG:%d)", dgNumber)
+	dgBytes, err := doc.Mf.Lds1.dgRawData(dgNumber)
+	if err != nil {
+		return nil, fmt.Errorf("[DgHash] dgRawData error: %w", err)
 	}
 
 	if len(dgBytes) < 1 {
 		return nil, nil
 	}
 
-	var dgHash []byte
-	var err error
-
 	if doc.Mf.Lds1.Sod == nil {
 		return nil, fmt.Errorf("[DgHash] SoD is required")
 	}
 
-	dgHash, err = cryptoutils.CryptoHashByOid(doc.Mf.Lds1.Sod.LdsSecurityObject.HashAlgorithm.Algorithm, dgBytes)
+	dgHash, err := cryptoutils.CryptoHashByOid(doc.Mf.Lds1.Sod.LdsSecurityObject.HashAlgorithm.Algorithm, dgBytes)
 	if err != nil {
 		return nil, fmt.Errorf("[DgHash] CryptoHashByOid error: %w", err)
 	}

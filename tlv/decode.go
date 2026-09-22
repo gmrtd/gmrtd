@@ -35,26 +35,9 @@ func decodeFromBuffer(buf *bytes.Buffer, depth int, nodeCount *int) (nodes *TlvN
 		}
 
 		if tag.IsConstructed() {
-			var children *TlvNodes
-
-			if length == -1 {
-				children, err = decodeFromBuffer(buf, depth+1, nodeCount)
-				if err != nil {
-					return nil, fmt.Errorf("[decode] error: %w", err)
-				}
-			} else {
-				childData, err := utils.BytesFromBuffer(buf, int(length))
-				if err != nil {
-					return nil, fmt.Errorf("[decode] ByteBuffer error: %w", err)
-				}
-				childBuf := bytes.NewBuffer(childData)
-				children, err = decodeFromBuffer(childBuf, depth+1, nodeCount)
-				if err != nil {
-					return nil, fmt.Errorf("[decode] error: %w", err)
-				}
-				if childBuf.Len() > 0 {
-					return nil, fmt.Errorf("[decode] Remaining-data not expected (%x)", childBuf.Bytes())
-				}
+			children, err := decodeConstructedChildren(buf, length, depth, nodeCount)
+			if err != nil {
+				return nil, err
 			}
 
 			node := NewTlvConstructedNode(tag)
@@ -73,6 +56,34 @@ func decodeFromBuffer(buf *bytes.Buffer, depth int, nodeCount *int) (nodes *TlvN
 	}
 
 	return nodes, nil
+}
+
+// decodes the children of a constructed tag, handling both indefinite-length
+// (terminated by a 0x00 0x00 EOC, consumed from 'buf' itself) and
+// definite-length (a fixed-size slice of 'buf') encodings
+func decodeConstructedChildren(buf *bytes.Buffer, length TlvLength, depth int, nodeCount *int) (*TlvNodes, error) {
+	if length == -1 {
+		children, err := decodeFromBuffer(buf, depth+1, nodeCount)
+		if err != nil {
+			return nil, fmt.Errorf("[decode] error: %w", err)
+		}
+		return children, nil
+	}
+
+	childData, err := utils.BytesFromBuffer(buf, int(length))
+	if err != nil {
+		return nil, fmt.Errorf("[decode] ByteBuffer error: %w", err)
+	}
+	childBuf := bytes.NewBuffer(childData)
+	children, err := decodeFromBuffer(childBuf, depth+1, nodeCount)
+	if err != nil {
+		return nil, fmt.Errorf("[decode] error: %w", err)
+	}
+	if childBuf.Len() > 0 {
+		return nil, fmt.Errorf("[decode] Remaining-data not expected (%x)", childBuf.Bytes())
+	}
+
+	return children, nil
 }
 
 func Decode(data []byte) (nodes *TlvNodes, err error) {

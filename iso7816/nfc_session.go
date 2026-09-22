@@ -313,76 +313,15 @@ func (nfc *NfcSession) ReadFile(fileId uint16) (fileData []byte, err error) {
 	}
 	fileBuf.Write(fileHeader)
 
-	var totalBytes int
-	{
-		var tmpTlvLength tlv.TlvLength
-
-		tmpBuf := bytes.NewBuffer(fileHeader)
-
-		// extract length (of parent tag) to determine file size
-		_, tmpTlvLength, err = tlv.ParseTagAndLength(tmpBuf)
-		if err != nil {
-			return nil, fmt.Errorf("[ReadFile] ParseTagAndLength error: %w", err)
-		}
-
-		// abort if file length (TLV) exceeds configured maximum
-		if tmpTlvLength > nfc.readFileMaxTlvLength {
-			return nil, fmt.Errorf("[ReadFile] TLV length exceeds permitted maximum (len:%1d, max:%1d)", tmpTlvLength, nfc.readFileMaxTlvLength)
-		}
-
-		totalBytes = int(tmpTlvLength)
-		totalBytes += 4 - tmpBuf.Len()
+	totalBytes, err := nfc.readFileTotalLength(fileHeader)
+	if err != nil {
+		return nil, err
 	}
 
 	// read remainder of file
 	if fileBuf.Len() < totalBytes {
-		chunkCnt := 0
-		maxReadAmount := nfc.maxLe
-
-		for {
-			// limit the maximum number of chunks permitted when reading a file
-			if chunkCnt >= nfc.readFileMaxChunks {
-				return nil, fmt.Errorf("[ReadFile] Max chunks reached (cnt:%1d)", chunkCnt)
-			}
-			chunkCnt++
-
-			remaining := totalBytes - fileBuf.Len()
-			bytesToRead := min(maxReadAmount, remaining)
-
-			var tmpData []byte
-			if fileBuf.Len() <= 4 {
-				// only the first block gets the fallback treatment - this is where we
-				// establish the passport's working Le, so later chunks reuse it directly
-				var effectiveMax int
-				var readErr error
-				tmpData, effectiveMax, readErr = nfc.readWithFallback(fileBuf.Len(), remaining, maxReadAmount)
-				if readErr != nil {
-					return nil, fmt.Errorf("[ReadFile] ReadBinaryFromOffset error: %w", readErr)
-				}
-				if effectiveMax != maxReadAmount {
-					maxReadAmount = effectiveMax
-					nfc.maxLe = effectiveMax
-				}
-			} else {
-				var readErr error
-				tmpData, readErr = nfc.ReadBinaryFromOffset(fileBuf.Len(), bytesToRead)
-				if readErr != nil {
-					return nil, fmt.Errorf("[ReadFile] ReadBinaryFromOffset error: %w", readErr)
-				}
-			}
-
-			// sanity check that we received some data
-			// TODO - we've seen issues with jmrtd applet where it returns 0 bytes if we ask for 236 bytes of data...
-			//			... may want to try dropping the requested read amount in this scenario.. and retrying
-			if len(tmpData) < 1 {
-				return nil, fmt.Errorf("[ReadFile] Didn't receive any data")
-			}
-
-			fileBuf.Write(tmpData)
-
-			if fileBuf.Len() >= totalBytes {
-				break
-			}
+		if err := nfc.readFileRemainder(fileBuf, totalBytes); err != nil {
+			return nil, err
 		}
 
 		fileData = bytes.Clone(fileBuf.Bytes())
@@ -395,6 +334,83 @@ func (nfc *NfcSession) ReadFile(fileId uint16) (fileData []byte, err error) {
 	slog.Debug("ReadFile", "fileId", fileId, "data", utils.BytesToHex(fileData))
 
 	return fileData, nil
+}
+
+// determines the total file size (header + body) from the TLV length encoded
+// in the file's leading bytes, enforcing readFileMaxTlvLength
+func (nfc *NfcSession) readFileTotalLength(fileHeader []byte) (int, error) {
+	tmpBuf := bytes.NewBuffer(fileHeader)
+
+	// extract length (of parent tag) to determine file size
+	_, tmpTlvLength, err := tlv.ParseTagAndLength(tmpBuf)
+	if err != nil {
+		return 0, fmt.Errorf("[ReadFile] ParseTagAndLength error: %w", err)
+	}
+
+	// abort if file length (TLV) exceeds configured maximum
+	if tmpTlvLength > nfc.readFileMaxTlvLength {
+		return 0, fmt.Errorf("[ReadFile] TLV length exceeds permitted maximum (len:%1d, max:%1d)", tmpTlvLength, nfc.readFileMaxTlvLength)
+	}
+
+	totalBytes := int(tmpTlvLength)
+	totalBytes += 4 - tmpBuf.Len()
+
+	return totalBytes, nil
+}
+
+// reads chunks from the file into fileBuf (which already holds the 4-byte
+// header) until it holds totalBytes, enforcing readFileMaxChunks
+func (nfc *NfcSession) readFileRemainder(fileBuf *bytes.Buffer, totalBytes int) error {
+	chunkCnt := 0
+	maxReadAmount := nfc.maxLe
+
+	for fileBuf.Len() < totalBytes {
+		// limit the maximum number of chunks permitted when reading a file
+		if chunkCnt >= nfc.readFileMaxChunks {
+			return fmt.Errorf("[ReadFile] Max chunks reached (cnt:%1d)", chunkCnt)
+		}
+		chunkCnt++
+
+		tmpData, effectiveMax, err := nfc.readFileChunk(fileBuf.Len(), totalBytes-fileBuf.Len(), maxReadAmount)
+		if err != nil {
+			return err
+		}
+		if effectiveMax != maxReadAmount {
+			maxReadAmount = effectiveMax
+			nfc.maxLe = effectiveMax
+		}
+
+		// sanity check that we received some data
+		// TODO - we've seen issues with jmrtd applet where it returns 0 bytes if we ask for 236 bytes of data...
+		//			... may want to try dropping the requested read amount in this scenario.. and retrying
+		if len(tmpData) < 1 {
+			return fmt.Errorf("[ReadFile] Didn't receive any data")
+		}
+
+		fileBuf.Write(tmpData)
+	}
+
+	return nil
+}
+
+// reads a single chunk at offset, returning the possibly-updated maxReadAmount
+// (only the first block gets the fallback treatment - this is where we
+// establish the passport's working Le, so later chunks reuse it directly)
+func (nfc *NfcSession) readFileChunk(offset, remaining, maxReadAmount int) (data []byte, effectiveMax int, err error) {
+	if offset > 4 {
+		bytesToRead := min(maxReadAmount, remaining)
+		data, err = nfc.ReadBinaryFromOffset(offset, bytesToRead)
+		if err != nil {
+			return nil, maxReadAmount, fmt.Errorf("[ReadFile] ReadBinaryFromOffset error: %w", err)
+		}
+		return data, maxReadAmount, nil
+	}
+
+	data, effectiveMax, err = nfc.readWithFallback(offset, remaining, maxReadAmount)
+	if err != nil {
+		return nil, maxReadAmount, fmt.Errorf("[ReadFile] ReadBinaryFromOffset error: %w", err)
+	}
+	return data, effectiveMax, nil
 }
 
 // readWithFallback reads data from offset, falling back to progressively smaller

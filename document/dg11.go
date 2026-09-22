@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"log/slog"
+	"math"
 	"slices"
 	"strings"
 
@@ -108,43 +109,30 @@ func (details *PersonDetails) processTag5F0F(parentNode tlv.TlvNode) error {
 			return fmt.Errorf("[processTag5F0F] tag A0->02 must be 1-99 (act:%d)", numOtherNames)
 		}
 
-		for occur := 1; occur <= numOtherNames; occur++ {
-			otherNameNode := parentNode.NodeByTag(0xA0).NodeByTagOccur(0x5F0F, occur)
-			if !otherNameNode.IsValidNode() {
-				break
-			}
+		return details.appendOtherNames(parentNode.NodeByTag(0xA0), numOtherNames)
+	}
 
-			tmpName, err := mrz.ParseName(mrz.DecodeValue(string(otherNameNode.Value())))
-			if err != nil {
-				return fmt.Errorf("[processTag5F0F] mrz.ParseName error: %w", err)
-			}
+	/*
+	* special case handling for non-conformant encodings
+	* as we've seen China passports directly using the 5F0F tag
+	 */
+	return details.appendOtherNames(parentNode, math.MaxInt)
+}
 
-			details.OtherNames = append(details.OtherNames, *tmpName)
+// appends the '5F0F' (Other Name) occurrences found directly under 'container', up to maxOccur
+func (details *PersonDetails) appendOtherNames(container tlv.TlvNode, maxOccur int) error {
+	for occur := 1; occur <= maxOccur; occur++ {
+		otherNameNode := container.NodeByTagOccur(0x5F0F, occur)
+		if !otherNameNode.IsValidNode() {
+			break
 		}
-	} else {
-		/*
-		* special case handling for non-conformant encodings
-		* as we've seen China passports directly using the 5F0F tag
-		 */
 
-		// handle any direct instances of the 5F0F tag
-		occur := 1
-		for {
-			otherNameNode := parentNode.NodeByTagOccur(0x5F0F, occur)
-
-			if !otherNameNode.IsValidNode() {
-				break
-			}
-
-			tmpName, err := mrz.ParseName(mrz.DecodeValue(string(otherNameNode.Value())))
-			if err != nil {
-				return fmt.Errorf("[processTag5F0F] mrz.ParseName error: %w", err)
-			}
-
-			details.OtherNames = append(details.OtherNames, *tmpName)
-
-			occur++
+		tmpName, err := mrz.ParseName(mrz.DecodeValue(string(otherNameNode.Value())))
+		if err != nil {
+			return fmt.Errorf("[processTag5F0F] mrz.ParseName error: %w", err)
 		}
+
+		details.OtherNames = append(details.OtherNames, *tmpName)
 	}
 
 	return nil
