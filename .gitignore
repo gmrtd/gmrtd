@@ -19,3 +19,9 @@
 
 # Go workspace file
 go.work
+
+# Build outputs (root-anchored so cmd/<name>/ sources aren't matched)
+/gmrtd-reader
+/gmrtd-verify
+/gmrtd-csca
+/dist/
