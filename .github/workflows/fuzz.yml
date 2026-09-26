@@ -137,8 +137,29 @@ jobs:
         with:
           go-version-file: go.mod
 
+      # The fuzzer keeps its generated corpus in $GOCACHE/fuzz, not the repo.
+      # setup-go's own cache is keyed on go.sum and never re-saved on a hit,
+      # so without this every nightly run would restart from the seed corpus.
+      # A unique key per run (restoring the latest by prefix) lets each run
+      # build on the last; pkg is in the key since target names repeat.
+      - name: Locate fuzz cache
+        id: fuzzcache
+        run: echo "dir=$(go env GOCACHE)/fuzz" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache/restore@v6
+        with:
+          path: ${{ steps.fuzzcache.outputs.dir }}
+          key: fuzz-${{ matrix.target.pkg }}-${{ matrix.target.name }}-${{ github.run_id }}
+          restore-keys: fuzz-${{ matrix.target.pkg }}-${{ matrix.target.name }}-
+
       - name: go test -fuzz=${{ matrix.target.name }}
         run: go test ${{ matrix.target.pkg }} -run='^$' -fuzz='^${{ matrix.target.name }}$' -fuzztime=5m
+
+      - uses: actions/cache/save@v6
+        if: always()
+        with:
+          path: ${{ steps.fuzzcache.outputs.dir }}
+          key: fuzz-${{ matrix.target.pkg }}-${{ matrix.target.name }}-${{ github.run_id }}
 
       - name: Upload failing input
         if: failure()
