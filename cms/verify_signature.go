@@ -65,15 +65,14 @@ func verifyECDSASignature(pubKeyInfo, digest, sig []byte) error {
 	check := evaluateECDSASignatureRange(pub.Curve, r, s)
 	logECDSARangeCheck(check, r, s)
 
-	tmpDigest := truncateHashForEcdsa(digest, pub.Curve)
-	validSig := ecdsaVerifyASN1Fn(pub, tmpDigest, sig)
+	validSig := ecdsaVerifyASN1Fn(pub, digest, sig)
 	slog.Debug("VerifySignature", "validSig", validSig)
 
 	if validSig {
 		return nil
 	}
 
-	logBadECDSASignature(pub, tmpDigest, sig)
+	logBadECDSASignature(pub, digest, sig)
 
 	if check.rOutOfRange || check.sOutOfRange {
 		if tryAlternativeECDSACurves(pub, digest, sig, r, s, check.curveName) {
@@ -205,9 +204,7 @@ func tryAlternativeECDSACurves(pub *ecdsa.PublicKey, digest, sig []byte, r, s *b
 			X:     pub.X,
 			Y:     pub.Y,
 		}
-		altDigest := truncateHashForEcdsa(digest, altCurve)
-
-		if ecdsaVerifyASN1Fn(altPub, altDigest, sig) {
+		if ecdsaVerifyASN1Fn(altPub, digest, sig) {
 			slog.Warn(
 				"VerifySignature signature verified with ALTERNATIVE curve (possible passport issuing bug)",
 				"specifiedCurve", specifiedCurveName,
@@ -282,18 +279,6 @@ func isRSAPKCS1SignatureAlgorithm(sigAlg asn1.ObjectIdentifier) bool {
 
 func isRSAPSSSignatureAlgorithm(sigAlg asn1.ObjectIdentifier) bool {
 	return sigAlg.Equal(oid.OidRsaSsaPss)
-}
-
-// TODO - not sure whether this is even achieving anything?
-func truncateHashForEcdsa(hash []byte, curve elliptic.Curve) []byte {
-	orderBits := curve.Params().N.BitLen()
-	orderBytes := (orderBits + 7) / 8
-
-	if len(hash) > orderBytes {
-		return hash[:orderBytes]
-	}
-
-	return hash
 }
 
 func parseECDSASignature(sig []byte) (r, s *big.Int, err error) {
