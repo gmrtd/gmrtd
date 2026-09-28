@@ -109,6 +109,14 @@ type IdentityAttributes struct {
 	DateOfExpiry       string `json:"dateOfExpiry,omitempty"`
 	DateOfExpiryMrzRaw string `json:"dateOfExpiryMrzRaw,omitempty"` // DG1 MRZ, raw YYMMDD (2-digit year)
 
+	// Expired reports whether DateOfExpiry is before today's date in the verifier's local
+	// time zone (a document is valid through its expiry date, inclusive) - see
+	// resolveExpired. nil when it can't be determined: no DG1, or an expiry that isn't a
+	// real date (e.g. the non-standard "999999" some issuers use for non-expiring
+	// documents). Deliberately not a factor in DocumentSummary.DataTrusted: an expired
+	// document is still authentic, and whether expiry matters is the caller's policy.
+	Expired *bool `json:"expired,omitempty"`
+
 	PlaceOfBirth []string `json:"placeOfBirth,omitempty"`
 	Address      []string `json:"address,omitempty"`
 	Telephone    string   `json:"telephone,omitempty"`
@@ -217,6 +225,23 @@ func calculateAge(birthDate, now time.Time) int {
 	return age
 }
 
+// resolveExpired compares calendar dates rather than instants, so a document expiring on
+// day D stays valid for the whole of D in now's time zone. That's the verifier's local
+// date, which can differ by a day from the issuing country's around midnight. Returns
+// nil if dateOfExpiry isn't a YYYYMMDD date (see resolveExpiryDate's sentinel fallback).
+func resolveExpired(dateOfExpiry string, now time.Time) *bool {
+	expiry, err := time.Parse("20060102", dateOfExpiry)
+	if err != nil {
+		return nil
+	}
+
+	y, m, d := now.Date()
+	today := time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+
+	expired := today.After(expiry)
+	return &expired
+}
+
 // buildIdentityAttributes resolves an IdentityAttributes from doc's Data Groups. Every DG
 // is optional per LDS1, so every access is nil-safe. Field precedence where more than one
 // DG carries the same data:
@@ -275,6 +300,7 @@ func applyDg1(summary *IdentityAttributes, dg1 *DG1) {
 	if len(m.DateOfExpiry) > 0 {
 		summary.DateOfExpiryMrzRaw = m.DateOfExpiry
 		summary.DateOfExpiry = resolveExpiryDate(m.DateOfExpiry)
+		summary.Expired = resolveExpired(summary.DateOfExpiry, time.Now())
 	}
 }
 
