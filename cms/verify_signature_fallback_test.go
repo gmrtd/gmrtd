@@ -5,12 +5,14 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/sha512"
 	"encoding/asn1"
 	"math/big"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/oid"
 	"github.com/gmrtd/gmrtd/utils"
+	"github.com/osanderson/brainpool"
 )
 
 // TestVerifySignatureCurveMismatchFallback tests the curve fallback mechanism
@@ -225,4 +227,55 @@ func buildPublicKeyDER(t *testing.T, curveOID asn1.ObjectIdentifier, x, y []byte
 	}
 
 	return keyDer
+}
+
+// TestVerifyECDSASignatureFallbackSucceeds reproduces the LTU passport bug end to end: the
+// key claims BrainpoolP224r1, but the signature was made on P-224 with an R beyond the
+// Brainpool order, so only the alternative-curve fallback can verify it. SHA-512 is longer
+// than the 224-bit order, so this also relies on crypto/ecdsa's own hash truncation.
+func TestVerifyECDSASignatureFallbackSucceeds(t *testing.T) {
+	privateKey, err := ecdsa.GenerateKey(elliptic.P224(), rand.Reader)
+	if err != nil {
+		t.Fatalf("GenerateKey error: %v", err)
+	}
+
+	digest := sha512.Sum512([]byte("test data for curve fallback"))
+	bpOrder := brainpool.P224r1().Params().N
+
+	// ~1 in 6 P-224 signatures have R above the Brainpool order; bounded so a
+	// pathological RNG can't hang the test.
+	var sig []byte
+	for i := 0; i < 1000 && sig == nil; i++ {
+		r, s, err := ecdsa.Sign(rand.Reader, privateKey, digest[:])
+		if err != nil {
+			t.Fatalf("Sign error: %v", err)
+		}
+		if r.Cmp(bpOrder) > 0 {
+			sig, err = asn1.Marshal(struct{ R, S *big.Int }{r, s})
+			if err != nil {
+				t.Fatalf("Marshal error: %v", err)
+			}
+		}
+	}
+	if sig == nil {
+		t.Fatal("couldn't generate a signature with R above the BrainpoolP224r1 order")
+	}
+
+	origDecode := decodeECDSAPublicKeyFn
+	defer func() {
+		decodeECDSAPublicKeyFn = origDecode
+	}()
+
+	decodeECDSAPublicKeyFn = func(pubKeyInfo []byte) (*ecdsa.PublicKey, error) {
+		return &ecdsa.PublicKey{Curve: brainpool.P224r1(), X: privateKey.X, Y: privateKey.Y}, nil
+	}
+
+	if err := verifyECDSASignature([]byte("pub"), digest[:], sig); err != nil {
+		t.Fatalf("expected fallback to P-224 to verify, got error: %v", err)
+	}
+
+	otherDigest := sha512.Sum512([]byte("different data"))
+	if err := verifyECDSASignature([]byte("pub"), otherDigest[:], sig); err == nil {
+		t.Fatal("expected error for a signature over different data, got nil")
+	}
 }
