@@ -1,6 +1,7 @@
 package document
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -107,6 +108,9 @@ func TestBuildIdentityAttributesSampleDocument(t *testing.T) {
 	}
 	if summary.DateOfExpiryMrzRaw != "120415" {
 		t.Errorf("DateOfExpiryMrzRaw = %q, want %q", summary.DateOfExpiryMrzRaw, "120415")
+	}
+	if summary.Expired == nil || !*summary.Expired {
+		t.Errorf("Expired = %v, want true (sample expired 2012-04-15)", summary.Expired)
 	}
 
 	// DG1's fictitious "UTO" issuing-state/nationality cannot be resolved to an
@@ -249,6 +253,46 @@ func TestBuildIdentityAttributesNoAgeWhenDobMissing(t *testing.T) {
 	if len(summary.PossibleAges) != 0 {
 		t.Errorf("PossibleAges = %v, want empty", summary.PossibleAges)
 	}
+	if summary.Expired != nil {
+		t.Errorf("Expired = %v, want nil", *summary.Expired)
+	}
+}
+
+func TestResolveExpired(t *testing.T) {
+	sgt := time.FixedZone("SGT", 8*60*60)
+	now := time.Date(2026, 9, 28, 12, 0, 0, 0, time.UTC)
+
+	testCases := []struct {
+		name         string
+		dateOfExpiry string
+		now          time.Time
+		want         *bool
+	}{
+		{"expired yesterday", "20260927", now, new(true)},
+		{"expires today", "20260928", now, new(false)},
+		{"expires tomorrow", "20260929", now, new(false)},
+		{"long expired", "20120415", now, new(true)},
+		// 23:30 on 28/9 in SGT is 15:30 on 28/9 UTC, still the expiry date locally
+		{"expiry day, late in non-UTC zone", "20260928", time.Date(2026, 9, 28, 23, 30, 0, 0, sgt), new(false)},
+		// 00:30 on 29/9 in SGT is 16:30 on 28/9 UTC, but locally it's the day after expiry
+		{"day after expiry in non-UTC zone", "20260928", time.Date(2026, 9, 29, 0, 30, 0, 0, sgt), new(true)},
+		{"non-expiring sentinel", "999999", now, nil},
+		{"empty", "", now, nil},
+	}
+
+	for _, tc := range testCases {
+		got := resolveExpired(tc.dateOfExpiry, tc.now)
+		if (got == nil) != (tc.want == nil) || (got != nil && *got != *tc.want) {
+			t.Errorf("%s: resolveExpired(%q) = %v, want %v", tc.name, tc.dateOfExpiry, fmtBoolPtr(got), fmtBoolPtr(tc.want))
+		}
+	}
+}
+
+func fmtBoolPtr(b *bool) string {
+	if b == nil {
+		return "nil"
+	}
+	return fmt.Sprint(*b)
 }
 
 // PersonalNumber (DG11 only) and MRZ optional data must be kept separate - MRZ optional

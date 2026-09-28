@@ -754,6 +754,10 @@ from the document but has not been authenticated, and may be forged or tampered 
       <td>{{.Summary.IdentityAttributes.DateOfExpiryMrzRaw}}</td>
     </tr>
     <tr>
+      <td>Expired</td>
+      <td>{{with .Summary.IdentityAttributes.Expired}}{{.}}{{end}}</td>
+    </tr>
+    <tr>
       <td>Place Of Birth</td>
       <td>{{.Summary.IdentityAttributes.PlaceOfBirth}}</td>
     </tr>
