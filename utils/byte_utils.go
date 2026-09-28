@@ -96,8 +96,8 @@ func BytesToHex(bytes []byte) string {
 }
 
 func PrintableBytes(data []byte) bool {
-	for _, byte := range data {
-		if !unicode.IsPrint(rune(byte)) {
+	for _, b := range data {
+		if !unicode.IsPrint(rune(b)) {
 			return false
 		}
 	}

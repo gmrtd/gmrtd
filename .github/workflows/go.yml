@@ -84,3 +84,8 @@ jobs:
             -Dsonar.sourceEncoding=UTF-8
             -Dsonar.go.coverage.reportPaths=coverage.out
             -Dsonar.go.tests.reportPaths=report.json
+            -Dsonar.issue.ignore.multicriteria=e1,e2
+            -Dsonar.issue.ignore.multicriteria.e1.ruleKey=go:S3776
+            -Dsonar.issue.ignore.multicriteria.e1.resourceKey=**/*_test.go
+            -Dsonar.issue.ignore.multicriteria.e2.ruleKey=go:S107
+            -Dsonar.issue.ignore.multicriteria.e2.resourceKey=**/fuzz_test.go
