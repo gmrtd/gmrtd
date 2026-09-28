@@ -16,13 +16,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
-      uses: actions/checkout@v5
+      uses: actions/checkout@v7
     - name: Install libpcsclite-dev
       run: |
         sudo apt-get update
         sudo apt-get -y install libpcsclite-dev
     - name: Set up Go
-      uses: actions/setup-go@v6
+      uses: actions/setup-go@v7
       with:
         go-version-file: go.mod
     - name: Build
@@ -35,14 +35,14 @@ jobs:
       # tests) - which was under-reporting real coverage to SonarCloud.
       run: go test -race -coverpkg=./... ./... -coverprofile=coverage.out
     - name: Archive code coverage results
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       with:
         name: coverage.out
         path: coverage.out
     - name: Test Result
       run: go test -race ./... -json > report.json
     - name: Archive test report
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       with:
         name: report.json
         path: report.json
@@ -54,7 +54,7 @@ jobs:
 
     steps:
       - name: Clone Repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
       - name: Download coverage results
         uses: actions/download-artifact@v8
         with:
@@ -64,7 +64,7 @@ jobs:
         with:
           name: report.json
       - name: Analyze with SonarCloud
-        uses: sonarsource/sonarqube-scan-action@v6.0.0
+        uses: sonarsource/sonarqube-scan-action@v8.2.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}   # Generate a token on Sonarcloud.io, add it to the secrets of this repo with the name SONAR_TOKEN (Settings > Secrets > Actions > add new repository secret)
