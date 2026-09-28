@@ -92,7 +92,9 @@ func (paceConfig *PaceConfig) computeAuthTokens(ksMac []byte, ec elliptic.Curve,
 	tIfdData := encodePubicKeyTemplate7F49(oidBytes, cryptoutils.EncodeX962EcPoint(ec, chipPub))
 	tIcData := encodePubicKeyTemplate7F49(oidBytes, cryptoutils.EncodeX962EcPoint(ec, termPub))
 
-	// TODO - should we verify that tIdfData != tIcData?
+	// tIfdData and tIcData are equal only if termPub == chipPub (a reflection attack, where
+	// the chip could echo back tIfd as tIc). keyAgreementGmEcDh already rejects that before
+	// we get here (9303p11 4.4.1 d), so no separate check is needed.
 
 	// generate auth tokens
 	tIfd, err = paceConfig.computeAuthToken(ksMac, tIfdData)
