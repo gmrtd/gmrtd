@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.2](https://github.com/gmrtd/gmrtd/compare/v1.3.1...v1.3.2) (2026-09-29)
+
+
+### Bug Fixes
+
+* **iso3166:** don't resolve an empty alpha-3 code to the European Union (fixes [#514](https://github.com/gmrtd/gmrtd/issues/514)) ([99da5a6](https://github.com/gmrtd/gmrtd/commit/99da5a6d8fa9cf88b222bffa9dfd4436879f7caa))
+* **iso3166:** don't resolve an empty alpha-3 code to the European Union (fixes [#514](https://github.com/gmrtd/gmrtd/issues/514)) ([#515](https://github.com/gmrtd/gmrtd/issues/515)) ([9396b7a](https://github.com/gmrtd/gmrtd/commit/9396b7a50ccd811322c38f4928c5d941a6ffa13b))
+
 ## [1.3.1](https://github.com/gmrtd/gmrtd/compare/v1.3.0...v1.3.1) (2026-09-29)
 
 
