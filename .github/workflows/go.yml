@@ -51,6 +51,9 @@ jobs:
     needs: Build
     name: Analysis
     runs-on: ubuntu-latest
+    # Fork PRs get no secrets, so without SONAR_TOKEN the scan can only fail. Skip it;
+    # the code is still analysed on the push to main once merged.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
 
     steps:
       - name: Clone Repository
