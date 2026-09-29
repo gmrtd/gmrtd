@@ -39,6 +39,9 @@ func TestByAlpha2Errors(t *testing.T) {
 			// fictional country (utopia) used for icao9303 test documents
 			alpha2: "UT",
 		},
+		{
+			alpha2: "",
+		},
 	}
 	for _, tc := range testCases {
 		country := ByAlpha2(tc.alpha2)
@@ -85,6 +88,10 @@ func TestByAlpha3Errors(t *testing.T) {
 		{
 			// fictional country (utopia) used for icao9303 test documents
 			alpha3: "UTO",
+		},
+		{
+			// the European Union entry has no alpha-3, so "" must not match it
+			alpha3: "",
 		},
 	}
 	for _, tc := range testCases {

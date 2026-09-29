@@ -37,6 +37,12 @@ func TestResolveCountryUnresolvable(t *testing.T) {
 	}
 }
 
+func TestResolveCountryEmpty(t *testing.T) {
+	if info, err := ResolveCountry(""); err == nil {
+		t.Errorf("expected error for empty country code, got %+v", info)
+	}
+}
+
 func TestResolveCountryTolerantFallsBackToRawAlpha3(t *testing.T) {
 	info := resolveCountryTolerant("UTO")
 	if info == nil || info.Alpha3 != "UTO" || info.Alpha2 != "" || info.Name != "" {

@@ -248,3 +248,23 @@ func TestIssuingCountryAlpha2ErrorBadCountry(t *testing.T) {
 		t.Fatalf("Expected error")
 	}
 }
+
+func TestIssuingCountryAlpha2ErrorBlankCountry(t *testing.T) {
+	// MRZ issuing state is blank (<<<), which decodes to "" and must not resolve to a country
+	var mrz string = "P<<<<DOE<<JOHN<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<D123456785UTO6508092M3505207<<<<<<<<<<<<<<<0"
+
+	dg1Bytes := tlv.NewTlvConstructedNode(0x61).AddChild(tlv.NewTlvSimpleNode(0x5f1f, []byte(mrz))).Encode()
+
+	dg1, err := NewDG1(dg1Bytes)
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+	if dg1.Mrz.IssuingState != "" {
+		t.Fatalf("IssuingState = %q, want empty", dg1.Mrz.IssuingState)
+	}
+
+	alpha2, err := dg1.IssuingCountryAlpha2()
+	if err == nil {
+		t.Fatalf("Expected error, got alpha2 %q", alpha2)
+	}
+}
