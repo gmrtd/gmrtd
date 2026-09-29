@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.1](https://github.com/gmrtd/gmrtd/compare/v1.3.0...v1.3.1) (2026-09-29)
+
+
+### Bug Fixes
+
+* **iso3166:** add 39 missing ISO 3166-1 countries ([380cfd1](https://github.com/gmrtd/gmrtd/commit/380cfd16127cc715fec39c65826a6e2338f56545))
+* **iso3166:** add 39 missing ISO 3166-1 countries ([#511](https://github.com/gmrtd/gmrtd/issues/511)) ([39f9009](https://github.com/gmrtd/gmrtd/commit/39f9009f5a18362b1de0686ec69cad27876a5113))
+
 ## [1.3.0](https://github.com/gmrtd/gmrtd/compare/v1.2.0...v1.3.0) (2026-09-28)
 
 
