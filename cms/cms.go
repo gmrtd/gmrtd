@@ -972,12 +972,12 @@ func (si *SignerInfo) VerifyWithConfig(config *CMSConfig, sd *SignedData, truste
 }
 
 // resolveSigningTime extracts and parses the signingTime authenticated attribute, for use
-// as the reference time in certificate validity checks. Returns nil (with a warning logged)
-// if the attribute is absent or malformed.
+// as the reference time in certificate validity checks. Returns nil if the attribute
+// is absent (debug logged) or malformed (warning logged).
 func (si *SignerInfo) resolveSigningTime() *time.Time {
 	aaSigningTime := si.AuthenticatedAttributes.ByOID(oid.OidSigningTime)
 	if aaSigningTime == nil {
-		slog.Warn("Verify - signingTime attribute absent, skipping validity check")
+		slog.Debug("Verify - signingTime attribute absent, skipping validity check")
 		return nil
 	}
 
