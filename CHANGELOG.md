@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.3](https://github.com/gmrtd/gmrtd/compare/v1.3.2...v1.3.3) (2026-10-04)
+
+
+### Bug Fixes
+
+* log routine verification messages at debug level ([1473e75](https://github.com/gmrtd/gmrtd/commit/1473e75d85d1a393f564b7a6224719d78206e22e))
+* log routine verification messages at debug level ([#517](https://github.com/gmrtd/gmrtd/issues/517)) ([02b31b0](https://github.com/gmrtd/gmrtd/commit/02b31b0dd7dbd0c35f830dd132ee3a3fd9b2caf6))
+
 ## [1.3.2](https://github.com/gmrtd/gmrtd/compare/v1.3.1...v1.3.2) (2026-09-29)
 
 
