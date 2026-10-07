@@ -67,7 +67,7 @@ jobs:
         with:
           name: report.json
       - name: Analyze with SonarCloud
-        uses: sonarsource/sonarqube-scan-action@v8.2.2
+        uses: sonarsource/sonarqube-scan-action@v8.3.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}   # Generate a token on Sonarcloud.io, add it to the secrets of this repo with the name SONAR_TOKEN (Settings > Secrets > Actions > add new repository secret)
