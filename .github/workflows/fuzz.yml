@@ -152,8 +152,29 @@ jobs:
           key: fuzz-${{ matrix.target.pkg }}-${{ matrix.target.name }}-${{ github.run_id }}
           restore-keys: fuzz-${{ matrix.target.pkg }}-${{ matrix.target.name }}-
 
+      # Go's fuzz coordinator intermittently reports "context deadline exceeded"
+      # as a test failure when -fuzztime expires and it tears down its workers,
+      # with no crash and no failing input written (seen across unrelated
+      # targets: bac, iso7816, document, cryptoutils). Only that exact shape is
+      # downgraded to a warning; any run that writes a new testdata/fuzz entry,
+      # or fails any other way, still fails the job.
       - name: go test -fuzz=${{ matrix.target.name }}
-        run: go test ${{ matrix.target.pkg }} -run='^$' -fuzz='^${{ matrix.target.name }}$' -fuzztime=5m
+        env:
+          PKG: ${{ matrix.target.pkg }}
+          TARGET: ${{ matrix.target.name }}
+        run: |
+          set -o pipefail
+          corpus="$PKG/testdata/fuzz/$TARGET"
+          log="$RUNNER_TEMP/fuzz.log"
+          before=$(ls "$corpus" 2>/dev/null || true)
+          status=0
+          go test "$PKG" -run='^$' -fuzz="^$TARGET\$" -fuzztime=5m 2>&1 | tee "$log" || status=$?
+          after=$(ls "$corpus" 2>/dev/null || true)
+          if [ "$status" -ne 0 ] && [ "$before" = "$after" ] && grep -qx '    context deadline exceeded' "$log"; then
+            echo "::warning::$TARGET: fuzzer shutdown reported 'context deadline exceeded' with no failing input; treating as a pass"
+            exit 0
+          fi
+          exit "$status"
 
       - uses: actions/cache/save@v6
         if: always()
