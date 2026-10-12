@@ -7,6 +7,7 @@
 [![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=gmrtd_gmrtd&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=gmrtd_gmrtd)
 [![Technical Debt](https://sonarcloud.io/api/project_badges/measure?project=gmrtd_gmrtd&metric=sqale_index)](https://sonarcloud.io/summary/new_code?id=gmrtd_gmrtd)
 [![codecov](https://codecov.io/gh/gmrtd/gmrtd/graph/badge.svg?token=DRKVXTREWV)](https://codecov.io/gh/gmrtd/gmrtd)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/gmrtd/gmrtd/badge)](https://scorecard.dev/viewer/?uri=github.com/gmrtd/gmrtd)
 
 # gmrtd
 Go library for reading **Machine Readable Travel Documents (MRTDs)** such as passports and identity cards, as specified by **ICAO Doc 9303**.
