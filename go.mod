@@ -14,10 +14,10 @@ require (
 require (
 	github.com/ebfe/scard v0.0.0-20241214075232-7af069cabc25 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
-	golang.org/x/mod v0.39.0 // indirect
+	golang.org/x/mod v0.40.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/tools v0.48.0 // indirect
+	golang.org/x/tools v0.49.0 // indirect
 )
 
 tool golang.org/x/mobile/cmd/gobind
