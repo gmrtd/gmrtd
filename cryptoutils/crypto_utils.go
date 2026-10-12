@@ -304,6 +304,15 @@ func DecodeX962EcPoint(ec elliptic.Curve, data []byte) (*EcPoint, error) {
 	return NewEcPoint(x.Bytes(), y.Bytes()), nil
 }
 
+// EcDhSharedSecret returns the ECDH shared secret: the x-coordinate of the shared point as a
+// field-size octet string (FE2OS, BSI TR-03111 / ICAO 9303-11 §9.6). big.Int.Bytes drops
+// leading zero bytes, which would give a short secret, and so wrong session keys, whenever
+// the x-coordinate starts with a zero byte (about 1 in 256 key agreements).
+func EcDhSharedSecret(localPrivate []byte, remotePublic *EcPoint, ec elliptic.Curve) []byte {
+	shared := DoEcDh(localPrivate, remotePublic, ec)
+	return shared.X.FillBytes(make([]byte, (ec.Params().BitSize+7)/8))
+}
+
 func DoEcDh(localPrivate []byte, remotePublic *EcPoint, ec elliptic.Curve) *EcPoint {
 	var point EcPoint
 	point.X, point.Y = ec.ScalarMult(remotePublic.X, remotePublic.Y, localPrivate)
