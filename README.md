@@ -219,6 +219,8 @@ This library is intended for **legitimate, consent-based MRTD reading**.
 
 Handle personal data in accordance with applicable laws and regulations.
 
+To report a security vulnerability, see [SECURITY.md](SECURITY.md).
+
 # 📱 Apps Using gmrtd
 Projects using gmrtd to read and verify MRTDs in production:
 
