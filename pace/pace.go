@@ -748,7 +748,7 @@ func (pace *Pace) doGenericMappingGmCam(paceConfig *PaceConfig, domainParams *Do
 }
 
 func (pace *Pace) DoPACE() (result *document.PaceResult, camResult *document.PaceCamResult, err error) {
-	slog.Debug("DoPACE", "password-type", pace.password.PasswordType)
+	slog.Debug("DoPACE")
 
 	// PACE requires card-access
 	if pace.document.Mf.CardAccess == nil {
