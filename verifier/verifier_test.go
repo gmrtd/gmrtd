@@ -1,6 +1,7 @@
 package verifier
 
 import (
+	"os"
 	"sync"
 	"testing"
 
@@ -203,4 +204,51 @@ func TestVerifierConcurrentAccess(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+// testdata/GBR-099250692.gmrtd: an expired (Jul 2022) UK passport exported via DocumentEx.ToCbor,
+// with EF.COM, SOD, DG1 and DG2 only (no AA/CA/PACE-CAM). Its DG1/SOD/DG2 are also used by the
+// document and passiveauth tests. It gives an end-to-end offline verification against the real
+// CSCA master list where passive authentication passes.
+func TestVerifyRealDocumentGBR(t *testing.T) {
+	data, err := os.ReadFile("testdata/GBR-099250692.gmrtd")
+	if err != nil {
+		t.Fatalf("ReadFile error: %s", err)
+	}
+
+	pool, err := cms.DefaultMasterList()
+	if err != nil {
+		t.Fatalf("DefaultMasterList error: %s", err)
+	}
+
+	for _, trusted := range []bool{false, true} {
+		v := NewVerifier(pool)
+		if trusted {
+			v = v.WithTrustedSource()
+		}
+
+		docEx, err := v.Verify(data)
+		if err != nil {
+			t.Fatalf("trusted=%v: unexpected error: %s", trusted, err)
+		}
+
+		if docEx.Session.PassiveAuthErr != nil || docEx.Session.DocumentVerifyErr != nil {
+			t.Fatalf("trusted=%v: PassiveAuthErr=%v DocumentVerifyErr=%v", trusted, docEx.Session.PassiveAuthErr, docEx.Session.DocumentVerifyErr)
+		}
+
+		summary := docEx.Summary()
+		if !summary.DataTrusted {
+			t.Errorf("trusted=%v: expected DataTrusted", trusted)
+		}
+		// no AA/CA/PACE-CAM on this document, so trusted data alone can't establish chip authenticity
+		if summary.ChipAuthenticity != document.CHIP_AUTH_STATUS_NONE {
+			t.Errorf("trusted=%v: ChipAuthenticity = %v, want NONE", trusted, summary.ChipAuthenticity)
+		}
+		if docEx.Session.Offline == nil || docEx.Session.Offline.TrustedSource != trusted {
+			t.Errorf("trusted=%v: Session.Offline = %+v", trusted, docEx.Session.Offline)
+		}
+		if docEx.Document.Mf.Lds1.Dg1 == nil || docEx.Document.Mf.Lds1.Dg1.Mrz.IssuingState != "GBR" {
+			t.Errorf("trusted=%v: expected GBR DG1", trusted)
+		}
+	}
 }

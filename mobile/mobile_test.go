@@ -1,6 +1,7 @@
 package mobile
 
 import (
+	"os"
 	"reflect"
 	"regexp"
 	"strings"
@@ -678,5 +679,27 @@ func TestVerifierWithTrustedSource(t *testing.T) {
 		if offline == nil || offline.TrustedSource != trusted {
 			t.Errorf("Session.Offline = %+v, want TrustedSource=%v", offline, trusted)
 		}
+	}
+}
+
+// Same real fixture as verifier.TestVerifyRealDocumentGBR: the mobile Verifier must give the same
+// verdict as the Go verifier.
+func TestVerifierRealDocumentGBR(t *testing.T) {
+	data, err := os.ReadFile("../verifier/testdata/GBR-099250692.gmrtd")
+	if err != nil {
+		t.Fatalf("ReadFile error: %s", err)
+	}
+
+	doc, err := NewVerifier().Verify(data)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	summary := doc.documentEx.Summary()
+	if !summary.DataTrusted {
+		t.Errorf("expected DataTrusted (PassiveAuthErr=%v)", doc.documentEx.Session.PassiveAuthErr)
+	}
+	if summary.ChipAuthenticity != document.CHIP_AUTH_STATUS_NONE {
+		t.Errorf("ChipAuthenticity = %v, want NONE", summary.ChipAuthenticity)
 	}
 }
