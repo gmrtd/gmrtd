@@ -797,34 +797,27 @@ func (pace *Pace) DoPACE() (result *document.PaceResult, camResult *document.Pac
 		return result, nil, fmt.Errorf("[DoPACE] getNonce error: %w", err)
 	}
 
-	// process based on the mapping type (GM/IM/CAM) and the key type (ECDH/DH)
-	switch paceConfig.mapping {
-	case GM, CAM:
-		var camEvidence *paceCamEvidence
-		camEvidence, err = pace.doGenericMappingGmCam(paceConfig, domainParams, s)
-		if err != nil {
-			return result, nil, fmt.Errorf("[DoPACE] doGenericMappingGmCam error: %w", err)
+	var camEvidence *paceCamEvidence
+	camEvidence, err = pace.doMapping(paceConfig, domainParams, s)
+	if err != nil {
+		return result, nil, fmt.Errorf("[DoPACE] doMapping error: %w", err)
+	}
+	if paceConfig.mapping == CAM && camEvidence != nil {
+		camResult = &document.PaceCamResult{
+			Success: true,
+			Evidence: &document.PaceCamEvidence{
+				PaceOid:     paceConfig.oid,
+				ParameterId: domainParams.id,
+				Nonce:       camEvidence.nonce,
+				TermMapPri:  camEvidence.termMapPri,
+				TermMapPub:  camEvidence.termMapPub,
+				ChipMapPub:  camEvidence.chipMapPub,
+				TermKaPri:   camEvidence.termKaPri,
+				TermKaPub:   camEvidence.termKaPub,
+				ChipKaPub:   camEvidence.chipKaPub,
+				EcadIC:      camEvidence.ecadIC,
+			},
 		}
-		if paceConfig.mapping == CAM && camEvidence != nil {
-			camResult = &document.PaceCamResult{
-				Success: true,
-				Evidence: &document.PaceCamEvidence{
-					PaceOid:     paceConfig.oid,
-					ParameterId: domainParams.id,
-					Nonce:       camEvidence.nonce,
-					TermMapPri:  camEvidence.termMapPri,
-					TermMapPub:  camEvidence.termMapPub,
-					ChipMapPub:  camEvidence.chipMapPub,
-					TermKaPri:   camEvidence.termKaPri,
-					TermKaPub:   camEvidence.termKaPub,
-					ChipKaPub:   camEvidence.chipKaPub,
-					EcadIC:      camEvidence.ecadIC,
-				},
-			}
-		}
-	default:
-		// unreachable: selectPaceConfig only selects GM/CAM
-		return result, nil, fmt.Errorf("[DoPACE] unsupported PACE mapping (%d)", paceConfig.mapping)
 	}
 
 	// update result to indicate success
@@ -833,6 +826,18 @@ func (pace *Pace) DoPACE() (result *document.PaceResult, camResult *document.Pac
 	slog.Debug("DoPACE - Completed", "SM", pace.nfcSession.SM().String())
 
 	return result, camResult, nil
+}
+
+// doMapping performs the nonce mapping and key agreement for the selected mapping type. Only
+// GM/CAM are implemented; selectPaceConfig never selects anything else, but an unexpected
+// mapping must still error rather than let DoPACE report success.
+func (pace *Pace) doMapping(paceConfig *PaceConfig, domainParams *DomainParams, s []byte) (*paceCamEvidence, error) {
+	switch paceConfig.mapping {
+	case GM, CAM:
+		return pace.doGenericMappingGmCam(paceConfig, domainParams, s)
+	default:
+		return nil, fmt.Errorf("[doMapping] unsupported PACE mapping (%d)", paceConfig.mapping)
+	}
 }
 
 // VerifyEvidence verifies the internal cryptographic consistency of PACE-CAM evidence

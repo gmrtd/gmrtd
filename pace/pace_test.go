@@ -1527,6 +1527,69 @@ func TestDoPace_IM(t *testing.T) {
 	}
 }
 
+// TestDoPace_GM_MappingError verifies that a failure in the mapping step (after MSE:Set AT and
+// GetNonce succeed) is returned as a DoPACE error rather than a successful result.
+func TestDoPace_GM_MappingError(t *testing.T) {
+	pass := password.NewPasswordCan("123456")
+
+	gmConfig, err := paceConfigGetByOID(oid.OidPaceEcdhGmAesCbcCmac128)
+	if err != nil {
+		t.Fatalf("paceConfigGetByOID error: %s", err)
+	}
+
+	// derive kKdf so we can construct a valid encrypted nonce for the mock
+	canKey, err := pass.Key()
+	if err != nil {
+		t.Fatalf("pass.Key error: %s", err)
+	}
+	kKdf := cryptoutils.KDF(canKey, cryptoutils.KDF_COUNTER_PACE, gmConfig.cipher, gmConfig.keyLengthBits)
+
+	bcipher, err := cryptoutils.CipherForKey(gmConfig.cipher, kKdf)
+	if err != nil {
+		t.Fatalf("CipherForKey error: %s", err)
+	}
+	encryptedNonce, err := cryptoutils.CryptCBC(bcipher, make([]byte, bcipher.BlockSize()), make([]byte, 16), true)
+	if err != nil {
+		t.Fatalf("CryptCBC error: %s", err)
+	}
+
+	// MSE:Set AT and GetNonce succeed; the mapping APDU has no response, so mapping fails
+	var transceiver *iso7816.MockTransceiver = new(iso7816.MockTransceiver)
+	transceiver.AddReqRsp("0022C1A412800A04007F0007020204020283010284010D", "9000")
+	transceiver.AddReqRsp("10860000027C0000", "7C128010"+utils.BytesToHex(encryptedNonce)+"9000")
+
+	var doc document.Document
+	doc.Mf.CardAccess, err = document.NewCardAccess(utils.HexToBytes("31143012060A04007F0007020204020202010202010D"))
+	if err != nil {
+		t.Fatalf("NewCardAccess error: %s", err)
+	}
+
+	result, _, err := NewPace(iso7816.NewNfcSession(transceiver), &doc, pass).DoPACE()
+	if err == nil {
+		t.Fatalf("expected mapping error")
+	}
+	if !strings.Contains(err.Error(), "doMapping error") {
+		t.Fatalf("expected doMapping error, got %v", err)
+	}
+	if result == nil || result.Success {
+		t.Fatalf("expected unsuccessful PaceResult, got %+v", result)
+	}
+}
+
+func TestDoMappingUnsupportedMapping(t *testing.T) {
+	imConfig, err := paceConfigGetByOID(oid.OidPaceEcdhImAesCbcCmac128)
+	if err != nil {
+		t.Fatalf("paceConfigGetByOID error: %s", err)
+	}
+
+	// no request/response pairs: the mapping must be rejected before any APDU is sent
+	pace := NewPace(iso7816.NewNfcSession(new(iso7816.MockTransceiver)), &document.Document{}, password.NewPasswordCan("123456"))
+
+	if _, err = pace.doMapping(imConfig, nil, nil); err == nil {
+		t.Fatalf("expected error for unsupported PACE mapping (IM)")
+	}
+}
+
 // ---- VerifyEvidence ----
 
 func TestVerifyEvidenceUnknownOID(t *testing.T) {
