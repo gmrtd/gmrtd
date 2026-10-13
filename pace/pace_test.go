@@ -5,7 +5,9 @@ import (
 	"crypto/elliptic"
 	"encoding/asn1"
 	"errors"
+	"log/slog"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
@@ -217,6 +219,55 @@ func TestSelectPaceConfigErrors(t *testing.T) {
 	}
 }
 
+// An advertised entry this reader can't use must not stop it from using another, supported one
+// (ICAO 9303 lets the terminal choose any advertised PACEInfo it supports).
+func TestSelectPaceConfigSkipsUnusable(t *testing.T) {
+	const (
+		camAes256Proprietary = "3012060a04007f00070202040604020102020120" // ECDH-CAM-AES-256, id 32 (proprietary)
+		camAes256Rfu         = "3012060a04007f00070202040604020102020103" // ECDH-CAM-AES-256, id 3 (RFU)
+		camAes256NoParamId   = "300f060a04007f00070202040604020102"       // ECDH-CAM-AES-256, no ParameterId
+		gmAes128Bp256        = "3012060a04007f0007020204020202010202010d" // ECDH-GM-AES-128, id 13 (brainpoolP256r1)
+	)
+
+	testCases := []struct {
+		name            string
+		cardAccessBytes []byte
+	}{
+		{name: "proprietary params preferred by weighting", cardAccessBytes: utils.HexToBytes("3128" + camAes256Proprietary + gmAes128Bp256)},
+		{name: "proprietary params, reversed order", cardAccessBytes: utils.HexToBytes("3128" + gmAes128Bp256 + camAes256Proprietary)},
+		{name: "RFU params", cardAccessBytes: utils.HexToBytes("3128" + camAes256Rfu + gmAes128Bp256)},
+		{name: "missing ParameterId", cardAccessBytes: utils.HexToBytes("3125" + camAes256NoParamId + gmAes128Bp256)},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var logs bytes.Buffer
+			prevLogger := slog.Default()
+			slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+			t.Cleanup(func() { slog.SetDefault(prevLogger) })
+
+			cardAccess, err := document.NewCardAccess(tc.cardAccessBytes)
+			if err != nil {
+				t.Fatalf("Unexpected NewCardAccess() error: %s", err)
+			}
+
+			paceConfig, domainParams, err := selectPaceConfig(cardAccess)
+			if err != nil {
+				t.Fatalf("unexpected selectPaceConfig error: %s", err)
+			}
+
+			if !paceConfig.oid.Equal(oid.OidPaceEcdhGmAesCbcCmac128) {
+				t.Errorf("Invalid PACE OID (%s)", paceConfig.oid)
+			}
+			if domainParams.id != 13 {
+				t.Errorf("Invalid ParameterId (%d)", domainParams.id)
+			}
+			if !strings.Contains(logs.String(), "level=WARN msg=\"selectPaceConfig: skipping PACE info\" protocol=0.4.0.127.0.7.2.2.4.6.4") {
+				t.Errorf("expected a warning for the skipped CAM entry, got logs:\n%s", logs.String())
+			}
+		})
+	}
+}
+
 func TestSelectPaceConfigUnsupportedLocally(t *testing.T) {
 	testCases := []struct {
 		name            string
@@ -250,6 +301,25 @@ func TestSelectPaceConfigUnsupportedLocally(t *testing.T) {
 		{
 			name:            "missing ParameterId",
 			cardAccessBytes: utils.HexToBytes("3111300F060a04007f00070202040604020102"),
+			local:           false,
+		},
+		{
+			// ECDH-IM-AES-128 / brainpoolP256r1: PACE-IM is not implemented
+			name:            "PACE-IM only",
+			cardAccessBytes: utils.HexToBytes("31143012060A04007F0007020204040202010202010D"),
+			local:           true,
+		},
+		{
+			// ECDH-CAM-AES-256 / id 32 (proprietary) + ECDH-GM-AES-256 / id 1 (not implemented)
+			name:            "several entries, all unsupported locally",
+			cardAccessBytes: utils.HexToBytes("31283012060a04007f000702020406040201020201203012060a04007f00070202040204020102020101"),
+			local:           true,
+		},
+		{
+			// ECDH-CAM-AES-256 / id 32 (proprietary) + ECDH-GM-AES-256 / id 3 (RFU): the
+			// non-conformant entry keeps the overall result failing closed
+			name:            "several entries, one non-conformant",
+			cardAccessBytes: utils.HexToBytes("31283012060a04007f000702020406040201020201203012060a04007f00070202040204020102020103"),
 			local:           false,
 		},
 	}
@@ -1438,46 +1508,22 @@ func TestMapNonceGmEcDhSamePublicKeys(t *testing.T) {
 
 // ---- DoPACE ----
 
-// TestDoPace_IM verifies that PACE-IM returns a "not implemented" error.
+// TestDoPace_IM verifies that a PACE-IM-only chip is rejected at selection as unsupported
+// locally, before any PACE command is sent.
 func TestDoPace_IM(t *testing.T) {
-	pass := password.NewPasswordCan("123456")
-
-	imConfig, err := paceConfigGetByOID(oid.OidPaceEcdhImAesCbcCmac128)
-	if err != nil {
-		t.Fatalf("paceConfigGetByOID error: %s", err)
-	}
-
-	// Derive kKdf so we can construct a valid encrypted nonce for the mock
-	canKey, err := pass.Key()
-	if err != nil {
-		t.Fatalf("pass.Key error: %s", err)
-	}
-	kKdf := cryptoutils.KDF(canKey, cryptoutils.KDF_COUNTER_PACE, imConfig.cipher, imConfig.keyLengthBits)
-
-	bcipher, err := cryptoutils.CipherForKey(imConfig.cipher, kKdf)
-	if err != nil {
-		t.Fatalf("CipherForKey error: %s", err)
-	}
-	encryptedNonce, err := cryptoutils.CryptCBC(bcipher, make([]byte, bcipher.BlockSize()), make([]byte, 16), true)
-	if err != nil {
-		t.Fatalf("CryptCBC error: %s", err)
-	}
-
-	var transceiver *iso7816.MockTransceiver = new(iso7816.MockTransceiver)
-	transceiver.AddReqRsp("0022C1A412800A04007F0007020204040283010284010D", "9000")
-	transceiver.AddReqRsp("10860000027C0000", "7C128010"+utils.BytesToHex(encryptedNonce)+"9000")
-
-	nfc := iso7816.NewNfcSession(transceiver)
-
 	var doc document.Document
+	var err error
 	doc.Mf.CardAccess, err = document.NewCardAccess(utils.HexToBytes("31143012060A04007F0007020204040202010202010D"))
 	if err != nil {
 		t.Fatalf("NewCardAccess error: %s", err)
 	}
 
-	_, _, err = NewPace(nfc, &doc, pass).DoPACE()
-	if err == nil {
-		t.Fatalf("Expected PACE-IM not-implemented error")
+	// no request/response pairs: any APDU sent would fail with an error not wrapping ErrPACEUnsupportedLocally
+	nfc := iso7816.NewNfcSession(new(iso7816.MockTransceiver))
+
+	_, _, err = NewPace(nfc, &doc, password.NewPasswordCan("123456")).DoPACE()
+	if !errors.Is(err, ErrPACEUnsupportedLocally) {
+		t.Fatalf("expected ErrPACEUnsupportedLocally, got %v", err)
 	}
 }
 

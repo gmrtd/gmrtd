@@ -26,6 +26,7 @@ package pace
 
 import (
 	"bytes"
+	"cmp"
 	"crypto/cipher"
 	"crypto/elliptic"
 	"encoding/asn1"
@@ -165,6 +166,12 @@ func paceConfigGetByOID(oid asn1.ObjectIdentifier) (*PaceConfig, error) {
 }
 
 // selects the preferred pace-config based on the options advertised in the card-access file
+//
+// ICAO 9303 lets the terminal use any advertised PACEInfo it supports, so entries this reader
+// cannot use are skipped (with a warning) rather than ending selection, and the highest-weighted
+// usable entry wins. If none is usable, the error only wraps ErrPACEUnsupportedLocally when every
+// entry was merely unsupported here; a non-conformant entry (e.g. RFU domain parameters or a
+// missing ParameterId) is reported as-is so callers keep failing closed on it.
 func selectPaceConfig(cardAccess *document.CardAccess) (*PaceConfig, *DomainParams, error) {
 	slog.Debug("selectPaceConfig: evaluating PACE configs")
 
@@ -172,42 +179,69 @@ func selectPaceConfig(cardAccess *document.CardAccess) (*PaceConfig, *DomainPara
 		return nil, nil, fmt.Errorf("[selectPaceConfig] invalid cardAccess: missing CardAccess or SecurityInfos or PaceInfos")
 	}
 
-	var selectedPaceInfo *document.PaceInfo
 	var selectedConfig *PaceConfig
+	var selectedParams *DomainParams
+	var nonConformantErr, unsupportedErr error
 
 	for i := range cardAccess.SecurityInfos.PaceInfos {
 		paceInfo := &cardAccess.SecurityInfos.PaceInfos[i]
-		slog.Debug("selectPaceConfig: evaluating paceInfo", "protocol", paceInfo.Protocol)
+		slog.Debug("selectPaceConfig: evaluating paceInfo", "protocol", paceInfo.Protocol, "parameterId", paceInfo.ParameterId)
 
-		config, err := paceConfigGetByOID(paceInfo.Protocol)
+		config, params, err := usablePaceInfo(paceInfo)
 		if err != nil {
-			slog.Warn("selectPaceConfig: skipping unsupported PACE protocol", "protocol", paceInfo.Protocol, "error", err)
+			slog.Warn("selectPaceConfig: skipping PACE info", "protocol", paceInfo.Protocol, "parameterId", paceInfo.ParameterId, "error", err)
+			if errors.Is(err, ErrPACEUnsupportedLocally) {
+				unsupportedErr = cmp.Or(unsupportedErr, err)
+			} else {
+				nonConformantErr = cmp.Or(nonConformantErr, err)
+			}
 			continue
 		}
 
 		if selectedConfig == nil || config.weighting > selectedConfig.weighting {
-			selectedPaceInfo = paceInfo
 			selectedConfig = config
+			selectedParams = params
 		}
 	}
 
-	if selectedPaceInfo == nil || selectedConfig == nil {
-		return nil, nil, fmt.Errorf("[selectPaceConfig] no supported PACE info found: %w", ErrPACEUnsupportedLocally)
+	if selectedConfig != nil {
+		return selectedConfig, selectedParams, nil
 	}
 
-	if selectedPaceInfo.ParameterId == nil {
-		return nil, nil, fmt.Errorf("[selectPaceConfig] missing ParameterId in selected PACE info")
+	if nonConformantErr != nil {
+		return nil, nil, fmt.Errorf("[selectPaceConfig] no usable PACE info found: %w", nonConformantErr)
 	}
 
-	domainParams, err := standardisedDomainParams(int(selectedPaceInfo.ParameterId.Int64()))
+	return nil, nil, fmt.Errorf("[selectPaceConfig] no supported PACE info found: %w", unsupportedErr)
+}
+
+// usablePaceInfo resolves the PACE config and domain parameters for a single advertised
+// PACEInfo. Errors wrap ErrPACEUnsupportedLocally when the entry is valid but this reader cannot
+// perform it; any other error means the entry itself is non-conformant.
+func usablePaceInfo(paceInfo *document.PaceInfo) (*PaceConfig, *DomainParams, error) {
+	config, err := paceConfigGetByOID(paceInfo.Protocol)
+	if err != nil {
+		return nil, nil, fmt.Errorf("%w: %w", ErrPACEUnsupportedLocally, err)
+	}
+
+	// rejected here, rather than in DoPACE, so no PACE command is sent for a mapping we can't complete
+	if config.mapping == IM {
+		return nil, nil, fmt.Errorf("[usablePaceInfo] %w: PACE-IM not implemented", ErrPACEUnsupportedLocally)
+	}
+
+	if paceInfo.ParameterId == nil {
+		return nil, nil, fmt.Errorf("[usablePaceInfo] missing ParameterId")
+	}
+
+	params, err := standardisedDomainParams(int(paceInfo.ParameterId.Int64()))
 	if err != nil {
 		if errors.Is(err, ErrPACEParamNotImplemented) || errors.Is(err, ErrPACEParamUnsupported) {
-			return nil, nil, fmt.Errorf("[selectPaceConfig] standardisedDomainParams error: %w: %w", ErrPACEUnsupportedLocally, err)
+			return nil, nil, fmt.Errorf("%w: %w", ErrPACEUnsupportedLocally, err)
 		}
-		return nil, nil, fmt.Errorf("[selectPaceConfig] standardisedDomainParams error: %w", err)
+		return nil, nil, err
 	}
 
-	return selectedConfig, domainParams, nil
+	return config, params, nil
 }
 
 func (paceConfig *PaceConfig) decryptNonce(key, encryptedNonce []byte) ([]byte, error) {
@@ -788,8 +822,9 @@ func (pace *Pace) DoPACE() (result *document.PaceResult, camResult *document.Pac
 				},
 			}
 		}
-	case IM:
-		return result, nil, fmt.Errorf("[DoPACE] PACE-IM NOT IMPLEMENTED")
+	default:
+		// unreachable: selectPaceConfig only selects GM/CAM
+		return result, nil, fmt.Errorf("[DoPACE] unsupported PACE mapping (%d)", paceConfig.mapping)
 	}
 
 	// update result to indicate success
