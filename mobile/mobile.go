@@ -360,17 +360,6 @@ func (v *Verifier) WithAAChallenge(challenge []byte) (*Verifier, error) {
 	return v, nil
 }
 
-// WithTrustedSource declares that the evidence was captured by a trusted reader
-// (e.g. the caller's own kiosk, or an app whose integrity it has attested), so
-// replayed CA, PACE-CAM and AA evidence counts towards chipAuthenticity even
-// without an AA challenge. See verifier.Verifier.WithTrustedSource.
-func (v *Verifier) WithTrustedSource() *Verifier {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	v.trustedSource = true
-	return v
-}
-
 func (v *Verifier) Verify(data []byte) (doc *Document, err error) {
 	// Locked for the whole call: see the Verifier docstring above.
 	v.mu.Lock()
@@ -399,6 +388,17 @@ func (v *Verifier) Verify(data []byte) (doc *Document, err error) {
 	}
 
 	return &Document{documentEx: docEx}, nil
+}
+
+// WithTrustedSource declares that the evidence was captured by a trusted reader
+// (e.g. the caller's own kiosk, or an app whose integrity it has attested), so
+// replayed CA, PACE-CAM and AA evidence counts towards chipAuthenticity even
+// without an AA challenge. See verifier.Verifier.WithTrustedSource.
+func (v *Verifier) WithTrustedSource() *Verifier {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	v.trustedSource = true
+	return v
 }
 
 // NewSampleDocument returns a Document populated with static ICAO 9303
