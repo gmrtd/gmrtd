@@ -344,3 +344,40 @@ func TestTemplateFuncMapIndentedJson(t *testing.T) {
 		t.Errorf("IndentedJson: unexpected output %q", got)
 	}
 }
+
+func TestGenerateOfflineEvidenceSource(t *testing.T) {
+	testCases := []struct {
+		name    string
+		offline *document.OfflineVerification
+		want    []string
+		notWant []string
+	}{
+		{name: "live read", offline: nil, notWant: []string{"Evidence Source"}},
+		{name: "trusted reader", offline: &document.OfflineVerification{TrustedSource: true}, want: []string{"Offline: trusted reader"}},
+		{name: "untrusted, no challenge", offline: &document.OfflineVerification{}, want: []string{"Offline: untrusted reader", "(no challenge bound)"}},
+		{name: "untrusted, challenge bound", offline: &document.OfflineVerification{AAChallengeBound: true}, want: []string{"Offline: untrusted reader"}, notWant: []string{"(no challenge bound)"}},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			docEx := &document.DocumentEx{}
+			docEx.Session.Offline = tc.offline
+
+			buf, err := Generate(docEx, nil)
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+
+			out := buf.String()
+			for _, w := range tc.want {
+				if !strings.Contains(out, w) {
+					t.Errorf("expected output to contain %q", w)
+				}
+			}
+			for _, w := range tc.notWant {
+				if strings.Contains(out, w) {
+					t.Errorf("expected output not to contain %q", w)
+				}
+			}
+		})
+	}
+}

@@ -94,6 +94,10 @@ func TestVerifyAANonceMatch(t *testing.T) {
 	if docEx.Session.ActiveAuthResult == nil || !docEx.Session.ActiveAuthResult.Success {
 		t.Errorf("expected successful AA result")
 	}
+
+	if exp := (document.OfflineVerification{AAChallengeBound: true}); docEx.Session.Offline == nil || *docEx.Session.Offline != exp {
+		t.Errorf("Session.Offline = %+v, want %+v", docEx.Session.Offline, exp)
+	}
 }
 
 func TestVerifyAANonceMismatch(t *testing.T) {
@@ -153,6 +157,29 @@ func TestVerifyNoAAChallenge(t *testing.T) {
 
 	if docEx.Session.ActiveAuthResult == nil || !docEx.Session.ActiveAuthResult.Success {
 		t.Errorf("expected successful AA result without challenge binding")
+	}
+
+	// untrusted by default and not challenge-bound, so this AA must not count towards chip authenticity
+	if exp := (document.OfflineVerification{}); docEx.Session.Offline == nil || *docEx.Session.Offline != exp {
+		t.Errorf("Session.Offline = %+v, want %+v", docEx.Session.Offline, exp)
+	}
+}
+
+func TestVerifyWithTrustedSource(t *testing.T) {
+	data := buildVerifiableDocWithAA(t, testAANonce, testAASig)
+
+	v, err := emptyVerifier().WithTrustedSource().WithAAChallenge(testAANonce)
+	if err != nil {
+		t.Fatalf("WithAAChallenge error: %s", err)
+	}
+
+	docEx, err := v.Verify(data)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	if exp := (document.OfflineVerification{TrustedSource: true, AAChallengeBound: true}); docEx.Session.Offline == nil || *docEx.Session.Offline != exp {
+		t.Errorf("Session.Offline = %+v, want %+v", docEx.Session.Offline, exp)
 	}
 }
 

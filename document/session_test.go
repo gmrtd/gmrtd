@@ -87,6 +87,46 @@ func TestVerifiedChipAuthStatus(t *testing.T) {
 	}
 }
 
+// Offline (verifier-replayed) sessions: from an untrusted source only AA bound to a
+// verifier-issued challenge counts, since CA/PACE-CAM evidence can be produced without the
+// chip by whoever captured it, and unbound AA evidence can be replayed.
+func TestVerifiedChipAuthStatusOffline(t *testing.T) {
+	paOk := func() *PassiveAuthResult {
+		return &PassiveAuthResult{Success: true, Sod: NewPassiveAuth(nil), CardSec: NewPassiveAuth(nil)}
+	}
+	aaOk := func() *ActiveAuthResult {
+		return &ActiveAuthResult{Success: true, Evidence: &ActiveAuthEvidence{Algorithm: oid.OidRsaEncryption}}
+	}
+	untrusted := &OfflineVerification{}
+	untrustedBound := &OfflineVerification{AAChallengeBound: true}
+	trusted := &OfflineVerification{TrustedSource: true}
+
+	testCases := []struct {
+		desc    string
+		session Session
+		exp     ChipAuthStatus
+	}{
+		{desc: "untrusted: CA success", session: Session{Offline: untrusted, ChipAuthResult: &ChipAuthResult{Success: true}, PassiveAuthResult: paOk()}, exp: CHIP_AUTH_STATUS_NONE},
+		{desc: "untrusted: PACE-CAM success", session: Session{Offline: untrusted, PaceCamResult: &PaceCamResult{Success: true}, PassiveAuthResult: paOk()}, exp: CHIP_AUTH_STATUS_NONE},
+		{desc: "untrusted: AA success, no challenge", session: Session{Offline: untrusted, ActiveAuthResult: aaOk(), PassiveAuthResult: paOk()}, exp: CHIP_AUTH_STATUS_NONE},
+		{desc: "untrusted: AA success, challenge bound", session: Session{Offline: untrustedBound, ActiveAuthResult: aaOk(), PassiveAuthResult: paOk()}, exp: CHIP_AUTH_STATUS_AA},
+		{desc: "untrusted: CA success + AA bound", session: Session{Offline: untrustedBound, ChipAuthResult: &ChipAuthResult{Success: true}, ActiveAuthResult: aaOk(), PassiveAuthResult: paOk()}, exp: CHIP_AUTH_STATUS_AA},
+		{desc: "untrusted: challenge bound, AA failed", session: Session{Offline: untrustedBound, ActiveAuthResult: &ActiveAuthResult{Success: false}, PassiveAuthResult: paOk()}, exp: CHIP_AUTH_STATUS_NONE},
+		{desc: "untrusted: AA bound, passive auth fail", session: Session{Offline: untrustedBound, ActiveAuthResult: aaOk(), PassiveAuthResult: &PassiveAuthResult{Success: false}}, exp: CHIP_AUTH_STATUS_NONE},
+		{desc: "trusted: CA success", session: Session{Offline: trusted, ChipAuthResult: &ChipAuthResult{Success: true}, PassiveAuthResult: paOk()}, exp: CHIP_AUTH_STATUS_CA},
+		{desc: "trusted: PACE-CAM success", session: Session{Offline: trusted, PaceCamResult: &PaceCamResult{Success: true}, PassiveAuthResult: paOk()}, exp: CHIP_AUTH_STATUS_PACE_CAM},
+		{desc: "trusted: AA success, no challenge", session: Session{Offline: trusted, ActiveAuthResult: aaOk(), PassiveAuthResult: paOk()}, exp: CHIP_AUTH_STATUS_AA},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			act := tc.session.VerifiedChipAuthStatus()
+			if tc.exp != act {
+				t.Errorf("VerifiedChipAuthStatus [Act] %d [Exp] %d", act, tc.exp)
+			}
+		})
+	}
+}
+
 func TestSession(t *testing.T) {
 	testCases := []struct {
 		session                   Session

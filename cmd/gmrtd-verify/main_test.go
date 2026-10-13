@@ -21,6 +21,7 @@ func TestCmdParamsSuccess(t *testing.T) {
 		wantFile         string
 		wantDebug        bool
 		wantChallengeHex string
+		wantTrusted      bool
 	}{
 		{
 			name:      "file only",
@@ -54,13 +55,23 @@ func TestCmdParamsSuccess(t *testing.T) {
 			wantFile:  "-",
 			wantDebug: false,
 		},
+		{
+			name:        "trusted source",
+			args:        []string{"-file", "document.gmrtd", "-trusted-source"},
+			wantFile:    "document.gmrtd",
+			wantTrusted: true,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			filePath, debug, challenge, err := cmdParams(tc.args)
+			filePath, debug, opts, err := cmdParams(tc.args)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
+			}
+			challenge := opts.challenge
+			if opts.trustedSource != tc.wantTrusted {
+				t.Fatalf("trustedSource = %v, want %v", opts.trustedSource, tc.wantTrusted)
 			}
 			if filePath != tc.wantFile {
 				t.Fatalf("filePath = %q, want %q", filePath, tc.wantFile)
@@ -118,7 +129,8 @@ func TestCmdParamsError(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			filePath, debug, challenge, err := cmdParams(tc.args)
+			filePath, debug, opts, err := cmdParams(tc.args)
+			challenge := opts.challenge
 			if err == nil {
 				t.Fatalf("expected error, got nil")
 			}
@@ -157,7 +169,7 @@ func makeDeps(overrides func(*appDeps)) appDeps {
 	deps := appDeps{
 		cscaMasterList: func() (cms.CertPool, error) { return &cms.GenericCertPool{}, nil },
 		readFile:       func(string) ([]byte, error) { return []byte("fake"), nil },
-		verify: func(cms.CertPool, []byte, []byte) (*document.DocumentEx, error) {
+		verify: func(cms.CertPool, verifyOptions, []byte) (*document.DocumentEx, error) {
 			return &document.DocumentEx{}, nil
 		},
 		generateDocument: func(*document.DocumentEx, *iso7816.ApduLog) (*bytes.Buffer, error) {
@@ -181,8 +193,8 @@ func TestRunWithDepsSuccess(t *testing.T) {
 func TestRunWithDepsSuccessWithChallenge(t *testing.T) {
 	var gotChallenge []byte
 	deps := makeDeps(func(d *appDeps) {
-		d.verify = func(_ cms.CertPool, challenge []byte, _ []byte) (*document.DocumentEx, error) {
-			gotChallenge = challenge
+		d.verify = func(_ cms.CertPool, opts verifyOptions, _ []byte) (*document.DocumentEx, error) {
+			gotChallenge = opts.challenge
 			return &document.DocumentEx{}, nil
 		}
 	})
@@ -235,7 +247,7 @@ func TestRunWithDepsVerifyError(t *testing.T) {
 	wantErr := errors.New("verify boom")
 
 	err := runWithDeps([]string{"-file", "document.gmrtd"}, makeDeps(func(d *appDeps) {
-		d.verify = func(cms.CertPool, []byte, []byte) (*document.DocumentEx, error) {
+		d.verify = func(cms.CertPool, verifyOptions, []byte) (*document.DocumentEx, error) {
 			return nil, wantErr
 		}
 	}))
@@ -329,7 +341,7 @@ func TestVerifyDocument(t *testing.T) {
 	pool := &cms.GenericCertPool{}
 
 	t.Run("invalid cbor no challenge", func(t *testing.T) {
-		_, err := verifyDocument(pool, nil, []byte("not valid cbor"))
+		_, err := verifyDocument(pool, verifyOptions{}, []byte("not valid cbor"))
 		if err == nil {
 			t.Fatal("expected error for invalid CBOR data")
 		}
@@ -337,9 +349,27 @@ func TestVerifyDocument(t *testing.T) {
 
 	t.Run("invalid cbor with challenge", func(t *testing.T) {
 		challenge := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}
-		_, err := verifyDocument(pool, challenge, []byte("not valid cbor"))
+		_, err := verifyDocument(pool, verifyOptions{challenge: challenge}, []byte("not valid cbor"))
 		if err == nil {
 			t.Fatal("expected error for invalid CBOR data with challenge")
+		}
+	})
+
+	t.Run("trusted source recorded", func(t *testing.T) {
+		var empty document.DocumentEx
+		data, err := empty.ToCbor()
+		if err != nil {
+			t.Fatalf("ToCbor error: %s", err)
+		}
+
+		for _, trusted := range []bool{false, true} {
+			docEx, err := verifyDocument(pool, verifyOptions{trustedSource: trusted}, data)
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+			if docEx.Session.Offline == nil || docEx.Session.Offline.TrustedSource != trusted {
+				t.Errorf("Session.Offline = %+v, want TrustedSource=%v", docEx.Session.Offline, trusted)
+			}
 		}
 	})
 }

@@ -1,6 +1,13 @@
 // Package verifier provides offline verification of machine-readable travel documents (MRTDs)
 // by replaying serialised chip authentication evidence and performing passive authentication
 // against a CSCA certificate pool.
+//
+// Replayed evidence cannot prove a chip was present unless the reader that captured it is
+// trusted: CA and PACE-CAM evidence can be produced by anyone holding the terminal's ephemeral
+// private key, and AA evidence can be replayed from an earlier read. By default the verifier
+// treats the source as untrusted, so DocumentEx.Summary().ChipAuthenticity only reports AA bound
+// to a challenge supplied via Verifier.WithAAChallenge. Callers whose evidence comes from a
+// reader they control can opt in with Verifier.WithTrustedSource.
 package verifier
 
 import (
@@ -24,8 +31,9 @@ import (
 type Verifier struct {
 	mu sync.Mutex
 
-	cscaCertPool cms.CertPool
-	aaChallenge  []byte
+	cscaCertPool  cms.CertPool
+	aaChallenge   []byte
+	trustedSource bool
 }
 
 func NewVerifier(cscaCertPool cms.CertPool) *Verifier {
@@ -48,7 +56,28 @@ func (v *Verifier) WithAAChallenge(challenge []byte) (*Verifier, error) {
 	return v, nil
 }
 
-// TODO - need to think about hard errors for PA, and CA.. currently only have hard-error for AA nonce mismatch. Should we also hard-error if PA fails, or CA fails? Or just return the result in the DocumentEx.Session?
+// WithTrustedSource declares that the evidence was captured by a trusted reader (e.g. the
+// caller's own kiosk, or an app whose integrity it has attested), so replayed CA, PACE-CAM and
+// AA evidence counts towards chip authenticity even without an AA challenge. Do not use it for
+// evidence from readers outside the caller's control, such as a public mobile app: a modified
+// client can produce CA/PACE-CAM evidence without the chip, or replay earlier AA evidence.
+func (v *Verifier) WithTrustedSource() *Verifier {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	v.trustedSource = true
+	return v
+}
+
+// Verify parses a serialised document (see DocumentEx.ToCbor), replays its chip authentication
+// evidence, and performs passive authentication and Document.Verify.
+//
+// Verification outcomes are recorded in the returned DocumentEx.Session rather than returned as
+// errors; use DocumentEx.Summary() for the overall verdict. The only hard error after parsing is
+// an AA nonce that does not match the challenge supplied via WithAAChallenge.
+//
+// Session.Offline records how the evidence may be trusted (see document.OfflineVerification):
+// unless WithTrustedSource is set, Summary().ChipAuthenticity only counts AA bound to a
+// WithAAChallenge challenge, not CA/PACE-CAM evidence or unbound AA.
 func (v *Verifier) Verify(data []byte) (*document.DocumentEx, error) {
 	// Locked for the whole call: see the Verifier docstring above.
 	v.mu.Lock()
@@ -72,10 +101,13 @@ func (v *Verifier) Verify(data []byte) (*document.DocumentEx, error) {
 		docEx.Session.ActiveAuthResult, docEx.Session.ActiveAuthErr = activeauth.VerifyEvidence(doc, caBundle.ActiveAuth)
 	}
 
+	docEx.Session.Offline = &document.OfflineVerification{TrustedSource: v.trustedSource}
+
 	if v.aaChallenge != nil && caBundle.ActiveAuth != nil {
 		if !bytes.Equal(caBundle.ActiveAuth.Nonce, v.aaChallenge) {
 			return nil, fmt.Errorf("[Verify] AA nonce mismatch: evidence nonce does not match supplied challenge")
 		}
+		docEx.Session.Offline.AAChallengeBound = true
 	}
 
 	docEx.Session.PassiveAuthResult, docEx.Session.PassiveAuthErr = passiveauth.PassiveAuth(doc, v.cscaCertPool)

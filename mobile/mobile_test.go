@@ -655,3 +655,28 @@ func TestReadDocumentNilStatusReportsRealError(t *testing.T) {
 		t.Errorf("nil ReaderStatus masked the read error (act:%s)", err)
 	}
 }
+
+func TestVerifierWithTrustedSource(t *testing.T) {
+	var empty document.DocumentEx
+	data, err := empty.ToCbor()
+	if err != nil {
+		t.Fatalf("ToCbor error: %s", err)
+	}
+
+	for _, trusted := range []bool{false, true} {
+		v := NewVerifier()
+		if trusted {
+			v = v.WithTrustedSource()
+		}
+
+		doc, err := v.Verify(data)
+		if err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
+
+		offline := doc.documentEx.Session.Offline
+		if offline == nil || offline.TrustedSource != trusted {
+			t.Errorf("Session.Offline = %+v, want TrustedSource=%v", offline, trusted)
+		}
+	}
+}

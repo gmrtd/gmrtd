@@ -216,6 +216,10 @@ func (r *Reader) AllowBacFallbackOnPaceError() {
 //  2. Supply it here via WithAAChallenge before calling ReadDocument.
 //  3. Pass the same value to Verifier.WithAAChallenge when verifying the
 //     captured evidence; the verifier will hard-error on a nonce mismatch.
+//
+// For a verifier that does not trust this app (e.g. a server), a challenge it
+// issued is what makes AA count: CA/PACE-CAM evidence from this read does not
+// prove chip presence to it (see Verifier).
 func (r *Reader) WithAAChallenge(challenge []byte) (*Reader, error) {
 	if len(challenge) != 8 {
 		return nil, fmt.Errorf("[WithAAChallenge] challenge must be exactly 8 bytes, got %d", len(challenge))
@@ -316,12 +320,19 @@ func OidDesc(oidStr string) string {
 
 // Verifier is not safe for concurrent use: it is a single-use,
 // single-goroutine object for verifying one piece of evidence. mu guards
-// aaChallenge (set via WithAAChallenge) and serialises Verify - see the
-// Reader docstring above for why this matters for gomobile-bound callers.
+// aaChallenge/trustedSource (set via WithAAChallenge/WithTrustedSource) and
+// serialises Verify - see the Reader docstring above for why this matters for
+// gomobile-bound callers.
+//
+// By default the evidence source is treated as untrusted, so the summary's
+// chipAuthenticity only reports AA bound to a WithAAChallenge challenge; see
+// verifier.Verifier for why CA/PACE-CAM evidence cannot prove chip presence
+// offline.
 type Verifier struct {
 	mu sync.Mutex
 
-	aaChallenge []byte
+	aaChallenge   []byte
+	trustedSource bool
 }
 
 func NewVerifier() *Verifier {
@@ -335,6 +346,10 @@ func NewVerifier() *Verifier {
 // the evidence nonce does not match the supplied challenge, or if the AA
 // signature itself fails to verify. See Reader.WithAAChallenge for the
 // corresponding read-side method.
+//
+// Unless WithTrustedSource is set, AA bound to this challenge is the only
+// replayed evidence counted towards chipAuthenticity: CA/PACE-CAM evidence
+// can be produced without the chip by whoever captured it.
 func (v *Verifier) WithAAChallenge(challenge []byte) (*Verifier, error) {
 	if len(challenge) != 8 {
 		return nil, fmt.Errorf("[WithAAChallenge] challenge must be exactly 8 bytes, got %d", len(challenge))
@@ -343,6 +358,17 @@ func (v *Verifier) WithAAChallenge(challenge []byte) (*Verifier, error) {
 	defer v.mu.Unlock()
 	v.aaChallenge = bytes.Clone(challenge)
 	return v, nil
+}
+
+// WithTrustedSource declares that the evidence was captured by a trusted reader
+// (e.g. the caller's own kiosk, or an app whose integrity it has attested), so
+// replayed CA, PACE-CAM and AA evidence counts towards chipAuthenticity even
+// without an AA challenge. See verifier.Verifier.WithTrustedSource.
+func (v *Verifier) WithTrustedSource() *Verifier {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	v.trustedSource = true
+	return v
 }
 
 func (v *Verifier) Verify(data []byte) (doc *Document, err error) {
@@ -356,6 +382,10 @@ func (v *Verifier) Verify(data []byte) (doc *Document, err error) {
 	}
 
 	gmrtdVerifier := verifier.NewVerifier(certPool)
+
+	if v.trustedSource {
+		gmrtdVerifier = gmrtdVerifier.WithTrustedSource()
+	}
 
 	if v.aaChallenge != nil {
 		if gmrtdVerifier, err = gmrtdVerifier.WithAAChallenge(v.aaChallenge); err != nil {
