@@ -5,6 +5,7 @@ import (
 	"crypto/elliptic"
 	"encoding/asn1"
 	"errors"
+	"github.com/gmrtd/gmrtd/internal/testlog"
 	"log/slog"
 	"reflect"
 	"strings"
@@ -376,6 +377,8 @@ func TestDoPaceNoCardAccessFile(t *testing.T) {
 
 // PACE test for GM (ECDH) based on worked example in ICAO9303 p11 specs (Appendix G1)
 func TestDoPace_GM_ECDH(t *testing.T) {
+	logs := testlog.CaptureDebug(t)
+
 	var nfc *iso7816.NfcSession
 
 	{
@@ -441,6 +444,13 @@ func TestDoPace_GM_ECDH(t *testing.T) {
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
+	testlog.AssertNoSecrets(t, logs.String(), map[string]string{
+		"password":                           pass.Password,
+		"terminal key-agreement private key": "7F4EF07B9EA82FD78AD689B38D0BC78CF21F249D953BC46F4C6E19259C010F99",
+		"terminal mapping private key":       "A73FB703AC1436A18E0CFA5ABB3F7BEC7A070E7A6788486BEE230C4A22762595",
+		"ksEnc":                              "F5F0E35C0D7161EE6724EE513A0D9A7F",
+		"ksMac":                              "FE251C7858B356B24514B3BD5F4297D1",
+	})
 
 	// verify Result is as expected
 	var expPaceResult *document.PaceResult = &document.PaceResult{Success: true, Oid: oid.OidPaceEcdhGmAesCbcCmac128, ParameterId: 13}

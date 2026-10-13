@@ -150,7 +150,7 @@ func verifyCheckdigit(data, checkDigit string) error {
 }
 
 func decodeTD1(mrz string) (*MRZ, error) {
-	slog.Debug("decodeTD1", "MRZ", mrz)
+	slog.Debug("decodeTD1", "length", len(mrz))
 
 	if len(mrz) != MRZLengthTD1 {
 		return nil, fmt.Errorf("invalid MRZ TD1 length (Exp:%d) (Act:%d)", MRZLengthTD1, len(mrz))
@@ -224,7 +224,7 @@ func decodeTD1(mrz string) (*MRZ, error) {
 }
 
 func decodeTD2(mrz string) (*MRZ, error) {
-	slog.Debug("decodeTD2", "MRZ", mrz)
+	slog.Debug("decodeTD2", "length", len(mrz))
 
 	if len(mrz) != MRZLengthTD2 {
 		return nil, fmt.Errorf("invalid MRZ TD2 length (Exp:%d) (Act:%d)", MRZLengthTD2, len(mrz))
@@ -294,7 +294,7 @@ func decodeTD2(mrz string) (*MRZ, error) {
 }
 
 func decodeTD3(mrz string) (*MRZ, error) {
-	slog.Debug("decodeTD3", "MRZ", mrz)
+	slog.Debug("decodeTD3", "length", len(mrz))
 
 	if len(mrz) != MRZLengthTD3 {
 		return nil, fmt.Errorf("invalid MRZ TD3 length (Exp:%d) (Act:%d)", MRZLengthTD3, len(mrz))
@@ -446,8 +446,6 @@ func (mrz *MRZ) EncodeMrzi() (string, error) {
 	}
 
 	out := documentNumber + documentNumberCD + dateOfBirth + dateOfBirthCD + dateOfExpiry + dateOfExpiryCD
-
-	slog.Debug("MrzEncodeMRZi", "MRZi", out)
 
 	return out, nil
 }

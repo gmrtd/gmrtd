@@ -4,6 +4,7 @@ import (
 	"crypto/elliptic"
 	"encoding/asn1"
 	"fmt"
+	"github.com/gmrtd/gmrtd/internal/testlog"
 	"log"
 	"math/big"
 	"reflect"
@@ -217,6 +218,8 @@ func TestResolveCAInfo(t *testing.T) {
 }
 
 func TestChipAuthAT(t *testing.T) {
+	logs := testlog.CaptureDebug(t)
+
 	// CA test extracted from actual session with AT passport
 	// 		DG14 CA entry         : 0.4.0.127.0.7.2.2.3.2.2 (id-CA-ECDH-AES-CBC-CMAC-128)
 	//		DG14 Public Key params: Specified curve for 'brainpoolP256r1'
@@ -285,6 +288,13 @@ func TestChipAuthAT(t *testing.T) {
 	var result *document.ChipAuthResult
 
 	result, err = chipAuth.DoChipAuth()
+	testlog.AssertNoSecrets(t, logs.String(), map[string]string{
+		"terminal private key": "80EBAFC8A51BECD4D90BB640EE38C9FD5C12748D28AAA37096B98C4533C4F5F5",
+		"previous ksEnc":       "524170DE3419B7AF2F23E45AD6EF9595",
+		"previous ksMac":       "97893F5FDC29A5C13A924FE7D8ED44FD",
+		"ksEnc":                "C8E27260EFD3F318D18C080CBF11C7E6",
+		"ksMac":                "A942190365204A21409EB28B52BF9160",
+	})
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}

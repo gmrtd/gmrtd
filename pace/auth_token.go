@@ -35,7 +35,7 @@ import (
  */
 
 func (paceConfig *PaceConfig) computeAuthToken(key, data []byte) ([]byte, error) {
-	slog.Debug("computeAuthToken", "key", utils.BytesToHex(key), "data", utils.BytesToHex(data))
+	slog.Debug("computeAuthToken", "data", utils.BytesToHex(data))
 
 	switch paceConfig.authToken {
 	case CBC:

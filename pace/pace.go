@@ -353,7 +353,6 @@ func (pace *Pace) doApduMseSetAT(paceConfig *PaceConfig, domainParams *DomainPar
 //   - generates shared secret
 //   - do generic mapping (and return G)
 func (pace *Pace) mapNonceGmEcDh(domainParams *DomainParams, s []byte) (mapped_g *cryptoutils.EcPoint, pubMapIC *cryptoutils.EcPoint, termMapPri []byte, termMapPub []byte, err error) {
-	slog.Debug("mapNonceGmEcDh", "s", utils.BytesToHex(s))
 
 	// generate terminal key (private/public)
 	var termKeypair cryptoutils.EcKeypair = pace.keyGeneratorEc(domainParams.ec)
@@ -391,7 +390,6 @@ func (pace *Pace) mapNonceGmEcDh(domainParams *DomainParams, s []byte) (mapped_g
 	// Shared Secret H
 	//
 	var termShared *cryptoutils.EcPoint = cryptoutils.DoEcDh(termKeypair.Pri, pubMapIC, domainParams.ec)
-	slog.Debug("mapNonceGmEcDh", "termShared", termShared.String())
 
 	//
 	// Mapped G
@@ -451,7 +449,6 @@ func (pace *Pace) keyAgreementGmEcDh(domainParams *DomainParams, G *cryptoutils.
 		// NB secret is just based on 'x', encoded at field size
 		sharedSecret = cryptoutils.EcDhSharedSecret(termKeypair.Pri, chipPub, domainParams.ec)
 
-		slog.Debug("keyAgreementGmEcDh", "shared-secret", utils.BytesToHex(sharedSecret))
 	}
 
 	return sharedSecret, termKeypair, chipPub, nil
@@ -464,7 +461,6 @@ func (pace *Pace) mutualAuthGmEcDh(paceConfig *PaceConfig, domainParams *DomainP
 	var ksEnc, ksMac []byte
 	ksEnc = cryptoutils.KDF(sharedSecret, cryptoutils.KDF_COUNTER_KSENC, paceConfig.cipher, paceConfig.keyLengthBits)
 	ksMac = cryptoutils.KDF(sharedSecret, cryptoutils.KDF_COUNTER_KSMAC, paceConfig.cipher, paceConfig.keyLengthBits)
-	slog.Debug("mutualAuthGmEcDh", "ksEnc", utils.BytesToHex(ksEnc), "ksMac", utils.BytesToHex(ksMac))
 
 	// generate auth tokens
 	var tIfd, tIc []byte
@@ -611,7 +607,6 @@ func (pace *Pace) doCamEcdh(paceConfig *PaceConfig, domainParams *DomainParams, 
 	if err != nil {
 		return fmt.Errorf("[doCamEcdh] %w", err)
 	}
-	slog.Debug("doCamEcdh", "CA-IC", utils.BytesToHex(caIC))
 
 	// 4.4.3.5.2 Verification by the terminal
 	// The terminal SHALL decrypt AIC to recover CAIC and verify PKMap,IC = KA(CAIC, PKIC, DIC), where PKIC is the static public
@@ -753,7 +748,7 @@ func (pace *Pace) doGenericMappingGmCam(paceConfig *PaceConfig, domainParams *Do
 }
 
 func (pace *Pace) DoPACE() (result *document.PaceResult, camResult *document.PaceCamResult, err error) {
-	slog.Debug("DoPACE", "password-type", pace.password.PasswordType, "password", pace.password.Password)
+	slog.Debug("DoPACE")
 
 	// PACE requires card-access
 	if pace.document.Mf.CardAccess == nil {
