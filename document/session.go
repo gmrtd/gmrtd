@@ -32,6 +32,28 @@ type Session struct {
 	// Passive Authentication
 	PassiveAuthErr    error              `json:"passiveAuthErr,omitempty"`
 	PassiveAuthResult *PassiveAuthResult `json:"passiveAuthResult,omitempty"`
+
+	// Offline is set when this Session was produced by replaying evidence offline (see
+	// verifier.Verify) rather than by a live read; nil for live reads.
+	Offline *OfflineVerification `json:"offline,omitempty"`
+}
+
+// OfflineVerification records how far chip authentication evidence replayed offline can be
+// trusted. It is set by the verifier from its own configuration, never from the evidence file.
+//
+// CA and PACE-CAM evidence only shows the evidence was not modified after capture: whoever
+// captured it knew the terminal's ephemeral private key, so could have produced it without the
+// chip. It therefore only counts when the caller vouches that the capturing reader is trusted.
+// AA evidence proves the chip signed the nonce, but without a verifier-issued challenge the
+// signature may be replayed from an earlier read.
+type OfflineVerification struct {
+	// TrustedSource is the caller's assertion that the evidence was captured by a trusted reader
+	// (e.g. its own kiosk or an attested app), so replayed CA/PACE-CAM/AA evidence is accepted.
+	TrustedSource bool `json:"trustedSource"`
+
+	// AAChallengeBound reports that the AA evidence nonce matched a challenge supplied to the
+	// verifier, so the AA signature was produced for this verification.
+	AAChallengeBound bool `json:"aaChallengeBound"`
 }
 
 // ChipAuthProtocolCompleted reports whether a chip authentication protocol (PACE-CAM/CA/AA)
@@ -81,9 +103,16 @@ func (session Session) ChipAuthProtocolStatus() (status ChipAuthStatus) {
 //
 // CA/AA: requires PassiveAuthResult.Success (SOD verified via CSCA, DG14/DG15 hashes match).
 // PACE-CAM: additionally requires CardSecurity verification (PassiveAuthResult.CardSec != nil).
+//
+// Offline sessions (Offline != nil) from an untrusted source only count AA bound to a
+// verifier-issued challenge; see OfflineVerification.
 func (session Session) VerifiedChipAuthStatus() ChipAuthStatus {
 	if session.PassiveAuthResult == nil || !session.PassiveAuthResult.Success {
 		return CHIP_AUTH_STATUS_NONE
+	}
+
+	if session.Offline != nil && !session.Offline.TrustedSource {
+		return session.untrustedOfflineChipAuthStatus()
 	}
 
 	status := session.ChipAuthProtocolStatus()
@@ -94,6 +123,15 @@ func (session Session) VerifiedChipAuthStatus() ChipAuthStatus {
 	}
 
 	return status
+}
+
+// untrustedOfflineChipAuthStatus only accepts AA bound to a verifier-issued challenge: it is
+// the only replayed evidence that the capturing reader could not have produced without the chip.
+func (session Session) untrustedOfflineChipAuthStatus() ChipAuthStatus {
+	if session.Offline.AAChallengeBound && session.ActiveAuthResult != nil && session.ActiveAuthResult.Success {
+		return CHIP_AUTH_STATUS_AA
+	}
+	return CHIP_AUTH_STATUS_NONE
 }
 
 type ChipActivationRsp struct {

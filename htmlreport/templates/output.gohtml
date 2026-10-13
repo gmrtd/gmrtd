@@ -666,6 +666,12 @@ document.addEventListener('DOMContentLoaded', () => {
       <td>Authentic Chip</td>
       <td>{{.Summary.ChipAuthenticity}}</td>
     </tr>
+    {{- if .Session.Offline}}
+    <tr>
+      <td>Evidence Source</td>
+      <td>{{if .Session.Offline.TrustedSource}}Offline: trusted reader{{else}}Offline: untrusted reader. Only Active Authentication bound to a verifier challenge counts; replayed CA/PACE-CAM evidence does not prove chip presence{{if not .Session.Offline.AAChallengeBound}} (no challenge bound){{end}}{{end}}</td>
+    </tr>
+    {{- end}}
     <tr>
       <td>LDS version</td>
       <td>{{.Summary.LdsVersion}}</td>

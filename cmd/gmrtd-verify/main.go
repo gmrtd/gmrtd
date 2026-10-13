@@ -20,34 +20,40 @@ import (
 	"github.com/pkg/browser"
 )
 
-func cmdParams(args []string) (filePath string, debug bool, challenge []byte, err error) {
+type verifyOptions struct {
+	challenge     []byte
+	trustedSource bool
+}
+
+func cmdParams(args []string) (filePath string, debug bool, opts verifyOptions, err error) {
 	fs := flag.NewFlagSet("gmrtd-verify", flag.ContinueOnError)
 
 	fileFlag := fs.String("file", "", "Path to CBOR document file (use - for stdin)")
 	debugFlag := fs.Bool("debug", false, "Debug")
 	challengeFlag := fs.String("challenge", "", "8-byte AA nonce challenge (hex, e.g. 0102030405060708)")
+	trustedSourceFlag := fs.Bool("trusted-source", false, "Treat the evidence as captured by a trusted reader, so CA/PACE-CAM and unbound AA evidence count towards chip authenticity")
 
 	if parseErr := fs.Parse(args); parseErr != nil {
-		return "", false, nil, parseErr
+		return "", false, verifyOptions{}, parseErr
 	}
 
 	if *fileFlag == "" {
 		fs.PrintDefaults()
-		return "", false, nil, fmt.Errorf("usage: -file is required")
+		return "", false, verifyOptions{}, fmt.Errorf("usage: -file is required")
 	}
 
 	var challengeBytes []byte
 	if *challengeFlag != "" {
 		challengeBytes, err = hex.DecodeString(*challengeFlag)
 		if err != nil {
-			return "", false, nil, fmt.Errorf("invalid -challenge: %w", err)
+			return "", false, verifyOptions{}, fmt.Errorf("invalid -challenge: %w", err)
 		}
 		if len(challengeBytes) != 8 {
-			return "", false, nil, fmt.Errorf("-challenge must be exactly 8 bytes (16 hex chars), got %d hex chars (%d bytes)", len(*challengeFlag), len(challengeBytes))
+			return "", false, verifyOptions{}, fmt.Errorf("-challenge must be exactly 8 bytes (16 hex chars), got %d hex chars (%d bytes)", len(*challengeFlag), len(challengeBytes))
 		}
 	}
 
-	return *fileFlag, *debugFlag, challengeBytes, nil
+	return *fileFlag, *debugFlag, verifyOptions{challenge: challengeBytes, trustedSource: *trustedSourceFlag}, nil
 }
 
 func initLogging(debug bool) {
@@ -77,11 +83,14 @@ func readCborFile(path string) ([]byte, error) {
 	return os.ReadFile(path)
 }
 
-func verifyDocument(cscaCertPool cms.CertPool, challenge []byte, data []byte) (*document.DocumentEx, error) {
+func verifyDocument(cscaCertPool cms.CertPool, opts verifyOptions, data []byte) (*document.DocumentEx, error) {
 	v := verifier.NewVerifier(cscaCertPool)
-	if challenge != nil {
+	if opts.trustedSource {
+		v = v.WithTrustedSource()
+	}
+	if opts.challenge != nil {
 		var err error
-		v, err = v.WithAAChallenge(challenge)
+		v, err = v.WithAAChallenge(opts.challenge)
 		if err != nil {
 			return nil, err
 		}
@@ -92,7 +101,7 @@ func verifyDocument(cscaCertPool cms.CertPool, challenge []byte, data []byte) (*
 type appDeps struct {
 	cscaMasterList   func() (cms.CertPool, error)
 	readFile         func(path string) ([]byte, error)
-	verify           func(cscaCertPool cms.CertPool, challenge []byte, data []byte) (*document.DocumentEx, error)
+	verify           func(cscaCertPool cms.CertPool, opts verifyOptions, data []byte) (*document.DocumentEx, error)
 	generateDocument func(*document.DocumentEx, *iso7816.ApduLog) (*bytes.Buffer, error)
 	openBrowser      func(io.Reader) error
 }
@@ -114,9 +123,13 @@ func run(args []string) error {
 func runWithDeps(args []string, deps appDeps) error {
 	fmt.Printf("GMRTD:v%s\n\n", version.Version)
 
-	filePath, debug, challenge, err := cmdParams(args)
+	filePath, debug, opts, err := cmdParams(args)
 	if err != nil {
 		return err
+	}
+
+	if !opts.trustedSource && opts.challenge == nil {
+		fmt.Println("Warning: evidence source is untrusted and no -challenge was given, so chip authenticity cannot be established offline (see -help).")
 	}
 
 	initLogging(debug)
@@ -133,7 +146,7 @@ func runWithDeps(args []string, deps appDeps) error {
 		return err
 	}
 
-	documentEx, err := deps.verify(cscaCertPool, challenge, cborData)
+	documentEx, err := deps.verify(cscaCertPool, opts, cborData)
 	if err != nil {
 		slog.Error("verify error", "error", err)
 		return err

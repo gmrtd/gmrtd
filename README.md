@@ -109,6 +109,8 @@ go run ./cmd/gmrtd-reader --can <CAN>
 # ✅ Offline Document Verifier (gmrtd-verify)
 Verifies a serialised CBOR document offline — no NFC hardware required. The CBOR blob is the output of `DocumentEx.ToCbor()`, typically produced by `gmrtd-reader` or the mobile SDK; the verifier replays chip authentication evidence and performs passive authentication, then opens the same HTML report as `gmrtd-reader`.
 
+> **Chip authenticity offline:** replayed evidence only proves the chip was present if the reader that captured it is trusted. Chip Authentication and PACE-CAM evidence can be produced by anyone holding the reader's ephemeral keys, and Active Authentication evidence can be replayed from an earlier read. By default the evidence source is treated as **untrusted**, so *Authentic Chip* only reports Active Authentication bound to a `-challenge` you issued before the read. Use `-trusted-source` (`Verifier.WithTrustedSource()` / mobile `Verifier.WithTrustedSource()`) only for evidence captured by a reader you control.
+
 ### Build / run
 ```bash
 go run ./cmd/gmrtd-verify -help
@@ -129,11 +131,17 @@ cat document.gmrtd | go run ./cmd/gmrtd-verify -file -
 go run ./cmd/gmrtd-verify -file document.gmrtd -challenge 0102030405060708
 ```
 
+### Evidence from a trusted reader
+```bash
+go run ./cmd/gmrtd-verify -file document.gmrtd -trusted-source
+```
+
 ### Flags
 | Flag | Description |
 |---|---|
 | `-file <path>` | Path to CBOR document file; use `-` for stdin |
-| `-challenge <hex>` | 8-byte AA nonce challenge (16 hex chars); binds against AA evidence to close the relay-attack window |
+| `-challenge <hex>` | 8-byte AA nonce challenge (16 hex chars); binds against AA evidence to close the relay-attack window. Required for chip authenticity unless `-trusted-source` is set |
+| `-trusted-source` | Treat the evidence as captured by a trusted reader, so Chip Authentication, PACE-CAM and unbound Active Authentication evidence count towards chip authenticity |
 | `-debug` | Enable debug logging |
 
 > Uses the same built-in CSCA trust stores as `gmrtd-reader`. See [CSCA Trust Stores](#-csca-trust-stores) for coverage.
