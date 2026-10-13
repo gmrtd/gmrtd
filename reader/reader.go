@@ -391,9 +391,9 @@ func performPace(reader *Reader, state *ReaderState) error {
 	if reader.allowBacFallbackOnPaceError {
 		return nil
 	}
-	// The chip advertises PACE, but only in a configuration this reader cannot perform. No
-	// PACE command was sent, so nothing was rejected: continue with BAC, as for a chip whose
-	// EF.CardAccess has no PACE info. Session.PaceErr still records why PACE was not used.
+	// Every PACE configuration the chip advertises is one this reader cannot perform. No PACE
+	// command was sent, so nothing was rejected: continue with BAC, as when EF.CardAccess is
+	// absent. Session.PaceErr still records why PACE was not used.
 	if errors.Is(state.docEx.Session.PaceErr, pace.ErrPACEUnsupportedLocally) {
 		return nil
 	}
