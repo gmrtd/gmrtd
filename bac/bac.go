@@ -176,7 +176,7 @@ func (bac *BAC) setupSecureMessaging(kEnc, kMac, rndIc, rndIfd []byte) (err erro
 }
 
 func (bac *BAC) DoBAC() (result *document.BacResult, err error) {
-	slog.Debug("DoBAC", "password-type", bac.password.PasswordType, "password", bac.password.Password)
+	slog.Debug("DoBAC", "password-type", bac.password.PasswordType)
 
 	if bac.password.PasswordType != password.PASSWORD_TYPE_MRZi {
 		// not supported, but not an error as caller shouldn't care

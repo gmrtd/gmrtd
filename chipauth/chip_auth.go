@@ -398,7 +398,6 @@ func deriveSessionKeys(curve *elliptic.Curve, termKeypair cryptoutils.EcKeypair,
 	sharedSecret := cryptoutils.EcDhSharedSecret(termKeypair.Pri, chipPubKey, *curve)
 	ksEnc = cryptoutils.KDF(sharedSecret, cryptoutils.KDF_COUNTER_KSENC, caAlgInfo.cipherAlg, caAlgInfo.keySizeBits)
 	ksMac = cryptoutils.KDF(sharedSecret, cryptoutils.KDF_COUNTER_KSMAC, caAlgInfo.cipherAlg, caAlgInfo.keySizeBits)
-	slog.Debug("deriveSessionKeys", "sharedSecret", utils.BytesToHex(sharedSecret), "ksEnc", utils.BytesToHex(ksEnc), "ksMac", utils.BytesToHex(ksMac))
 	return ksEnc, ksMac
 }
 

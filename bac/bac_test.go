@@ -3,6 +3,7 @@ package bac
 import (
 	"bytes"
 	"errors"
+	"github.com/gmrtd/gmrtd/internal/testlog"
 	"reflect"
 	"testing"
 
@@ -339,6 +340,8 @@ func TestProcessResponseRndIccMismatchErr(t *testing.T) {
 
 // BAC worked example, taken from ICAO9303 p11 (D.3 AUTHENTICATION AND ESTABLISHMENT OF SESSION KEY)
 func TestDoBAC(t *testing.T) {
+	logs := testlog.CaptureDebug(t)
+
 	var nfc *iso7816.NfcSession
 	{
 		var transceiver *iso7816.MockTransceiver = new(iso7816.MockTransceiver)
@@ -398,6 +401,11 @@ func TestDoBAC(t *testing.T) {
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
+	testlog.AssertNoSecrets(t, logs.String(), map[string]string{
+		"password": pass.Password,
+		"ksEnc":    "979EC13B1CBFE9DCD01AB0FED307EAE5",
+		"ksMac":    "F1CB1F1FB5ADF208806B89DC579DC1F8",
+	})
 
 	// verify Result is as expected
 	var expBacResult *document.BacResult = &document.BacResult{Success: true}

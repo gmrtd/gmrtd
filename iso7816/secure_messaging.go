@@ -109,8 +109,9 @@ func (sm *SecureMessaging) SetSSC(ssc []byte) error {
 	return nil
 }
 
+// String omits the session keys: SM state is logged at debug level, and logs may be shared.
 func (sm SecureMessaging) String() string {
-	return fmt.Sprintf("(alg:%d, ksenc:%x, ksmac:%x, ssc:%x)", sm.alg, sm.ksEnc, sm.ksMac, sm.ssc)
+	return fmt.Sprintf("(alg:%d, ssc:%x)", sm.alg, sm.ssc)
 }
 
 // increments the SSC

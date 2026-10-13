@@ -85,8 +85,9 @@ type RsaPublicKey struct {
 	E int
 }
 
+// String omits the private key: keypairs end up in debug logs, which may be shared.
 func (ecKeypair EcKeypair) String() string {
-	return fmt.Sprintf("(Pri:%x, Pub:%s)", ecKeypair.Pri, ecKeypair.Pub.String())
+	return fmt.Sprintf("(Pub:%s)", ecKeypair.Pub.String())
 }
 
 func (ec EcPoint) String() string {
@@ -316,7 +317,7 @@ func EcDhSharedSecret(localPrivate []byte, remotePublic *EcPoint, ec elliptic.Cu
 func DoEcDh(localPrivate []byte, remotePublic *EcPoint, ec elliptic.Curve) *EcPoint {
 	var point EcPoint
 	point.X, point.Y = ec.ScalarMult(remotePublic.X, remotePublic.Y, localPrivate)
-	slog.Debug("DoECDH", "Pri", utils.BytesToHex(localPrivate), "Pub", remotePublic, "EC.P", utils.BytesToHex(ec.Params().P.Bytes()), "Res", point)
+	slog.Debug("DoECDH", "Pub", remotePublic, "EC.P", utils.BytesToHex(ec.Params().P.Bytes()))
 	return &point
 }
 
