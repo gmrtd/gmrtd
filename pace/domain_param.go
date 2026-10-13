@@ -19,6 +19,12 @@ var (
 	ErrPACEParamRFU            = errors.New("PACE parameter is RFU")
 	ErrPACEParamNotImplemented = errors.New("PACE parameter is recognised but not implemented")
 	ErrPACEParamUnsupported    = errors.New("PACE parameter is unsupported")
+
+	// ErrPACEUnsupportedLocally marks a PACE configuration advertised by the chip that this
+	// reader cannot perform: no PACE protocol OID it implements, or domain parameters that are
+	// not implemented here or are proprietary. It is decided from EF.CardAccess before any
+	// PACE command is sent, so it does not mean the chip or the channel rejected PACE.
+	ErrPACEUnsupportedLocally = errors.New("PACE configuration not supported by this reader")
 )
 
 // ICAO9303 part 11... s9.5.1 Standardized Domain Parameters

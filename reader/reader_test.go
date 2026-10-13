@@ -11,6 +11,7 @@ import (
 	"github.com/gmrtd/gmrtd/cms"
 	"github.com/gmrtd/gmrtd/document"
 	"github.com/gmrtd/gmrtd/iso7816"
+	"github.com/gmrtd/gmrtd/pace"
 	"github.com/gmrtd/gmrtd/password"
 	"github.com/gmrtd/gmrtd/utils"
 )
@@ -618,6 +619,39 @@ func TestPerformPaceAllowsBacFallbackOnPaceError(t *testing.T) {
 
 	if state.docEx.Session.PaceResult.Success {
 		t.Fatalf("PaceResult FAILURE expected")
+	}
+}
+
+func TestPerformPaceFallsBackWhenPaceUnsupportedLocally(t *testing.T) {
+	// CardAccess advertises PACE with proprietary domain parameters (id 32), which this reader
+	// does not implement. No PACE command may be sent (PanicTransceiver), and the default
+	// fail-closed policy must not refuse the read: performPace continues to BAC and records
+	// the reason in Session.PaceErr.
+
+	var status MockStatus
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&PanicTransceiver{P: "no PACE command expected"})
+	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
+
+	pass, err := password.NewPasswordMrzi("123456", "100101", "301225")
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	var state *ReaderState = NewReaderState(nil, nil, pass)
+
+	var cardAccessBytes []byte = utils.HexToBytes("31143012060A04007F00070202040204020102020120")
+	state.docEx.Document.Mf.CardAccess, err = document.NewCardAccess(cardAccessBytes)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	err = performPace(reader, state)
+	if err != nil {
+		t.Fatalf("expected fallback to BAC, got error: %s", err)
+	}
+
+	if !errors.Is(state.docEx.Session.PaceErr, pace.ErrPACEUnsupportedLocally) {
+		t.Fatalf("PaceErr should record ErrPACEUnsupportedLocally; got %v", state.docEx.Session.PaceErr)
 	}
 }
 

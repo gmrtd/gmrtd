@@ -217,6 +217,60 @@ func TestSelectPaceConfigErrors(t *testing.T) {
 	}
 }
 
+func TestSelectPaceConfigUnsupportedLocally(t *testing.T) {
+	testCases := []struct {
+		name            string
+		cardAccessBytes []byte
+		local           bool
+	}{
+		{
+			// no PACE protocol OID implemented by this reader
+			name:            "unknown protocol OIDs",
+			cardAccessBytes: utils.HexToBytes("31283012060a04007f0007020204027f0201020201103012060a04007f0007020204067f020102020110"),
+			local:           true,
+		},
+		{
+			// ECDH-GM-AES-256 with proprietary domain parameters (id 32)
+			name:            "proprietary domain parameters",
+			cardAccessBytes: utils.HexToBytes("31143012060A04007F00070202040204020102020120"),
+			local:           true,
+		},
+		{
+			// ECDH-GM-AES-256 with standardised but not implemented domain parameters (id 1)
+			name:            "domain parameters not implemented",
+			cardAccessBytes: utils.HexToBytes("31143012060A04007F00070202040204020102020101"),
+			local:           true,
+		},
+		{
+			// ECDH-GM-AES-256 with RFU domain parameters (id 3): chip non-conformance
+			name:            "RFU domain parameters",
+			cardAccessBytes: utils.HexToBytes("31143012060A04007F00070202040204020102020103"),
+			local:           false,
+		},
+		{
+			name:            "missing ParameterId",
+			cardAccessBytes: utils.HexToBytes("3111300F060a04007f00070202040604020102"),
+			local:           false,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cardAccess, err := document.NewCardAccess(tc.cardAccessBytes)
+			if err != nil {
+				t.Fatalf("Unexpected NewCardAccess() error: %s", err)
+			}
+
+			_, _, err = selectPaceConfig(cardAccess)
+			if err == nil {
+				t.Fatal("Error expected")
+			}
+			if got := errors.Is(err, ErrPACEUnsupportedLocally); got != tc.local {
+				t.Fatalf("errors.Is(err, ErrPACEUnsupportedLocally) = %v, want %v (err: %s)", got, tc.local, err)
+			}
+		})
+	}
+}
+
 func TestDoPaceNoCardAccessFile(t *testing.T) {
 	var err error
 	var doc document.Document

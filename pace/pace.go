@@ -29,6 +29,7 @@ import (
 	"crypto/cipher"
 	"crypto/elliptic"
 	"encoding/asn1"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math/big"
@@ -191,7 +192,7 @@ func selectPaceConfig(cardAccess *document.CardAccess) (*PaceConfig, *DomainPara
 	}
 
 	if selectedPaceInfo == nil || selectedConfig == nil {
-		return nil, nil, fmt.Errorf("[selectPaceConfig] no supported PACE info found")
+		return nil, nil, fmt.Errorf("[selectPaceConfig] no supported PACE info found: %w", ErrPACEUnsupportedLocally)
 	}
 
 	if selectedPaceInfo.ParameterId == nil {
@@ -200,6 +201,9 @@ func selectPaceConfig(cardAccess *document.CardAccess) (*PaceConfig, *DomainPara
 
 	domainParams, err := standardisedDomainParams(int(selectedPaceInfo.ParameterId.Int64()))
 	if err != nil {
+		if errors.Is(err, ErrPACEParamNotImplemented) || errors.Is(err, ErrPACEParamUnsupported) {
+			return nil, nil, fmt.Errorf("[selectPaceConfig] standardisedDomainParams error: %w: %w", ErrPACEUnsupportedLocally, err)
+		}
 		return nil, nil, fmt.Errorf("[selectPaceConfig] standardisedDomainParams error: %w", err)
 	}
 
