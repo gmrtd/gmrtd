@@ -16,6 +16,30 @@ import (
 	"github.com/osanderson/brainpool"
 )
 
+func TestEcDhSharedSecretKeepsLeadingZeroBytes(t *testing.T) {
+	ec := elliptic.P256()
+	size := (ec.Params().BitSize + 7) / 8
+	remote := &EcPoint{X: ec.Params().Gx, Y: ec.Params().Gy}
+
+	// Find a scalar whose shared x-coordinate starts with a zero byte (about 1 in 256).
+	for d := int64(1); d < 100000; d++ {
+		pri := big.NewInt(d).Bytes()
+		x := DoEcDh(pri, remote, ec).X
+		if len(x.Bytes()) == size {
+			continue
+		}
+		secret := EcDhSharedSecret(pri, remote, ec)
+		if len(secret) != size {
+			t.Fatalf("shared secret length %d, want %d", len(secret), size)
+		}
+		if secret[0] != 0 || new(big.Int).SetBytes(secret).Cmp(x) != 0 {
+			t.Fatalf("shared secret %x does not encode x %x", secret, x)
+		}
+		return
+	}
+	t.Fatal("no scalar with a short x-coordinate found")
+}
+
 func TestEcPointEqual(t *testing.T) {
 	testCases := []struct {
 		ecPoint1 EcPoint

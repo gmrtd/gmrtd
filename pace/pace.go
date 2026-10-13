@@ -414,10 +414,8 @@ func (pace *Pace) keyAgreementGmEcDh(domainParams *DomainParams, G *cryptoutils.
 	}
 
 	{
-		var termShared *cryptoutils.EcPoint = cryptoutils.DoEcDh(termKeypair.Pri, chipPub, domainParams.ec)
-
-		// NB secret is just based on 'x'
-		sharedSecret = termShared.X.Bytes()
+		// NB secret is just based on 'x', encoded at field size
+		sharedSecret = cryptoutils.EcDhSharedSecret(termKeypair.Pri, chipPub, domainParams.ec)
 
 		slog.Debug("keyAgreementGmEcDh", "shared-secret", utils.BytesToHex(sharedSecret))
 	}
@@ -936,8 +934,7 @@ func VerifyEvidence(doc *document.Document, evidence *document.PaceCamEvidence) 
 	}
 
 	// re-derive key-agreement shared secret and session keys
-	kaShared := cryptoutils.DoEcDh(evidence.TermKaPri, chipKaPub, domainParams.ec)
-	sharedSecret := kaShared.X.Bytes()
+	sharedSecret := cryptoutils.EcDhSharedSecret(evidence.TermKaPri, chipKaPub, domainParams.ec)
 	ksEnc := cryptoutils.KDF(sharedSecret, cryptoutils.KDF_COUNTER_KSENC, paceConfig.cipher, paceConfig.keyLengthBits)
 
 	// decrypt EcadIC to recover caIC
