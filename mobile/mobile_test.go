@@ -2,6 +2,8 @@ package mobile
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"reflect"
 	"regexp"
@@ -187,6 +189,53 @@ func TestRequireAuthenticDocument(t *testing.T) {
 
 	if !reader.requireAuthenticDocument {
 		t.Fatalf("requireAuthenticDocument should be true after calling RequireAuthenticDocument()")
+	}
+}
+
+func TestRejectedDocumentHelper(t *testing.T) {
+	doc := &Document{}
+
+	testCases := []struct {
+		name string
+		err  error
+		exp  *Document
+	}{
+		{"not authentic", fmt.Errorf("[ReadDocument] runSteps error: %w", fmt.Errorf("[checkAuthenticDocument] %w: data not trusted", reader.ErrDocumentNotAuthentic)), doc},
+		{"other read error", errors.New("[ReadDocument] runSteps error: transceive failed"), nil},
+		{"no error", nil, nil},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if act := rejectedDocument(doc, tc.err); act != tc.exp {
+				t.Errorf("rejectedDocument (act:%p) (exp:%p)", act, tc.exp)
+			}
+		})
+	}
+}
+
+func TestRejectedDocumentClearedByReadDocument(t *testing.T) {
+	rdr := NewReader(&testReaderStatus{}, &iso7816.StaticTransceiver{})
+	rdr.RequireAuthenticDocument()
+
+	if rdr.RejectedDocument() != nil {
+		t.Fatalf("RejectedDocument should default to nil")
+	}
+
+	rdr.rejectedDocument = &Document{}
+
+	pass, err := NewPasswordCan("123456")
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	// fails before the authenticity check (static transceiver), so nothing is rejected
+	if _, err := rdr.ReadDocument(pass, nil, nil); err == nil {
+		t.Fatalf("expected error")
+	}
+
+	if rdr.RejectedDocument() != nil {
+		t.Errorf("RejectedDocument should be nil after a read that failed for another reason")
 	}
 }
 
@@ -607,7 +656,7 @@ func TestNewSampleDocument(t *testing.T) {
 
 // Regression test for a heap-corruption crash observed under concurrent use
 // on iOS: a shared mobile.Reader's fields (maxRead/skipPace/skipImages/
-// requireAuthenticDocument/aaChallenge) were written by the configuration methods while ReadDocument
+// requireAuthenticDocument/aaChallenge/rejectedDocument) were written by the configuration methods while ReadDocument
 // read them from another goroutine, unsynchronised - exactly the kind of
 // race that manifests as a Go runtime fatal error (e.g.
 // "bulkBarrierPreWrite: unaligned arguments") rather than a clean panic. Run
@@ -632,6 +681,7 @@ func TestReaderConcurrentAccess(t *testing.T) {
 			reader.RequireAuthenticDocument()
 			_, _ = reader.WithAAChallenge(make([]byte, 8))
 			_, _ = reader.ReadDocument(pass, nil, nil) // expected to fail fast (static transceiver)
+			_ = reader.RejectedDocument()
 		}()
 	}
 	wg.Wait()
