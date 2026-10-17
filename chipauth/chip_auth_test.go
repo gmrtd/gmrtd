@@ -1,6 +1,7 @@
 package chipauth
 
 import (
+	"bytes"
 	"crypto/elliptic"
 	"encoding/asn1"
 	"fmt"
@@ -1082,6 +1083,66 @@ func TestAlgInfo(t *testing.T) {
 			if !reflect.DeepEqual(tc.expAlgInfo, algInfo) {
 				t.Errorf("AlgInfo differs to expected (Act:%+v) (Exp:%+v)", algInfo, tc.expAlgInfo)
 			}
+		}
+	}
+}
+
+// abortingOnExtendedLeTransceiver models a chip that rejects an extended Le on GENERAL AUTHENTICATE
+// with 6700 and aborts the protocol in progress, answering 6985 until MSE:Set AT is re-sent.
+// It answers by INS, so it works without secure messaging.
+type abortingOnExtendedLeTransceiver struct {
+	aborted bool
+	ins     []byte
+}
+
+func (t *abortingOnExtendedLeTransceiver) Transceive(_, ins, _, _ int, _ []byte, le int, _ []byte) []byte {
+	t.ins = append(t.ins, byte(ins))
+	switch {
+	case ins == int(iso7816.INS_MANAGE_SE):
+		t.aborted = false
+		return utils.HexToBytes("9000")
+	case ins == int(iso7816.INS_GENERAL_AUTHENTICATE) && le > 256:
+		t.aborted = true
+		return utils.HexToBytes("6700")
+	case ins == int(iso7816.INS_GENERAL_AUTHENTICATE) && t.aborted:
+		return utils.HexToBytes("6985")
+	case ins == int(iso7816.INS_GENERAL_AUTHENTICATE):
+		return utils.HexToBytes("7C009000")
+	}
+	return utils.HexToBytes("6A82")
+}
+
+// Chip Authentication must restart from MSE:Set AT (not just resend GENERAL AUTHENTICATE) when the
+// chip rejects an extended Le. Uses the AT passport's DG14 (id-CA-ECDH-AES-CBC-CMAC-128) without
+// secure messaging, so CA itself can't complete (the confirming SELECT has no valid SM response):
+// this checks the APDU sequence up to that point.
+func TestChipAuthRestartsAfterExtendedLeRejected(t *testing.T) {
+	var doc *document.Document = &document.Document{}
+	if err := doc.NewDG(14, utils.HexToBytes("6E82017E3182017A300D060804007F0007020202020101300F060A04007F000702020302020201013012060A04007F0007020204020202010202010D30820142060904007F000702020102308201333081EC06072A8648CE3D02013081E0020101302C06072A8648CE3D0101022100A9FB57DBA1EEA9BC3E660A909D838D726E3BF623D52620282013481D1F6E5377304404207D5A0975FC2C3057EEF67530417AFFE7FB8055C126DC5C6CE94A4B44F330B5D9042026DC5C6CE94A4B44F330B5D9BBD77CBF958416295CF7E1CE6BCCDC18FF8C07B60441048BD2AEB9CB7E57CB2C4B482FFC81B7AFB9DE27E1E3BD23C23A4453BD9ACE3262547EF835C3DAC4FD97F8461A14611DC9C27745132DED8E545C1D54C72F046997022100A9FB57DBA1EEA9BC3E660A909D838D718C397AA3B561A6F7901E0E82974856A7020101034200041983917269AC877C0B61544C2C022000D2A5ABA723E2D80141E648B40911DC3459761F27480E4B57181A53D8FE1190EA86C939AC14363178CAFFC621F0F905C3")); err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+
+	transceiver := &abortingOnExtendedLeTransceiver{}
+	nfc := iso7816.NewNfcSession(transceiver)
+	nfc.SetMaxLe(65536)
+
+	chipAuth := NewChipAuth(nfc, doc)
+	chipAuth.keyGeneratorEc = func(ec elliptic.Curve) cryptoutils.EcKeypair {
+		return cryptoutils.NewEcKeypair(
+			utils.HexToBytes("80EBAFC8A51BECD4D90BB640EE38C9FD5C12748D28AAA37096B98C4533C4F5F5"),
+			utils.HexToBytes("4827C781BE1AC7A00B351214FD783AC76D99E831A6316C8FD6DE7BD96CFA31DA"),
+			utils.HexToBytes("06B6B57BA380789729F4A028212A768C49BF5F97D98B1DB12BEEC1A1CD324FB2"))
+	}
+
+	_, _ = chipAuth.DoChipAuth()
+
+	// MSE:Set AT, GA (extended Le) -> 6700, then restart: MSE:Set AT, GA (short Le)
+	if len(transceiver.ins) < 4 || !bytes.Equal(transceiver.ins[:4], []byte{0x22, 0x86, 0x22, 0x86}) {
+		t.Fatalf("APDU sequence (INS) = %x, want prefix 22862286", transceiver.ins)
+	}
+	for _, e := range nfc.ApduLog().Entries[:4] {
+		if bytes.Equal(e.Rx, utils.HexToBytes("6985")) {
+			t.Errorf("GENERAL AUTHENTICATE was resent without restarting CA (got 6985)")
 		}
 	}
 }
