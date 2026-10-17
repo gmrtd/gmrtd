@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.2](https://github.com/gmrtd/gmrtd/compare/v1.5.1...v1.5.2) (2026-10-17)
+
+
+### Bug Fixes
+
+* **pace:** restart PACE from MSE:Set AT when the chip rejects an extended Le ([0d38573](https://github.com/gmrtd/gmrtd/commit/0d38573472d1f9ec570ee43dc0aeb5fb2a3a0f6b))
+* **pace:** restart PACE from MSE:Set AT when the chip rejects an extended Le ([#545](https://github.com/gmrtd/gmrtd/issues/545)) ([f8df8cb](https://github.com/gmrtd/gmrtd/commit/f8df8cb4ac317a932f2966e134430ed5c357bd28))
+
 ## [1.5.1](https://github.com/gmrtd/gmrtd/compare/v1.5.0...v1.5.1) (2026-10-17)
 
 
