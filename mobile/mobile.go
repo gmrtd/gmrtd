@@ -139,11 +139,11 @@ func NewPasswordCan(can string) (*MrtdPassword, error) {
 
 // Reader is not safe for concurrent use: it is a single-use, single-goroutine
 // object for driving one document read. mu guards the mutable configuration
-// fields (set via SetApduMaxLe/SkipPace/SkipImages/
-// AllowBacFallbackOnPaceError/WithAAChallenge) and serialises ReadDocument, so
-// a Reader that a host app accidentally shares and calls from multiple
-// threads (e.g. gomobile bindings invoked from several Swift/Kotlin dispatch
-// queues) fails safe - calls queue up - rather than racing on these fields
+// fields (set via SetApduMaxLe/SkipPace/SkipImages/AllowBacFallbackOnPaceError/
+// RequireAuthenticDocument/WithAAChallenge) and serialises ReadDocument, so a
+// Reader that a host app accidentally shares and calls from multiple threads
+// (e.g. gomobile bindings invoked from several Swift/Kotlin dispatch queues)
+// fails safe - calls queue up - rather than racing on these fields
 // and corrupting the Go heap. Callers should still construct a new Reader per
 // read rather than relying on this lock.
 type Reader struct {
@@ -155,6 +155,7 @@ type Reader struct {
 	skipPace                    bool
 	skipImages                  bool
 	allowBacFallbackOnPaceError bool
+	requireAuthenticDocument    bool
 	aaChallenge                 []byte
 }
 
@@ -201,6 +202,19 @@ func (r *Reader) AllowBacFallbackOnPaceError() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.allowBacFallbackOnPaceError = true
+}
+
+// RequireAuthenticDocument configures ReadDocument to return an error when the
+// data is not trusted (Passive Authentication or Document.Verify failed), or when
+// chip authentication (AA, CA or PACE-CAM) was attempted but none verifiably
+// succeeded. One method failing is tolerated when another succeeds, and a
+// document offering no chip authentication passes when its data is trusted. A
+// method gmrtd cannot perform counts as failed. The Document is still returned
+// with the error. The default is off; see reader.Reader.RequireAuthenticDocument.
+func (r *Reader) RequireAuthenticDocument() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.requireAuthenticDocument = true
 }
 
 // WithAAChallenge sets a caller-supplied 8-byte RND.IFD challenge for Active
@@ -264,6 +278,25 @@ func (r *Reader) ReadDocument(password *MrtdPassword, atr []byte, ats []byte) (d
 		return nil, fmt.Errorf("[ReadDocument] getCscaCertPool error: %w", err)
 	}
 
+	gmrtdReader, err := r.newGmrtdReader(nfc, certPool)
+	if err != nil {
+		return nil, fmt.Errorf("[ReadDocument] %w", err)
+	}
+
+	doc.documentEx, doc.apduLog, err = gmrtdReader.ReadDocument(
+		password.password,
+		atr,
+		ats,
+	)
+	if err != nil {
+		return doc, err
+	}
+
+	return doc, nil
+}
+
+// newGmrtdReader builds the underlying reader with this Reader's options applied.
+func (r *Reader) newGmrtdReader(nfc *iso7816.NfcSession, certPool cms.CertPool) (*reader.Reader, error) {
 	gmrtdReader := reader.NewReader(
 		&readerStatusAdapter{status: r.status},
 		nfc,
@@ -282,23 +315,19 @@ func (r *Reader) ReadDocument(password *MrtdPassword, atr []byte, ats []byte) (d
 		gmrtdReader.AllowBacFallbackOnPaceError()
 	}
 
-	if r.aaChallenge != nil {
-		gmrtdReader, err = gmrtdReader.WithAAChallenge(r.aaChallenge)
-		if err != nil {
-			return nil, fmt.Errorf("[ReadDocument] WithAAChallenge error: %w", err)
-		}
+	if r.requireAuthenticDocument {
+		gmrtdReader.RequireAuthenticDocument()
 	}
 
-	doc.documentEx, doc.apduLog, err = gmrtdReader.ReadDocument(
-		password.password,
-		atr,
-		ats,
-	)
+	if r.aaChallenge == nil {
+		return gmrtdReader, nil
+	}
+
+	gmrtdReader, err := gmrtdReader.WithAAChallenge(r.aaChallenge)
 	if err != nil {
-		return doc, err
+		return nil, fmt.Errorf("WithAAChallenge error: %w", err)
 	}
-
-	return doc, nil
+	return gmrtdReader, nil
 }
 
 // CountryName returns the country name for an MRZ alpha-3 country code.

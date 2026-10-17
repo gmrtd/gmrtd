@@ -100,6 +100,10 @@ go run ./cmd/gmrtd-reader --can <CAN>
 
 # skip PACE negotiation (forces BAC where possible; mostly for debugging)
 --skipPace
+
+# fail unless the data is trusted (Passive Authentication) and, where the chip
+# offers AA/CA/PACE-CAM, at least one of them verified
+--requireAuthenticDocument
 ```
 
 > Notes:
@@ -197,6 +201,8 @@ In these cases:
 - This is a **document issuer design choice**, not a vulnerability in gmrtd
 
 Cloneability does not imply that the physical document can be trivially forged.
+
+By default `ReadDocument` only records chip authentication failures in the session. To get an error instead, call `RequireAuthenticDocument()` on the reader (`reader.Reader` or `mobile.Reader`): `ReadDocument` then fails with `reader.ErrDocumentNotAuthentic` when the data isn't trusted, or when AA, CA or PACE-CAM was attempted and none verified. A document that offers none of them still passes, since its data is trusted.
 
 # 🛡 CSCA Trust Stores
 For convenience and interoperability testing, gmrtd includes built-in CSCA trust anchors sourced from:

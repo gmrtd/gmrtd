@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/gmrtd/gmrtd/cms"
 	"github.com/gmrtd/gmrtd/document"
 	"github.com/gmrtd/gmrtd/iso7816"
 	"github.com/gmrtd/gmrtd/reader"
@@ -171,6 +172,30 @@ func TestAllowBacFallbackOnPaceError(t *testing.T) {
 
 	if !reader.allowBacFallbackOnPaceError {
 		t.Fatalf("allowBacFallbackOnPaceError should be true after calling AllowBacFallbackOnPaceError()")
+	}
+}
+
+func TestRequireAuthenticDocument(t *testing.T) {
+	reader := &Reader{}
+
+	if reader.requireAuthenticDocument {
+		t.Fatalf("requireAuthenticDocument should default to false")
+	}
+
+	reader.RequireAuthenticDocument()
+
+	if !reader.requireAuthenticDocument {
+		t.Fatalf("requireAuthenticDocument should be true after calling RequireAuthenticDocument()")
+	}
+}
+
+func TestNewGmrtdReaderInvalidAAChallenge(t *testing.T) {
+	// WithAAChallenge rejects a bad length up front, so set the field directly to reach the
+	// defensive check in the underlying reader.
+	r := &Reader{aaChallenge: make([]byte, 3)}
+
+	if _, err := r.newGmrtdReader(iso7816.NewNfcSession(&iso7816.StaticTransceiver{}), &cms.GenericCertPool{}); err == nil {
+		t.Fatalf("expected error for invalid AA challenge")
 	}
 }
 
@@ -581,7 +606,7 @@ func TestNewSampleDocument(t *testing.T) {
 
 // Regression test for a heap-corruption crash observed under concurrent use
 // on iOS: a shared mobile.Reader's fields (maxRead/skipPace/skipImages/
-// aaChallenge) were written by the configuration methods while ReadDocument
+// requireAuthenticDocument/aaChallenge) were written by the configuration methods while ReadDocument
 // read them from another goroutine, unsynchronised - exactly the kind of
 // race that manifests as a Go runtime fatal error (e.g.
 // "bulkBarrierPreWrite: unaligned arguments") rather than a clean panic. Run
@@ -603,6 +628,7 @@ func TestReaderConcurrentAccess(t *testing.T) {
 			reader.SkipPace()
 			reader.SkipImages()
 			reader.AllowBacFallbackOnPaceError()
+			reader.RequireAuthenticDocument()
 			_, _ = reader.WithAAChallenge(make([]byte, 8))
 			_, _ = reader.ReadDocument(pass, nil, nil) // expected to fail fast (static transceiver)
 		}()
