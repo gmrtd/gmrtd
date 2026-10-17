@@ -571,7 +571,7 @@ func TestReadDocumentFromCardIgnoresAtrAtsErrors(t *testing.T) {
 
 	_, _, err := readDocumentFromCard(
 		password.NewPasswordCan("123456"),
-		readOptions{},
+		readOptions{skipImages: true, allowBacFallbackOnPaceError: true},
 		card,
 		&cms.GenericCertPool{},
 	)

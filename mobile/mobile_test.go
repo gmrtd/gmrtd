@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/gmrtd/gmrtd/cms"
 	"github.com/gmrtd/gmrtd/document"
 	"github.com/gmrtd/gmrtd/iso7816"
 	"github.com/gmrtd/gmrtd/reader"
@@ -185,6 +186,16 @@ func TestRequireAuthenticDocument(t *testing.T) {
 
 	if !reader.requireAuthenticDocument {
 		t.Fatalf("requireAuthenticDocument should be true after calling RequireAuthenticDocument()")
+	}
+}
+
+func TestNewGmrtdReaderInvalidAAChallenge(t *testing.T) {
+	// WithAAChallenge rejects a bad length up front, so set the field directly to reach the
+	// defensive check in the underlying reader.
+	r := &Reader{aaChallenge: make([]byte, 3)}
+
+	if _, err := r.newGmrtdReader(iso7816.NewNfcSession(&iso7816.StaticTransceiver{}), &cms.GenericCertPool{}); err == nil {
+		t.Fatalf("expected error for invalid AA challenge")
 	}
 }
 
