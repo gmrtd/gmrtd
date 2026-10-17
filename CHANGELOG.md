@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0](https://github.com/gmrtd/gmrtd/compare/v1.5.2...v1.6.0) (2026-10-17)
+
+
+### Features
+
+* **document:** infer Singapore passport DOB century from the NRIC (fixes [#548](https://github.com/gmrtd/gmrtd/issues/548)) ([#547](https://github.com/gmrtd/gmrtd/issues/547)) ([f40880f](https://github.com/gmrtd/gmrtd/commit/f40880fa95b28458f2d66a97804b889e4a4d83a4))
+
 ## [1.5.2](https://github.com/gmrtd/gmrtd/compare/v1.5.1...v1.5.2) (2026-10-17)
 
 
