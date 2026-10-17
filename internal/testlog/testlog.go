@@ -1,6 +1,6 @@
 // Package testlog captures slog output in tests, so they can assert that secrets (access-control
-// passwords, private keys, session keys) never reach debug logs, which users may share in bug
-// reports.
+// passwords, private keys, session keys) and the holder's personal data (chip file contents)
+// never reach debug logs, which users may share in bug reports.
 package testlog
 
 import (

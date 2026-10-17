@@ -5,9 +5,13 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/gmrtd/gmrtd/internal/testlog"
 	"github.com/gmrtd/gmrtd/mrz"
 	"github.com/gmrtd/gmrtd/utils"
 )
+
+// dg16Example is the (9303p10) A.6 EF.DG16 sample (see TestNewDG16Happy).
+const dg16Example = "7081A2020102A14C5F500832303032303130315F5110534D4954483C3C434841524C45533C525F520B31393532353535313231325F531D313233204D41504C452052443C414E59544F574E3C4D4E3C3535313030A24F5F500832303032303331355F510D42524F574E3C3C4D4152593C4A5F520B31343135353535313231325F5323343920524544574F4F44204C4E3C4F4345414E20425245455A453C43413C3934303030"
 
 func TestNewDG16NoData(t *testing.T) {
 	if dg16, err := NewDG16(nil); dg16 != nil || err != nil {
@@ -70,7 +74,7 @@ func TestNewDG16Happy(t *testing.T) {
 		expPersons []PersonToNotify
 	}{
 		{
-			dg16bytes:  utils.HexToBytes("7081A2020102A14C5F500832303032303130315F5110534D4954483C3C434841524C45533C525F520B31393532353535313231325F531D313233204D41504C452052443C414E59544F574E3C4D4E3C3535313030A24F5F500832303032303331355F510D42524F574E3C3C4D4152593C4A5F520B31343135353535313231325F5323343920524544574F4F44204C4E3C4F4345414E20425245455A453C43413C3934303030"),
+			dg16bytes:  utils.HexToBytes(dg16Example),
 			expPersons: []PersonToNotify{{DateRecorded: "20020101", Name: &mrz.MrzName{Primary: "SMITH", Secondary: "CHARLES R"}, Telephone: "19525551212", Address: []string{"123 MAPLE RD", "ANYTOWN", "MN", "55100"}}, {DateRecorded: "20020315", Name: &mrz.MrzName{Primary: "BROWN", Secondary: "MARY J"}, Telephone: "14155551212", Address: []string{"49 REDWOOD LN", "OCEAN BREEZE", "CA", "94000"}}},
 		},
 	}
@@ -149,4 +153,36 @@ func TestNewDG16Errors(t *testing.T) {
 			t.Errorf("Expected error to contain '%s', got: %s", tc.errorContains, err.Error())
 		}
 	}
+}
+
+// DG11, DG12 and DG16 hold the holder's (and others') personal data, which must not reach
+// debug logs, as users share them in bug reports.
+func TestPersonalDataGroupsAreNotLogged(t *testing.T) {
+	logs := testlog.CaptureDebug(t)
+
+	dgs := map[int]string{
+		11: dg11Example,
+		12: dg12NZ,
+		16: dg16Example,
+	}
+	for dgNum, hex := range dgs {
+		var doc Document
+		if err := doc.NewDG(dgNum, utils.HexToBytes(hex)); err != nil {
+			t.Fatalf("DG%d: unexpected error: %s", dgNum, err)
+		}
+	}
+
+	testlog.AssertNoSecrets(t, logs.String(), map[string]string{
+		"DG11 name":          "SMITH<<JOHN",
+		"DG11 name (parsed)": "JOHN J",
+		"DG11 address":       "MAPLE RD",
+		"DG11 telephone":     "16125551212",
+		"DG11 bytes":         "534D4954483C3C4A4F484E",
+		"DG12 endorsement":   "N-4962",
+		"DG16 name":          "CHARLES",
+		"DG16 name (raw)":    "BROWN<<MARY",
+		"DG16 address":       "REDWOOD",
+		"DG16 telephone":     "14155551212",
+		"DG16 bytes":         "42524F574E3C3C4D415259",
+	})
 }

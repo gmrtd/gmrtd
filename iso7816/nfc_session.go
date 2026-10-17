@@ -358,7 +358,8 @@ func (nfc *NfcSession) ReadFile(fileId uint16) (fileData []byte, err error) {
 		}
 	}
 
-	slog.Debug("ReadFile", "fileId", fileId, "data", utils.BytesToHex(fileData))
+	// Length only: file data holds the holder's personal data (DG1 MRZ, DG2 face, DG11...).
+	slog.Debug("ReadFile", "fileId", fileId, "length", len(fileData))
 
 	return fileData, nil
 }

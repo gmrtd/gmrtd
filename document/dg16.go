@@ -86,16 +86,12 @@ func parseData(node tlv.TlvNode) ([]PersonToNotify, error) {
 		out = append(out, *personToNotify)
 	}
 
-	slog.Debug("parseData", "out", out)
-
 	return out, nil
 }
 
 func parsePersonToNotify(node tlv.TlvNode) (*PersonToNotify, error) {
 	var err error
 	var out PersonToNotify
-
-	slog.Debug("parsePersonToNotify", "tlv", node.String())
 
 	// should be 8 bytes (YYYYMMDD), but probably also have 4 byte BCD variants
 	out.DateRecorded = parseDateYYYYMMDD(node.NodeByTag(0x5F50).Value())
@@ -108,8 +104,6 @@ func parsePersonToNotify(node tlv.TlvNode) (*PersonToNotify, error) {
 	out.Telephone = string(node.NodeByTag(0x5F52).Value())
 
 	out.Address = strings.Split(string(node.NodeByTag(0x5F53).Value()), "<")
-
-	slog.Debug("parsePersonToNotify", "out", out)
 
 	return &out, nil
 }

@@ -2,6 +2,7 @@ package mrz
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -139,7 +140,7 @@ func TestCalcCheckdigitBadCharErr(t *testing.T) {
 
 func TestVerifyCheckdigitEmptyWithoutCheckDigitOk(t *testing.T) {
 	// special handling for case where the string is empty and the check-digit is not set
-	err := verifyCheckdigit("<<<<<<<<", "<")
+	err := verifyCheckdigit("test", "<<<<<<<<", "<")
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
@@ -167,10 +168,19 @@ func TestVerifyCheckdigitErrors(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		err := verifyCheckdigit(tc.data, tc.checkDigit)
+		err := verifyCheckdigit("document number", tc.data, tc.checkDigit)
 
 		if err == nil {
 			t.Errorf("expected error, but didn't get")
+			continue
+		}
+
+		// MRZ data is personal data, and errors end up in app logs
+		if strings.Contains(err.Error(), tc.data) {
+			t.Errorf("error includes the field value: %s", err)
+		}
+		if !strings.Contains(err.Error(), "document number") {
+			t.Errorf("error doesn't name the field: %s", err)
 		}
 	}
 

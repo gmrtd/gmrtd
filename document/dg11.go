@@ -3,7 +3,6 @@ package document
 import (
 	"bytes"
 	"fmt"
-	"log/slog"
 	"math"
 	"slices"
 	"strings"
@@ -51,8 +50,6 @@ func NewDG11(data []byte) (*DG11, error) {
 		return nil, fmt.Errorf("[NewDG11] error: %w", err)
 	}
 
-	slog.Debug("DG11", "TLV", nodes)
-
 	rootNode := nodes.NodeByTag(DG11Tag)
 
 	if !rootNode.IsValidNode() {
@@ -63,8 +60,6 @@ func NewDG11(data []byte) (*DG11, error) {
 	if err != nil {
 		return nil, fmt.Errorf("[NewDG11] parseData error: %w", err)
 	}
-
-	slog.Debug("DG11", "Details", out.Details)
 
 	return out, nil
 }

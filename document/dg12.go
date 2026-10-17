@@ -3,7 +3,6 @@ package document
 import (
 	"bytes"
 	"fmt"
-	"log/slog"
 	"slices"
 
 	"github.com/gmrtd/gmrtd/mrz"
@@ -55,8 +54,6 @@ func NewDG12(data []byte) (*DG12, error) {
 	if err != nil {
 		return nil, fmt.Errorf("[NewDG12] parseData error: %w", err)
 	}
-
-	slog.Debug("DG12", "Details", out.Details)
 
 	return out, nil
 }
