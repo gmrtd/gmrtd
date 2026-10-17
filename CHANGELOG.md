@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.4.0](https://github.com/gmrtd/gmrtd/compare/v1.3.3...v1.4.0) (2026-10-17)
+
+
+### ⚠ Behaviour change
+
+* **verifier:** when `verifier` checks a serialised document, `VerifiedChipAuthStatus` no longer trusts the capturing reader's chip-authentication results by default. Chip Authentication and PACE-CAM now report `NONE`, because replayed CA/CAM evidence can't prove chip presence, and Active Authentication counts only when its signature is bound to the verifier's own challenge (`WithAAChallenge`, `-challenge` in `gmrtd-verify`). Callers that receive documents from a reader they trust can restore the previous behaviour with `WithTrustedSource()` (`-trusted-source` in `gmrtd-verify`, `Verifier.WithTrustedSource()` in `mobile`).
+
+
+### Features
+
+* **csca:** update to latest DE CSCA master-list, dated 01/10/2026 (fixes [#526](https://github.com/gmrtd/gmrtd/issues/526)) ([#527](https://github.com/gmrtd/gmrtd/issues/527)) ([f6f3287](https://github.com/gmrtd/gmrtd/commit/f6f3287105e6dc1e8557c9e433479f8b092af1d9))
+* **document:** expose a readable passive authentication trust chain in DocumentSummary (fixes [#538](https://github.com/gmrtd/gmrtd/issues/538)) ([#539](https://github.com/gmrtd/gmrtd/issues/539)) ([d9ba2ae](https://github.com/gmrtd/gmrtd/commit/d9ba2aefa31193ae43f72f67d787b6fb6c2c27e6))
+* **reader:** add RequireAuthenticDocument option to fail reads that aren't verifiably authentic (fixes [#525](https://github.com/gmrtd/gmrtd/issues/525)) ([#537](https://github.com/gmrtd/gmrtd/issues/537)) ([f719394](https://github.com/gmrtd/gmrtd/commit/f719394f71ea1549fc874158f5645ba8acc47537))
+* **verifier:** only count offline chip-auth evidence that proves chip presence (fixes [#533](https://github.com/gmrtd/gmrtd/issues/533)) ([#534](https://github.com/gmrtd/gmrtd/issues/534)) ([60f6954](https://github.com/gmrtd/gmrtd/commit/60f6954a0e46a55dc12b311727251a975c1920b1))
+
+
+### Bug Fixes
+
+* **cryptoutils:** encode ECDH shared secrets at field size ([#524](https://github.com/gmrtd/gmrtd/issues/524)) ([fd6e2c5](https://github.com/gmrtd/gmrtd/commit/fd6e2c5990950f09499f634fd9e6eb9cd7790f63))
+* **iso7816:** retry auth commands with short Le when chip rejects extended Le ([#536](https://github.com/gmrtd/gmrtd/issues/536)) ([47c90bf](https://github.com/gmrtd/gmrtd/commit/47c90bf4bdb03d32ea62801de99923aa99f5fe43))
+* **pace:** select the best usable PACEInfo instead of only the top-weighted one (fixes [#529](https://github.com/gmrtd/gmrtd/issues/529)) ([#531](https://github.com/gmrtd/gmrtd/issues/531)) ([77b8b32](https://github.com/gmrtd/gmrtd/commit/77b8b326bb517502ec515f4e358478c4ca321602))
+* **reader:** fall back to BAC when advertised PACE is not supported locally ([#523](https://github.com/gmrtd/gmrtd/issues/523)) ([086bda1](https://github.com/gmrtd/gmrtd/commit/086bda17c1f5f13f4f842d7338681032a5e5f491))
+* remove passwords, password type and key material from debug logs (fixes [#530](https://github.com/gmrtd/gmrtd/issues/530)) ([#532](https://github.com/gmrtd/gmrtd/issues/532)) ([539b558](https://github.com/gmrtd/gmrtd/commit/539b558691235d7773d351308ad236ec1613f177))
+
 ## [1.3.3](https://github.com/gmrtd/gmrtd/compare/v1.3.2...v1.3.3) (2026-10-04)
 
 
