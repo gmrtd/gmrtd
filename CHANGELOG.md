@@ -1,12 +1,18 @@
 # Changelog
 
+## [1.5.1](https://github.com/gmrtd/gmrtd/compare/v1.5.0...v1.5.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* **security:** remove the holder's personal data from debug logs and MRZ errors. Debug logs no longer include decrypted chip file contents or parsed DG11/DG12/DG16 details (only file ids, lengths and status words), and MRZ check-digit errors name the field instead of including its value, e.g. `document number check digit mismatch (Exp:7, Act:1)`. Follows on from 1.4.0's removal of passwords and key material from the logs (fixes [#542](https://github.com/gmrtd/gmrtd/issues/542)) ([#543](https://github.com/gmrtd/gmrtd/issues/543)) ([f222e10](https://github.com/gmrtd/gmrtd/commit/f222e1010135f542580c37252d97337c4dfeb6ab))
+
 ## [1.5.0](https://github.com/gmrtd/gmrtd/compare/v1.4.0...v1.5.0) (2026-10-17)
 
 
 ### Features
 
-* **mobile:** expose the document rejected by RequireAuthenticDocument ([0dfe431](https://github.com/gmrtd/gmrtd/commit/0dfe4310c19d6bf98d19683f4ab879c714ed4b89))
-* **mobile:** expose the document rejected by RequireAuthenticDocument ([#540](https://github.com/gmrtd/gmrtd/issues/540)) ([376d0cb](https://github.com/gmrtd/gmrtd/commit/376d0cbaaf04e5b69d970ca044008f0ad02e597d))
+* **mobile:** expose the document rejected by `RequireAuthenticDocument`. gomobile drops a result returned alongside an error, so iOS and Android apps now get it from `Reader.RejectedDocument()`, e.g. to show the trust chain behind the rejection. It is `nil` after any other outcome, including a partial read ([#540](https://github.com/gmrtd/gmrtd/issues/540)) ([376d0cb](https://github.com/gmrtd/gmrtd/commit/376d0cbaaf04e5b69d970ca044008f0ad02e597d))
 
 ## [1.4.0](https://github.com/gmrtd/gmrtd/compare/v1.3.3...v1.4.0) (2026-10-17)
 
