@@ -202,7 +202,7 @@ In these cases:
 
 Cloneability does not imply that the physical document can be trivially forged.
 
-By default `ReadDocument` only records chip authentication failures in the session. To get an error instead, call `RequireAuthenticDocument()` on the reader (`reader.Reader` or `mobile.Reader`): `ReadDocument` then fails with `reader.ErrDocumentNotAuthentic` when the data isn't trusted, or when AA, CA or PACE-CAM was attempted and none verified. A document that offers none of them still passes, since its data is trusted.
+By default `ReadDocument` only records chip authentication failures in the session. To get an error instead, call `RequireAuthenticDocument()` on the reader (`reader.Reader` or `mobile.Reader`): `ReadDocument` then fails with `reader.ErrDocumentNotAuthentic` when the data isn't trusted, or when AA, CA or PACE-CAM was attempted and none verified. A document that offers none of them still passes, since its data is trusted. The rejected document is still returned with the error. gomobile bindings drop it, so iOS and Android apps get it from `mobile.Reader.RejectedDocument()` instead, for example to show the trust chain behind the rejection.
 
 # 🛡 CSCA Trust Stores
 For convenience and interoperability testing, gmrtd includes built-in CSCA trust anchors sourced from:

@@ -3,6 +3,7 @@ package mobile
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -140,7 +141,8 @@ func NewPasswordCan(can string) (*MrtdPassword, error) {
 // Reader is not safe for concurrent use: it is a single-use, single-goroutine
 // object for driving one document read. mu guards the mutable configuration
 // fields (set via SetApduMaxLe/SkipPace/SkipImages/AllowBacFallbackOnPaceError/
-// RequireAuthenticDocument/WithAAChallenge) and serialises ReadDocument, so a
+// RequireAuthenticDocument/WithAAChallenge), the result read by RejectedDocument,
+// and serialises ReadDocument, so a
 // Reader that a host app accidentally shares and calls from multiple threads
 // (e.g. gomobile bindings invoked from several Swift/Kotlin dispatch queues)
 // fails safe - calls queue up - rather than racing on these fields
@@ -157,6 +159,8 @@ type Reader struct {
 	allowBacFallbackOnPaceError bool
 	requireAuthenticDocument    bool
 	aaChallenge                 []byte
+
+	rejectedDocument *Document
 }
 
 type Document struct {
@@ -209,12 +213,30 @@ func (r *Reader) AllowBacFallbackOnPaceError() {
 // chip authentication (AA, CA or PACE-CAM) was attempted but none verifiably
 // succeeded. One method failing is tolerated when another succeeds, and a
 // document offering no chip authentication passes when its data is trusted. A
-// method gmrtd cannot perform counts as failed. The Document is still returned
-// with the error. The default is off; see reader.Reader.RequireAuthenticDocument.
+// method gmrtd cannot perform counts as failed. The default is off; see
+// reader.Reader.RequireAuthenticDocument.
+//
+// The Document is still returned with the error, but gomobile bindings drop a
+// result returned alongside an error, so iOS/Android callers should use
+// RejectedDocument to get it.
 func (r *Reader) RequireAuthenticDocument() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.requireAuthenticDocument = true
+}
+
+// RejectedDocument returns the Document from the most recent ReadDocument when
+// RequireAuthenticDocument rejected it, so a host app can show why (e.g. the
+// trust chain in SummaryJson). It is nil after any other outcome, including a
+// read that failed part way through: such a Document is incomplete, so isn't
+// exposed here.
+//
+// The Document is NOT verifiably authentic: present it only as a rejected
+// document, never as an accepted one.
+func (r *Reader) RejectedDocument() *Document {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.rejectedDocument
 }
 
 // WithAAChallenge sets a caller-supplied 8-byte RND.IFD challenge for Active
@@ -248,6 +270,8 @@ func (r *Reader) ReadDocument(password *MrtdPassword, atr []byte, ats []byte) (d
 	// Locked for the whole call: see the Reader docstring above.
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
+	r.rejectedDocument = nil
 
 	// Recover at the public API boundary so an unexpected panic does not
 	// propagate through callers such as gomobile. Do not log here; leave
@@ -289,10 +313,18 @@ func (r *Reader) ReadDocument(password *MrtdPassword, atr []byte, ats []byte) (d
 		ats,
 	)
 	if err != nil {
+		r.rejectedDocument = rejectedDocument(doc, err)
 		return doc, err
 	}
 
 	return doc, nil
+}
+
+func rejectedDocument(doc *Document, err error) *Document {
+	if errors.Is(err, reader.ErrDocumentNotAuthentic) {
+		return doc
+	}
+	return nil
 }
 
 // newGmrtdReader builds the underlying reader with this Reader's options applied.
