@@ -77,22 +77,26 @@ type IdentityAttributes struct {
 	NameMrzRaw *mrz.MrzName  `json:"nameMrzRaw,omitempty"`
 	OtherNames []mrz.MrzName `json:"otherNames,omitempty"`
 
-	// DateOfBirth is DG11's FullDateOfBirth (YYYYMMDD) if present, else the raw DG1 MRZ
-	// value (YYMMDD, no century - MRZ carries no century for DOB and gmrtd does not guess
-	// one). The raw, per-source values are also surfaced below since DOB may be present in
-	// both DG1 and DG11, and clients may want to see/reconcile both rather than rely on the
-	// precedence gmrtd applies.
-	DateOfBirth        string `json:"dateOfBirth,omitempty"`
-	DateOfBirthMrzRaw  string `json:"dateOfBirthMrzRaw,omitempty"`  // DG1 MRZ, raw YYMMDD (2-digit year)
-	DateOfBirthDg11Raw string `json:"dateOfBirthDg11Raw,omitempty"` // DG11, raw YYYYMMDD
+	// DateOfBirth is DG11's FullDateOfBirth (YYYYMMDD) if present, else the DG1 MRZ value.
+	// The MRZ carries no century for DOB, so the MRZ value is the raw YYMMDD - gmrtd does
+	// not guess a century - except where the issuer's own MRZ data determines it, currently
+	// only Singapore passports (the NRIC in the MRZ optional data, see sgNricCentury), when
+	// it is expanded to YYYYMMDD. DateOfBirthSource says which applies. The raw, per-source
+	// values are also surfaced below since DOB may be present in both DG1 and DG11, and
+	// clients may want to see/reconcile both rather than rely on the precedence gmrtd applies.
+	DateOfBirth        string            `json:"dateOfBirth,omitempty"`
+	DateOfBirthSource  DateOfBirthSource `json:"dateOfBirthSource,omitempty"`
+	DateOfBirthMrzRaw  string            `json:"dateOfBirthMrzRaw,omitempty"`  // DG1 MRZ, raw YYMMDD (2-digit year)
+	DateOfBirthDg11Raw string            `json:"dateOfBirthDg11Raw,omitempty"` // DG11, raw YYYYMMDD
 
 	// Age is the document holder's current age in whole years, set only when DateOfBirth
-	// has an explicit century (DG11's 8-digit FullDateOfBirth). See PossibleAges for the
+	// has an explicit century (8-digit YYYYMMDD: DG11's FullDateOfBirth, or an MRZ DOB whose
+	// century the issuer's data determines - see DateOfBirthSource). See PossibleAges for the
 	// ambiguous DG1-MRZ-only case (6-digit YYMMDD, no century) - see resolveAge.
 	Age *int `json:"age,omitempty"`
 
 	// PossibleAges holds the candidate ages when DateOfBirth's century is ambiguous
-	// (DG1-MRZ-only, 6-digit YYMMDD). Both the 19YY and 20YY interpretations of the 2-digit
+	// (DG1-MRZ-only, 6-digit YYMMDD, DateOfBirthSource DG1_MRZ). Both the 19YY and 20YY interpretations of the 2-digit
 	// year are tried, keeping whichever yield a plausible age (see resolveAge) - typically
 	// both survive, since a 2-digit year is usually consistent with two centuries apart.
 	// Ordered youngest to oldest (e.g. [12, 112]). Empty whenever Age is set, or
@@ -182,6 +186,19 @@ func resolveExpiryDate(mrzRaw string) string {
 	return fullYear
 }
 
+// DateOfBirthSource records where IdentityAttributes.DateOfBirth came from.
+type DateOfBirthSource string
+
+const (
+	// DG11's FullDateOfBirth (YYYYMMDD)
+	DOB_SOURCE_DG11 DateOfBirthSource = "DG11"
+	// DG1 MRZ, raw YYMMDD (no century)
+	DOB_SOURCE_DG1_MRZ DateOfBirthSource = "DG1_MRZ"
+	// DG1 MRZ YYMMDD, expanded to YYYYMMDD using the century encoded by the Singapore NRIC
+	// in the MRZ optional data (see sgNricCentury)
+	DOB_SOURCE_DG1_MRZ_SG_NRIC DateOfBirthSource = "DG1_MRZ_SG_NRIC"
+)
+
 // maxPlausibleAge bounds age inference from a DOB with an ambiguous century (see
 // resolveAge). It's an oldest-known-living-person-plus-margin threshold, not a biological
 // limit - used only to discard century interpretations that can't be right (e.g. a "19xx"
@@ -266,6 +283,9 @@ func buildIdentityAttributes(doc *Document) *IdentityAttributes {
 	applyDg12(summary, doc.Mf.Lds1.Dg12)
 	applyDg16(summary, doc.Mf.Lds1.Dg16)
 
+	// only once DG11 has had the chance to supply a full DateOfBirth
+	applySgNricDobCentury(summary, doc.Mf.Lds1.Dg1)
+
 	// DateOfBirth may be set by DG1 and/or overridden by DG11; resolve age only
 	// once both have had a chance to run.
 	if len(summary.DateOfBirth) > 0 {
@@ -301,6 +321,7 @@ func applyDg1(summary *IdentityAttributes, dg1 *DG1) {
 		// MRZ carries no century for DOB; surface the raw YYMMDD value as-is rather than
 		// guess. DG11's FullDateOfBirth (explicit century), if present, overrides below.
 		summary.DateOfBirth = m.DateOfBirth
+		summary.DateOfBirthSource = DOB_SOURCE_DG1_MRZ
 	}
 	if len(m.DateOfExpiry) > 0 {
 		summary.DateOfExpiryMrzRaw = m.DateOfExpiry
@@ -347,7 +368,36 @@ func applyDg11(summary *IdentityAttributes, dg11 *DG11) {
 	if len(d.FullDateOfBirth) > 0 {
 		summary.DateOfBirthDg11Raw = d.FullDateOfBirth
 		summary.DateOfBirth = d.FullDateOfBirth
+		summary.DateOfBirthSource = DOB_SOURCE_DG11
 	}
+}
+
+// applySgNricDobCentury expands a Singapore passport's MRZ-only YYMMDD DateOfBirth to
+// YYYYMMDD, using the century encoded by the holder's NRIC in the MRZ optional data. It only
+// applies when DateOfBirth still comes from the MRZ (a DG11 FullDateOfBirth always wins) and
+// the NRIC is well-formed with a valid check letter, and the result must be a real date that
+// isn't in the future. Otherwise DateOfBirth is left untouched.
+func applySgNricDobCentury(summary *IdentityAttributes, dg1 *DG1) {
+	if summary.DateOfBirthSource != DOB_SOURCE_DG1_MRZ || len(summary.DateOfBirth) != 6 {
+		return
+	}
+	if dg1 == nil || !isSgPassport(dg1.Mrz) {
+		return
+	}
+
+	century := sgNricCentury(dg1.Mrz.OptionalData)
+	if century == "" {
+		return
+	}
+
+	dob := century + summary.DateOfBirth
+	birthDate, err := time.Parse("20060102", dob)
+	if err != nil || birthDate.After(time.Now()) {
+		return
+	}
+
+	summary.DateOfBirth = dob
+	summary.DateOfBirthSource = DOB_SOURCE_DG1_MRZ_SG_NRIC
 }
 
 func applyDg12(summary *IdentityAttributes, dg12 *DG12) {
