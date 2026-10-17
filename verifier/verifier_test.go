@@ -250,5 +250,35 @@ func TestVerifyRealDocumentGBR(t *testing.T) {
 		if docEx.Document.Mf.Lds1.Dg1 == nil || docEx.Document.Mf.Lds1.Dg1.Mrz.IssuingState != "GBR" {
 			t.Errorf("trusted=%v: expected GBR DG1", trusted)
 		}
+		assertGbrTrustChain(t, summary.PassiveAuth)
+	}
+}
+
+// assertGbrTrustChain checks the verified SOD chain of GBR-099250692: a document signer issued by
+// the UK CSCA, both expired by now, which must not affect the verified status.
+func assertGbrTrustChain(t *testing.T, pa *document.PassiveAuthSummary) {
+	t.Helper()
+	if pa == nil || pa.Status != document.PASSIVE_AUTH_STATUS_VERIFIED || pa.Sod == nil || !pa.Sod.Verified {
+		t.Fatalf("PassiveAuth = %+v, want verified SOD", pa)
+	}
+	if pa.CardSecurity != nil {
+		t.Errorf("CardSecurity = %+v, want nil", pa.CardSecurity)
+	}
+	if len(pa.Sod.Chain) != 2 {
+		t.Fatalf("SOD chain has %d certificates, want 2", len(pa.Sod.Chain))
+	}
+
+	dsc, csca := pa.Sod.Chain[0], pa.Sod.Chain[1]
+	if dsc.Role != document.CERTIFICATE_ROLE_DOCUMENT_SIGNER || dsc.Subject != "CN=Document Signing Key 35, OU=london, O=ukps, C=gb" {
+		t.Errorf("chain[0] = %s %q", dsc.Role, dsc.Subject)
+	}
+	if csca.Role != document.CERTIFICATE_ROLE_CSCA || csca.Subject != "CN=Country Signing Authority, O=UKKPA, C=gb" {
+		t.Errorf("chain[1] = %s %q", csca.Role, csca.Subject)
+	}
+	if dsc.Issuer != csca.Subject || dsc.AuthorityKeyId != csca.SubjectKeyId {
+		t.Errorf("document signer not issued by CSCA: issuer %q AKI %s, CSCA SKI %s", dsc.Issuer, dsc.AuthorityKeyId, csca.SubjectKeyId)
+	}
+	if dsc.Expired == nil || !*dsc.Expired {
+		t.Errorf("expected document signer (valid to 2022-12-01) to be reported expired")
 	}
 }

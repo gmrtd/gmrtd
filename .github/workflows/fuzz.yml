@@ -83,6 +83,8 @@ jobs:
           - pkg: ./cms
             name: FuzzParseCertificates
           - pkg: ./cms
+            name: FuzzCertificateInfo
+          - pkg: ./cms
             name: FuzzParseRDNSequence
           - pkg: ./cms
             name: FuzzAsn1decodeSubjectPublicKeyInfo

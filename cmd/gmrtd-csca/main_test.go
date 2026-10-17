@@ -1,13 +1,11 @@
 package main
 
 import (
-	"bytes"
 	"encoding/asn1"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
-	"math/big"
 	"strings"
 	"testing"
 	"time"
@@ -512,115 +510,10 @@ func TestSubjectDN_MultipleAttributes(t *testing.T) {
 }
 
 // --- formatKeyType ---
+// NB key type decoding is tested in cms (TestCertificateKeyType); this only checks the "?" fallback.
 
-// buildCertWithSPKI creates a Certificate with the given raw SPKI bytes.
-func buildCertWithSPKI(spkiBytes []byte) cms.Certificate {
-	return cms.Certificate{
-		Raw: asn1.RawContent([]byte{1}),
-		TbsCertificate: cms.TBSCertificate{
-			SubjectPublicKeyInfo: asn1.RawValue{FullBytes: spkiBytes},
-		},
-	}
-}
-
-// buildECSPKIBytes encodes a SubjectPublicKeyInfo for an EC key with the given named-curve OID.
-func buildECSPKIBytes(curveOID asn1.ObjectIdentifier) []byte {
-	curveOIDBytes, _ := asn1.Marshal(curveOID)
-	spki := cms.SubjectPublicKeyInfo{
-		Algorithm: cms.AlgorithmIdentifier{
-			Algorithm:  oid.OidEcPublicKey,
-			Parameters: asn1.RawValue{FullBytes: curveOIDBytes},
-		},
-		SubjectPublicKey: asn1.BitString{Bytes: []byte{0x04, 0x01, 0x02}},
-	}
-	b, _ := asn1.Marshal(spki)
-	return b
-}
-
-// buildRSASPKIBytes encodes a SubjectPublicKeyInfo for an RSA key with the given modulus and exponent.
-func buildRSASPKIBytes(n *big.Int, e int) []byte {
-	type rsaKey struct {
-		N *big.Int
-		E int
-	}
-	keyBytes, _ := asn1.Marshal(rsaKey{N: n, E: e})
-	spki := cms.SubjectPublicKeyInfo{
-		Algorithm:        cms.AlgorithmIdentifier{Algorithm: oid.OidRsaEncryption},
-		SubjectPublicKey: asn1.BitString{Bytes: keyBytes},
-	}
-	b, _ := asn1.Marshal(spki)
-	return b
-}
-
-func TestFormatKeyType_InvalidSPKI(t *testing.T) {
-	cert := buildCertWithSPKI([]byte{0xFF, 0xFF})
-	if got := formatKeyType(&cert); got != "?" {
-		t.Errorf("expected ?, got %s", got)
-	}
-}
-
-func TestFormatKeyType_NilSPKI(t *testing.T) {
-	cert := buildCertWithSPKI(nil)
-	if got := formatKeyType(&cert); got != "?" {
-		t.Errorf("expected ?, got %s", got)
-	}
-}
-
-func TestFormatKeyType_ECNamedCurve_P256(t *testing.T) {
-	cert := buildCertWithSPKI(buildECSPKIBytes(oid.OidPrime256v1))
-	if got := formatKeyType(&cert); got != "EC(P-256)" {
-		t.Errorf("expected EC(P-256), got %s", got)
-	}
-}
-
-func TestFormatKeyType_ECUnknownCurve(t *testing.T) {
-	// Use OidRsaEncryption as a fake curve OID — not in the named-curve table.
-	cert := buildCertWithSPKI(buildECSPKIBytes(oid.OidRsaEncryption))
-	if got := formatKeyType(&cert); got != "EC(?)" {
-		t.Errorf("expected EC(?), got %s", got)
-	}
-}
-
-func TestFormatKeyType_ECNoCurveParam(t *testing.T) {
-	// EC SPKI with no Parameters → EcCurve fails.
-	spki := cms.SubjectPublicKeyInfo{
-		Algorithm:        cms.AlgorithmIdentifier{Algorithm: oid.OidEcPublicKey},
-		SubjectPublicKey: asn1.BitString{Bytes: []byte{0x04, 0x01, 0x02}},
-	}
-	b, _ := asn1.Marshal(spki)
-	cert := buildCertWithSPKI(b)
-	if got := formatKeyType(&cert); got != "EC(?)" {
-		t.Errorf("expected EC(?), got %s", got)
-	}
-}
-
-func TestFormatKeyType_RSAValid(t *testing.T) {
-	// 512-bit modulus (64 bytes of 0xFF), odd exponent 65537.
-	n := new(big.Int).SetBytes(bytes.Repeat([]byte{0xFF}, 64))
-	cert := buildCertWithSPKI(buildRSASPKIBytes(n, 65537))
-	if got := formatKeyType(&cert); got != "RSA(512)" {
-		t.Errorf("expected RSA(512), got %s", got)
-	}
-}
-
-func TestFormatKeyType_RSABadKey(t *testing.T) {
-	spki := cms.SubjectPublicKeyInfo{
-		Algorithm:        cms.AlgorithmIdentifier{Algorithm: oid.OidRsaEncryption},
-		SubjectPublicKey: asn1.BitString{Bytes: []byte{0xFF, 0xFF}},
-	}
-	b, _ := asn1.Marshal(spki)
-	cert := buildCertWithSPKI(b)
-	if got := formatKeyType(&cert); got != "RSA(?)" {
-		t.Errorf("expected RSA(?), got %s", got)
-	}
-}
-
-func TestFormatKeyType_UnknownAlgorithm(t *testing.T) {
-	spki := cms.SubjectPublicKeyInfo{
-		Algorithm: cms.AlgorithmIdentifier{Algorithm: asn1.ObjectIdentifier{1, 2, 3, 4}},
-	}
-	b, _ := asn1.Marshal(spki)
-	cert := buildCertWithSPKI(b)
+func TestFormatKeyType(t *testing.T) {
+	cert := cms.Certificate{TbsCertificate: cms.TBSCertificate{SubjectPublicKeyInfo: asn1.RawValue{FullBytes: []byte{0xFF, 0xFF}}}}
 	if got := formatKeyType(&cert); got != "?" {
 		t.Errorf("expected ?, got %s", got)
 	}

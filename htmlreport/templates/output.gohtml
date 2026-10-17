@@ -684,6 +684,17 @@ document.addEventListener('DOMContentLoaded', () => {
 </table>
 </div>
 
+<h2>Passive Authentication</h2>
+{{with .Summary.PassiveAuth}}
+<p>Status: <b>{{.Status}}</b>{{if .Error}} - {{.Error}}{{end}}</p>
+<h3>SOD</h3>
+{{template "trustChain" .Sod}}
+{{if .CardSecurity}}
+<h3>CardSecurity</h3>
+{{template "trustChain" .CardSecurity}}
+{{end}}
+{{end}}
+
 <h2>Identity Attributes</h2>
 {{if .Summary.IdentityAttributes}}
 {{if not .Summary.DataTrusted}}

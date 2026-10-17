@@ -49,6 +49,7 @@ func templateFuncMap() template.FuncMap {
 			tmpOidDesc := oid.OidDesc(tmpOid)
 			return fmt.Sprintf("%s %s", tmpOid.String(), tmpOidDesc)
 		},
+		"IsTrue":      func(b *bool) bool { return b != nil && *b },
 		"IsPrintable": func(bytes []byte) bool { return len(bytes) > 0 && utils.PrintableBytes(bytes) },
 		"ApduTotalDurMs": func(entries []*iso7816.ApduLogEntry) int {
 			var totalMs int

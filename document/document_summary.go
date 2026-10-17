@@ -156,6 +156,11 @@ type DocumentSummary struct {
 	// signal for whether this data has been cryptographically verified; callers must check
 	// it before treating IdentityAttributes as authentic.
 	IdentityAttributes *IdentityAttributes `json:"identityAttributes,omitempty"`
+
+	// PassiveAuth describes the Passive Authentication outcome and the certificate trust
+	// chains behind DataTrusted, for display. See SignedObjectTrust for which certificates
+	// are verified.
+	PassiveAuth *PassiveAuthSummary `json:"passiveAuth"`
 }
 
 // resolveExpiryDate expands DG1 MRZ's 2-digit-year DateOfExpiry (YYMMDD) to an explicit

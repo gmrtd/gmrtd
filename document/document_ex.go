@@ -1,5 +1,7 @@
 package document
 
+import "time"
+
 type DocumentEx struct {
 	Document Document `json:"document"`
 	Session  Session  `json:"session"`
@@ -24,5 +26,6 @@ func (docEx *DocumentEx) Summary() *DocumentSummary {
 		LdsVersion:         docEx.Document.LdsVersion(),
 		UnicodeVersion:     docEx.Document.UnicodeVersion(),
 		IdentityAttributes: buildIdentityAttributes(&docEx.Document),
+		PassiveAuth:        buildPassiveAuthSummary(&docEx.Document, &docEx.Session, time.Now()),
 	}
 }

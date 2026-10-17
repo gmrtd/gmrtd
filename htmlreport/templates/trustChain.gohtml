@@ -1,0 +1,46 @@
+{{define "trustChain"}}
+{{if .}}
+{{if not .Verified}}
+<p><i>&#9888; Not verified. Only the document signer certificate embedded in the document is shown: it is chip-supplied, so it shows who claims to have signed the data, not that the data is trusted.</i></p>
+{{end}}
+{{if .Chain}}
+<div>
+<table class="striped">
+  <thead>
+    <tr>
+      <th>Role</th>
+      <th>Subject</th>
+      <th>Issuer</th>
+      <th>Valid</th>
+      <th>Key</th>
+      <th>Signature</th>
+      <th>Serial</th>
+      <th>SKI / AKI</th>
+      <th>SHA-256 Fingerprint</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{- range .Chain}}
+    <tr>
+      <td>{{.Role}}</td>
+      <td>{{.Subject}}</td>
+      <td>{{.Issuer}}</td>
+      <td>{{if .NotBefore}}{{.NotBefore.Format "2006-01-02"}}{{else}}?{{end}} .. {{if .NotAfter}}{{.NotAfter.Format "2006-01-02"}}{{else}}?{{end}}{{if IsTrue .Expired}} (expired){{end}}</td>
+      <td>{{.KeyType}}</td>
+      <td>{{.SignatureAlgorithm}}</td>
+      <td>{{.SerialNumber}}</td>
+      <td>{{.SubjectKeyId}} / {{.AuthorityKeyId}}</td>
+      <td>{{.FingerprintSHA256}}</td>
+    </tr>
+    {{- end}}
+  </tbody>
+</table>
+</div>
+<p><i>Expiry is shown as of now. Verification is at the time of signing, so expired certificates are normal for older documents.</i></p>
+{{else}}
+<i>No certificates</i>
+{{end}}
+{{else}}
+<i>No data</i>
+{{end}}
+{{end}}

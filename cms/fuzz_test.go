@@ -60,3 +60,20 @@ func FuzzAsn1decodeSubjectPublicKeyInfo(f *testing.F) {
 		_, _ = Asn1decodeSubjectPublicKeyInfo(data)
 	})
 }
+
+func FuzzCertificateInfo(f *testing.F) {
+	f.Add([]byte(nil))
+	f.Add([]byte{0xDE, 0xAD, 0xBE, 0xEF})
+	f.Add(fuzzCertBytes)
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		certs, err := ParseCertificates(data)
+		if err != nil {
+			return
+		}
+		for i := range certs {
+			_ = certs[i].Info()
+			_ = certs[i].IsLinkCert()
+		}
+	})
+}

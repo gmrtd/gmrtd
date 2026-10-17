@@ -212,6 +212,11 @@ For convenience and interoperability testing, gmrtd includes built-in CSCA trust
 
 Together these cover **121 countries**. These defaults can be replaced, extended, or disabled depending on your trust model.
 
+### Showing the trust chain
+`DocumentEx.Summary().PassiveAuth` (mobile: `Document.SummaryJson()`, under `passiveAuth`) describes the Passive Authentication result for display: the status (`VERIFIED`, `FAILED` or `NOT_PERFORMED`), the error, and for EF.SOD and EF.CardSecurity the certificate chain. Each certificate has its role (`DOCUMENT_SIGNER`, `CSCA` or `CSCA_LINK`), subject, issuer, validity, key type, signature algorithm, serial number, SKI/AKI and SHA-256 fingerprint. The same table appears in the HTML report produced by `gmrtd-reader` and `gmrtd-verify`.
+
+When verification fails, the chain holds only the document signer certificate embedded in the document. It is chip-supplied and **unverified**: it shows who claims to have signed the data, not that the data is trusted. `expired` is reported as of now and is informational only: verification is at the time of signing, so expired certificates are normal for older documents.
+
 # 📌 Compatibility
 - Go: 1.26+
 - Transports: PC/SC, Core NFC, Android NFC, custom APDU transceivers
