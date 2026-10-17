@@ -917,3 +917,92 @@ func TestReadFileTooManyChunksErr(t *testing.T) {
 		t.Errorf("Expected 100 chunks before error (actual:%1d)", mockTrans.chunkCnt)
 	}
 }
+
+// Some chips (e.g. French ID cards) reject an extended Le on GENERAL AUTHENTICATE with
+// 6700 - the first PACE step (get nonce) must retry with a short Le, and later auth
+// commands in the session should go straight to the short Le.
+func TestGeneralAuthenticateRetriesWithShortLeOnWrongLength(t *testing.T) {
+	data := utils.HexToBytes("7C00")
+	extended := NewCApdu(0x10, INS_GENERAL_AUTHENTICATE, 0x00, 0x00, data, 65536).Encode()
+	short := NewCApdu(0x10, INS_GENERAL_AUTHENTICATE, 0x00, 0x00, data, authShortLe).Encode()
+
+	transceiver := new(MockTransceiver)
+	transceiver.AddReqRsp(utils.BytesToHex(extended), "6700")
+	transceiver.AddReqRsp(utils.BytesToHex(short), "7C0A800801020304050607089000")
+
+	nfc := NewNfcSession(transceiver)
+	nfc.SetMaxLe(65536)
+
+	for i := range 2 {
+		out, err := nfc.GeneralAuthenticate(true, data)
+		if err != nil {
+			t.Fatalf("call %d: unexpected error: %s", i, err)
+		}
+		if !bytes.Equal(out, utils.HexToBytes("7C0A80080102030405060708")) {
+			t.Errorf("call %d: unexpected response: %x", i, out)
+		}
+	}
+
+	// 1st call: extended (6700) + short retry; 2nd call: short only
+	entries := nfc.ApduLog().Entries
+	if len(entries) != 3 {
+		t.Fatalf("expected 3 APDUs, got %d", len(entries))
+	}
+	if !bytes.Equal(entries[2].Tx, short) {
+		t.Errorf("expected 2nd call to use short Le directly, sent: %x", entries[2].Tx)
+	}
+	if nfc.maxLe != 65536 {
+		t.Errorf("maxLe should be left unchanged for READ BINARY, got %d", nfc.maxLe)
+	}
+}
+
+// With a short Le already in use there is nothing to fall back to, so 6700 is an error
+// (and only one APDU is sent).
+func TestGeneralAuthenticateWrongLengthWithShortLeIsError(t *testing.T) {
+	transceiver := new(MockTransceiver)
+	transceiver.AddReqRsp(utils.BytesToHex(NewCApdu(0x00, INS_GENERAL_AUTHENTICATE, 0x00, 0x00, utils.HexToBytes("7C00"), 256).Encode()), "6700")
+
+	nfc := NewNfcSession(transceiver)
+
+	if _, err := nfc.GeneralAuthenticate(false, utils.HexToBytes("7C00")); err == nil {
+		t.Errorf("expected error")
+	}
+	if n := len(nfc.ApduLog().Entries); n != 1 {
+		t.Errorf("expected 1 APDU, got %d", n)
+	}
+}
+
+// Only 6700 triggers the short-Le retry - other errors fail immediately.
+func TestGeneralAuthenticateOtherErrorNoRetry(t *testing.T) {
+	transceiver := new(MockTransceiver)
+	transceiver.AddReqRsp(utils.BytesToHex(NewCApdu(0x00, INS_GENERAL_AUTHENTICATE, 0x00, 0x00, utils.HexToBytes("7C00"), 65536).Encode()), "6982")
+
+	nfc := NewNfcSession(transceiver)
+	nfc.SetMaxLe(65536)
+
+	if _, err := nfc.GeneralAuthenticate(false, utils.HexToBytes("7C00")); err == nil {
+		t.Errorf("expected error")
+	}
+	if n := len(nfc.ApduLog().Entries); n != 1 {
+		t.Errorf("expected 1 APDU, got %d", n)
+	}
+}
+
+func TestInternalAuthenticateRetriesWithShortLeOnWrongLength(t *testing.T) {
+	rndIfd := utils.HexToBytes("0102030405060708")
+
+	transceiver := new(MockTransceiver)
+	transceiver.AddReqRsp(utils.BytesToHex(NewCApdu(0x00, INS_INTERNAL_AUTHENTICATE, 0x00, 0x00, rndIfd, 65536).Encode()), "6700")
+	transceiver.AddReqRsp(utils.BytesToHex(NewCApdu(0x00, INS_INTERNAL_AUTHENTICATE, 0x00, 0x00, rndIfd, authShortLe).Encode()), "0123456789ABCDEF9000")
+
+	nfc := NewNfcSession(transceiver)
+	nfc.SetMaxLe(65536)
+
+	out, err := nfc.InternalAuthenticate(rndIfd)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if !bytes.Equal(out, utils.HexToBytes("0123456789ABCDEF")) {
+		t.Errorf("unexpected response: %x", out)
+	}
+}
