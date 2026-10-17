@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"os"
 	"reflect"
 	"sync"
 	"testing"
@@ -1146,6 +1147,103 @@ func TestCheckAuthenticDocument(t *testing.T) {
 			tc.setup(&state.docEx.Session)
 
 			err := checkAuthenticDocument(reader, state)
+			if tc.wantErr == nil {
+				if err != nil {
+					t.Fatalf("unexpected error: %s", err)
+				}
+				return
+			}
+			for _, want := range tc.wantErr {
+				if !errors.Is(err, want) {
+					t.Fatalf("expected error wrapping %q, got: %v", want, err)
+				}
+			}
+		})
+	}
+}
+
+// TestRequireAuthenticDocumentRealVerification runs the real Document.Verify and Passive
+// Authentication steps before the check, rather than assuming a Passive Authentication result.
+func TestRequireAuthenticDocumentRealVerification(t *testing.T) {
+	ukData, err := os.ReadFile("../verifier/testdata/GBR-099250692.gmrtd")
+	if err != nil {
+		t.Fatalf("ReadFile error: %s", err)
+	}
+
+	masterList, err := cms.DefaultMasterList()
+	if err != nil {
+		t.Fatalf("DefaultMasterList error: %s", err)
+	}
+
+	ukDocument := func(t *testing.T) *document.Document {
+		doc, _, err := document.UnmarshalVerifiableDoc(ukData)
+		if err != nil {
+			t.Fatalf("UnmarshalVerifiableDoc error: %s", err)
+		}
+		return doc
+	}
+
+	sampleDocument := func(t *testing.T) *document.Document {
+		doc, err := document.SampleDocument()
+		if err != nil {
+			t.Fatalf("SampleDocument error: %s", err)
+		}
+		return doc
+	}
+
+	aaErr := errors.New("AA failed")
+
+	testCases := []struct {
+		name    string
+		doc     func(t *testing.T) *document.Document
+		session func(s *document.Session)
+		wantErr []error // nil: expect success
+
+		wantDataTrusted bool
+	}{
+		{
+			// trusted data, and the document offers no AA/CA/PACE-CAM
+			name:    "UK passport",
+			doc:     ukDocument,
+			session: func(_ *document.Session) {},
+
+			wantDataTrusted: true,
+		},
+		{
+			name: "UK passport with failed chip authentication",
+			doc:  ukDocument,
+			session: func(s *document.Session) {
+				s.ActiveAuthResult, s.ActiveAuthErr = &document.ActiveAuthResult{Success: false}, aaErr
+			},
+			wantErr: []error{ErrDocumentNotAuthentic, aaErr},
+
+			wantDataTrusted: true,
+		},
+		{
+			// its data groups come from different ICAO worked examples, so Passive Authentication fails
+			name:    "synthetic sample document",
+			doc:     sampleDocument,
+			session: func(_ *document.Session) {},
+			wantErr: []error{ErrDocumentNotAuthentic},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var status MockStatus
+			reader := NewReader(&status, iso7816.NewNfcSession(&PanicTransceiver{P: "no APDUs expected"}), masterList)
+			reader.RequireAuthenticDocument()
+
+			state := NewReaderState(nil, nil, password.NewPasswordNil())
+			state.docEx.Document = *tc.doc(t)
+			tc.session(&state.docEx.Session)
+
+			err := runSteps(reader, state, verifyDocument, performPassiveAuthentication, checkAuthenticDocument)
+
+			if got := state.docEx.Summary().DataTrusted; got != tc.wantDataTrusted {
+				t.Fatalf("DataTrusted = %v, want %v (PassiveAuthErr: %v, DocumentVerifyErr: %v)",
+					got, tc.wantDataTrusted, state.docEx.Session.PassiveAuthErr, state.docEx.Session.DocumentVerifyErr)
+			}
 			if tc.wantErr == nil {
 				if err != nil {
 					t.Fatalf("unexpected error: %s", err)
