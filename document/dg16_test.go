@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/gmrtd/gmrtd/internal/testlog"
 	"github.com/gmrtd/gmrtd/mrz"
 	"github.com/gmrtd/gmrtd/utils"
 )
@@ -149,4 +150,36 @@ func TestNewDG16Errors(t *testing.T) {
 			t.Errorf("Expected error to contain '%s', got: %s", tc.errorContains, err.Error())
 		}
 	}
+}
+
+// DG11, DG12 and DG16 hold the holder's (and others') personal data, which must not reach
+// debug logs, as users share them in bug reports. Vectors are from the tests above.
+func TestPersonalDataGroupsAreNotLogged(t *testing.T) {
+	logs := testlog.CaptureDebug(t)
+
+	dgs := map[int]string{
+		11: "6B605C0A5F0E5F115F425F125F135F0E0D534D4954483C3C4A4F484E3C4A5F110A414E59544F574E3C4D4E5F4217313233204D41504C452052443C414E59544F574E3C4D4E5F120B31363132353535313231325F130C54524156454C3C4147454E54",
+		12: "6C205C045F555F565F550E32303136313131353031333631325F56064E2D34393632",
+		16: "7081A2020102A14C5F500832303032303130315F5110534D4954483C3C434841524C45533C525F520B31393532353535313231325F531D313233204D41504C452052443C414E59544F574E3C4D4E3C3535313030A24F5F500832303032303331355F510D42524F574E3C3C4D4152593C4A5F520B31343135353535313231325F5323343920524544574F4F44204C4E3C4F4345414E20425245455A453C43413C3934303030",
+	}
+	for dgNum, hex := range dgs {
+		var doc Document
+		if err := doc.NewDG(dgNum, utils.HexToBytes(hex)); err != nil {
+			t.Fatalf("DG%d: unexpected error: %s", dgNum, err)
+		}
+	}
+
+	testlog.AssertNoSecrets(t, logs.String(), map[string]string{
+		"DG11 name":          "SMITH<<JOHN",
+		"DG11 name (parsed)": "JOHN J",
+		"DG11 address":       "MAPLE RD",
+		"DG11 telephone":     "16125551212",
+		"DG11 bytes":         "534D4954483C3C4A4F484E",
+		"DG12 endorsement":   "N-4962",
+		"DG16 name":          "CHARLES",
+		"DG16 name (raw)":    "BROWN<<MARY",
+		"DG16 address":       "REDWOOD",
+		"DG16 telephone":     "14155551212",
+		"DG16 bytes":         "42524F574E3C3C4D415259",
+	})
 }

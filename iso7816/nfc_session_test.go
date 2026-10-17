@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
+	"github.com/gmrtd/gmrtd/internal/testlog"
 	"github.com/gmrtd/gmrtd/tlv"
 	"github.com/gmrtd/gmrtd/utils"
 )
@@ -34,6 +35,7 @@ func TestSelectAidMrtd(t *testing.T) {
 
 func TestNfcSessionSecureMessagingTDES(t *testing.T) {
 	// Worked example from 9303p11 D.4 SECURE MESSAGING
+	logs := testlog.CaptureDebug(t)
 
 	expEfComData := utils.HexToBytes("60145F0104303130365F36063034303030305C026175")
 
@@ -76,6 +78,12 @@ func TestNfcSessionSecureMessagingTDES(t *testing.T) {
 	if !bytes.Equal(sm.ssc, utils.HexToBytes("887022120C06C22C")) {
 		t.Errorf("Incorrect SSC")
 	}
+
+	// decrypted file data is the holder's personal data for a DG, so must not be logged
+	testlog.AssertNoSecrets(t, logs.String(), map[string]string{
+		"decrypted response (header)":    "60145F01",
+		"decrypted response (remainder)": "04303130365F36063034303030305C026175",
+	})
 }
 
 func TestNfcSessionSecureMessagingAES(t *testing.T) {

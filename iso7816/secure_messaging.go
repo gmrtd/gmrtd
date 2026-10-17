@@ -438,7 +438,8 @@ func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
 
 	rApdu = NewRApdu(rApduStatus, rapduData)
 
-	slog.Debug("sm.Decode", "In", utils.BytesToHex(rApduBytes), "Out", rApdu.String())
+	// Not the decrypted data: it holds chip file contents, i.e. the holder's personal data.
+	slog.Debug("sm.Decode", "In", utils.BytesToHex(rApduBytes), "Status", fmt.Sprintf("%04x", rApdu.Status), "DataLen", len(rApdu.Data))
 
 	return rApdu, err
 }
