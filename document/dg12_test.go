@@ -10,6 +10,9 @@ import (
 	"github.com/gmrtd/gmrtd/utils"
 )
 
+// dg12NZ is adapted from a NZ passport, with the data changed (see TestNewDG12NZ).
+const dg12NZ = "6C205C045F555F565F550E32303136313131353031333631325F56064E2D34393632"
+
 func TestNewDG12NoData(t *testing.T) {
 	if dg12, err := NewDG12(nil); dg12 != nil || err != nil {
 		t.Errorf("Should be nil when no input data provided")
@@ -58,7 +61,7 @@ func TestNewDG12NZ(t *testing.T) {
 	// 		5f55: 3230313631313135303133363132 [20161115013612]
 	// 		5f56: 4e2d34393632 [N-4962]
 
-	var dg12bytes []byte = utils.HexToBytes("6C205C045F555F565F550E32303136313131353031333631325F56064E2D34393632")
+	var dg12bytes []byte = utils.HexToBytes(dg12NZ)
 
 	var expDetails DocumentDetails = DocumentDetails{PersoDateTime: "20161115013612", PersoSystemSerialNumber: "N-4962"}
 

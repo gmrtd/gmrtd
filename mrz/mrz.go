@@ -128,6 +128,15 @@ func calcCheckdigit(data string) (string, error) {
 	return strconv.Itoa(value), nil
 }
 
+// MRZ field names for check-digit errors.
+const (
+	fieldDocumentNumber = "document number"
+	fieldDateOfBirth    = "date of birth"
+	fieldDateOfExpiry   = "date of expiry"
+	fieldOptionalData   = "optional data"
+	fieldComposite      = "composite"
+)
+
 // verifyCheckdigit's errors name the field but never include its value: MRZ data is the
 // holder's personal data, and errors end up in app logs and analytics.
 func verifyCheckdigit(field, data, checkDigit string) error {
@@ -194,25 +203,25 @@ func decodeTD1(mrz string) (*MRZ, error) {
 	out.DocumentCode = DecodeValue(documentCode)
 	out.IssuingState = DecodeValue(issuingState)
 	out.DocumentNumber = DecodeValue(documentNumber)
-	if err := verifyCheckdigit("document number", documentNumber, documentNumberCD); err != nil {
+	if err := verifyCheckdigit(fieldDocumentNumber, documentNumber, documentNumberCD); err != nil {
 		return nil, err
 	}
 	out.OptionalData = DecodeValue(optionalData)
 
 	out.DateOfBirth = DecodeValue(dateOfBirth)
-	if err := verifyCheckdigit("date of birth", dateOfBirth, dateOfBirthCD); err != nil {
+	if err := verifyCheckdigit(fieldDateOfBirth, dateOfBirth, dateOfBirthCD); err != nil {
 		return nil, err
 	}
 	out.Sex = DecodeValue(sex)
 	out.DateOfExpiry = DecodeValue(dateOfExpiry)
-	if err := verifyCheckdigit("date of expiry", dateOfExpiry, dateOfExpiryCD); err != nil {
+	if err := verifyCheckdigit(fieldDateOfExpiry, dateOfExpiry, dateOfExpiryCD); err != nil {
 		return nil, err
 	}
 	out.Nationality = DecodeValue(nationality)
 	out.OptionalData2 = DecodeValue(optionalData2)
 
 	// composite check digit
-	if err := verifyCheckdigit("composite", mrz[5:30]+mrz[30:37]+mrz[38:45]+mrz[48:59], mrz[59:60]); err != nil {
+	if err := verifyCheckdigit(fieldComposite, mrz[5:30]+mrz[30:37]+mrz[38:45]+mrz[48:59], mrz[59:60]); err != nil {
 		return nil, err
 	}
 
@@ -272,23 +281,23 @@ func decodeTD2(mrz string) (*MRZ, error) {
 	}
 
 	out.DocumentNumber = DecodeValue(documentNumber)
-	if err := verifyCheckdigit("document number", documentNumber, documentNumberCD); err != nil {
+	if err := verifyCheckdigit(fieldDocumentNumber, documentNumber, documentNumberCD); err != nil {
 		return nil, err
 	}
 	out.Nationality = DecodeValue(nationality)
 	out.DateOfBirth = DecodeValue(dateOfBirth)
-	if err := verifyCheckdigit("date of birth", dateOfBirth, dateOfBirthCD); err != nil {
+	if err := verifyCheckdigit(fieldDateOfBirth, dateOfBirth, dateOfBirthCD); err != nil {
 		return nil, err
 	}
 	out.Sex = DecodeValue(sex)
 	out.DateOfExpiry = DecodeValue(dateOfExpiry)
-	if err := verifyCheckdigit("date of expiry", dateOfExpiry, dateOfExpiryCD); err != nil {
+	if err := verifyCheckdigit(fieldDateOfExpiry, dateOfExpiry, dateOfExpiryCD); err != nil {
 		return nil, err
 	}
 	out.OptionalData = DecodeValue(optionalData)
 
 	// composite check digit
-	if err := verifyCheckdigit("composite", mrz[36:46]+mrz[49:56]+mrz[57:71], mrz[71:72]); err != nil {
+	if err := verifyCheckdigit(fieldComposite, mrz[36:46]+mrz[49:56]+mrz[57:71], mrz[71:72]); err != nil {
 		return nil, err
 	}
 
@@ -331,26 +340,26 @@ func decodeTD3(mrz string) (*MRZ, error) {
 	}
 
 	out.DocumentNumber = DecodeValue(documentNumber)
-	if err := verifyCheckdigit("document number", documentNumber, documentNumberCD); err != nil {
+	if err := verifyCheckdigit(fieldDocumentNumber, documentNumber, documentNumberCD); err != nil {
 		return nil, err
 	}
 	out.Nationality = DecodeValue(nationality)
 	out.DateOfBirth = DecodeValue(dateOfBirth)
-	if err := verifyCheckdigit("date of birth", dateOfBirth, dateOfBirthCD); err != nil {
+	if err := verifyCheckdigit(fieldDateOfBirth, dateOfBirth, dateOfBirthCD); err != nil {
 		return nil, err
 	}
 	out.Sex = DecodeValue(sex)
 	out.DateOfExpiry = DecodeValue(dateOfExpiry)
-	if err := verifyCheckdigit("date of expiry", dateOfExpiry, dateOfExpiryCD); err != nil {
+	if err := verifyCheckdigit(fieldDateOfExpiry, dateOfExpiry, dateOfExpiryCD); err != nil {
 		return nil, err
 	}
 	out.OptionalData = DecodeValue(optionalData)
-	if err := verifyCheckdigit("optional data", optionalData, optionalDataCD); err != nil {
+	if err := verifyCheckdigit(fieldOptionalData, optionalData, optionalDataCD); err != nil {
 		return nil, err
 	}
 
 	// composite check digit
-	if err := verifyCheckdigit("composite", mrz[44:54]+mrz[57:64]+mrz[65:87], mrz[87:88]); err != nil {
+	if err := verifyCheckdigit(fieldComposite, mrz[44:54]+mrz[57:64]+mrz[65:87], mrz[87:88]); err != nil {
 		return nil, err
 	}
 
@@ -358,13 +367,13 @@ func decodeTD3(mrz string) (*MRZ, error) {
 }
 
 func buildMrzi(docNum, docNumCD, dob, dobCD, expiry, expiryCD string) (string, error) {
-	if err := verifyCheckdigit("document number", docNum, docNumCD); err != nil {
+	if err := verifyCheckdigit(fieldDocumentNumber, docNum, docNumCD); err != nil {
 		return "", err
 	}
-	if err := verifyCheckdigit("date of birth", dob, dobCD); err != nil {
+	if err := verifyCheckdigit(fieldDateOfBirth, dob, dobCD); err != nil {
 		return "", err
 	}
-	if err := verifyCheckdigit("date of expiry", expiry, expiryCD); err != nil {
+	if err := verifyCheckdigit(fieldDateOfExpiry, expiry, expiryCD); err != nil {
 		return "", err
 	}
 	return docNum + docNumCD + dob + dobCD + expiry + expiryCD, nil
