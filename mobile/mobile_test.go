@@ -174,6 +174,20 @@ func TestAllowBacFallbackOnPaceError(t *testing.T) {
 	}
 }
 
+func TestRequireAuthenticDocument(t *testing.T) {
+	reader := &Reader{}
+
+	if reader.requireAuthenticDocument {
+		t.Fatalf("requireAuthenticDocument should default to false")
+	}
+
+	reader.RequireAuthenticDocument()
+
+	if !reader.requireAuthenticDocument {
+		t.Fatalf("requireAuthenticDocument should be true after calling RequireAuthenticDocument()")
+	}
+}
+
 func TestWithAAChallenge(t *testing.T) {
 	t.Run("valid 8 bytes", func(t *testing.T) {
 		r, err := (&Reader{}).WithAAChallenge(make([]byte, 8))
@@ -581,7 +595,7 @@ func TestNewSampleDocument(t *testing.T) {
 
 // Regression test for a heap-corruption crash observed under concurrent use
 // on iOS: a shared mobile.Reader's fields (maxRead/skipPace/skipImages/
-// aaChallenge) were written by the configuration methods while ReadDocument
+// requireAuthenticDocument/aaChallenge) were written by the configuration methods while ReadDocument
 // read them from another goroutine, unsynchronised - exactly the kind of
 // race that manifests as a Go runtime fatal error (e.g.
 // "bulkBarrierPreWrite: unaligned arguments") rather than a clean panic. Run
@@ -603,6 +617,7 @@ func TestReaderConcurrentAccess(t *testing.T) {
 			reader.SkipPace()
 			reader.SkipImages()
 			reader.AllowBacFallbackOnPaceError()
+			reader.RequireAuthenticDocument()
 			_, _ = reader.WithAAChallenge(make([]byte, 8))
 			_, _ = reader.ReadDocument(pass, nil, nil) // expected to fail fast (static transceiver)
 		}()

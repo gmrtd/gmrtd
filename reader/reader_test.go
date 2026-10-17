@@ -11,6 +11,7 @@ import (
 	"github.com/gmrtd/gmrtd/cms"
 	"github.com/gmrtd/gmrtd/document"
 	"github.com/gmrtd/gmrtd/iso7816"
+	"github.com/gmrtd/gmrtd/oid"
 	"github.com/gmrtd/gmrtd/pace"
 	"github.com/gmrtd/gmrtd/password"
 	"github.com/gmrtd/gmrtd/utils"
@@ -952,4 +953,210 @@ func TestReaderConcurrentAccess(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+func trustedState(t *testing.T) *ReaderState {
+	t.Helper()
+	state := NewReaderState(nil, nil, password.NewPasswordNil())
+	state.docEx.Session.PassiveAuthResult = &document.PassiveAuthResult{Success: true, CardSec: &document.PassiveAuth{}}
+	return state
+}
+
+func requireAuthenticReader(t *testing.T, transceiver iso7816.Transceiver) *Reader {
+	t.Helper()
+	var status MockStatus
+	reader := NewReader(&status, iso7816.NewNfcSession(transceiver), EmptyCscaTrustStore(t))
+	reader.RequireAuthenticDocument()
+	return reader
+}
+
+func TestRequireAuthenticDocumentDefaultOff(t *testing.T) {
+	var status MockStatus
+	reader := NewReader(&status, iso7816.NewNfcSession(&iso7816.MockTransceiver{}), EmptyCscaTrustStore(t))
+	state := NewReaderState(nil, nil, password.NewPasswordNil())
+	state.docEx.Session.ActiveAuthErr = errors.New("AA failed")
+
+	if err := checkAuthenticDocument(reader, state); err != nil {
+		t.Fatalf("unexpected error with RequireAuthenticDocument unset: %s", err)
+	}
+}
+
+func TestRequireAuthenticDocumentChipRejectsAuth(t *testing.T) {
+	// ISO 7816-4 error status words an (emulated) chip may answer AA INTERNAL AUTHENTICATE
+	// or CA MSE:Set AT with (see #525).
+	statusWords := []string{"6300", "6700", "6800", "6900", "6982", "6A00", "6A80", "6A88", "6B00", "6C00", "6E00", "6F00", "6FFF"}
+
+	protocols := []struct {
+		name  string
+		strip func(doc *document.Document)
+	}{
+		{"AA", func(doc *document.Document) { doc.Mf.Lds1.Dg14 = nil }},
+		{"CA", func(doc *document.Document) { doc.Mf.Lds1.Dg15 = nil }},
+		{"AA+CA", func(_ *document.Document) {}},
+	}
+
+	for _, p := range protocols {
+		for _, sw := range statusWords {
+			t.Run(p.name+"/"+sw, func(t *testing.T) {
+				reader := requireAuthenticReader(t, &iso7816.StaticTransceiver{RApdu: utils.HexToBytes(sw)})
+				state := trustedState(t)
+
+				doc, err := document.SampleDocument()
+				if err != nil {
+					t.Fatalf("SampleDocument error: %s", err)
+				}
+				p.strip(doc)
+				state.docEx.Document = *doc
+
+				if err := performChipAuthentication(reader, state); err != nil {
+					t.Fatalf("unexpected performChipAuthentication error: %s", err)
+				}
+
+				err = checkAuthenticDocument(reader, state)
+				if !errors.Is(err, ErrDocumentNotAuthentic) {
+					t.Fatalf("expected ErrDocumentNotAuthentic, got: %v", err)
+				}
+				session := state.docEx.Session
+				for _, protoErr := range []error{session.ActiveAuthErr, session.ChipAuthErr} {
+					if protoErr != nil && !errors.Is(err, protoErr) {
+						t.Fatalf("error does not wrap protocol error %q: %s", protoErr, err)
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestCheckAuthenticDocument(t *testing.T) {
+	aaErr := errors.New("AA failed")
+	caErr := errors.New("CA failed")
+	paceErr := errors.New("PACE-CAM failed")
+	paErr := errors.New("PA failed")
+	verifyErr := errors.New("Document.Verify failed")
+
+	testCases := []struct {
+		name    string
+		setup   func(s *document.Session)
+		wantErr []error // nil: expect success
+	}{
+		{
+			name:  "no chip authentication offered",
+			setup: func(_ *document.Session) {},
+		},
+		{
+			name: "AA succeeds",
+			setup: func(s *document.Session) {
+				s.ActiveAuthResult = &document.ActiveAuthResult{Success: true}
+			},
+		},
+		{
+			name: "AA fails but CA succeeds",
+			setup: func(s *document.Session) {
+				s.ActiveAuthResult, s.ActiveAuthErr = &document.ActiveAuthResult{Success: false}, aaErr
+				s.ChipAuthResult = &document.ChipAuthResult{Success: true}
+			},
+		},
+		{
+			name: "PACE-CAM succeeds but AA fails",
+			setup: func(s *document.Session) {
+				s.PaceCamResult = &document.PaceCamResult{Success: true}
+				s.ActiveAuthResult, s.ActiveAuthErr = &document.ActiveAuthResult{Success: false}, aaErr
+			},
+		},
+		{
+			name: "AA fails",
+			setup: func(s *document.Session) {
+				s.ActiveAuthResult, s.ActiveAuthErr = &document.ActiveAuthResult{Success: false}, aaErr
+			},
+			wantErr: []error{ErrDocumentNotAuthentic, aaErr},
+		},
+		{
+			name: "AA and CA fail",
+			setup: func(s *document.Session) {
+				s.ActiveAuthResult, s.ActiveAuthErr = &document.ActiveAuthResult{Success: false}, aaErr
+				s.ChipAuthResult, s.ChipAuthErr = &document.ChipAuthResult{Success: false}, caErr
+			},
+			wantErr: []error{ErrDocumentNotAuthentic, aaErr, caErr},
+		},
+		{
+			name: "AA unsuccessful without error",
+			setup: func(s *document.Session) {
+				s.ActiveAuthResult = &document.ActiveAuthResult{Success: false}
+			},
+			wantErr: []error{ErrDocumentNotAuthentic},
+		},
+		{
+			name: "PACE-CAM succeeds but CardSecurity not verified",
+			setup: func(s *document.Session) {
+				s.PassiveAuthResult.CardSec = nil
+				s.PaceCamResult = &document.PaceCamResult{Success: true}
+			},
+			wantErr: []error{ErrDocumentNotAuthentic},
+		},
+		{
+			name: "PACE-CAM error under BAC fallback",
+			setup: func(s *document.Session) {
+				s.PaceResult = &document.PaceResult{Oid: oid.OidPaceEcdhCamAesCbcCmac128}
+				s.PaceErr = paceErr
+			},
+			wantErr: []error{ErrDocumentNotAuthentic, paceErr},
+		},
+		{
+			name: "PACE-GM error is not a chip authentication attempt",
+			setup: func(s *document.Session) {
+				s.PaceResult = &document.PaceResult{Oid: oid.OidPaceEcdhGmAesCbcCmac128}
+				s.PaceErr = paceErr
+			},
+		},
+		{
+			name: "PACE unsupported locally is not a chip authentication attempt",
+			setup: func(s *document.Session) {
+				s.PaceResult = &document.PaceResult{}
+				s.PaceErr = fmt.Errorf("selectPaceConfig: %w", pace.ErrPACEUnsupportedLocally)
+			},
+		},
+		{
+			name: "passive authentication fails",
+			setup: func(s *document.Session) {
+				s.PassiveAuthResult, s.PassiveAuthErr = &document.PassiveAuthResult{Success: false}, paErr
+				s.ActiveAuthResult = &document.ActiveAuthResult{Success: true}
+			},
+			wantErr: []error{ErrDocumentNotAuthentic, paErr},
+		},
+		{
+			name: "passive authentication not performed",
+			setup: func(s *document.Session) {
+				s.PassiveAuthResult = nil
+			},
+			wantErr: []error{ErrDocumentNotAuthentic},
+		},
+		{
+			name: "Document.Verify fails",
+			setup: func(s *document.Session) {
+				s.DocumentVerifyErr = verifyErr
+			},
+			wantErr: []error{ErrDocumentNotAuthentic, verifyErr},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			reader := requireAuthenticReader(t, &PanicTransceiver{P: "no APDUs expected"})
+			state := trustedState(t)
+			tc.setup(&state.docEx.Session)
+
+			err := checkAuthenticDocument(reader, state)
+			if tc.wantErr == nil {
+				if err != nil {
+					t.Fatalf("unexpected error: %s", err)
+				}
+				return
+			}
+			for _, want := range tc.wantErr {
+				if !errors.Is(err, want) {
+					t.Fatalf("expected error wrapping %q, got: %v", want, err)
+				}
+			}
+		})
+	}
 }
