@@ -780,22 +780,16 @@ func (pace *Pace) DoPACE() (result *document.PaceResult, camResult *document.Pac
 		return result, nil, fmt.Errorf("[DoPACE] keyForPassword error: %w", err)
 	}
 
-	// init PACE (via 'MSE:Set AT' command)
-	if err = pace.doApduMseSetAT(paceConfig, domainParams); err != nil {
-		return result, nil, fmt.Errorf("[DoPACE] doApduMseSetAT error: %w", err)
+	camEvidence, err := pace.runProtocol(paceConfig, domainParams, kKdf)
+	if errors.Is(err, iso7816.ErrExtendedLeRejected) {
+		// the chip rejected an extended Le and may have aborted PACE in doing so (e.g. French ID
+		// cards answer a resend with 6985), so restart from MSE:Set AT - the session now uses a
+		// short Le for GENERAL AUTHENTICATE
+		slog.Warn("[DoPACE] extended Le rejected, restarting PACE with short Le")
+		camEvidence, err = pace.runProtocol(paceConfig, domainParams, kKdf)
 	}
-
-	// get nonce
-	var s []byte
-	s, err = pace.getNonce(paceConfig, kKdf)
 	if err != nil {
-		return result, nil, fmt.Errorf("[DoPACE] getNonce error: %w", err)
-	}
-
-	var camEvidence *paceCamEvidence
-	camEvidence, err = pace.doMapping(paceConfig, domainParams, s)
-	if err != nil {
-		return result, nil, fmt.Errorf("[DoPACE] doMapping error: %w", err)
+		return result, nil, err
 	}
 	if paceConfig.mapping == CAM && camEvidence != nil {
 		camResult = &document.PaceCamResult{
@@ -821,6 +815,28 @@ func (pace *Pace) DoPACE() (result *document.PaceResult, camResult *document.Pac
 	slog.Debug("DoPACE - Completed", "SM", pace.nfcSession.SM().String())
 
 	return result, camResult, nil
+}
+
+// runProtocol runs the PACE protocol from 'MSE:Set AT' through to mutual authentication.
+// It always starts from MSE:Set AT, so it can be re-run to restart PACE after a failure.
+func (pace *Pace) runProtocol(paceConfig *PaceConfig, domainParams *DomainParams, kKdf []byte) (*paceCamEvidence, error) {
+	// init PACE (via 'MSE:Set AT' command)
+	if err := pace.doApduMseSetAT(paceConfig, domainParams); err != nil {
+		return nil, fmt.Errorf("[DoPACE] doApduMseSetAT error: %w", err)
+	}
+
+	// get nonce
+	s, err := pace.getNonce(paceConfig, kKdf)
+	if err != nil {
+		return nil, fmt.Errorf("[DoPACE] getNonce error: %w", err)
+	}
+
+	camEvidence, err := pace.doMapping(paceConfig, domainParams, s)
+	if err != nil {
+		return nil, fmt.Errorf("[DoPACE] doMapping error: %w", err)
+	}
+
+	return camEvidence, nil
 }
 
 // doMapping performs the nonce mapping and key agreement for the selected mapping type. Only

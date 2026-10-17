@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"crypto/elliptic"
 	"encoding/asn1"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math/big"
@@ -359,6 +360,18 @@ func (chipAuth *ChipAuth) doMseSetAT(caInfo *document.ChipAuthenticationInfo) er
 	return err
 }
 
+func (chipAuth *ChipAuth) doMseSetATAndGeneralAuthenticate(curve *elliptic.Curve, termKeypair cryptoutils.EcKeypair, info *document.ChipAuthenticationInfo) error {
+	if err := chipAuth.doMseSetAT(info); err != nil {
+		return fmt.Errorf("[doCaEcdh] doMseSetAT error: %w", err)
+	}
+
+	if err := chipAuth.doGeneralAuthenticate(curve, termKeypair); err != nil {
+		return fmt.Errorf("[doCaEcdh] doGeneralAuthenticate error: %w", err)
+	}
+
+	return nil
+}
+
 func (chipAuth *ChipAuth) doGeneralAuthenticate(curve *elliptic.Curve, termKeypair cryptoutils.EcKeypair) error {
 	// General Authenticate
 	//
@@ -432,14 +445,15 @@ func (chipAuth *ChipAuth) doCaEcdh(params *ChipAuthParams) (evidence *caEcdhEvid
 			return nil, fmt.Errorf("[doCaEcdh] doMseSetKAT error: %w", err)
 		}
 	} else {
-		err = chipAuth.doMseSetAT(params.Info)
-		if err != nil {
-			return nil, fmt.Errorf("[doCaEcdh] doMseSetAT error: %w", err)
+		err = chipAuth.doMseSetATAndGeneralAuthenticate(curve, termKeypair, params.Info)
+		if errors.Is(err, iso7816.ErrExtendedLeRejected) {
+			// the chip may have aborted CA when rejecting the extended Le, so restart from
+			// MSE:Set AT - the session now uses a short Le for GENERAL AUTHENTICATE
+			slog.Warn("[doCaEcdh] extended Le rejected, restarting Chip Authentication with short Le")
+			err = chipAuth.doMseSetATAndGeneralAuthenticate(curve, termKeypair, params.Info)
 		}
-
-		err = chipAuth.doGeneralAuthenticate(curve, termKeypair)
 		if err != nil {
-			return nil, fmt.Errorf("[doCaEcdh] doGeneralAuthenticate error: %w", err)
+			return nil, err
 		}
 	}
 

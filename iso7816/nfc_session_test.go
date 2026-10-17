@@ -2,6 +2,7 @@ package iso7816
 
 import (
 	"bytes"
+	"errors"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
@@ -927,9 +928,10 @@ func TestReadFileTooManyChunksErr(t *testing.T) {
 }
 
 // Some chips (e.g. French ID cards) reject an extended Le on GENERAL AUTHENTICATE with
-// 6700 - the first PACE step (get nonce) must retry with a short Le, and later auth
-// commands in the session should go straight to the short Le.
-func TestGeneralAuthenticateRetriesWithShortLeOnWrongLength(t *testing.T) {
+// 6700 and abort the protocol in progress, so GENERAL AUTHENTICATE must NOT resend the
+// command itself: it returns ErrExtendedLeRejected (for the caller to restart, e.g. PACE
+// from MSE:Set AT) and switches the session to a short Le for later auth commands.
+func TestGeneralAuthenticateExtendedLeRejectedSwitchesToShortLe(t *testing.T) {
 	data := utils.HexToBytes("7C00")
 	extended := NewCApdu(0x10, INS_GENERAL_AUTHENTICATE, 0x00, 0x00, data, 65536).Encode()
 	short := NewCApdu(0x10, INS_GENERAL_AUTHENTICATE, 0x00, 0x00, data, authShortLe).Encode()
@@ -941,23 +943,24 @@ func TestGeneralAuthenticateRetriesWithShortLeOnWrongLength(t *testing.T) {
 	nfc := NewNfcSession(transceiver)
 	nfc.SetMaxLe(65536)
 
-	for i := range 2 {
-		out, err := nfc.GeneralAuthenticate(true, data)
-		if err != nil {
-			t.Fatalf("call %d: unexpected error: %s", i, err)
-		}
-		if !bytes.Equal(out, utils.HexToBytes("7C0A80080102030405060708")) {
-			t.Errorf("call %d: unexpected response: %x", i, out)
-		}
+	if _, err := nfc.GeneralAuthenticate(true, data); !errors.Is(err, ErrExtendedLeRejected) {
+		t.Fatalf("expected ErrExtendedLeRejected, got: %v", err)
+	}
+	if n := len(nfc.ApduLog().Entries); n != 1 {
+		t.Fatalf("expected the rejected command not to be resent (1 APDU), got %d", n)
 	}
 
-	// 1st call: extended (6700) + short retry; 2nd call: short only
-	entries := nfc.ApduLog().Entries
-	if len(entries) != 3 {
-		t.Fatalf("expected 3 APDUs, got %d", len(entries))
+	// the next auth command goes straight to the short Le
+	out, err := nfc.GeneralAuthenticate(true, data)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
 	}
-	if !bytes.Equal(entries[2].Tx, short) {
-		t.Errorf("expected 2nd call to use short Le directly, sent: %x", entries[2].Tx)
+	if !bytes.Equal(out, utils.HexToBytes("7C0A80080102030405060708")) {
+		t.Errorf("unexpected response: %x", out)
+	}
+	entries := nfc.ApduLog().Entries
+	if len(entries) != 2 || !bytes.Equal(entries[1].Tx, short) {
+		t.Errorf("expected 2nd call to use short Le directly, sent: %x", entries[len(entries)-1].Tx)
 	}
 	if nfc.maxLe != 65536 {
 		t.Errorf("maxLe should be left unchanged for READ BINARY, got %d", nfc.maxLe)

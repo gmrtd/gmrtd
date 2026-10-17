@@ -1646,3 +1646,108 @@ func TestVerifyEvidenceDecryptEcadICError(t *testing.T) {
 		t.Fatalf("Expected error for non-block-aligned EcadIC")
 	}
 }
+
+// abortingOnExtendedLeTransceiver models a chip (e.g. a French ID card) that rejects an extended
+// Le on GENERAL AUTHENTICATE with 6700 and aborts PACE when doing so: GENERAL AUTHENTICATE then
+// fails with 6985 until PACE is restarted with MSE:Set AT.
+type abortingOnExtendedLeTransceiver struct {
+	iso7816.MockTransceiver
+	aborted bool
+}
+
+func (t *abortingOnExtendedLeTransceiver) Transceive(cla, ins, p1, p2 int, data []byte, le int, encoded []byte) []byte {
+	switch {
+	case ins == int(iso7816.INS_MANAGE_SE):
+		t.aborted = false
+	case ins == int(iso7816.INS_GENERAL_AUTHENTICATE) && le > 256:
+		t.aborted = true
+		return utils.HexToBytes("6700")
+	case ins == int(iso7816.INS_GENERAL_AUTHENTICATE) && t.aborted:
+		return utils.HexToBytes("6985")
+	}
+	return t.MockTransceiver.Transceive(cla, ins, p1, p2, data, le, encoded)
+}
+
+// PACE must restart from MSE:Set AT (not just resend GENERAL AUTHENTICATE) when the chip rejects
+// an extended Le, then complete with a short Le. Same worked example as TestDoPace_GM_ECDH.
+func TestDoPace_GM_ECDH_RestartsAfterExtendedLeRejected(t *testing.T) {
+	transceiver := new(abortingOnExtendedLeTransceiver)
+	transceiver.AddReqRsp("0022C1A412800A04007F0007020204020283010184010D", "9000")
+	transceiver.AddReqRsp("10860000027C0000", "7C12801095A3A016522EE98D01E76CB6B98B42C39000")
+	transceiver.AddReqRsp("10860000457C438141047ACF3EFC982EC45565A4B155129EFBC74650DCBFA6362D896FC70262E0C2CC5E544552DCB6725218799115B55C9BAA6D9F6BC3A9618E70C25AF71777A9C4922D00", "7C43824104824FBA91C9CBE26BEF53A0EBE7342A3BF178CEA9F45DE0B70AA601651FBA3F5730D8C879AAA9C9F73991E61B58F4D52EB87A0A0C709A49DC63719363CCD13C549000")
+	transceiver.AddReqRsp("10860000457C438341042DB7A64C0355044EC9DF190514C625CBA2CEA48754887122F3A5EF0D5EDD301C3556F3B3B186DF10B857B58F6A7EB80F20BA5DC7BE1D43D9BF850149FBB3646200", "7C438441049E880F842905B8B3181F7AF7CAA9F0EFB743847F44A306D2D28C1D9EC65DF6DB7764B22277A2EDDC3C265A9F018F9CB852E111B768B326904B59A0193776F0949000")
+	transceiver.AddReqRsp("008600000C7C0A8508C2B0BD78D94BA86600", "7C0A86083ABB9674BCE93C089000")
+
+	nfc := iso7816.NewNfcSession(transceiver)
+	nfc.SetMaxLe(65536)
+
+	doc := document.Document{}
+	var err error
+	doc.Mf.CardAccess, err = document.NewCardAccess(utils.HexToBytes("31143012060A04007F0007020204020202010202010D"))
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+	pass, err := password.NewPasswordMrzi("T22000129", "640812", "101031")
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+
+	pace := NewPace(nfc, &doc, pass)
+	var idx int
+	pace.keyGeneratorEc = func(ec elliptic.Curve) cryptoutils.EcKeypair {
+		idx++
+		switch idx {
+		case 1:
+			return cryptoutils.NewEcKeypair(
+				utils.HexToBytes("7F4EF07B9EA82FD78AD689B38D0BC78CF21F249D953BC46F4C6E19259C010F99"),
+				utils.HexToBytes("7ACF3EFC982EC45565A4B155129EFBC74650DCBFA6362D896FC70262E0C2CC5E"),
+				utils.HexToBytes("544552DCB6725218799115B55C9BAA6D9F6BC3A9618E70C25AF71777A9C4922D"))
+		case 2:
+			return cryptoutils.NewEcKeypair(utils.HexToBytes("A73FB703AC1436A18E0CFA5ABB3F7BEC7A070E7A6788486BEE230C4A22762595"), []byte{0}, []byte{0})
+		}
+		t.Fatalf("Invalid key-gen index (idx:%1d)", idx)
+		return cryptoutils.EcKeypair{}
+	}
+
+	paceResult, _, err := pace.DoPACE()
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+	if !paceResult.Success {
+		t.Errorf("expected PACE success")
+	}
+
+	// MSE:Set AT, GA (extended Le) -> 6700, then restart: MSE:Set AT + 4x GA (short Le)
+	var ins []byte
+	for _, entry := range nfc.ApduLog().Entries {
+		ins = append(ins, entry.Tx[1])
+	}
+	expIns := []byte{0x22, 0x86, 0x22, 0x86, 0x86, 0x86, 0x86}
+	if !bytes.Equal(ins, expIns) {
+		t.Errorf("APDU sequence (INS) = %x, want %x", ins, expIns)
+	}
+}
+
+// A chip rejecting MSE:Set AT fails PACE with that error (no restart).
+func TestDoPace_MseSetATRejected(t *testing.T) {
+	nfc := iso7816.NewNfcSession(&iso7816.StaticTransceiver{RApdu: utils.HexToBytes("6A80")})
+
+	doc := document.Document{}
+	var err error
+	doc.Mf.CardAccess, err = document.NewCardAccess(utils.HexToBytes("31143012060A04007F0007020204020202010202010D"))
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+	pass, err := password.NewPasswordMrzi("T22000129", "640812", "101031")
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+
+	_, _, err = NewPace(nfc, &doc, pass).DoPACE()
+	if err == nil || !strings.Contains(err.Error(), "doApduMseSetAT") {
+		t.Errorf("expected doApduMseSetAT error, got: %v", err)
+	}
+	if n := len(nfc.ApduLog().Entries); n != 1 {
+		t.Errorf("expected 1 APDU (no restart), got %d", n)
+	}
+}
