@@ -1,5 +1,34 @@
 # Changelog
 
+## [1.4.0](https://github.com/gmrtd/gmrtd/compare/v1.3.3...v1.4.0) (2026-10-17)
+
+
+### Features
+
+* **csca:** update to latest DE CSCA master-list, dated 01/10/2026 (fixes [#526](https://github.com/gmrtd/gmrtd/issues/526)) ([bd26ae7](https://github.com/gmrtd/gmrtd/commit/bd26ae7e9d4f499f1458e575bbfaf8b23ec81499))
+* **csca:** update to latest DE CSCA master-list, dated 01/10/2026 (fixes [#526](https://github.com/gmrtd/gmrtd/issues/526)) ([#527](https://github.com/gmrtd/gmrtd/issues/527)) ([f6f3287](https://github.com/gmrtd/gmrtd/commit/f6f3287105e6dc1e8557c9e433479f8b092af1d9))
+* **document:** expose a readable passive authentication trust chain in DocumentSummary (fixes [#538](https://github.com/gmrtd/gmrtd/issues/538)) ([877b8b8](https://github.com/gmrtd/gmrtd/commit/877b8b8d15107c29daf5c3e161e92c76bfe70e77))
+* **document:** expose a readable passive authentication trust chain in DocumentSummary (fixes [#538](https://github.com/gmrtd/gmrtd/issues/538)) ([#539](https://github.com/gmrtd/gmrtd/issues/539)) ([d9ba2ae](https://github.com/gmrtd/gmrtd/commit/d9ba2aefa31193ae43f72f67d787b6fb6c2c27e6))
+* **reader:** add RequireAuthenticDocument option to fail reads that aren't verifiably authentic (fixes [#525](https://github.com/gmrtd/gmrtd/issues/525)) ([464cd7c](https://github.com/gmrtd/gmrtd/commit/464cd7c1ba8ec1817cf2ca6883d0c1951079e316))
+* **reader:** add RequireAuthenticDocument option to fail reads that aren't verifiably authentic (fixes [#525](https://github.com/gmrtd/gmrtd/issues/525)) ([#537](https://github.com/gmrtd/gmrtd/issues/537)) ([f719394](https://github.com/gmrtd/gmrtd/commit/f719394f71ea1549fc874158f5645ba8acc47537))
+* **verifier:** only count offline chip-auth evidence that proves chip presence (fixes [#533](https://github.com/gmrtd/gmrtd/issues/533)) ([8166862](https://github.com/gmrtd/gmrtd/commit/81668628b2dee29b47cc154c176ef62c621cded1))
+* **verifier:** only count offline chip-auth evidence that proves chip presence (fixes [#533](https://github.com/gmrtd/gmrtd/issues/533)) ([#534](https://github.com/gmrtd/gmrtd/issues/534)) ([60f6954](https://github.com/gmrtd/gmrtd/commit/60f6954a0e46a55dc12b311727251a975c1920b1))
+
+
+### Bug Fixes
+
+* **cryptoutils:** encode ECDH shared secrets at field size ([f13dbeb](https://github.com/gmrtd/gmrtd/commit/f13dbeb8996acb61b90a69f60a2c7620e6db57ea))
+* **cryptoutils:** encode ECDH shared secrets at field size ([#524](https://github.com/gmrtd/gmrtd/issues/524)) ([fd6e2c5](https://github.com/gmrtd/gmrtd/commit/fd6e2c5990950f09499f634fd9e6eb9cd7790f63))
+* **iso7816:** retry auth commands with short Le when chip rejects extended Le ([44c4021](https://github.com/gmrtd/gmrtd/commit/44c402154a26ddc46ab79732913fd62972fba7b0))
+* **iso7816:** retry auth commands with short Le when chip rejects extended Le ([#536](https://github.com/gmrtd/gmrtd/issues/536)) ([47c90bf](https://github.com/gmrtd/gmrtd/commit/47c90bf4bdb03d32ea62801de99923aa99f5fe43))
+* **pace:** select the best usable PACEInfo instead of only the top-weighted one (fixes [#529](https://github.com/gmrtd/gmrtd/issues/529)) ([f98ad1b](https://github.com/gmrtd/gmrtd/commit/f98ad1b9d9bb37145ad0c0d86f18159914b770f2))
+* **pace:** select the best usable PACEInfo instead of only the top-weighted one (fixes [#529](https://github.com/gmrtd/gmrtd/issues/529)) ([#531](https://github.com/gmrtd/gmrtd/issues/531)) ([77b8b32](https://github.com/gmrtd/gmrtd/commit/77b8b326bb517502ec515f4e358478c4ca321602))
+* **reader:** fall back to BAC when advertised PACE is not supported l… ([#523](https://github.com/gmrtd/gmrtd/issues/523)) ([086bda1](https://github.com/gmrtd/gmrtd/commit/086bda17c1f5f13f4f842d7338681032a5e5f491))
+* **reader:** fall back to BAC when advertised PACE is not supported locally ([cab214e](https://github.com/gmrtd/gmrtd/commit/cab214e5a89339184a0c81c1420f4b7ccf71c0ad))
+* remove passwords and key material from debug logs (fixes [#530](https://github.com/gmrtd/gmrtd/issues/530)) ([2ffdd65](https://github.com/gmrtd/gmrtd/commit/2ffdd652c322c923d0549d8aa448af49c3af60e5))
+* remove passwords and key material from debug logs (fixes [#530](https://github.com/gmrtd/gmrtd/issues/530)) ([#532](https://github.com/gmrtd/gmrtd/issues/532)) ([539b558](https://github.com/gmrtd/gmrtd/commit/539b558691235d7773d351308ad236ec1613f177))
+* stop logging the password type in BAC/PACE ([07d5799](https://github.com/gmrtd/gmrtd/commit/07d5799abf80e4d5039e1bad8fe8535673187b14))
+
 ## [1.3.3](https://github.com/gmrtd/gmrtd/compare/v1.3.2...v1.3.3) (2026-10-04)
 
 
