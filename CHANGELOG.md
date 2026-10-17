@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.1](https://github.com/gmrtd/gmrtd/compare/v1.5.0...v1.5.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* remove the holder's personal data from debug logs and MRZ errors (fixes [#542](https://github.com/gmrtd/gmrtd/issues/542)) ([dde6ee9](https://github.com/gmrtd/gmrtd/commit/dde6ee9fcec20ab7812d0fc20a05c4dd0d325b21))
+* remove the holder's personal data from debug logs and MRZ errors (fixes [#542](https://github.com/gmrtd/gmrtd/issues/542)) ([#543](https://github.com/gmrtd/gmrtd/issues/543)) ([f222e10](https://github.com/gmrtd/gmrtd/commit/f222e1010135f542580c37252d97337c4dfeb6ab))
+
 ## [1.5.0](https://github.com/gmrtd/gmrtd/compare/v1.4.0...v1.5.0) (2026-10-17)
 
 
