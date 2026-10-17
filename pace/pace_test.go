@@ -1727,3 +1727,27 @@ func TestDoPace_GM_ECDH_RestartsAfterExtendedLeRejected(t *testing.T) {
 		t.Errorf("APDU sequence (INS) = %x, want %x", ins, expIns)
 	}
 }
+
+// A chip rejecting MSE:Set AT fails PACE with that error (no restart).
+func TestDoPace_MseSetATRejected(t *testing.T) {
+	nfc := iso7816.NewNfcSession(&iso7816.StaticTransceiver{RApdu: utils.HexToBytes("6A80")})
+
+	doc := document.Document{}
+	var err error
+	doc.Mf.CardAccess, err = document.NewCardAccess(utils.HexToBytes("31143012060A04007F0007020204020202010202010D"))
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+	pass, err := password.NewPasswordMrzi("T22000129", "640812", "101031")
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+
+	_, _, err = NewPace(nfc, &doc, pass).DoPACE()
+	if err == nil || !strings.Contains(err.Error(), "doApduMseSetAT") {
+		t.Errorf("expected doApduMseSetAT error, got: %v", err)
+	}
+	if n := len(nfc.ApduLog().Entries); n != 1 {
+		t.Errorf("expected 1 APDU (no restart), got %d", n)
+	}
+}
