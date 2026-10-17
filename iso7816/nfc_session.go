@@ -29,6 +29,10 @@ const READ_FILE_MAX_CHUNKS = 1000
 // - skips any value >= the current maxReadAmount, so only strictly smaller sizes are retried
 var readFileMaxReadFallbacks = []int{256, 192, 128}
 
+// short (non-extended) Le, encoded on the wire as '00', used when a chip rejects an
+// extended-length Le on an authentication command (see doAuthAPDU)
+const authShortLe = 256
+
 // TODO - extended length support? odd INS read-binary can support larger offset.. and potentially avoid SELECT FILE
 //
 // 3.5.2 READ BINARY
@@ -43,6 +47,7 @@ type NfcSession struct {
 	readFileMaxTlvLength tlv.TlvLength
 	readFileMaxChunks    int
 	maxLe                int
+	authShortLe          bool // set once the chip has rejected an extended Le on an auth command
 	apduLog              *ApduLog
 	lastApduLogEntry     *ApduLogEntry
 }
@@ -100,11 +105,9 @@ func (nfc *NfcSession) GetChallenge(length int) (out []byte, err error) {
 }
 
 func (nfc *NfcSession) InternalAuthenticate(data []byte) (out []byte, err error) {
-	var cApdu *CApdu = NewCApdu(0, INS_INTERNAL_AUTHENTICATE, 0x00, 0x00, data, nfc.maxLe)
-
 	var rApdu *RApdu
 
-	rApdu, err = nfc.DoAPDU(cApdu, "Internal Authenticate")
+	rApdu, err = nfc.doAuthAPDU(0, INS_INTERNAL_AUTHENTICATE, data, "Internal Authenticate")
 	if err != nil {
 		return nil, fmt.Errorf("[InternalAuthenticate] DoAPDU error: %w", err)
 	}
@@ -149,9 +152,7 @@ func (nfc *NfcSession) GeneralAuthenticate(commandChaining bool, data []byte) ([
 		cla = 0x10
 	}
 
-	cApdu := NewCApdu(byte(cla), INS_GENERAL_AUTHENTICATE, 0x00, 0x00, data, nfc.maxLe)
-
-	rApdu, err := nfc.DoAPDU(cApdu, "General Authenticate")
+	rApdu, err := nfc.doAuthAPDU(byte(cla), INS_GENERAL_AUTHENTICATE, data, "General Authenticate")
 	if err != nil {
 		return nil, fmt.Errorf("[GeneralAuthenticate] DoAPDU error: %w", err)
 	}
@@ -163,6 +164,32 @@ func (nfc *NfcSession) GeneralAuthenticate(commandChaining bool, data []byte) ([
 	}
 
 	return bytes.Clone(rApdu.Data), nil
+}
+
+// doAuthAPDU sends an authentication command (P1/P2 = 00) with Le = maxLe. If maxLe has
+// been raised to an extended length and the chip answers 6700 (wrong length), the command
+// is retried once with a short Le: some chips (e.g. French ID cards) reject an extended Le
+// on GENERAL AUTHENTICATE even though the responses fit a short Le. The chip rejected the
+// command outright, so the retry is safe, and the session remembers this so later auth
+// commands use a short Le directly. maxLe itself is left unchanged, as READ BINARY has
+// its own fallback (readWithFallback) and the chip may still support extended reads.
+//
+// NB not used for an always-short Le, as e.g. DH-based PACE responses can exceed 256 bytes.
+func (nfc *NfcSession) doAuthAPDU(cla byte, ins byte, data []byte, desc string) (*RApdu, error) {
+	le := nfc.maxLe
+	if nfc.authShortLe {
+		le = min(le, authShortLe)
+	}
+
+	rApdu, err := nfc.DoAPDU(NewCApdu(cla, ins, 0x00, 0x00, data, le), desc)
+	if err != nil || rApdu.Status != RAPDU_STATUS_WRONG_LENGTH || le <= authShortLe {
+		return rApdu, err
+	}
+
+	slog.Warn("[doAuthAPDU] extended Le rejected (6700), retrying with short Le", "desc", desc, "le", le)
+	nfc.authShortLe = true
+
+	return nfc.DoAPDU(NewCApdu(cla, ins, 0x00, 0x00, data, authShortLe), desc)
 }
 
 func (nfc *NfcSession) MseSetAT(p1 uint8, p2 uint8, data []byte) (err error) {
