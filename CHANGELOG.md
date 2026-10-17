@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.0](https://github.com/gmrtd/gmrtd/compare/v1.4.0...v1.5.0) (2026-10-17)
+
+
+### Features
+
+* **mobile:** expose the document rejected by RequireAuthenticDocument ([0dfe431](https://github.com/gmrtd/gmrtd/commit/0dfe4310c19d6bf98d19683f4ab879c714ed4b89))
+* **mobile:** expose the document rejected by RequireAuthenticDocument ([#540](https://github.com/gmrtd/gmrtd/issues/540)) ([376d0cb](https://github.com/gmrtd/gmrtd/commit/376d0cbaaf04e5b69d970ca044008f0ad02e597d))
+
 ## [1.4.0](https://github.com/gmrtd/gmrtd/compare/v1.3.3...v1.4.0) (2026-10-17)
 
 
