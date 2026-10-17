@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"crypto"
 	"encoding/json"
 	"errors"
@@ -122,14 +121,7 @@ type namedPool struct {
 }
 
 func isLinkCert(cert *cms.Certificate) bool {
-	ski, _ := cert.TbsCertificate.Extensions.SubjectKeyIdentifier()
-	aki, _ := cert.TbsCertificate.Extensions.AuthorityKeyIdentifier()
-
-	if ski == nil || aki == nil || bytes.Equal(*ski, aki.KeyIdentifier) {
-		return false
-	}
-
-	return true
+	return cert.IsLinkCert()
 }
 
 func formatValidity(validity cms.Validity) string {
@@ -142,28 +134,7 @@ func formatValidity(validity cms.Validity) string {
 }
 
 func formatKeyType(cert *cms.Certificate) string {
-	spki, err := cms.Asn1decodeSubjectPublicKeyInfo(cert.TbsCertificate.SubjectPublicKeyInfo.FullBytes)
-	if err != nil {
-		return "?"
-	}
-
-	if spki.IsEC() {
-		curve, err := spki.EcCurve()
-		if err != nil {
-			return "EC(?)"
-		}
-		return fmt.Sprintf("EC(%s)", cms.GetCurveName(*curve))
-	}
-
-	if spki.IsRSA() {
-		rsaKey, err := spki.RsaPubKey()
-		if err != nil {
-			return "RSA(?)"
-		}
-		return fmt.Sprintf("RSA(%d)", rsaKey.N.BitLen())
-	}
-
-	return "?"
+	return orUnknown(cert.KeyType())
 }
 
 func sortedSources(sources map[string]struct{}) []string {
@@ -189,19 +160,14 @@ func sortedFingerprints(m map[string]*CertRecord) []string {
 }
 
 func skiHex(cert *cms.Certificate) string {
-	ski, _ := cert.TbsCertificate.Extensions.SubjectKeyIdentifier()
-	if ski == nil {
-		return "?"
-	}
-	return fmt.Sprintf("%X", []byte(*ski))
+	return orUnknown(cert.Info().SubjectKeyId)
 }
 
 func subjectDN(cert *cms.Certificate) string {
-	rdn, err := cert.TbsCertificate.SubjectRDN()
-	if err != nil || rdn == nil {
-		return "?"
-	}
-	s := rdn.String()
+	return orUnknown(cert.Info().Subject)
+}
+
+func orUnknown(s string) string {
 	if s == "" {
 		return "?"
 	}
@@ -225,11 +191,7 @@ func buildAllCerts(pools []namedPool, countries []iso3166.Country) *AllCerts {
 }
 
 func akiHexOf(cert *cms.Certificate) string {
-	aki, _ := cert.TbsCertificate.Extensions.AuthorityKeyIdentifier()
-	if aki == nil {
-		return "?"
-	}
-	return fmt.Sprintf("%X", aki.KeyIdentifier)
+	return orUnknown(cert.Info().AuthorityKeyId)
 }
 
 func toCertRecordSet(records []*CertRecord) map[*CertRecord]struct{} {

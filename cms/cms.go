@@ -1079,6 +1079,21 @@ func (si *SignerInfo) prepareVerificationData(config *CMSConfig, sd *SignedData)
 }
 
 // selectCertificate finds the appropriate certificate from the signed data by matching the SignerIdentifier (SID).
+// SignerCertificates returns the embedded certificate selected by each SignerInfo, in
+// SignerInfo order, without verifying it. It lets callers show who claims to have signed the
+// data even when verification fails, so the result must be treated as unverified.
+func (sd *SignedData) SignerCertificates() ([]Certificate, error) {
+	certs := make([]Certificate, 0, len(sd.SignerInfos))
+	for i := range sd.SignerInfos {
+		cert, err := sd.SignerInfos[i].selectCertificate(sd)
+		if err != nil {
+			return nil, fmt.Errorf("[SignerCertificates] SignerInfo(idx:%d): %w", i, err)
+		}
+		certs = append(certs, *cert)
+	}
+	return certs, nil
+}
+
 func (si *SignerInfo) selectCertificate(sd *SignedData) (*Certificate, error) {
 	var sdCerts *GenericCertPool = &GenericCertPool{}
 

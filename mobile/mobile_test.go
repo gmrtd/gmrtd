@@ -1,6 +1,7 @@
 package mobile
 
 import (
+	"encoding/json"
 	"os"
 	"reflect"
 	"regexp"
@@ -727,5 +728,50 @@ func TestVerifierRealDocumentGBR(t *testing.T) {
 	}
 	if summary.ChipAuthenticity != document.CHIP_AUTH_STATUS_NONE {
 		t.Errorf("ChipAuthenticity = %v, want NONE", summary.ChipAuthenticity)
+	}
+
+	assertSummaryJsonTrustChain(t, doc, document.PASSIVE_AUTH_STATUS_VERIFIED, true, "CN=Document Signing Key 35, OU=london, O=ukps, C=gb")
+}
+
+func TestSampleDocumentSummaryJsonTrustChain(t *testing.T) {
+	doc, err := NewSampleDocument()
+	if err != nil {
+		t.Fatalf("NewSampleDocument error: %s", err)
+	}
+
+	// Passive Authentication fails for the sample document, so only its unverified signer is shown
+	assertSummaryJsonTrustChain(t, doc, document.PASSIVE_AUTH_STATUS_FAILED, false, "CN=DS-AUSTRIA-eMRTD, SERIALNUMBER=004015, OU=BMI, O=GV, C=AT")
+}
+
+// assertSummaryJsonTrustChain checks the trust chain as a mobile client receives it via SummaryJson.
+func assertSummaryJsonTrustChain(t *testing.T, doc *Document, wantStatus document.PassiveAuthStatus, wantVerified bool, wantSigner string) {
+	t.Helper()
+	jsonData, err := doc.SummaryJson()
+	if err != nil {
+		t.Fatalf("SummaryJson error: %s", err)
+	}
+
+	var summary struct {
+		PassiveAuth struct {
+			Status string `json:"status"`
+			Sod    struct {
+				Verified bool `json:"verified"`
+				Chain    []struct {
+					Role    string `json:"role"`
+					Subject string `json:"subject"`
+				} `json:"chain"`
+			} `json:"sod"`
+		} `json:"passiveAuth"`
+	}
+	if err := json.Unmarshal(jsonData, &summary); err != nil {
+		t.Fatalf("json.Unmarshal error: %s", err)
+	}
+
+	pa := summary.PassiveAuth
+	if pa.Status != string(wantStatus) || pa.Sod.Verified != wantVerified || len(pa.Sod.Chain) < 1 {
+		t.Fatalf("passiveAuth = %+v, want status %s, verified %v", pa, wantStatus, wantVerified)
+	}
+	if signer := pa.Sod.Chain[0]; signer.Role != string(document.CERTIFICATE_ROLE_DOCUMENT_SIGNER) || signer.Subject != wantSigner {
+		t.Errorf("chain[0] = %s %q, want DOCUMENT_SIGNER %q", signer.Role, signer.Subject, wantSigner)
 	}
 }
