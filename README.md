@@ -218,7 +218,7 @@ Together these cover **121 countries**. These defaults can be replaced, extended
 When verification fails, the chain holds only the document signer certificate embedded in the document. It is chip-supplied and **unverified**: it shows who claims to have signed the data, not that the data is trusted. `expired` is reported as of now and is informational only: verification is at the time of signing, so expired certificates are normal for older documents.
 
 # 📌 Compatibility
-- Go: 1.26+
+- Go: 1.26.10+
 - Transports: PC/SC, Core NFC, Android NFC, custom APDU transceivers
 - Platforms: Desktop, mobile, embedded
 

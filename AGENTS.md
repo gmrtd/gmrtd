@@ -43,7 +43,7 @@ parsing/protocol packages (`tlv`, `mrz`, `cms`, `oid`, `iso7816`, `document`,
 `activeauth`, `bac`, `chipauth`, `pace`, `passiveauth`, `cryptoutils`) do not
 pull in cgo and build fine without it.
 
-Go version: 1.26+ (see `go.mod`, `go-version-file: go.mod` in CI).
+Go version: 1.26.10+ (see `go.mod`, `go-version-file: go.mod` in CI).
 
 ## Fuzzing
 
