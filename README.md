@@ -247,6 +247,7 @@ Projects using gmrtd to read and verify MRTDs in production:
 | App | iOS | Android |
 |---|---|---|
 | **[Inspekt.ID](https://apps.apple.com/us/app/inspekt-id/id6794529798)** | <a href="https://apps.apple.com/us/app/inspekt-id/id6794529798"><img src="https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/c5/0b/24/c50b2463-5306-b7b1-c3fe-af1bf9ce11bb/AppIcon-1x_U007ephone-0-1-85-220-0.png/540x540bb.jpg" alt="Inspekt.ID" width="100" height="100" /></a> | — |
+| **[Yivi](https://yivi.app)** | <a href="https://apps.apple.com/us/app/yivi/id1294092994"><img src="https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/96/b2/4b/96b24bf6-750e-7314-d511-fd71829b85f6/Yivi-0-0-1x_U007ephone-0-1-sRGB-85-220.png/540x540bb.jpg" alt="Yivi" width="100" height="100" /></a> | <a href="https://play.google.com/store/apps/details?id=org.irmacard.cardemu"><img src="https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/96/b2/4b/96b24bf6-750e-7314-d511-fd71829b85f6/Yivi-0-0-1x_U007ephone-0-1-sRGB-85-220.png/540x540bb.jpg" alt="Yivi" width="100" height="100" /></a> |
 
 Using gmrtd in your app? Open a PR to add it here.
 
