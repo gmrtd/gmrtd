@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.1](https://github.com/gmrtd/gmrtd/compare/v1.7.0...v1.7.1) (2026-10-26)
+
+
+### Bug Fixes
+
+* bump go directive to 1.26.10 to pick up standard-library security fixes (fixes [#554](https://github.com/gmrtd/gmrtd/issues/554)) ([#555](https://github.com/gmrtd/gmrtd/issues/555)) ([59b3f1e](https://github.com/gmrtd/gmrtd/commit/59b3f1eeee1fcc44768cdaa040e3867df2ec2e60))
+
 ## [1.7.0](https://github.com/gmrtd/gmrtd/compare/v1.6.0...v1.7.0) (2026-10-25)
 
 
