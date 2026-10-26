@@ -9,13 +9,10 @@ name: Lint
 #    bump, plus a handful of style nits), spread across many unrelated files -
 #    fixing that is a separate cleanup pass, not something every future PR
 #    should be blocked on.
-#  - govulncheck currently reports 2 real vulnerabilities in the Go 1.26.5
-#    standard library itself (GO-2026-6091 in html/template, reachable via
-#    htmlreport.executeDocumentTemplate; GO-2026-5972, a missing recursion-depth
-#    limit in encoding/asn1, reachable via cms.Validity.Parse and
-#    iso39794.ProcessISO39794p5) - both already fixed upstream in Go 1.26.6, so
-#    this will go green on its own once the toolchain here is bumped, no gmrtd
-#    code change needed.
+#  - govulncheck findings so far have all been in the Go standard library
+#    (e.g. GO-2026-5972 in encoding/asn1, reachable from chip data via
+#    cms.Validity.Parse) and are fixed by raising the `go` directive in go.mod,
+#    which every workflow uses as its toolchain version (see #554).
 # Revisit making these blocking once the above are addressed.
 
 on:
