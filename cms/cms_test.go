@@ -14,6 +14,48 @@ import (
 	"github.com/gmrtd/gmrtd/utils"
 )
 
+// SG "Singapore Passport CA 5" link certificate, signed by "Singapore Passport CA 4" with
+// RSASSA-PSS (SHA-256, MGF1-SHA-256, 32-byte salt): a real-world RSA-PSS chain end to end.
+func TestCertificateVerifyRsaPssLinkCert(t *testing.T) {
+	cert := parseSingleCert(t, fuzzCertBytes)
+
+	if !cert.SignatureAlgorithm.Algorithm.Equal(oid.OidRsaSsaPss) {
+		t.Fatalf("SignatureAlgorithm = %s, want RSASSA-PSS", cert.SignatureAlgorithm.Algorithm)
+	}
+
+	var params RsaSsaPssParams
+	if _, err := utils.ParseAsn1Ex(cert.SignatureAlgorithm.Parameters.FullBytes, &params); err != nil {
+		t.Fatalf("RSASSA-PSS params parse error: %s", err)
+	}
+	if !params.HashAlgorithm.Algorithm.Equal(oid.OidHashAlgorithmSHA256) ||
+		!params.MaskGenAlgorithm.Algorithm.Equal(oid.OidMgf1) ||
+		params.SaltLength == nil || params.SaltLength.Int64() != 32 {
+		t.Errorf("unexpected RSASSA-PSS params: %+v", params)
+	}
+
+	digestAlg, err := cert.SignatureAlgorithm.DetermineDigestAlgFromSigAlg()
+	if err != nil || !digestAlg.Equal(oid.OidHashAlgorithmSHA256) {
+		t.Fatalf("DetermineDigestAlgFromSigAlg = %v, %v, want SHA-256", digestAlg, err)
+	}
+
+	pool, err := DefaultMasterList()
+	if err != nil {
+		t.Fatalf("DefaultMasterList error: %s", err)
+	}
+
+	chain, err := cert.Verify(pool)
+	if err != nil {
+		t.Fatalf("Verify error: %s", err)
+	}
+	if len(chain) != 1 {
+		t.Fatalf("chain has %d certificates, want 1 (CA 4)", len(chain))
+	}
+	parent := parseSingleCert(t, chain[0])
+	if ski := parent.Info().SubjectKeyId; ski != "3A4D8DE8FE2407A702BB9F7A320313098A2D4A8D" {
+		t.Errorf("chain[0] SKI = %s, want Singapore Passport CA 4", ski)
+	}
+}
+
 func TestSubjectPublicKeyInfoMarshalJSON(t *testing.T) {
 	t.Parallel()
 
