@@ -3,17 +3,18 @@ name: Lint
 # go vet and gofmt are enforced (blocking) - both are clean as of this workflow's
 # introduction.
 #
-# staticcheck and govulncheck are informational only for now (continue-on-error):
-#  - staticcheck currently reports ~50 pre-existing findings (mostly deprecated
-#    crypto/elliptic / ecdsa.PublicKey.X/Y usage newly flagged after the Go 1.26
-#    bump, plus a handful of style nits), spread across many unrelated files -
-#    fixing that is a separate cleanup pass, not something every future PR
-#    should be blocked on.
-#  - govulncheck findings so far have all been in the Go standard library
-#    (e.g. GO-2026-5972 in encoding/asn1, reachable from chip data via
-#    cms.Validity.Parse) and are fixed by raising the `go` directive in go.mod,
-#    which every workflow uses as its toolchain version (see #554).
-# Revisit making these blocking once the above are addressed.
+# govulncheck is also blocking. Its findings so far have all been in the Go
+# standard library (e.g. GO-2026-5972 in encoding/asn1, reachable from chip data
+# via cms.Validity.Parse), fixed by raising the `go` directive in go.mod, which
+# every workflow uses as its toolchain version (see #554). Left informational,
+# they went unnoticed for months, so a new Go security release is expected to
+# fail this job until go.mod is bumped.
+#
+# staticcheck is informational only for now (continue-on-error): it currently
+# reports ~50 pre-existing findings (mostly deprecated crypto/elliptic /
+# ecdsa.PublicKey.X/Y usage newly flagged after the Go 1.26 bump, plus a handful
+# of style nits), spread across many unrelated files - fixing that is a separate
+# cleanup pass, not something every future PR should be blocked on.
 
 on:
   push:
@@ -68,6 +69,5 @@ jobs:
       - name: Install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
 
-      - name: govulncheck (informational - see workflow header)
-        continue-on-error: true
+      - name: govulncheck
         run: govulncheck ./...
