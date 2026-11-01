@@ -26,6 +26,8 @@ func FuzzMrzDecode(f *testing.F) {
 // MrzDecode. A space left in the MRZi gives a key the chip won't match (see
 // TestConvertMrzToMrzi), and the MRZi is the fixed-width document number, date of birth and date
 // of expiry, each with its check digit (TD1/TD2 document numbers may extend into optional data).
+// When MrzDecode also accepts the MRZ, the two must agree on the MRZi, or the access key would
+// not match the document MrzDecode describes (see #562 and #564 for the cases this found).
 func FuzzConvertMrzToMrzi(f *testing.F) {
 	f.Add("")
 	// TD1, standard and extended document-number
@@ -47,6 +49,18 @@ func FuzzConvertMrzToMrzi(f *testing.F) {
 		}
 		if len(mrzi) < 24 || (len(data) == MRZLengthTD3 && len(mrzi) != 24) {
 			t.Fatalf("MRZi %q has unexpected length %d", mrzi, len(mrzi))
+		}
+
+		decoded, err := MrzDecode(data)
+		if err != nil {
+			return
+		}
+		encoded, err := decoded.EncodeMrzi()
+		if err != nil {
+			return
+		}
+		if encoded != mrzi {
+			t.Fatalf("ConvertMrzToMrzi = %q, but MrzDecode+EncodeMrzi = %q", mrzi, encoded)
 		}
 	})
 }

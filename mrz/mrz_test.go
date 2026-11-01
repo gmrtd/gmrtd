@@ -275,11 +275,19 @@ func TestMrzDecodeMrziEncode(t *testing.T) {
 			inp_mrz:  "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<L898902C36UTO7408122F1204159ZE184226B<<<<<10",
 			exp_mrzi: "L898902C3674081221204159",
 		},
+		{
+			// TD1 extended document-number with spaces for fillers (as OCR may read them): found by
+			// FuzzConvertMrzToMrzi, where the space was skipped when locating the separator, so
+			// MrzDecode read a longer, wrong document number than ConvertMrzToMrzi
+			inp_mrz:  "I UTOD23145890 7349           3407127M9507122UTO           2STEVENSON  PETER JOHN         ",
+			exp_mrzi: "D23145890734934071279507122",
+		},
 	}
 	for _, tc := range testCases {
 		mrz, err := MrzDecode(tc.inp_mrz)
 		if err != nil {
 			t.Errorf("Unexpected error: %s", err)
+			continue
 		}
 
 		actMrzi, err := mrz.EncodeMrzi()
