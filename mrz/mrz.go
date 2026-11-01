@@ -86,6 +86,10 @@ func DecodeValue(value string) string {
 }
 
 func MrzDecode(mrz string) (*MRZ, error) {
+	// as ConvertMrzToMrzi: OCR can read the '<' filler as a space, which would otherwise be missed
+	// when locating the separator of an extended (TD1/TD2) document number
+	mrz = strings.ReplaceAll(mrz, " ", "<")
+
 	switch len(mrz) {
 	case MRZLengthTD1:
 		return decodeTD1(mrz)
