@@ -57,7 +57,9 @@ gate PRs) since each target needs real wall-clock time.
 
 - When adding a new parser that takes attacker-controlled `[]byte`/`string`
   (a new DG, a new file type, anything reachable from chip/file data), add a
-  matching `FuzzXxx` harness and a matrix entry in `fuzz.yml`. Seed it with
+  matching `FuzzXxx` harness and a matrix entry in `fuzz.yml` (the root
+  package's `TestFuzzWorkflowMatrixCoversAllFuzzTargets` fails until the
+  two match). Seed it with
   `f.Add(...)` using real sample bytes already in that package's tests where
   possible, not synthetic data.
 - Don't fuzz a function that's *documented* to panic on bad input as a
