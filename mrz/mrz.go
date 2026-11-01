@@ -140,11 +140,6 @@ const (
 // verifyCheckdigit's errors name the field but never include its value: MRZ data is the
 // holder's personal data, and errors end up in app logs and analytics.
 func verifyCheckdigit(field, data, checkDigit string) error {
-	// check for empty field with unset checkdigit
-	if (checkDigit == "<") && (len(strings.Trim(data, "<")) == 0) {
-		return nil
-	}
-
 	var err error
 	var expCD string
 
@@ -338,7 +333,7 @@ func decodeTD3(mrz string) (*MRZ, error) {
 	if err := verifyMrziCheckdigits(documentNumber, documentNumberCD, dateOfBirth, dateOfBirthCD, dateOfExpiry, dateOfExpiryCD); err != nil {
 		return nil, err
 	}
-	if err := verifyCheckdigit(fieldOptionalData, optionalData, optionalDataCD); err != nil {
+	if err := verifyOptionalDataCheckdigit(optionalData, optionalDataCD); err != nil {
 		return nil, err
 	}
 
@@ -348,6 +343,16 @@ func decodeTD3(mrz string) (*MRZ, error) {
 	}
 
 	return out, nil
+}
+
+// verifyOptionalDataCheckdigit verifies the TD3 optional data (personal number) check digit,
+// which ICAO 9303 allows to be '<' when the field is all fillers. No other field may omit its
+// check digit: a document number or date of all fillers still has a computed check digit ('0').
+func verifyOptionalDataCheckdigit(optionalData, checkDigit string) error {
+	if checkDigit == "<" && strings.Trim(optionalData, "<") == "" {
+		return nil
+	}
+	return verifyCheckdigit(fieldOptionalData, optionalData, checkDigit)
 }
 
 func buildMrzi(docNum, docNumCD, dob, dobCD, expiry, expiryCD string) (string, error) {

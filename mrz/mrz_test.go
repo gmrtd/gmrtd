@@ -138,11 +138,41 @@ func TestCalcCheckdigitBadCharErr(t *testing.T) {
 	}
 }
 
-func TestVerifyCheckdigitEmptyWithoutCheckDigitOk(t *testing.T) {
-	// special handling for case where the string is empty and the check-digit is not set
-	err := verifyCheckdigit("test", "<<<<<<<<", "<")
-	if err != nil {
-		t.Errorf("Unexpected error: %s", err)
+func TestVerifyOptionalDataCheckdigit(t *testing.T) {
+	testCases := []struct {
+		data       string
+		checkDigit string
+		expErr     bool
+	}{
+		{data: "<<<<<<<<<<<<<<", checkDigit: "<"}, // all fillers, check digit unset
+		{data: "<<<<<<<<<<<<<<", checkDigit: "0"},
+		{data: "ZE184226B<<<<<", checkDigit: "1"},
+		{data: "ZE184226B<<<<<", checkDigit: "<", expErr: true},
+		{data: "ZE184226B<<<<<", checkDigit: "2", expErr: true},
+	}
+	for i, tc := range testCases {
+		if err := verifyOptionalDataCheckdigit(tc.data, tc.checkDigit); (err != nil) != tc.expErr {
+			t.Errorf("[%d] err = %v, expErr %v", i, err, tc.expErr)
+		}
+	}
+}
+
+// Only TD3 optional data may leave its check digit unset: dates and document numbers of all
+// fillers still have a computed check digit ('0'). Found by FuzzConvertMrzToMrzi, where an
+// all-filler date of expiry with a '<' check digit was accepted and put '<' into the MRZi.
+func TestVerifyCheckdigitFillersRequireCheckDigit(t *testing.T) {
+	if err := verifyCheckdigit(fieldDateOfExpiry, "<<<<<<", "<"); err == nil {
+		t.Errorf("expected error for '<' check digit")
+	}
+	if err := verifyCheckdigit(fieldDateOfBirth, "<<<<<<", "0"); err != nil {
+		t.Errorf("unexpected error: %s", err)
+	}
+
+	// TD3 with an all-filler date of expiry and a '<' check digit (ConvertMrzToMrzi ignores the
+	// composite check digit, so this is rejected only for the date of expiry)
+	td3 := "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<L898902C36UTO7408122F<<<<<<<ZE184226B<<<<<10"
+	if _, err := ConvertMrzToMrzi(td3); err == nil {
+		t.Errorf("ConvertMrzToMrzi: expected error")
 	}
 }
 
