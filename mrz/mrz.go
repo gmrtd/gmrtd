@@ -411,6 +411,10 @@ func extractMrziTD3(mrz string) (string, error) {
 // of birth, date of expiry). The composite check digit and all other fields are ignored,
 // so OCR noise outside those three fields does not cause failure.
 func ConvertMrzToMrzi(mrzStr string) (string, error) {
+	// OCR can read the '<' filler as a space. Check digits already treat the two alike, but the
+	// chip derives its BAC/PACE key from '<', so a space left in the MRZi gives the wrong key.
+	mrzStr = strings.ReplaceAll(mrzStr, " ", "<")
+
 	switch len(mrzStr) {
 	case MRZLengthTD1:
 		return extractMrziTD1(mrzStr)

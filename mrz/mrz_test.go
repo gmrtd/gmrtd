@@ -474,6 +474,18 @@ func TestConvertMrzToMrzi(t *testing.T) {
 			inp_mrz: "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<L898902C36UTO7408122F1204159ZE184226B<<<<<10",
 			exp:     "L898902C3674081221204159",
 		},
+		{
+			// found by FuzzConvertMrzToMrzi: a space for a '<' filler passed the check digit but was
+			// kept in the MRZi, giving the wrong BAC/PACE key
+			desc:    "TD2 with spaces for fillers in document number",
+			inp_mrz: "I UTOERIKSSON  ANNA MARIA           D2314589 7UTO7408122F1204159       6",
+			exp:     "D2314589<774081221204159",
+		},
+		{
+			desc:    "TD1 extended document-number with spaces for fillers",
+			inp_mrz: "I UTOD23145890 7349           3407127M9507122UTO           2STEVENSON  PETER JOHN         ",
+			exp:     "D23145890734934071279507122",
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
