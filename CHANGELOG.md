@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.8.0](https://github.com/gmrtd/gmrtd/compare/v1.7.2...v1.8.0) (2026-11-01)
+
+
+### Features
+
+* **cms:** verify RFC 6211 CMSAlgorithmProtection signed attribute ([47bb028](https://github.com/gmrtd/gmrtd/commit/47bb0289f38c90761242dca98e6fbc4ed8ed8551)), closes [#15](https://github.com/gmrtd/gmrtd/issues/15)
+* **cms:** verify RFC 6211 CMSAlgorithmProtection signed attribute ([#568](https://github.com/gmrtd/gmrtd/issues/568)) ([29a7f79](https://github.com/gmrtd/gmrtd/commit/29a7f79d92ae5faf877a6a7c2cf8b7c53a7a0c52))
+
 ## [1.7.2](https://github.com/gmrtd/gmrtd/compare/v1.7.1...v1.7.2) (2026-11-01)
 
 
