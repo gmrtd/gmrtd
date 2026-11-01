@@ -1070,6 +1070,10 @@ func (si *SignerInfo) prepareVerificationData(config *CMSConfig, sd *SignedData)
 		return nil, nil, nil, nil, fmt.Errorf("[prepareVerificationData] Invalid content hash (contentHash:%x, aaMessageDigestHash:%x)", contentHash, aaMessageDigestHash)
 	}
 
+	if err = si.verifyAlgorithmProtection(config); err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("[prepareVerificationData] %w", err)
+	}
+
 	dataToHash = si.AuthenticatedAttributes.SetOfAsnBytes()
 	digestAlg = &(si.DigestAlgorithm.Algorithm)
 	signatureAlg = &(si.DigestEncryptionAlgorithm.Algorithm)

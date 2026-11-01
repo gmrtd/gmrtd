@@ -101,6 +101,7 @@ var (
 	OidContentType                      = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 3}
 	OidMessageDigest                    = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 4}
 	OidSigningTime                      = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 5}
+	OidCmsAlgorithmProtection           = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 52}
 	OidHashAlgorithmMD5                 = asn1.ObjectIdentifier{1, 2, 840, 113549, 2, 5}
 	OidHashAlgorithmSHA1                = asn1.ObjectIdentifier{1, 3, 14, 3, 2, 26}
 	OidLdsSecurityObjectLegacy          = asn1.ObjectIdentifier{1, 3, 27, 1, 1, 1} // legacy ICAO icao(27) arc for ldsSecurityObject; seen on Belgian/French MRTDs
@@ -222,6 +223,7 @@ var oidLookup = map[string]string{
 	OidContentType.String():                      "contentType",
 	OidMessageDigest.String():                    "id-messageDigest",
 	OidSigningTime.String():                      "signing-time",
+	OidCmsAlgorithmProtection.String():           "id-aa-CMSAlgorithmProtection",
 	OidHashAlgorithmMD5.String():                 "md5",
 	OidHashAlgorithmSHA1.String():                "sha1",
 	OidEfDir.String():                            "id-EFDIR",
