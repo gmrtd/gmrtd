@@ -19,7 +19,9 @@ name: Fuzz
 # 39794 facial-image container formats DG2 embeds), the CBOR document
 # envelope, R-APDU parsing, the BAC and secure-messaging response decoders,
 # Active Authentication signature verification, X9.62 EC public-point
-# decoding, and offline Chip Authentication / PACE-CAM evidence replay (each
+# decoding, live PACE and Chip Authentication sessions (replaying a recorded
+# session with the chip's responses, CardAccess and DG14 fuzzed), and offline
+# Chip Authentication / PACE-CAM evidence replay (each
 # with a fixed known-good key/session/document, fuzzing only the on-the-wire
 # or on-disk bytes an on-path attacker, a malicious/cloned chip, or an
 # untrusted serialised .gmrtd file actually controls), plus the whole offline
@@ -60,12 +62,18 @@ jobs:
             name: FuzzDecode
           - pkg: ./mrz
             name: FuzzMrzDecode
+          - pkg: ./mrz
+            name: FuzzConvertMrzToMrzi
           - pkg: ./bac
             name: FuzzProcessResponse
           - pkg: ./chipauth
             name: FuzzVerifyEvidence
+          - pkg: ./chipauth
+            name: FuzzDoChipAuth
           - pkg: ./pace
             name: FuzzVerifyEvidence
+          - pkg: ./pace
+            name: FuzzDoPACE
           - pkg: ./activeauth
             name: FuzzParseEcdsaSignaturePlain
           - pkg: ./activeauth

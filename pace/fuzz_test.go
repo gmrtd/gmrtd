@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/gmrtd/gmrtd/document"
+	"github.com/gmrtd/gmrtd/iso7816"
+	"github.com/gmrtd/gmrtd/utils"
 )
 
 // FuzzVerifyEvidence fuzzes the offline PACE-CAM evidence-replay verifier (used
@@ -36,5 +38,37 @@ func FuzzVerifyEvidence(f *testing.F) {
 			EcadIC:      ecadIC,
 		}
 		_, _ = VerifyEvidence(doc, fuzzed)
+	})
+}
+
+// FuzzDoPACE fuzzes a live PACE session with what a malicious or cloned chip controls before
+// secure messaging is established: EF.CardAccess (which selects the PACE algorithm and domain
+// parameters) and the R-APDUs for MSE:Set AT and the four GENERAL AUTHENTICATE steps (encrypted
+// nonce, mapping, key agreement, and mutual authentication including the CAM ECAD). The seed is
+// the recorded DE PACE-CAM session; the EF.CardSecurity reads that follow are served from that
+// recording, so an unmodified seed completes PACE-CAM.
+func FuzzDoPACE(f *testing.F) {
+	var rsp [5][]byte
+	for i := range rsp {
+		rsp[i] = utils.HexToBytes(deCamRecording[i][1])
+	}
+
+	f.Add(deCamCardAccessBytes, rsp[0], rsp[1], rsp[2], rsp[3], rsp[4])
+	f.Add(deCamCardAccessBytes, utils.HexToBytes("6A80"), rsp[1], rsp[2], rsp[3], rsp[4])
+	f.Add(deCamCardAccessBytes, rsp[0], rsp[1], rsp[2], rsp[3], utils.HexToBytes("7C0A86083ABB9674BCE93C089000")) // GM-style response, no ECAD
+
+	f.Fuzz(func(t *testing.T, cardAccessBytes, mseRsp, nonceRsp, mapRsp, kaRsp, mutualAuthRsp []byte) {
+		cardAccess, err := document.NewCardAccess(cardAccessBytes)
+		if err != nil {
+			return
+		}
+
+		transceiver := &iso7816.SequenceTransceiver{
+			RApdus:   [][]byte{mseRsp, nonceRsp, mapRsp, kaRsp, mutualAuthRsp},
+			Fallback: deCamTransceiver(),
+		}
+		pace, _ := newDeCamPace(t, transceiver, cardAccess)
+
+		_, _, _ = pace.DoPACE()
 	})
 }
