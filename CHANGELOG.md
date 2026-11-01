@@ -5,9 +5,7 @@
 
 ### Bug Fixes
 
-* **mrz:** only allow an unset ('&lt;') check digit for TD3 optional data ([ea12878](https://github.com/gmrtd/gmrtd/commit/ea12878d158103216d153d4f5a91f1a045f4e8ed))
 * **mrz:** only allow an unset ('&lt;') check digit for TD3 optional data ([#564](https://github.com/gmrtd/gmrtd/issues/564)) ([19d36e4](https://github.com/gmrtd/gmrtd/commit/19d36e4489c282649cfc8d776cb7a1276c849970))
-* **mrz:** treat spaces as '&lt;' fillers in MrzDecode, as ConvertMrzToMrzi does ([e383be3](https://github.com/gmrtd/gmrtd/commit/e383be359e1cc23c77dacf6c42c7d23145c4313d))
 * **mrz:** treat spaces as '&lt;' fillers in MrzDecode, as ConvertMrzToMrzi does ([#566](https://github.com/gmrtd/gmrtd/issues/566)) ([c303802](https://github.com/gmrtd/gmrtd/commit/c30380251844292a378f15335509be4a99f5b0be))
 * **mrz:** treat spaces as '&lt;' fillers when deriving the MRZi from a scanned MRZ ([#562](https://github.com/gmrtd/gmrtd/issues/562)) ([558e35e](https://github.com/gmrtd/gmrtd/commit/558e35e551b3ed4ec94bfa46cea0a9aea70545bf))
 
