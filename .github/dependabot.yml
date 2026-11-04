@@ -11,6 +11,7 @@ updates:
       prefix: ci
     groups:
       actions: { patterns: ["*"] }
+      actions-security: { applies-to: security-updates, patterns: ["*"] }
     cooldown: { default-days: 7 }
 
   - package-ecosystem: gomod
@@ -21,4 +22,5 @@ updates:
       include: scope
     groups:
       go: { patterns: ["*"], update-types: [minor, patch] }
+      go-security: { applies-to: security-updates, patterns: ["*"] }
     cooldown: { default-days: 7 }
