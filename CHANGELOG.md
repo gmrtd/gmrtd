@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.9.0](https://github.com/gmrtd/gmrtd/compare/v1.8.0...v1.9.0) (2026-11-11)
+
+
+### Features
+
+* **csca:** update to latest NL CSCA master-list, dated 09/11/2026 (fixes [#576](https://github.com/gmrtd/gmrtd/issues/576)) ([c1c2a91](https://github.com/gmrtd/gmrtd/commit/c1c2a914cdbe0bf40f3b1eb216bc987c2596a1d4))
+* **csca:** update to latest NL CSCA master-list, dated 09/11/2026 (fixes [#576](https://github.com/gmrtd/gmrtd/issues/576)) ([#577](https://github.com/gmrtd/gmrtd/issues/577)) ([8e67afb](https://github.com/gmrtd/gmrtd/commit/8e67afbf0ca790e1fcccedf7a267164fdbf18587))
+
 ## [1.8.0](https://github.com/gmrtd/gmrtd/compare/v1.7.2...v1.8.0) (2026-11-01)
 
 
