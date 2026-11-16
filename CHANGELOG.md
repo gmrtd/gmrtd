@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.9.1](https://github.com/gmrtd/gmrtd/compare/v1.9.0...v1.9.1) (2026-11-16)
+
+
+### Bug Fixes
+
+* **chipauth:** don't panic when a CA public key omits its KeyId ([1aa8f33](https://github.com/gmrtd/gmrtd/commit/1aa8f3392cd9f5945916bd36216f7bf57fb969cc))
+* **chipauth:** don't panic when a CA public key omits its KeyId ([#580](https://github.com/gmrtd/gmrtd/issues/580)) ([04d8b27](https://github.com/gmrtd/gmrtd/commit/04d8b27545bfa9aabbae4b69285be5c5a9b504c9))
+
 ## [1.9.0](https://github.com/gmrtd/gmrtd/compare/v1.8.0...v1.9.0) (2026-11-11)
 
 
