@@ -264,7 +264,7 @@ func selectCAPubKeyInfo(caInfo *document.ChipAuthenticationInfo, caAlgInfo *CaAl
 			// no key-id specified, so good to use any matching public-key
 			// *OR* key-id specified, so need to find matching public-key
 			if (caInfo.KeyId == nil) ||
-				((caInfo.KeyId != nil) && (caInfo.KeyId.Cmp(curPubKey.KeyId) == 0)) {
+				((curPubKey.KeyId != nil) && (caInfo.KeyId.Cmp(curPubKey.KeyId) == 0)) {
 				return curPubKey, nil
 			}
 		}
