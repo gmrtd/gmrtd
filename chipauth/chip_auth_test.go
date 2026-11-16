@@ -815,6 +815,23 @@ func TestSelectChipAuthParams(t *testing.T) {
 	}
 }
 
+// Regression for a nightly fuzz crash (FuzzDoChipAuth): a ChipAuthInfo with a KeyId
+// alongside a matching public key that omits its (optional) KeyId used to panic.
+func TestSelectCAPubKeyInfoPubKeyWithoutKeyId(t *testing.T) {
+	caInfo := &document.ChipAuthenticationInfo{Protocol: oid.OidCaEcdhAesCbcCmac128, Version: 1, KeyId: big.NewInt(1)}
+	caAlgInfo := caAlgInfoLookup[oid.OidCaEcdhAesCbcCmac128.String()]
+
+	doc := &document.Document{}
+	doc.Mf.Lds1.Dg14 = &document.DG14{SecInfos: &document.SecurityInfos{
+		ChipAuthPubKeyInfos: []document.ChipAuthenticationPublicKeyInfo{{Protocol: oid.OidPkEcdh}},
+	}}
+
+	pubKey, err := selectCAPubKeyInfo(caInfo, &caAlgInfo, doc)
+	if err == nil {
+		t.Errorf("expected error but got nil (pubKey:%v)", pubKey)
+	}
+}
+
 func TestExecuteCA(t *testing.T) {
 	nfc := iso7816.NewNfcSession(&iso7816.StaticTransceiver{})
 	doc := &document.Document{}
