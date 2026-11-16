@@ -433,9 +433,13 @@ func performBac(reader *Reader, state *ReaderState) error {
 		return nil
 	}
 	reader.reportPhase(STATUS_PHASE_ACCESS_CONTROL_BAC)
-	// NB errors are just recorded at this point
 	state.docEx.Session.BacResult, state.docEx.Session.BacErr = bac.NewBAC(reader.nfc, &state.docEx.Document, state.password).DoBAC()
-	return nil
+	if state.docEx.Session.BacErr == nil {
+		return nil
+	}
+	// fail closed: without BAC there is no secure messaging, so the rest of the read would go to an
+	// unauthenticated chip (NB Session.BacErr still records the error)
+	return fmt.Errorf("[performBac] BAC failed: %w", state.docEx.Session.BacErr)
 }
 
 func performChipAuthentication(reader *Reader, state *ReaderState) error {

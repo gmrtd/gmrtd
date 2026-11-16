@@ -694,6 +694,96 @@ func TestPerformPaceSkipPace(t *testing.T) {
 	}
 }
 
+func TestPerformBacExternalAuthenticateRejected(t *testing.T) {
+	// The chip answers GET CHALLENGE, then rejects EXTERNAL AUTHENTICATE (6300: wrong key). BAC must
+	// fail closed: performBac returns an error that wraps Session.BacErr, and no secure messaging is set
+	// up, so the read stops here instead of reading files from a chip that was not authenticated.
+
+	var status MockStatus
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&iso7816.SequenceTransceiver{RApdus: [][]byte{
+		utils.HexToBytes("01020304050607089000"), // GET CHALLENGE: RND.IC
+		utils.HexToBytes("6300"),                 // EXTERNAL AUTHENTICATE: authentication failed
+	}})
+	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
+
+	pass, err := password.NewPasswordMrzi("123456", "100101", "301225")
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	var state *ReaderState = NewReaderState(nil, nil, pass)
+
+	err = performBac(reader, state)
+	if err == nil {
+		t.Fatalf("expected BAC error to be returned (fail closed)")
+	}
+
+	if state.docEx.Session.BacErr == nil {
+		t.Fatalf("BacErr expected")
+	}
+
+	if !errors.Is(err, state.docEx.Session.BacErr) {
+		t.Fatalf("returned error should wrap BacErr; got %v", err)
+	}
+
+	if state.docEx.Session.BacResult == nil || state.docEx.Session.BacResult.Success {
+		t.Fatalf("BacResult FAILURE expected")
+	}
+
+	if nfc.SM() != nil {
+		t.Fatalf("no secure messaging expected after a failed BAC")
+	}
+}
+
+// bacRejectingTransceiver rejects EXTERNAL AUTHENTICATE but, like a clone or an emulator, still
+// serves EF.SOD in plain afterwards
+type bacRejectingTransceiver struct {
+	singleFileTransceiver
+}
+
+func (transceiver *bacRejectingTransceiver) Transceive(cla int, ins int, p1 int, p2 int, data []byte, le int, encodedData []byte) []byte {
+	switch ins {
+	case int(iso7816.INS_GET_CHALLENGE):
+		return utils.HexToBytes("01020304050607089000")
+	case int(iso7816.INS_EXTERNAL_AUTHENTICATE):
+		return utils.HexToBytes("6300")
+	}
+	return transceiver.singleFileTransceiver.Transceive(cla, ins, p1, p2, data, le, encodedData)
+}
+
+func TestReadDocumentFailsClosedOnBacError(t *testing.T) {
+	sampleDoc, err := document.SampleDocument()
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	var status MockStatus
+	transceiver := &bacRejectingTransceiver{singleFileTransceiver{fileId: MRTDFileIdEFSOD, fileData: sampleDoc.Mf.Lds1.Sod.RawData}}
+	var reader *Reader = NewReader(&status, iso7816.NewNfcSession(transceiver), EmptyCscaTrustStore(t))
+
+	pass, err := password.NewPasswordMrzi("123456", "100101", "301225")
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	docEx, _, err := reader.ReadDocument(pass, nil, nil)
+	if err == nil {
+		t.Fatalf("expected ReadDocument to fail on the BAC error")
+	}
+
+	if docEx == nil || docEx.Session.BacErr == nil {
+		t.Fatalf("BacErr expected")
+	}
+
+	if !errors.Is(err, docEx.Session.BacErr) {
+		t.Fatalf("returned error should wrap BacErr; got %v", err)
+	}
+
+	if docEx.Document.Mf.Lds1.Sod != nil || docEx.Document.Mf.Lds1.Dg1 != nil {
+		t.Fatalf("no data groups expected after a failed BAC")
+	}
+}
+
 func TestPerformChipAuthenticationForEmptyDocument(t *testing.T) {
 	// note: nothing in the document suggests CA/AA are supported, so they will be silently skipped
 

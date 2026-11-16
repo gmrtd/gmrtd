@@ -142,13 +142,9 @@ func TestAccessControlStepsReportPhase(t *testing.T) {
 			state.docEx.Document.Mf.CardAccess = cardAccess
 
 			err = tc.step(reader, state)
-			if tc.name == "performPace" {
-				// Default is fail-closed on PACE error; phase is still reported first.
-				if err == nil {
-					t.Fatalf("expected PACE error (fail-closed default)")
-				}
-			} else if err != nil {
-				t.Fatalf("unexpected error: %s", err)
+			// Both access-control steps fail closed; the phase is still reported first.
+			if err == nil {
+				t.Fatalf("expected %s error (fail closed)", tc.name)
 			}
 
 			exp := []Status{{Phase: tc.exp}}
@@ -287,8 +283,10 @@ func TestReadDocumentReportsPhases(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 
-	if _, _, err = reader.ReadDocument(pass, nil, nil); err != nil {
-		t.Fatalf("unexpected error: %s", err)
+	// The mock chip answers neither PACE nor BAC, so the read fails closed at BAC: it reports the phases up to
+	// BAC and nothing after it.
+	if _, _, err = reader.ReadDocument(pass, nil, nil); err == nil {
+		t.Fatalf("expected the read to stop at BAC")
 	}
 
 	exp := []Status{
@@ -296,6 +294,25 @@ func TestReadDocumentReportsPhases(t *testing.T) {
 		{Phase: STATUS_PHASE_READING_CARD_ACCESS},
 		{Phase: STATUS_PHASE_ACCESS_CONTROL_PACE},
 		{Phase: STATUS_PHASE_ACCESS_CONTROL_BAC},
+	}
+
+	if act := status.Recorded(); !reflect.DeepEqual(act, exp) {
+		t.Errorf("recorded statuses differ to expected (act:%v) (exp:%v)", act, exp)
+	}
+
+	// The steps after access control, run on the same chip, report their phases in order.
+	var statusAfter MockStatus
+	transceiverAfter := &singleFileTransceiver{fileId: MRTDFileIdEFSOD, fileData: sampleDoc.Mf.Lds1.Sod.RawData}
+	var readerAfter *Reader = NewReader(&statusAfter, iso7816.NewNfcSession(transceiverAfter), EmptyCscaTrustStore(t))
+	var state *ReaderState = NewReaderState(nil, nil, pass)
+
+	err = runSteps(readerAfter, state, selectMrtdApplication, readEfDir, readEfSod, readEfCom, readLDS1dgs,
+		performChipAuthentication, verifyDocument, performPassiveAuthentication, checkAuthenticDocument)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	expAfter := []Status{
 		{Phase: STATUS_PHASE_READING_DIR},
 		{Phase: STATUS_PHASE_READING_SECURITY_OBJECT},
 		{Phase: STATUS_PHASE_READING_COMMON_DATA},
@@ -308,11 +325,10 @@ func TestReadDocumentReportsPhases(t *testing.T) {
 		{Phase: STATUS_PHASE_CHIP_AUTHENTICATION},
 		{Phase: STATUS_PHASE_VERIFYING_DOCUMENT},
 		{Phase: STATUS_PHASE_PASSIVE_AUTHENTICATION},
-		{Phase: STATUS_PHASE_FINISHED},
 	}
 
-	if act := status.Recorded(); !reflect.DeepEqual(act, exp) {
-		t.Errorf("recorded statuses differ to expected (act:%v) (exp:%v)", act, exp)
+	if act := statusAfter.Recorded(); !reflect.DeepEqual(act, expAfter) {
+		t.Errorf("recorded statuses differ to expected (act:%v) (exp:%v)", act, expAfter)
 	}
 }
 
