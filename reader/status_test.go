@@ -273,18 +273,72 @@ func TestReadDocumentReportsPhases(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 
+	pass, err := password.NewPasswordMrzi("123456", "100101", "301225")
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	// the chip completes BAC, then serves EF.SOD under secure messaging
+	var status MockStatus
+	chip := newBacChip(t, pass, &singleFileTransceiver{fileId: MRTDFileIdEFSOD, fileData: sampleDoc.Mf.Lds1.Sod.RawData})
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(chip)
+	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
+
+	docEx, _, err := reader.ReadDocument(pass, nil, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	if docEx.Session.BacResult == nil || !docEx.Session.BacResult.Success {
+		t.Fatalf("BAC success expected")
+	}
+
+	if docEx.Document.Mf.Lds1.Sod == nil {
+		t.Fatalf("EF.SOD expected to be read under secure messaging")
+	}
+
+	exp := []Status{
+		{Phase: STATUS_PHASE_CONNECTING},
+		{Phase: STATUS_PHASE_READING_CARD_ACCESS},
+		{Phase: STATUS_PHASE_ACCESS_CONTROL_PACE},
+		{Phase: STATUS_PHASE_ACCESS_CONTROL_BAC},
+		{Phase: STATUS_PHASE_READING_DIR},
+		{Phase: STATUS_PHASE_READING_SECURITY_OBJECT},
+		{Phase: STATUS_PHASE_READING_COMMON_DATA},
+		{Phase: STATUS_PHASE_READING_DATA_GROUP, DataGroup: 1},
+		{Phase: STATUS_PHASE_READING_DATA_GROUP, DataGroup: 2},
+		{Phase: STATUS_PHASE_READING_DATA_GROUP, DataGroup: 11},
+		{Phase: STATUS_PHASE_READING_DATA_GROUP, DataGroup: 12},
+		{Phase: STATUS_PHASE_READING_DATA_GROUP, DataGroup: 14},
+		{Phase: STATUS_PHASE_ACTIVE_AUTHENTICATION},
+		{Phase: STATUS_PHASE_CHIP_AUTHENTICATION},
+		{Phase: STATUS_PHASE_VERIFYING_DOCUMENT},
+		{Phase: STATUS_PHASE_PASSIVE_AUTHENTICATION},
+		{Phase: STATUS_PHASE_FINISHED},
+	}
+
+	if act := status.Recorded(); !reflect.DeepEqual(act, exp) {
+		t.Errorf("recorded statuses differ to expected (act:%v) (exp:%v)", act, exp)
+	}
+}
+
+// a read whose BAC fails reports the phases up to BAC and nothing after it
+func TestReadDocumentReportsPhasesUntilBacFailure(t *testing.T) {
+	sampleDoc, err := document.SampleDocument()
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	// the chip answers neither PACE nor BAC
 	var status MockStatus
 	transceiver := &singleFileTransceiver{fileId: MRTDFileIdEFSOD, fileData: sampleDoc.Mf.Lds1.Sod.RawData}
-	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(transceiver)
-	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
+	var reader *Reader = NewReader(&status, iso7816.NewNfcSession(transceiver), EmptyCscaTrustStore(t))
 
 	pass, err := password.NewPasswordMrzi("123456", "100101", "301225")
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
 
-	// The mock chip answers neither PACE nor BAC, so the read fails closed at BAC: it reports the phases up to
-	// BAC and nothing after it.
 	if _, _, err = reader.ReadDocument(pass, nil, nil); err == nil {
 		t.Fatalf("expected the read to stop at BAC")
 	}
@@ -298,37 +352,6 @@ func TestReadDocumentReportsPhases(t *testing.T) {
 
 	if act := status.Recorded(); !reflect.DeepEqual(act, exp) {
 		t.Errorf("recorded statuses differ to expected (act:%v) (exp:%v)", act, exp)
-	}
-
-	// The steps after access control, run on the same chip, report their phases in order.
-	var statusAfter MockStatus
-	transceiverAfter := &singleFileTransceiver{fileId: MRTDFileIdEFSOD, fileData: sampleDoc.Mf.Lds1.Sod.RawData}
-	var readerAfter *Reader = NewReader(&statusAfter, iso7816.NewNfcSession(transceiverAfter), EmptyCscaTrustStore(t))
-	var state *ReaderState = NewReaderState(nil, nil, pass)
-
-	err = runSteps(readerAfter, state, selectMrtdApplication, readEfDir, readEfSod, readEfCom, readLDS1dgs,
-		performChipAuthentication, verifyDocument, performPassiveAuthentication, checkAuthenticDocument)
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
-
-	expAfter := []Status{
-		{Phase: STATUS_PHASE_READING_DIR},
-		{Phase: STATUS_PHASE_READING_SECURITY_OBJECT},
-		{Phase: STATUS_PHASE_READING_COMMON_DATA},
-		{Phase: STATUS_PHASE_READING_DATA_GROUP, DataGroup: 1},
-		{Phase: STATUS_PHASE_READING_DATA_GROUP, DataGroup: 2},
-		{Phase: STATUS_PHASE_READING_DATA_GROUP, DataGroup: 11},
-		{Phase: STATUS_PHASE_READING_DATA_GROUP, DataGroup: 12},
-		{Phase: STATUS_PHASE_READING_DATA_GROUP, DataGroup: 14},
-		{Phase: STATUS_PHASE_ACTIVE_AUTHENTICATION},
-		{Phase: STATUS_PHASE_CHIP_AUTHENTICATION},
-		{Phase: STATUS_PHASE_VERIFYING_DOCUMENT},
-		{Phase: STATUS_PHASE_PASSIVE_AUTHENTICATION},
-	}
-
-	if act := statusAfter.Recorded(); !reflect.DeepEqual(act, expAfter) {
-		t.Errorf("recorded statuses differ to expected (act:%v) (exp:%v)", act, expAfter)
 	}
 }
 

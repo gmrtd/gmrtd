@@ -50,6 +50,8 @@ The library is transport-agnostic and can be used with desktop, mobile, or embed
 
 The caller supplies either MRZ or CAN; **gmrtd negotiates and executes the appropriate protocol automatically** based on document capabilities.
 
+Access control fails closed. `ReadDocument` returns an error, before any LDS file is read, when PACE fails (unless `AllowBacFallbackOnPaceError()` is set), when BAC fails, or when no secure messaging is established at all (for example a CAN read with PACE skipped or unavailable, since BAC needs the MRZ; this error wraps `reader.ErrNoSecureMessaging`). `Session.PaceErr` and `Session.BacErr` still record the cause.
+
 # 📦 Features
 - ✅ BAC (MRZ)
 - ✅ PACE-GM/CAM (MRZ and CAN)

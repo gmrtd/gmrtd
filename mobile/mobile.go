@@ -201,7 +201,9 @@ func (r *Reader) SkipImages() {
 }
 
 // AllowBacFallbackOnPaceError configures the reader to continue to BAC when
-// PACE is attempted and fails. The default is fail-closed.
+// PACE is attempted and fails. The default is fail-closed. BAC itself always
+// fails closed: if it fails, or cannot run because the password is a CAN,
+// ReadDocument returns an error.
 func (r *Reader) AllowBacFallbackOnPaceError() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
