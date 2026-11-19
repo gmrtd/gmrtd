@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.10.0](https://github.com/gmrtd/gmrtd/compare/v1.9.1...v1.10.0) (2026-11-19)
+
+
+### Features
+
+* **mobile:** add Reader.LastReadError to classify ReadDocument failures ([ff8d275](https://github.com/gmrtd/gmrtd/commit/ff8d275de7838363a27921817fb344eac475a978))
+* **mobile:** add Reader.LastReadError to classify ReadDocument failures ([#586](https://github.com/gmrtd/gmrtd/issues/586)) ([9519a23](https://github.com/gmrtd/gmrtd/commit/9519a2306e66686f79df45c3de1d319b7cd37585))
+
+
+### Bug Fixes
+
+* **reader:** fail closed when BAC fails ([#582](https://github.com/gmrtd/gmrtd/issues/582)) ([eeff067](https://github.com/gmrtd/gmrtd/commit/eeff0673c65b257131c8e287f72f05fad312947c))
+* **reader:** wrap the PACE error in ErrNoSecureMessaging and fix its doc comment ([bc5a8a8](https://github.com/gmrtd/gmrtd/commit/bc5a8a82f03f9050327cc49b4d8fd38c4ccf2b48))
+* **reader:** wrap the PACE error in ErrNoSecureMessaging and fix its doc comment ([#584](https://github.com/gmrtd/gmrtd/issues/584)) ([4d528d3](https://github.com/gmrtd/gmrtd/commit/4d528d3718817ecbb456094e2c5f6a9175988781))
+
 ## [1.9.1](https://github.com/gmrtd/gmrtd/compare/v1.9.0...v1.9.1) (2026-11-16)
 
 
