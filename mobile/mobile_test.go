@@ -240,6 +240,133 @@ func TestRejectedDocumentClearedByReadDocument(t *testing.T) {
 	}
 }
 
+func TestReadErrorValues(t *testing.T) {
+	// the numbers are part of the contract with a host application, so must not change
+	testCases := []struct {
+		name string
+		act  int
+		exp  int
+	}{
+		{"READ_ERROR_NONE", READ_ERROR_NONE, 0},
+		{"READ_ERROR_OTHER", READ_ERROR_OTHER, 1},
+		{"READ_ERROR_ACCESS_CONTROL_FAILED", READ_ERROR_ACCESS_CONTROL_FAILED, 2},
+		{"READ_ERROR_NO_SECURE_MESSAGING", READ_ERROR_NO_SECURE_MESSAGING, 3},
+		{"READ_ERROR_DOCUMENT_NOT_AUTHENTIC", READ_ERROR_DOCUMENT_NOT_AUTHENTIC, 4},
+	}
+
+	for _, tc := range testCases {
+		if tc.act != tc.exp {
+			t.Errorf("%s (act:%d) (exp:%d)", tc.name, tc.act, tc.exp)
+		}
+	}
+}
+
+func TestReadErrorKind(t *testing.T) {
+	paceErr := errors.New("[DoPACE] MSE:Set AT error")
+	bacErr := errors.New("[DoBAC] ExternalAuthenticate error")
+
+	docWith := func(paceErr, bacErr error) *Document {
+		return &Document{documentEx: &document.DocumentEx{Session: document.Session{PaceErr: paceErr, BacErr: bacErr}}}
+	}
+
+	testCases := []struct {
+		name string
+		doc  *Document
+		err  error
+		exp  int
+	}{
+		{"no error", docWith(nil, nil), nil, READ_ERROR_NONE},
+		{"not authentic", docWith(nil, nil), fmt.Errorf("[checkAuthenticDocument] %w", reader.ErrDocumentNotAuthentic), READ_ERROR_DOCUMENT_NOT_AUTHENTIC},
+		{"no secure messaging", docWith(nil, nil), fmt.Errorf("[performBac] %w", reader.ErrNoSecureMessaging), READ_ERROR_NO_SECURE_MESSAGING},
+		// PACE was unusable, so the cause is the password type, not a wrong password
+		{"no secure messaging wrapping a PACE error", docWith(paceErr, nil), fmt.Errorf("[performBac] %w (PACE: %w)", reader.ErrNoSecureMessaging, paceErr), READ_ERROR_NO_SECURE_MESSAGING},
+		{"PACE failed", docWith(paceErr, nil), fmt.Errorf("[performPace] PACE failed: %w", paceErr), READ_ERROR_ACCESS_CONTROL_FAILED},
+		{"BAC failed", docWith(nil, bacErr), fmt.Errorf("[performBac] BAC failed: %w", bacErr), READ_ERROR_ACCESS_CONTROL_FAILED},
+		// a PACE error recorded but tolerated (AllowBacFallbackOnPaceError) does not explain a later failure
+		{"later failure after a tolerated PACE error", docWith(paceErr, nil), errors.New("[readEfSod] transceive failed"), READ_ERROR_OTHER},
+		{"other", docWith(nil, nil), errors.New("[readEfSod] transceive failed"), READ_ERROR_OTHER},
+		{"other without a document", nil, errors.New("[ReadDocument] getCscaCertPool error"), READ_ERROR_OTHER},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if act := readErrorKind(tc.doc, tc.err); act != tc.exp {
+				t.Errorf("readErrorKind (act:%d) (exp:%d)", act, tc.exp)
+			}
+		})
+	}
+}
+
+// noAccessControlTransceiver is a chip without EF.CardAccess that answers every access-control
+// command (GET CHALLENGE, MSE:Set AT, ...) as unsupported
+type noAccessControlTransceiver struct{}
+
+func (*noAccessControlTransceiver) Transceive(_, ins, p1, _ int, _ []byte, _ int, _ []byte) []byte {
+	switch {
+	case ins == int(iso7816.INS_SELECT) && p1 == 0x02: // select EF
+		return utils.HexToBytes("6A82")
+	case ins == int(iso7816.INS_SELECT): // select MF / AID
+		return utils.HexToBytes("9000")
+	}
+	return utils.HexToBytes("6D00")
+}
+
+func TestLastReadError(t *testing.T) {
+	mrz, err := NewPasswordMrzi("123456", "100101", "301225")
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	can, err := NewPasswordCan("123456")
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	testCases := []struct {
+		name     string
+		password *MrtdPassword
+		exp      int
+	}{
+		{"CAN without PACE", can, READ_ERROR_NO_SECURE_MESSAGING},
+		{"MRZ with BAC refused", mrz, READ_ERROR_ACCESS_CONTROL_FAILED},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			rdr := NewReader(&testReaderStatus{}, &noAccessControlTransceiver{})
+			if act := rdr.LastReadError(); act != READ_ERROR_NONE {
+				t.Fatalf("LastReadError should default to READ_ERROR_NONE (act:%d)", act)
+			}
+
+			if _, err := rdr.ReadDocument(tc.password, nil, nil); err == nil {
+				t.Fatalf("expected error")
+			}
+
+			if act := rdr.LastReadError(); act != tc.exp {
+				t.Errorf("LastReadError (act:%d) (exp:%d)", act, tc.exp)
+			}
+		})
+	}
+}
+
+func TestLastReadErrorResetByReadDocument(t *testing.T) {
+	rdr := NewReader(&testReaderStatus{}, &iso7816.StaticTransceiver{})
+	rdr.lastReadError = READ_ERROR_DOCUMENT_NOT_AUTHENTIC
+
+	pass, err := NewPasswordCan("123456")
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	// fails reading EF.CardAccess (static transceiver), which is none of the specific kinds
+	if _, err := rdr.ReadDocument(pass, nil, nil); err == nil {
+		t.Fatalf("expected error")
+	}
+
+	if act := rdr.LastReadError(); act != READ_ERROR_OTHER {
+		t.Errorf("LastReadError (act:%d) (exp:%d)", act, READ_ERROR_OTHER)
+	}
+}
+
 func TestNewGmrtdReaderInvalidAAChallenge(t *testing.T) {
 	// WithAAChallenge rejects a bad length up front, so set the field directly to reach the
 	// defensive check in the underlying reader.
@@ -538,6 +665,30 @@ func TestReadDocumentNilPassword(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected error")
 	}
+
+	if act := reader.LastReadError(); act != READ_ERROR_OTHER {
+		t.Errorf("LastReadError after a recovered panic (act:%d) (exp:%d)", act, READ_ERROR_OTHER)
+	}
+}
+
+func TestLastReadErrorReaderSetupFailure(t *testing.T) {
+	// an invalid AA challenge can only be set directly (WithAAChallenge validates it), and makes
+	// building the underlying reader fail before any command is sent
+	rdr := NewReader(&testReaderStatus{}, &PanicTransceiver{})
+	rdr.aaChallenge = []byte{0x01}
+
+	pass, err := NewPasswordCan("123456")
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	if _, err := rdr.ReadDocument(pass, nil, nil); err == nil {
+		t.Fatalf("expected error")
+	}
+
+	if act := rdr.LastReadError(); act != READ_ERROR_OTHER {
+		t.Errorf("LastReadError (act:%d) (exp:%d)", act, READ_ERROR_OTHER)
+	}
 }
 
 func TestCountryName(t *testing.T) {
@@ -683,6 +834,7 @@ func TestReaderConcurrentAccess(t *testing.T) {
 			_, _ = reader.WithAAChallenge(make([]byte, 8))
 			_, _ = reader.ReadDocument(pass, nil, nil) // expected to fail fast (static transceiver)
 			_ = reader.RejectedDocument()
+			_ = reader.LastReadError()
 		}()
 	}
 	wg.Wait()
