@@ -856,6 +856,10 @@ func TestReadDocumentCanWithoutPaceFailsClosed(t *testing.T) {
 				t.Fatalf("no BAC error expected for a CAN password")
 			}
 
+			if paceErr := docEx.Session.PaceErr; paceErr != nil && !errors.Is(err, paceErr) {
+				t.Fatalf("returned error should wrap PaceErr (%v); got %v", paceErr, err)
+			}
+
 			if docEx.Document.Mf.Lds1.Sod != nil || docEx.Document.Mf.Lds1.Dg1 != nil {
 				t.Fatalf("no LDS file expected to be read without secure messaging")
 			}
@@ -1604,6 +1608,9 @@ func (chip *bacChip) smTransceive(cla int, ins int, p1 int, p2 int, data []byte)
 	}
 
 	rsp := chip.inner.Transceive(cla&^0x0C, ins, p1, p2, plain, le, nil)
+	if len(rsp) < 2 {
+		return []byte{0x6F, 0x00}
+	}
 	rData, sw := rsp[:len(rsp)-2], rsp[len(rsp)-2:]
 
 	// response: [DO87] DO99 DO8E, MAC over SSC || DO87 || DO99

@@ -450,7 +450,10 @@ func performBac(reader *Reader, state *ReaderState) error {
 	}
 	// DoBAC skips any password that isn't MRZi (e.g. CAN), so with PACE skipped, unsupported locally or
 	// failed under AllowBacFallbackOnPaceError there is no access control at all
-	return fmt.Errorf("[performBac] %w", ErrNoSecureMessaging)
+	if state.docEx.Session.PaceErr != nil {
+		return fmt.Errorf("[performBac] %w (PACE: %w)", ErrNoSecureMessaging, state.docEx.Session.PaceErr)
+	}
+	return fmt.Errorf("[performBac] %w (BAC requires an MRZ password)", ErrNoSecureMessaging)
 }
 
 func performChipAuthentication(reader *Reader, state *ReaderState) error {
@@ -502,14 +505,14 @@ func verifyDocument(reader *Reader, state *ReaderState) error {
 	return nil
 }
 
-// ErrDocumentNotAuthentic is returned (wrapped) by ReadDocument when
-// RequireAuthenticDocument is set and the document is not verifiably authentic.
 // ErrNoSecureMessaging is returned (wrapped) by ReadDocument when access control ends without
 // secure messaging and no BAC error to report: BAC only runs with an MRZ password, so a CAN read
 // with PACE skipped, unsupported locally or failed under AllowBacFallbackOnPaceError stops here
-// instead of reading the chip in plain.
-var ErrNoSecureMessaging = errors.New("no secure messaging established (password type not usable for BAC)")
+// instead of reading the chip in plain. When PACE was attempted, the PACE error is wrapped too.
+var ErrNoSecureMessaging = errors.New("no secure messaging established after access control")
 
+// ErrDocumentNotAuthentic is returned (wrapped) by ReadDocument when
+// RequireAuthenticDocument is set and the document is not verifiably authentic.
 var ErrDocumentNotAuthentic = errors.New("document is not authentic")
 
 func checkAuthenticDocument(reader *Reader, state *ReaderState) error {
