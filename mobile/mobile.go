@@ -161,7 +161,31 @@ type Reader struct {
 	aaChallenge                 []byte
 
 	rejectedDocument *Document
+	lastReadError    int
 }
+
+// Kinds of ReadDocument failure, as returned by Reader.LastReadError. gomobile
+// bindings only carry an error's message, so this is how a host app can tell the
+// cases apart (e.g. to ask for the MRZ again, or to suggest scanning the MRZ
+// instead of entering the CAN) without matching on error text. The numbers are
+// part of this package's contract with a host application.
+const (
+	// READ_ERROR_NONE: the last read succeeded, or no read has been made.
+	READ_ERROR_NONE int = 0
+	// READ_ERROR_OTHER: a failure not covered below (e.g. a lost connection or
+	// an unreadable file).
+	READ_ERROR_OTHER int = 1
+	// READ_ERROR_ACCESS_CONTROL_FAILED: PACE or BAC was attempted and failed,
+	// most often because the MRZ or CAN does not match the document.
+	READ_ERROR_ACCESS_CONTROL_FAILED int = 2
+	// READ_ERROR_NO_SECURE_MESSAGING: access control could not run with this
+	// password, e.g. a CAN with PACE skipped or unavailable (BAC requires the
+	// MRZ). The read stopped before any data was read.
+	READ_ERROR_NO_SECURE_MESSAGING int = 3
+	// READ_ERROR_DOCUMENT_NOT_AUTHENTIC: RequireAuthenticDocument rejected the
+	// document; see RejectedDocument.
+	READ_ERROR_DOCUMENT_NOT_AUTHENTIC int = 4
+)
 
 type Document struct {
 	documentEx *document.DocumentEx
@@ -241,6 +265,14 @@ func (r *Reader) RejectedDocument() *Document {
 	return r.rejectedDocument
 }
 
+// LastReadError returns the kind of failure of the most recent ReadDocument, as
+// one of the READ_ERROR_* constants (READ_ERROR_NONE after a successful read).
+func (r *Reader) LastReadError() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.lastReadError
+}
+
 // WithAAChallenge sets a caller-supplied 8-byte RND.IFD challenge for Active
 // Authentication. If not called, a random challenge is generated internally.
 //
@@ -274,6 +306,11 @@ func (r *Reader) ReadDocument(password *MrtdPassword, atr []byte, ats []byte) (d
 	defer r.mu.Unlock()
 
 	r.rejectedDocument = nil
+
+	// Deferred before the recover below, so it runs after it and also classifies a recovered panic.
+	defer func() {
+		r.lastReadError = readErrorKind(doc, err)
+	}()
 
 	// Recover at the public API boundary so an unexpected panic does not
 	// propagate through callers such as gomobile. Do not log here; leave
@@ -327,6 +364,32 @@ func rejectedDocument(doc *Document, err error) *Document {
 		return doc
 	}
 	return nil
+}
+
+// readErrorKind classifies a ReadDocument error. ErrNoSecureMessaging is checked
+// before the access-control errors because it can wrap a PACE error that only
+// explains why PACE was not usable.
+func readErrorKind(doc *Document, err error) int {
+	switch {
+	case err == nil:
+		return READ_ERROR_NONE
+	case errors.Is(err, reader.ErrDocumentNotAuthentic):
+		return READ_ERROR_DOCUMENT_NOT_AUTHENTIC
+	case errors.Is(err, reader.ErrNoSecureMessaging):
+		return READ_ERROR_NO_SECURE_MESSAGING
+	case accessControlFailed(doc, err):
+		return READ_ERROR_ACCESS_CONTROL_FAILED
+	}
+	return READ_ERROR_OTHER
+}
+
+func accessControlFailed(doc *Document, err error) bool {
+	if doc == nil || doc.documentEx == nil {
+		return false
+	}
+	session := &doc.documentEx.Session
+	return (session.PaceErr != nil && errors.Is(err, session.PaceErr)) ||
+		(session.BacErr != nil && errors.Is(err, session.BacErr))
 }
 
 // newGmrtdReader builds the underlying reader with this Reader's options applied.

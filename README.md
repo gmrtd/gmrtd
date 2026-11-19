@@ -50,7 +50,7 @@ The library is transport-agnostic and can be used with desktop, mobile, or embed
 
 The caller supplies either MRZ or CAN; **gmrtd negotiates and executes the appropriate protocol automatically** based on document capabilities.
 
-Access control fails closed. `ReadDocument` returns an error, before any LDS file is read, when PACE fails (unless `AllowBacFallbackOnPaceError()` is set), when BAC fails, or when no secure messaging is established at all (for example a CAN read with PACE skipped or unavailable, since BAC needs the MRZ; this error wraps `reader.ErrNoSecureMessaging`). `Session.PaceErr` and `Session.BacErr` still record the cause.
+Access control fails closed. `ReadDocument` returns an error, before any LDS file is read, when PACE fails (unless `AllowBacFallbackOnPaceError()` is set), when BAC fails, or when no secure messaging is established at all (for example a CAN read with PACE skipped or unavailable, since BAC needs the MRZ; this error wraps `reader.ErrNoSecureMessaging`). `Session.PaceErr` and `Session.BacErr` still record the cause. gomobile bindings only carry the error message, so iOS and Android apps can call `mobile.Reader.LastReadError()` to tell these cases apart (`READ_ERROR_ACCESS_CONTROL_FAILED`, usually a wrong MRZ or CAN, versus `READ_ERROR_NO_SECURE_MESSAGING`, where the MRZ is needed instead).
 
 # 📦 Features
 - ✅ BAC (MRZ)
