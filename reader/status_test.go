@@ -142,13 +142,9 @@ func TestAccessControlStepsReportPhase(t *testing.T) {
 			state.docEx.Document.Mf.CardAccess = cardAccess
 
 			err = tc.step(reader, state)
-			if tc.name == "performPace" {
-				// Default is fail-closed on PACE error; phase is still reported first.
-				if err == nil {
-					t.Fatalf("expected PACE error (fail-closed default)")
-				}
-			} else if err != nil {
-				t.Fatalf("unexpected error: %s", err)
+			// Both access-control steps fail closed; the phase is still reported first.
+			if err == nil {
+				t.Fatalf("expected %s error (fail closed)", tc.name)
 			}
 
 			exp := []Status{{Phase: tc.exp}}
@@ -277,18 +273,28 @@ func TestReadDocumentReportsPhases(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 
-	var status MockStatus
-	transceiver := &singleFileTransceiver{fileId: MRTDFileIdEFSOD, fileData: sampleDoc.Mf.Lds1.Sod.RawData}
-	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(transceiver)
-	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
-
 	pass, err := password.NewPasswordMrzi("123456", "100101", "301225")
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
 
-	if _, _, err = reader.ReadDocument(pass, nil, nil); err != nil {
+	// the chip completes BAC, then serves EF.SOD under secure messaging
+	var status MockStatus
+	chip := newBacChip(t, pass, &singleFileTransceiver{fileId: MRTDFileIdEFSOD, fileData: sampleDoc.Mf.Lds1.Sod.RawData})
+	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(chip)
+	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
+
+	docEx, _, err := reader.ReadDocument(pass, nil, nil)
+	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
+	}
+
+	if docEx.Session.BacResult == nil || !docEx.Session.BacResult.Success {
+		t.Fatalf("BAC success expected")
+	}
+
+	if docEx.Document.Mf.Lds1.Sod == nil {
+		t.Fatalf("EF.SOD expected to be read under secure messaging")
 	}
 
 	exp := []Status{
@@ -309,6 +315,39 @@ func TestReadDocumentReportsPhases(t *testing.T) {
 		{Phase: STATUS_PHASE_VERIFYING_DOCUMENT},
 		{Phase: STATUS_PHASE_PASSIVE_AUTHENTICATION},
 		{Phase: STATUS_PHASE_FINISHED},
+	}
+
+	if act := status.Recorded(); !reflect.DeepEqual(act, exp) {
+		t.Errorf("recorded statuses differ to expected (act:%v) (exp:%v)", act, exp)
+	}
+}
+
+// a read whose BAC fails reports the phases up to BAC and nothing after it
+func TestReadDocumentReportsPhasesUntilBacFailure(t *testing.T) {
+	sampleDoc, err := document.SampleDocument()
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	// the chip answers neither PACE nor BAC
+	var status MockStatus
+	transceiver := &singleFileTransceiver{fileId: MRTDFileIdEFSOD, fileData: sampleDoc.Mf.Lds1.Sod.RawData}
+	var reader *Reader = NewReader(&status, iso7816.NewNfcSession(transceiver), EmptyCscaTrustStore(t))
+
+	pass, err := password.NewPasswordMrzi("123456", "100101", "301225")
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	if _, _, err = reader.ReadDocument(pass, nil, nil); err == nil {
+		t.Fatalf("expected the read to stop at BAC")
+	}
+
+	exp := []Status{
+		{Phase: STATUS_PHASE_CONNECTING},
+		{Phase: STATUS_PHASE_READING_CARD_ACCESS},
+		{Phase: STATUS_PHASE_ACCESS_CONTROL_PACE},
+		{Phase: STATUS_PHASE_ACCESS_CONTROL_BAC},
 	}
 
 	if act := status.Recorded(); !reflect.DeepEqual(act, exp) {

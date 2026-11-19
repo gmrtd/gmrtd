@@ -115,7 +115,9 @@ func (reader *Reader) SkipImages() {
 
 // AllowBacFallbackOnPaceError configures the reader to continue to BAC when
 // PACE is attempted and fails. The default is fail-closed: a PACE error stops
-// ReadDocument before BAC. Session.PaceErr is still recorded either way.
+// ReadDocument before BAC. Session.PaceErr is still recorded either way. BAC
+// itself always fails closed: if it fails, or cannot run because the password
+// is not an MRZ (e.g. CAN), ReadDocument returns an error.
 func (reader *Reader) AllowBacFallbackOnPaceError() {
 	reader.mu.Lock()
 	defer reader.mu.Unlock()
@@ -188,6 +190,10 @@ func NewReaderState(atr []byte, ats []byte, password *password.Password) *Reader
 
 // reads the document using the specified transceiver and password
 // - also performs doc.Verify() and Passive Authentication!
+// - fails closed on access control, before any LDS file is read: a PACE error (unless
+// AllowBacFallbackOnPaceError is set), a BAC error, or no secure messaging at all (e.g. a CAN
+// password with PACE skipped or unavailable, see ErrNoSecureMessaging) returns an error;
+// Session.PaceErr/BacErr still record the cause
 // NB returns partial data (docEx, apduLog) in the event of an error
 func (reader *Reader) ReadDocument(password *password.Password, atr []byte, ats []byte) (docEx *document.DocumentEx, apduLog *iso7816.ApduLog, err error) {
 	// Locked for the whole call: Reader is single-use/single-session, and this
@@ -433,9 +439,18 @@ func performBac(reader *Reader, state *ReaderState) error {
 		return nil
 	}
 	reader.reportPhase(STATUS_PHASE_ACCESS_CONTROL_BAC)
-	// NB errors are just recorded at this point
 	state.docEx.Session.BacResult, state.docEx.Session.BacErr = bac.NewBAC(reader.nfc, &state.docEx.Document, state.password).DoBAC()
-	return nil
+	if reader.nfc.SM() != nil {
+		return nil
+	}
+	// fail closed: no secure messaging after access control, so the rest of the read would go to an
+	// unauthenticated chip (NB Session.BacErr still records a BAC error)
+	if state.docEx.Session.BacErr != nil {
+		return fmt.Errorf("[performBac] BAC failed: %w", state.docEx.Session.BacErr)
+	}
+	// DoBAC skips any password that isn't MRZi (e.g. CAN), so with PACE skipped, unsupported locally or
+	// failed under AllowBacFallbackOnPaceError there is no access control at all
+	return fmt.Errorf("[performBac] %w", ErrNoSecureMessaging)
 }
 
 func performChipAuthentication(reader *Reader, state *ReaderState) error {
@@ -489,6 +504,12 @@ func verifyDocument(reader *Reader, state *ReaderState) error {
 
 // ErrDocumentNotAuthentic is returned (wrapped) by ReadDocument when
 // RequireAuthenticDocument is set and the document is not verifiably authentic.
+// ErrNoSecureMessaging is returned (wrapped) by ReadDocument when access control ends without
+// secure messaging and no BAC error to report: BAC only runs with an MRZ password, so a CAN read
+// with PACE skipped, unsupported locally or failed under AllowBacFallbackOnPaceError stops here
+// instead of reading the chip in plain.
+var ErrNoSecureMessaging = errors.New("no secure messaging established (password type not usable for BAC)")
+
 var ErrDocumentNotAuthentic = errors.New("document is not authentic")
 
 func checkAuthenticDocument(reader *Reader, state *ReaderState) error {
