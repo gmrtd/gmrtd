@@ -741,7 +741,7 @@ func TestPerformBacExternalAuthenticateRejected(t *testing.T) {
 // bacRejectingTransceiver rejects EXTERNAL AUTHENTICATE but, like a clone or an emulator, still
 // serves EF.SOD in plain afterwards
 type bacRejectingTransceiver struct {
-	singleFileTransceiver
+	filesTransceiver
 }
 
 func (transceiver *bacRejectingTransceiver) Transceive(cla int, ins int, p1 int, p2 int, data []byte, le int, encodedData []byte) []byte {
@@ -751,7 +751,7 @@ func (transceiver *bacRejectingTransceiver) Transceive(cla int, ins int, p1 int,
 	case int(iso7816.INS_EXTERNAL_AUTHENTICATE):
 		return utils.HexToBytes("6300")
 	}
-	return transceiver.singleFileTransceiver.Transceive(cla, ins, p1, p2, data, le, encodedData)
+	return transceiver.filesTransceiver.Transceive(cla, ins, p1, p2, data, le, encodedData)
 }
 
 func TestReadDocumentFailsClosedOnBacError(t *testing.T) {
@@ -761,7 +761,7 @@ func TestReadDocumentFailsClosedOnBacError(t *testing.T) {
 	}
 
 	var status MockStatus
-	transceiver := &bacRejectingTransceiver{singleFileTransceiver{fileId: MRTDFileIdEFSOD, fileData: sampleDoc.Mf.Lds1.Sod.RawData}}
+	transceiver := &bacRejectingTransceiver{filesTransceiver{files: map[uint16][]byte{MRTDFileIdEFSOD: sampleDoc.Mf.Lds1.Sod.RawData}}}
 	var reader *Reader = NewReader(&status, iso7816.NewNfcSession(transceiver), EmptyCscaTrustStore(t))
 
 	pass, err := password.NewPasswordMrzi("123456", "100101", "301225")
@@ -1626,8 +1626,10 @@ func (chip *bacChip) smTransceive(cla int, ins int, p1 int, p2 int, data []byte)
 	return append(out.Encode(), sw...)
 }
 
-// filesTransceiver is a plain chip that serves a set of EFs by file id and answers anything else
-// (e.g. BAC or PACE) as unsupported
+// filesTransceiver is a plain chip that serves a set of EFs by file id: SELECT succeeds for the MF,
+// the MRTD AID and those files, READ BINARY returns slices of the selected file, and anything else
+// (e.g. BAC or PACE) is answered as unsupported. Enough for a read to run all of its steps without
+// a card.
 type filesTransceiver struct {
 	files    map[uint16][]byte
 	selected []byte

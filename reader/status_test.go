@@ -1,7 +1,6 @@
 package reader
 
 import (
-	"bytes"
 	"reflect"
 	"strings"
 	"testing"
@@ -216,53 +215,6 @@ func TestReadLDS1DgsSkipImagesReportsNoDataGroup(t *testing.T) {
 	}
 }
 
-// singleFileTransceiver serves one EF from memory: SELECT succeeds for the MF, the
-// MRTD AID and that one file-id, READ BINARY returns slices of its contents, and
-// every other file is reported as not found. Enough for a read to run all of its
-// steps without a card.
-type singleFileTransceiver struct {
-	fileId   uint16
-	fileData []byte
-	selected bool
-}
-
-var _ iso7816.Transceiver = (*singleFileTransceiver)(nil)
-
-func (transceiver *singleFileTransceiver) Transceive(_ int, ins int, p1 int, p2 int, data []byte, le int, _ []byte) []byte {
-	const rApduSuccess = "9000"
-	const rApduFileNotFound = "6A82"
-	const rApduNotSupported = "6D00"
-
-	switch {
-	case ins == int(iso7816.INS_SELECT) && p1 == 0x02: // select EF
-		transceiver.selected = bytes.Equal(data, utils.UInt16ToBytes(transceiver.fileId))
-		if !transceiver.selected {
-			return utils.HexToBytes(rApduFileNotFound)
-		}
-		return utils.HexToBytes(rApduSuccess)
-
-	case ins == int(iso7816.INS_SELECT): // select MF / AID
-		return utils.HexToBytes(rApduSuccess)
-
-	case ins == int(iso7816.INS_READ_BINARY):
-		if !transceiver.selected {
-			return utils.HexToBytes(rApduFileNotFound)
-		}
-
-		offset := (p1 * 256) + p2
-		if offset > len(transceiver.fileData) {
-			return utils.HexToBytes(rApduFileNotFound)
-		}
-
-		end := min(offset+le, len(transceiver.fileData))
-
-		return append(transceiver.fileData[offset:end:end], utils.HexToBytes(rApduSuccess)...)
-	}
-
-	// anything else (e.g. the BAC/PACE commands) is reported as unsupported
-	return utils.HexToBytes(rApduNotSupported)
-}
-
 // verifies the phases a complete read reports, in order, including the data-group
 // numbers and the final completion phase
 func TestReadDocumentReportsPhases(t *testing.T) {
@@ -280,7 +232,7 @@ func TestReadDocumentReportsPhases(t *testing.T) {
 
 	// the chip completes BAC, then serves EF.SOD under secure messaging
 	var status MockStatus
-	chip := newBacChip(t, pass, &singleFileTransceiver{fileId: MRTDFileIdEFSOD, fileData: sampleDoc.Mf.Lds1.Sod.RawData})
+	chip := newBacChip(t, pass, &filesTransceiver{files: map[uint16][]byte{MRTDFileIdEFSOD: sampleDoc.Mf.Lds1.Sod.RawData}})
 	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(chip)
 	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
 
@@ -331,7 +283,7 @@ func TestReadDocumentReportsPhasesUntilBacFailure(t *testing.T) {
 
 	// the chip answers neither PACE nor BAC
 	var status MockStatus
-	transceiver := &singleFileTransceiver{fileId: MRTDFileIdEFSOD, fileData: sampleDoc.Mf.Lds1.Sod.RawData}
+	transceiver := &filesTransceiver{files: map[uint16][]byte{MRTDFileIdEFSOD: sampleDoc.Mf.Lds1.Sod.RawData}}
 	var reader *Reader = NewReader(&status, iso7816.NewNfcSession(transceiver), EmptyCscaTrustStore(t))
 
 	pass, err := password.NewPasswordMrzi("123456", "100101", "301225")
