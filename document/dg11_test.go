@@ -391,3 +391,43 @@ func TestProcessTagDG11Errors(t *testing.T) {
 		})
 	}
 }
+
+func TestDG11OtherNameTagAliases(t *testing.T) {
+	name := tlv.NewTlvSimpleNode(0x5F0F, []byte("SMITH<<JOHN"))
+	for _, list := range []string{"5F0FA05F0F", "A05F0FA0"} {
+		t.Run(list, func(t *testing.T) {
+			root := tlv.NewTlvConstructedNode(DG11Tag).
+				AddChild(tlv.NewTlvSimpleNode(0x5C, utils.HexToBytes(list))).
+				AddChild(tlv.NewTlvConstructedNode(0xA0).
+					AddChild(tlv.NewTlvSimpleNode(0x02, []byte{1})).
+					AddChild(name))
+			dg, err := NewDG11(root.Encode())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if want := []mrz.MrzName{{Primary: "SMITH", Secondary: "JOHN"}}; !reflect.DeepEqual(dg.Details.OtherNames, want) {
+				t.Errorf("other names = %v, want %v", dg.Details.OtherNames, want)
+			}
+		})
+	}
+}
+
+func TestDG11UnwrappedNameLimit(t *testing.T) {
+	root := tlv.NewTlvConstructedNode(DG11Tag).
+		AddChild(tlv.NewTlvSimpleNode(0x5C, utils.HexToBytes("5F0F")))
+	name := tlv.NewTlvSimpleNode(0x5F0F, []byte("ZHAO<<BIN"))
+	for range 99 {
+		root.AddChild(name)
+	}
+	dg, err := NewDG11(root.Encode())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(dg.Details.OtherNames) != 99 {
+		t.Fatalf("got %d names, want 99", len(dg.Details.OtherNames))
+	}
+	root.AddChild(name)
+	if dg, err := NewDG11(root.Encode()); dg != nil || err == nil {
+		t.Fatal("expected 100 unwrapped names to be rejected")
+	}
+}
