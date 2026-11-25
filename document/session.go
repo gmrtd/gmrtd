@@ -54,8 +54,7 @@ type OfflineVerification struct {
 	// (e.g. its own kiosk or an attested app), so replayed CA/PACE-CAM/AA evidence is accepted.
 	TrustedSource bool `json:"trustedSource"`
 
-	// AAChallengeBound reports that the AA evidence nonce matched a challenge supplied to the
-	// verifier, so the AA signature was produced for this verification.
+	// AAChallengeBound reports that the verifier validated the AA signature over its supplied challenge.
 	AAChallengeBound bool `json:"aaChallengeBound"`
 }
 
