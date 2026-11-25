@@ -4,6 +4,7 @@ package bac
 import (
 	"bytes"
 	"crypto/cipher"
+	"crypto/hmac"
 	"fmt"
 	"log/slog"
 
@@ -119,8 +120,8 @@ func (bac *BAC) processResponse(data, kEnc, kMac, rndIfd, rndIcc []byte) (kIcc [
 			return nil, fmt.Errorf("[processResponse] calculateMac error: %w", err)
 		}
 
-		if !bytes.Equal(rspMac, expMac) {
-			return nil, fmt.Errorf("[processResponse] MAC mismatch (Exp:%x, Act:%x)", expMac, rspMac)
+		if !hmac.Equal(rspMac, expMac) {
+			return nil, fmt.Errorf("[processResponse] MAC mismatch")
 		}
 	}
 

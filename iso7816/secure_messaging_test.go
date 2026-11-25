@@ -3,9 +3,11 @@ package iso7816
 import (
 	"bytes"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
+	"github.com/gmrtd/gmrtd/internal/testlog"
 	"github.com/gmrtd/gmrtd/utils"
 )
 
@@ -433,6 +435,26 @@ func TestSecureMessageDecode(t *testing.T) {
 	}
 }
 
+func TestSecureMessageDecodeIncorrectMAC(t *testing.T) {
+	logs := testlog.CaptureDebug(t)
+	sm, err := NewSecureMessaging(cryptoutils.TDES, utils.HexToBytes("979EC13B1CBFE9DCD01AB0FED307EAE5"), utils.HexToBytes("F1CB1F1FB5ADF208806B89DC579DC1F8"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sm.SetSSC(utils.HexToBytes("887022120C06C227")); err != nil {
+		t.Fatal(err)
+	}
+	const receivedMAC = "0123456789ABCDEF"
+	_, err = sm.Decode(utils.HexToBytes("990290008E08" + receivedMAC + "9000"))
+	if err == nil || !strings.Contains(err.Error(), "MAC mismatch") {
+		t.Fatal("expected MAC verification to fail")
+	}
+	testlog.AssertNoSecrets(t, logs.String()+"\n"+err.Error(), map[string]string{
+		"expected MAC": "FA855A5D4C50A8ED",
+		"received MAC": receivedMAC,
+	})
+}
+
 func TestSecureMessageDecodeErrors(t *testing.T) {
 	testCases := []struct {
 		name          string
@@ -469,15 +491,6 @@ func TestSecureMessageDecodeErrors(t *testing.T) {
 			ssc:           utils.HexToBytes("887022120C06C227"),
 			rApduBytes:    utils.HexToBytes("990290009000"),
 			errorContains: "tag 0x8E must be present",
-		},
-		{
-			name:          "R-Apdu has incorrect MAC",
-			alg:           cryptoutils.TDES,
-			ksEnc:         utils.HexToBytes("979EC13B1CBFE9DCD01AB0FED307EAE5"),
-			ksMac:         utils.HexToBytes("F1CB1F1FB5ADF208806B89DC579DC1F8"),
-			ssc:           utils.HexToBytes("887022120C06C227"),
-			rApduBytes:    utils.HexToBytes("990290008E080123456789ABCDEF9000"),
-			errorContains: "verify MAC error",
 		},
 		{
 			name:          "R-Apdu status differs to protected status (tag:99) - 9000(unprotected) vs 6200(protected)",

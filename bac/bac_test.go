@@ -261,8 +261,8 @@ func TestProcessResponseKMacKeyMismatchErr(t *testing.T) {
 
 	_, err := bac.processResponse(rApduData, kEnc, kMac, rndIfd, rndIcc)
 
-	if err == nil {
-		t.Errorf("Error expected")
+	if err == nil || err.Error() != "[processResponse] MAC mismatch" {
+		t.Error("expected a MAC mismatch error without authenticator values")
 	}
 }
 
@@ -402,9 +402,10 @@ func TestDoBAC(t *testing.T) {
 		t.Errorf("Unexpected error: %s", err)
 	}
 	testlog.AssertNoSecrets(t, logs.String(), map[string]string{
-		"password": pass.Password,
-		"ksEnc":    "979EC13B1CBFE9DCD01AB0FED307EAE5",
-		"ksMac":    "F1CB1F1FB5ADF208806B89DC579DC1F8",
+		"response MAC": "2F2D235D074D7449",
+		"password":     pass.Password,
+		"ksEnc":        "979EC13B1CBFE9DCD01AB0FED307EAE5",
+		"ksMac":        "F1CB1F1FB5ADF208806B89DC579DC1F8",
 	})
 
 	// verify Result is as expected
