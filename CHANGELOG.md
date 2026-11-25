@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.10.1](https://github.com/gmrtd/gmrtd/compare/v1.10.0...v1.10.1) (2026-11-25)
+
+
+### Bug Fixes
+
+* name the signer cert in CMS signer validation errors ([#597](https://github.com/gmrtd/gmrtd/issues/597)) ([91f5ae3](https://github.com/gmrtd/gmrtd/commit/91f5ae37fec9fdc8fbcf898bcc094357598df4a2))
+* reject duplicate data group numbers in EF.SOD ([#594](https://github.com/gmrtd/gmrtd/issues/594)) ([ccbd6f5](https://github.com/gmrtd/gmrtd/commit/ccbd6f59cf30580bb895dea26fb47f25b8d0e479))
+* require authorized signers for CSCA master lists ([#596](https://github.com/gmrtd/gmrtd/issues/596)) ([e77047c](https://github.com/gmrtd/gmrtd/commit/e77047c52d417a81b74df5d96bcb93991f3add9c))
+* require DG14 security infos for chip authentication evidence ([#592](https://github.com/gmrtd/gmrtd/issues/592)) ([d627e29](https://github.com/gmrtd/gmrtd/commit/d627e294c65bd6a9fe456c3db093398e8bee35ca))
+
 ## [1.10.0](https://github.com/gmrtd/gmrtd/compare/v1.9.1...v1.10.0) (2026-11-19)
 
 
