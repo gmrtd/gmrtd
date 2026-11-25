@@ -6,6 +6,9 @@ import (
 	"fmt"
 )
 
+// Session records the outcome of each step of a document read or offline verification: an
+// error and a result for BAC, PACE, Chip Authentication, Active Authentication and
+// Passive Authentication, and the result of Document.Verify.
 type Session struct {
 	ChipActivationRsp *ChipActivationRsp `json:"chipActivationRsp,omitempty"`
 
@@ -134,21 +137,26 @@ func (session Session) untrustedOfflineChipAuthStatus() ChipAuthStatus {
 	return CHIP_AUTH_STATUS_NONE
 }
 
+// ChipActivationRsp holds the ATR and ATS returned by the chip when it was activated.
 type ChipActivationRsp struct {
 	Atr []byte `json:"atr,omitempty"`
 	Ats []byte `json:"ats,omitempty"`
 }
 
+// BacResult is the outcome of Basic Access Control.
 type BacResult struct {
 	Success bool `json:"success"`
 }
 
+// PaceResult is the outcome of PACE, with the protocol OID and standardised domain
+// parameter ID used.
 type PaceResult struct {
 	Success     bool                  `json:"success"`
 	Oid         asn1.ObjectIdentifier `json:"oid"`
 	ParameterId int                   `json:"parameterId"`
 }
 
+// MarshalJSON encodes the PaceResult with the protocol OID in dotted form.
 func (result PaceResult) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Success     bool   `json:"success"`
@@ -169,6 +177,7 @@ type PaceCamResult struct {
 	Evidence *PaceCamEvidence `json:"evidence,omitempty"`
 }
 
+// MarshalJSON encodes the PaceCamResult and its evidence.
 func (result PaceCamResult) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Success  bool             `json:"success"`
@@ -221,6 +230,7 @@ type PaceCamEvidence struct {
 	EcadIC      []byte                `json:"ecadIC"`
 }
 
+// MarshalJSON encodes the PaceCamEvidence with the PACE OID in dotted form.
 func (evidence PaceCamEvidence) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		PaceOid     string `json:"paceOid"`
@@ -265,6 +275,7 @@ type ActiveAuthEvidence struct {
 	Signature []byte                `json:"signature"`
 }
 
+// MarshalJSON encodes the ActiveAuthEvidence with the algorithm OID in dotted form.
 func (evidence ActiveAuthEvidence) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Algorithm string `json:"algorithm"`
@@ -277,6 +288,8 @@ func (evidence ActiveAuthEvidence) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// ActiveAuthResult is the outcome of Active Authentication and, if captured, the evidence
+// needed to re-verify it offline.
 type ActiveAuthResult struct {
 	Success  bool                `json:"success"`
 	Evidence *ActiveAuthEvidence `json:"evidence,omitempty"`
@@ -311,11 +324,15 @@ type ChipAuthEvidence struct {
 	SmSsc      []byte `json:"smSsc,omitempty"`
 }
 
+// ChipAuthResult is the outcome of Chip Authentication and, if captured, the evidence
+// needed to re-check it offline.
 type ChipAuthResult struct {
 	Success  bool              `json:"success"`
 	Evidence *ChipAuthEvidence `json:"evidence,omitempty"`
 }
 
+// ChipAuthStatus identifies which chip authentication protocol, if any, succeeded. See
+// the CHIP_AUTH_STATUS_* constants.
 type ChipAuthStatus int
 
 // intentionally use explicit values instead of iota
@@ -326,6 +343,7 @@ const (
 	CHIP_AUTH_STATUS_AA       = 3
 )
 
+// String returns a readable name for the status, such as "PACE-CAM", or "n/a" for none.
 func (cas ChipAuthStatus) String() string {
 	switch cas {
 	case CHIP_AUTH_STATUS_NONE:
@@ -341,16 +359,23 @@ func (cas ChipAuthStatus) String() string {
 	return fmt.Sprintf("*UnsupportedValue* (cas:%d)", int(cas))
 }
 
+// PassiveAuthResult is the outcome of Passive Authentication. When Success is true, Sod
+// and CardSec hold the certificate chains that verified EF.SOD and EF.CardSecurity, and
+// CardSec is nil if EF.CardSecurity was not present. When Success is false they may be
+// set but empty.
 type PassiveAuthResult struct {
 	Success bool         `json:"success"`
 	Sod     *PassiveAuth `json:"sod,omitempty"`
 	CardSec *PassiveAuth `json:"cardSec,omitempty"`
 }
 
+// PassiveAuth holds the certificate chain returned when verifying a signed object, one
+// DER-encoded certificate per entry.
 type PassiveAuth struct {
 	CertChain [][]byte `json:"certChain,omitempty"`
 }
 
+// NewPassiveAuth returns a PassiveAuth holding certChain.
 func NewPassiveAuth(certChain [][]byte) *PassiveAuth {
 	return &PassiveAuth{CertChain: certChain}
 }

@@ -8,13 +8,16 @@ import (
 	"github.com/gmrtd/gmrtd/utils"
 )
 
+// DG7Tag is the tag of the DG7 root data object.
 const DG7Tag = 0x67
 
+// DG7 is data group 7, the displayed signature or usual mark images.
 type DG7 struct {
 	RawData []byte     `json:"rawData,omitempty"`
 	Images  []DG7Image `json:"images,omitempty"`
 }
 
+// DG7Image is a displayed signature or usual mark image from DG7.
 type DG7Image struct {
 	Image []byte `json:"image,omitempty"`
 }
@@ -26,8 +29,12 @@ type DG7Image struct {
 // Note.— Data Element 02 (tag 5F43) SHALL be encoded as defined in [ISO/IEC 10918], using the JFIF option, or
 //		  [ISO/IEC 15444] using JPEG 2000 image coding system.
 
+// GetRawData returns the raw DG7 bytes as read from the chip.
 func (f *DG7) GetRawData() []byte { return f.RawData }
 
+// NewDG7 parses DG7. It returns nil and no error if data is empty, and an error if the
+// TLV is malformed, the root tag is missing, the image count (tag 02) is not a single
+// byte of 1-9, or an image is missing or not in a recognised image format.
 func NewDG7(data []byte) (*DG7, error) {
 	if len(data) < 1 {
 		return nil, nil

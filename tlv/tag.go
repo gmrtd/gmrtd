@@ -9,10 +9,14 @@ import (
 	"github.com/gmrtd/gmrtd/utils"
 )
 
+// TlvTag is a BER-TLV tag, holding the tag's encoded bytes as a big-endian integer
+// (for example 0x5f1f). Tags of up to 4 bytes are supported.
 type TlvTag uint32
 
 var errStartOfStreamEOF = errors.New("EOF at start of stream")
 
+// ParseTag reads one tag, including any subsequent bytes of a multi-byte tag, from r.
+// It returns an error if r is exhausted or the tag exceeds 4 bytes.
 func ParseTag(r io.Reader) (TlvTag, error) {
 	b1, err := utils.ByteFromBuffer(r)
 	if err != nil {
@@ -49,6 +53,8 @@ func ParseTag(r io.Reader) (TlvTag, error) {
 	return tag, nil
 }
 
+// ParseTags reads consecutive tags from r until it is exhausted, as used for tag lists
+// such as the one in EF.COM. It returns an error if a tag is truncated or too long.
 func ParseTags(r io.Reader) ([]TlvTag, error) {
 	var out []TlvTag
 
@@ -67,6 +73,8 @@ func ParseTags(r io.Reader) ([]TlvTag, error) {
 	return out, nil
 }
 
+// Encode returns the tag's bytes with leading zero bytes removed, or a single 0x00 byte
+// for tag 0.
 func (tag TlvTag) Encode() []byte {
 	// gracefully handle invalid tags (negative or 0)
 	if tag < 1 {
@@ -77,6 +85,8 @@ func (tag TlvTag) Encode() []byte {
 	return bytes.TrimLeft(utils.UInt64ToBytes(uint64(tag)), "\x00")
 }
 
+// IsConstructed reports whether the tag is constructed, that is whether bit 6 (0x20)
+// of its first byte is set. It returns false for tag 0.
 func (tag TlvTag) IsConstructed() bool {
 	var tmp uint32 = uint32(tag)
 

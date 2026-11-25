@@ -9,6 +9,8 @@ import (
 	"github.com/gmrtd/gmrtd/utils"
 )
 
+// MasterFile holds the files read from the chip's master file and its LDS1 (eMRTD)
+// application. A nil field means the file was not read or is absent.
 type MasterFile struct {
 	CardAccess   *CardAccess   `json:"cardAccess,omitempty"`
 	CardSecurity *CardSecurity `json:"cardSecurity,omitempty"` // NB only read for PACE-CAM - read during PACE flow
@@ -16,6 +18,8 @@ type MasterFile struct {
 	Lds1         LDS1          `json:"lds1"`
 }
 
+// LDS1 holds the files of the LDS1 (eMRTD) application: EF.COM, EF.SOD and the supported
+// data groups. A nil field means the file was not read or is absent.
 type LDS1 struct {
 	Com  *COM  `json:"com,omitempty"`  // largely deprecated by SOD, but used to determine Lds/Unicode Version if older SOD formatis present
 	Sod  *SOD  `json:"sod,omitempty"`  // Document Security Object EF.SOD (MANDATORY)
@@ -30,6 +34,7 @@ type LDS1 struct {
 	Dg16 *DG16 `json:"dg16,omitempty"` // DATA GROUP 16 — Person(s) to Notify (OPTIONAL)
 }
 
+// Document is the parsed content of an MRTD, organised by the chip's file structure.
 type Document struct {
 	Mf MasterFile `json:"mf"`
 }
@@ -74,6 +79,9 @@ func (doc Document) UnicodeVersion() string {
 	return unicodeVer
 }
 
+// NewDG parses data as data group dg and stores the result in the document, replacing any
+// previous value. Data groups 1, 2, 7 and 11-16 are supported; any other number returns
+// an error. If data is empty or fails to parse, the data group is set to nil.
 func (doc *Document) NewDG(dg int, data []byte) (err error) {
 	switch dg {
 	case 1:
@@ -103,6 +111,9 @@ func (doc *Document) NewDG(dg int, data []byte) (err error) {
 
 var dgHashableIds []int = []int{1, 2, 7, 11, 12, 13, 14, 15, 16}
 
+// DgHashes returns the hash of each present data group, keyed by data group number,
+// computed with the hash algorithm in EF.SOD. Absent data groups are omitted. It returns
+// an error if a data group is present but EF.SOD is not, or if hashing fails.
 func (doc *Document) DgHashes() (map[int][]byte, error) {
 	dgHashes := make(map[int][]byte)
 

@@ -43,10 +43,15 @@ type CryptoHasher interface {
 	CryptoHashByOid(oid asn1.ObjectIdentifier, data []byte) ([]byte, error)
 }
 
+// Asn1Parser decodes DER data into v. If allowExtraData is false, trailing bytes after the
+// first ASN.1 value are an error. It exists so tests can substitute a parser via CMSConfig.
 type Asn1Parser interface {
 	ParseAsn1(data []byte, allowExtraData bool, v interface{}) error
 }
 
+// CurveLookup supplies the elliptic curves recognised when resolving EC public keys:
+// GetNamedCurves maps curve OIDs to curves, and GetLookupCurves lists the curves matched
+// against explicitly specified domain parameters.
 type CurveLookup interface {
 	GetNamedCurves() []EcNamedCurve
 	GetLookupCurves() []elliptic.Curve
@@ -57,14 +62,19 @@ type DefaultCryptoHasher struct{}
 
 var _ CryptoHasher = DefaultCryptoHasher{}
 
+// CryptoHashByOid hashes data with the digest algorithm identified by oid, using
+// cryptoutils.CryptoHashByOid.
 func (d DefaultCryptoHasher) CryptoHashByOid(oid asn1.ObjectIdentifier, data []byte) ([]byte, error) {
 	return cryptoutils.CryptoHashByOid(oid, data)
 }
 
+// DefaultAsn1Parser is the Asn1Parser used by NewDefaultCMSConfig, based on encoding/asn1.
 type DefaultAsn1Parser struct{}
 
 var _ Asn1Parser = DefaultAsn1Parser{}
 
+// ParseAsn1 unmarshals data into v with asn1.Unmarshal, returning an error if decoding fails
+// or if allowExtraData is false and bytes remain after the first value.
 func (d DefaultAsn1Parser) ParseAsn1(data []byte, allowExtraData bool, v interface{}) error {
 	rest, err := asn1.Unmarshal(data, v)
 	if err != nil {
@@ -78,10 +88,14 @@ func (d DefaultAsn1Parser) ParseAsn1(data []byte, allowExtraData bool, v interfa
 	return nil
 }
 
+// DefaultCurveLookup is the CurveLookup used by NewDefaultCMSConfig, covering the NIST
+// P-192 to P-521 and Brainpool r1 curves.
 type DefaultCurveLookup struct{}
 
 var _ CurveLookup = DefaultCurveLookup{}
 
+// GetNamedCurves returns the supported named curves: NIST P-192, P-224, P-256, P-384 and
+// P-521, and Brainpool P192r1 to P512r1.
 func (d DefaultCurveLookup) GetNamedCurves() []EcNamedCurve {
 	return []EcNamedCurve{
 		{oid: oid.OidPrime192v1, curve: cryptoutils.EllipticP192()},
@@ -98,6 +112,8 @@ func (d DefaultCurveLookup) GetNamedCurves() []EcNamedCurve {
 	}
 }
 
+// GetLookupCurves returns the curves matched against explicitly specified EC domain
+// parameters: the named curves plus Brainpool P160r1.
 func (d DefaultCurveLookup) GetLookupCurves() []elliptic.Curve {
 	return []elliptic.Curve{
 		cryptoutils.EllipticP192(),
@@ -147,11 +163,14 @@ func NewDefaultCMSConfig() *CMSConfig {
 
 // TODO - review and ensure that instances of asn1.ObjectIdentifier have MarshalJSON to string notation
 
+// SubjectPublicKeyInfo is the X.509 SubjectPublicKeyInfo structure (RFC 5280 §4.1): the
+// public key algorithm and the encoded public key.
 type SubjectPublicKeyInfo struct {
 	Algorithm        AlgorithmIdentifier
 	SubjectPublicKey asn1.BitString
 }
 
+// MarshalJSON encodes the algorithm and the raw public key bytes.
 func (spk SubjectPublicKeyInfo) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Algorithm        AlgorithmIdentifier `json:"algorithm,omitempty"`
@@ -162,11 +181,14 @@ func (spk SubjectPublicKeyInfo) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// AlgorithmIdentifier is the ASN.1 AlgorithmIdentifier structure (RFC 5280 §4.1.1.2): an
+// algorithm OID and its optional, still-encoded parameters.
 type AlgorithmIdentifier struct {
 	Algorithm  asn1.ObjectIdentifier
 	Parameters asn1.RawValue `asn1:"optional"`
 }
 
+// MarshalJSON encodes the algorithm OID in dotted notation and the raw DER parameters.
 func (ai AlgorithmIdentifier) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Algorithm  string `json:"algorithm,omitempty"`
@@ -177,11 +199,14 @@ func (ai AlgorithmIdentifier) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// ContentInfo is the outer CMS ContentInfo structure (RFC 5652 §3): a content type OID and
+// the still-encoded content.
 type ContentInfo struct {
 	Type    asn1.ObjectIdentifier
 	Content asn1.RawValue `asn1:"explicit,tag:0"`
 }
 
+// MarshalJSON encodes the content type OID in dotted notation and the raw DER content.
 func (ci ContentInfo) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Type    string `json:"type,omitempty"`
@@ -192,6 +217,9 @@ func (ci ContentInfo) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// SignedData is the CMS SignedData structure (RFC 5652 §5.1), as used by EF.SOD,
+// EF.CardSecurity and CSCA master lists. Certificates holds the embedded certificates
+// still DER-encoded; CRLs are parsed but not used.
 type SignedData struct {
 	Raw              asn1.RawContent       `json:"raw"`
 	Version          int                   `json:"version"`
@@ -204,6 +232,9 @@ type SignedData struct {
 
 // TODO - MarshalJSON
 
+// SignerInfo is the CMS SignerInfo structure (RFC 5652 §5.3). Sid is kept encoded and may be
+// either an issuerAndSerialNumber or a [0] subjectKeyIdentifier. The field names follow the
+// older PKCS #7 terms (AuthenticatedAttributes for signedAttrs, EncryptedDigest for signature).
 type SignerInfo struct {
 	Raw                       asn1.RawContent     `json:"raw"`
 	Version                   int                 `asn1:"default:1" json:"version"`
@@ -227,12 +258,15 @@ type IssuerAndSerial struct {
 }
 */
 
+// Attribute is a CMS Attribute (RFC 5652 §5.3), also used for the attribute type and value
+// pairs in an X.509 Name. Values is kept encoded and Raw is the full DER encoding.
 type Attribute struct {
 	Raw    asn1.RawContent
 	Type   asn1.ObjectIdentifier
 	Values asn1.RawValue
 }
 
+// MarshalJSON encodes the attribute type OID in dotted notation and the raw DER values.
 func (a Attribute) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Type   string `json:"type,omitempty"`
@@ -243,6 +277,8 @@ func (a Attribute) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// AttributeList is a list of attributes, such as the signed or unsigned attributes of a
+// SignerInfo.
 type AttributeList []Attribute
 
 // returns: nil if no matching attribute found
@@ -278,12 +314,15 @@ func (attributes AttributeList) SetOfAsnBytes() []byte {
 	return tlv.NewTlvSimpleNode(0x31, attributeBytes).Encode()
 }
 
+// EncapContentInfo is the CMS EncapsulatedContentInfo structure (RFC 5652 §5.2): the
+// content type OID and the signed content (e.g. an LDSSecurityObject or SecurityInfos).
 type EncapContentInfo struct {
 	Raw          asn1.RawContent
 	EContentType asn1.ObjectIdentifier
 	EContent     []byte `asn1:"explicit,tag:0"` // e.g. LDSSecurityObject / SecurityInfos
 }
 
+// MarshalJSON encodes the content type OID in dotted notation and the content bytes.
 func (eci EncapContentInfo) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		EContentType string `json:"eContentType,omitempty"`
@@ -294,6 +333,9 @@ func (eci EncapContentInfo) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// ParseSignedData parses data, which is untrusted, as a DER ContentInfo containing CMS
+// SignedData. It returns an error if the content type is not id-signedData or if any bytes
+// follow the structure. It only parses; use SignedData.Verify to check signatures.
 func ParseSignedData(data []byte) (*SignedData, error) {
 	var err error
 	var contentInfo ContentInfo
@@ -318,6 +360,9 @@ func ParseSignedData(data []byte) (*SignedData, error) {
 	return &signedData, nil
 }
 
+// ParseCertificates parses data as zero or more concatenated DER X.509 certificates. Empty
+// input gives an empty slice, and any parse error fails the whole call. Certificates are
+// only parsed, not verified.
 func ParseCertificates(data []byte) (certs []Certificate, err error) {
 	certs = []Certificate{}
 
@@ -339,6 +384,7 @@ func ParseCertificates(data []byte) (certs []Certificate, err error) {
 	return certs, nil
 }
 
+// Certificate is a parsed X.509 certificate (RFC 5280 §4.1). Raw is the full DER encoding.
 type Certificate struct {
 	Raw                asn1.RawContent     `json:"raw"`
 	TbsCertificate     TBSCertificate      `json:"tbsCertificate"`
@@ -346,14 +392,19 @@ type Certificate struct {
 	SignatureValue     asn1.BitString      `json:"signatureValue"`
 }
 
+// Extensions is the list of extensions in a TBSCertificate.
 type Extensions []Extension
 
+// AuthorityKeyIdentifier is the X.509 authorityKeyIdentifier extension (RFC 5280 §4.2.1.1).
+// Only KeyIdentifier is used when looking up a certificate's issuer.
 type AuthorityKeyIdentifier struct {
 	KeyIdentifier             []byte          `asn1:"optional,implicit,tag:0" json:"keyIdentifier"`
 	AuthorityCertIssuer       asn1.RawContent `asn1:"optional,implicit,tag:1" json:"authorityCertIssuer"`
 	AuthorityCertSerialNumber asn1.RawContent `asn1:"optional,implicit,tag:2" json:"authorityCertSerialNumber"`
 }
 
+// MarshalJSON encodes the key identifier and the raw issuer and serial number fields,
+// omitting any that are empty.
 func (aki AuthorityKeyIdentifier) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		KeyIdentifier             []byte `json:"keyIdentifier,omitempty"`
@@ -366,6 +417,8 @@ func (aki AuthorityKeyIdentifier) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// SubjectKeyIdentifier is the value of the X.509 subjectKeyIdentifier extension
+// (RFC 5280 §4.2.1.2).
 type SubjectKeyIdentifier []byte
 
 // AuthorityKeyIdentifier locates and parses the Authority Key Identifier (AKI)
@@ -577,9 +630,15 @@ func (extensions Extensions) UnrecognizedCriticalExtensions() []Extension {
 	return unrecognized
 }
 
+// RDNSequence is an X.509 Name (RFC 5280 §4.1.2.4): a sequence of relative distinguished
+// names, each a set of attribute type and value pairs.
 type RDNSequence []RelativeDistinguishedNameSET
+
+// RelativeDistinguishedNameSET is one relative distinguished name within an RDNSequence.
 type RelativeDistinguishedNameSET AttributeList
 
+// ParseRDNSequence parses rdnSeq as a DER-encoded X.509 Name, returning an error if
+// decoding fails or bytes remain after it.
 func ParseRDNSequence(rdnSeq []byte) (*RDNSequence, error) {
 	var out RDNSequence
 
@@ -591,6 +650,8 @@ func ParseRDNSequence(rdnSeq []byte) (*RDNSequence, error) {
 	return &out, nil
 }
 
+// ByOID returns a copy of the content bytes of the first attribute value of type oid, or an
+// empty (non-nil) slice if there is none. The value's string type is not checked.
 func (rdnSet RDNSequence) ByOID(oid asn1.ObjectIdentifier) []byte {
 	for _, set := range rdnSet {
 		for _, atv := range set {
@@ -742,14 +803,19 @@ func rdnEscapeValue(s string) string {
 	return b.String()
 }
 
+// IssuerRDN parses the certificate's issuer Name.
 func (cert TBSCertificate) IssuerRDN() (*RDNSequence, error) {
 	return ParseRDNSequence(cert.Issuer.FullBytes)
 }
 
+// SubjectRDN parses the certificate's subject Name.
 func (cert TBSCertificate) SubjectRDN() (*RDNSequence, error) {
 	return ParseRDNSequence(cert.Subject.FullBytes)
 }
 
+// TBSCertificate is the signed portion of an X.509 certificate (RFC 5280 §4.1). Raw is the
+// DER encoding the issuer's signature covers; Issuer, Subject and SubjectPublicKeyInfo
+// are kept encoded.
 type TBSCertificate struct {
 	Raw                  asn1.RawContent     `json:"raw"`
 	Version              int                 `asn1:"explicit,default:1,tag:0" json:"version"`
@@ -764,11 +830,14 @@ type TBSCertificate struct {
 	Extensions           Extensions          `asn1:"explicit,optional,tag:3" json:"extensions"`
 }
 
+// Validity is the X.509 validity period (RFC 5280 §4.1.2.5), with each time kept encoded
+// as a UTCTime or GeneralizedTime.
 type Validity struct {
 	NotBefore asn1.RawValue `json:"notBefore"`
 	NotAfter  asn1.RawValue `json:"notAfter"`
 }
 
+// MarshalJSON encodes notBefore and notAfter as their raw time strings, without parsing them.
 func (v Validity) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		NotBefore string `json:"notBefore,omitempty"`
@@ -779,6 +848,7 @@ func (v Validity) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// Parse decodes the notBefore and notAfter times, returning an error if either is malformed.
 func (v Validity) Parse() (notBefore time.Time, notAfter time.Time, err error) {
 	_, err = asn1.Unmarshal(v.NotBefore.FullBytes, &notBefore)
 	if err != nil {
@@ -812,6 +882,8 @@ func checkValidityPeriod(validity Validity, refTime *time.Time) error {
 	return nil
 }
 
+// Extension is a single X.509 certificate extension (RFC 5280 §4.1). ExtnValue holds the
+// OCTET STRING whose content is the DER-encoded extension value.
 type Extension struct {
 	Raw       asn1.RawContent       `json:"raw"`
 	ObjectId  asn1.ObjectIdentifier `json:"objectId"`
@@ -819,6 +891,8 @@ type Extension struct {
 	ExtnValue asn1.RawValue         `json:"extnValue"`
 }
 
+// MarshalJSON encodes the extension OID in dotted notation, the critical flag and the raw
+// DER extension value.
 func (e Extension) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		ObjectId  string `json:"objectId,omitempty"`
@@ -891,6 +965,15 @@ RFC 5280            PKIX Certificate and CRL Profile            May 2008
 			}
 */
 
+// VerifyWithConfig verifies si against sd. It requires signed attributes, checks the
+// content-type attribute and that the message digest matches sd's content, selects the
+// signer's certificate from those embedded in sd, checks its extensions and validity
+// period, verifies the signature with its public key, and then verifies that certificate
+// against trustedCerts with Certificate.VerifyWithConfig. It returns the DER encodings of
+// the signer certificate followed by its trusted issuer.
+//
+// If config.ReferenceTime is nil it is set to the signing-time attribute, so config is
+// modified; if that attribute is absent or malformed, validity periods are not checked.
 func (si *SignerInfo) VerifyWithConfig(config *CMSConfig, sd *SignedData, trustedCerts CertPool) (certChain [][]byte, err error) {
 	var dataToHash []byte
 	var digestAlg *asn1.ObjectIdentifier
@@ -1019,6 +1102,7 @@ func validateDSCertExtensions(cert *Certificate) error {
 	return nil
 }
 
+// Verify is VerifyWithConfig with NewDefaultCMSConfig.
 func (si *SignerInfo) Verify(sd *SignedData, trustedCerts CertPool) (certChain [][]byte, err error) {
 	return si.VerifyWithConfig(NewDefaultCMSConfig(), sd, trustedCerts)
 }
@@ -1156,6 +1240,10 @@ func (si *SignerInfo) selectCertificate(sd *SignedData) (*Certificate, error) {
 	return &tmpCerts[0], nil
 }
 
+// VerifyWithConfig verifies every SignerInfo in sd with SignerInfo.VerifyWithConfig and
+// returns their certificate chains concatenated. It fails if there are no SignerInfos or if
+// any one fails to verify. The same config is shared by all SignerInfos, so a reference
+// time taken from the first signing-time attribute also applies to later ones.
 func (sd *SignedData) VerifyWithConfig(config *CMSConfig, trustedCerts CertPool) (certChain [][]byte, err error) {
 	slog.Debug("SignedData.Verify")
 
@@ -1181,6 +1269,7 @@ func (sd *SignedData) VerifyWithConfig(config *CMSConfig, trustedCerts CertPool)
 	return certChain, nil
 }
 
+// Verify is VerifyWithConfig with NewDefaultCMSConfig.
 func (sd *SignedData) Verify(trustedCerts CertPool) (certChain [][]byte, err error) {
 	return sd.VerifyWithConfig(NewDefaultCMSConfig(), trustedCerts)
 }
@@ -1345,6 +1434,8 @@ func checkParentValidityPeriod(validity Validity, refTime *time.Time, idx int) e
 	return nil
 }
 
+// Verify is VerifyWithConfig with NewDefaultCMSConfig. Because the default config has no
+// reference time, validity periods are not checked.
 func (cert *Certificate) Verify(trustedCerts CertPool) (certChain [][]byte, err error) {
 	return cert.VerifyWithConfig(NewDefaultCMSConfig(), trustedCerts)
 }
@@ -1371,6 +1462,8 @@ func asn1decodeBytes(config *CMSConfig, data []byte) ([]byte, error) {
 	return out, nil
 }
 
+// Asn1decodeSubjectPublicKeyInfo parses data as a DER SubjectPublicKeyInfo, returning an
+// error if decoding fails or bytes remain after it. The key itself is not validated.
 func Asn1decodeSubjectPublicKeyInfo(data []byte) (SubjectPublicKeyInfo, error) {
 	var out SubjectPublicKeyInfo
 
@@ -1382,11 +1475,14 @@ func Asn1decodeSubjectPublicKeyInfo(data []byte) (SubjectPublicKeyInfo, error) {
 	return out, nil
 }
 
+// EcNamedCurve pairs a named-curve OID with its elliptic curve, as returned by
+// CurveLookup.GetNamedCurves.
 type EcNamedCurve struct {
 	oid   asn1.ObjectIdentifier
 	curve elliptic.Curve
 }
 
+// IsEC reports whether the key's algorithm is id-ecPublicKey.
 func (subPubKeyInfo *SubjectPublicKeyInfo) IsEC() bool {
 	// verify Algorithm OID
 	var expOid asn1.ObjectIdentifier = oid.OidEcPublicKey
@@ -1397,6 +1493,10 @@ func (subPubKeyInfo *SubjectPublicKeyInfo) IsEC() bool {
 	return true
 }
 
+// EcCurveWithConfig resolves the elliptic curve of an EC key. Explicitly specified domain
+// parameters are matched to a known curve by their prime p only (see
+// ECSpecifiedDomain.EcCurve); otherwise the parameters are read as a named-curve OID. It
+// returns an error for non-EC keys and unsupported curves.
 func (subPubKeyInfo *SubjectPublicKeyInfo) EcCurveWithConfig(config *CMSConfig) (curve *elliptic.Curve, err error) {
 	/*
 	* Note: We avoid using 'ParsePKIXPublicKey' as it follows PKIX standard and only allows names curves,
@@ -1444,6 +1544,7 @@ func (subPubKeyInfo *SubjectPublicKeyInfo) EcCurveWithConfig(config *CMSConfig) 
 	return curve, nil
 }
 
+// EcCurve is EcCurveWithConfig with NewDefaultCMSConfig.
 func (subPubKeyInfo *SubjectPublicKeyInfo) EcCurve() (curve *elliptic.Curve, err error) {
 	return subPubKeyInfo.EcCurveWithConfig(NewDefaultCMSConfig())
 }
@@ -1559,10 +1660,12 @@ func (subPubKeyInfo *SubjectPublicKeyInfo) EcCurveAndPubKeyWithConfig(config *CM
 	return nil, nil, fmt.Errorf("[EcCurveAndPubKey] Unable to get PublicKey")
 }
 
+// EcCurveAndPubKey is EcCurveAndPubKeyWithConfig with NewDefaultCMSConfig.
 func (subPubKeyInfo *SubjectPublicKeyInfo) EcCurveAndPubKey(allowCurveFallback bool) (curve *elliptic.Curve, pubKey *cryptoutils.EcPoint, err error) {
 	return subPubKeyInfo.EcCurveAndPubKeyWithConfig(NewDefaultCMSConfig(), allowCurveFallback)
 }
 
+// IsRSA reports whether the key's algorithm is rsaEncryption.
 func (subPubKeyInfo *SubjectPublicKeyInfo) IsRSA() bool {
 	// verify Algorithm OID
 	var expOid asn1.ObjectIdentifier = oid.OidRsaEncryption
@@ -1573,6 +1676,8 @@ func (subPubKeyInfo *SubjectPublicKeyInfo) IsRSA() bool {
 	return true
 }
 
+// RsaPubKey decodes the RSA public key, returning an error if the key is not RSA, cannot be
+// decoded, or has a non-positive modulus or an exponent that is even or not greater than 1.
 func (subPubKeyInfo *SubjectPublicKeyInfo) RsaPubKey() (*cryptoutils.RsaPublicKey, error) {
 	var err error
 	var out cryptoutils.RsaPublicKey
@@ -1611,6 +1716,9 @@ func validateRsaPublicKey(pubKey cryptoutils.RsaPublicKey) error {
 	return nil
 }
 
+// ECSpecifiedDomain holds explicitly specified EC domain parameters (the SpecifiedECDomain
+// form of id-ecPublicKey parameters), which passports often use instead of a named-curve
+// OID. Only prime fields are accepted by ParseECSpecifiedDomain.
 type ECSpecifiedDomain struct {
 	Raw      asn1.RawContent       `json:"raw"`
 	Version  int                   `json:"version"`
@@ -1709,6 +1817,9 @@ RSASSA-PSS-params ::= SEQUENCE {
       }
 */
 
+// RsaSsaPssParams is the RSASSA-PSS-params structure (RFC 4055 / PKCS #1). It is used only to
+// read the hash algorithm; hashAlgorithm and maskGenAlgorithm must be present for parsing
+// to succeed, even though the ASN.1 gives them defaults.
 type RsaSsaPssParams struct {
 	HashAlgorithm    AlgorithmIdentifier `asn1:"explicit,tag:0" json:"hashAlgorithm"`
 	MaskGenAlgorithm AlgorithmIdentifier `asn1:"explicit,tag:1" json:"maskGenAlgorithm"`
@@ -1749,6 +1860,8 @@ func (signature AlgorithmIdentifier) DetermineDigestAlgFromSigAlgWithConfig(conf
 	return &digestAlg, nil
 }
 
+// DetermineDigestAlgFromSigAlg is DetermineDigestAlgFromSigAlgWithConfig with
+// NewDefaultCMSConfig.
 func (signature AlgorithmIdentifier) DetermineDigestAlgFromSigAlg() (*asn1.ObjectIdentifier, error) {
 	return signature.DetermineDigestAlgFromSigAlgWithConfig(NewDefaultCMSConfig())
 }

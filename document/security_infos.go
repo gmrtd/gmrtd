@@ -66,12 +66,18 @@ func isEFDIRInfo(theOid asn1.ObjectIdentifier) bool {
 	return theOid.Equal(oid.OidEfDir)
 }
 
+// SecurityInfoOid decodes only the protocol OID of a SecurityInfo, keeping the raw DER of
+// the whole entry so that it can be classified and parsed separately.
 type SecurityInfoOid struct {
 	Raw      asn1.RawContent
 	Protocol asn1.ObjectIdentifier `asn1:""`
 }
+
+// SecurityInfoOidSET is a SET OF SecurityInfo decoded to the level of SecurityInfoOid.
 type SecurityInfoOidSET []SecurityInfoOid
 
+// PaceInfo is a PACEInfo SecurityInfo, identifying a supported PACE protocol and version
+// and, optionally, the standardised domain parameters. ParameterId is nil if absent.
 type PaceInfo struct {
 	Raw         asn1.RawContent
 	Protocol    asn1.ObjectIdentifier
@@ -79,6 +85,8 @@ type PaceInfo struct {
 	ParameterId *big.Int `asn1:"optional"` // nil if not present
 }
 
+// MarshalJSON encodes the PaceInfo with the protocol OID in dotted form, omitting the raw
+// DER.
 func (p PaceInfo) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Protocol    string   `json:"protocol,omitempty"`
@@ -91,6 +99,8 @@ func (p PaceInfo) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// PaceDomainParameterInfo is a PACEDomainParameterInfo SecurityInfo, carrying explicit
+// domain parameters for PACE. ParameterId is nil if absent.
 type PaceDomainParameterInfo struct {
 	Raw             asn1.RawContent
 	Protocol        asn1.ObjectIdentifier
@@ -98,6 +108,8 @@ type PaceDomainParameterInfo struct {
 	ParameterId     *big.Int `asn1:"optional"` // nil if not present
 }
 
+// MarshalJSON encodes the PaceDomainParameterInfo with the protocol OID in dotted form,
+// omitting the raw DER.
 func (p PaceDomainParameterInfo) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Protocol        string                  `json:"protocol,omitempty"`
@@ -110,6 +122,8 @@ func (p PaceDomainParameterInfo) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// ActiveAuthenticationInfo is an ActiveAuthenticationInfo SecurityInfo, giving the
+// signature algorithm the chip uses for Active Authentication.
 type ActiveAuthenticationInfo struct {
 	Raw                asn1.RawContent
 	Protocol           asn1.ObjectIdentifier
@@ -117,6 +131,8 @@ type ActiveAuthenticationInfo struct {
 	SignatureAlgorithm asn1.ObjectIdentifier
 }
 
+// MarshalJSON encodes the ActiveAuthenticationInfo with its OIDs in dotted form, omitting
+// the raw DER.
 func (aa ActiveAuthenticationInfo) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Protocol           string `json:"protocol,omitempty"`
@@ -137,6 +153,8 @@ type ChipAuthenticationInfo struct {
 	KeyId    *big.Int `asn1:"optional"`
 }
 
+// MarshalJSON encodes the ChipAuthenticationInfo with the protocol OID in dotted form,
+// omitting the raw DER.
 func (ca ChipAuthenticationInfo) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Protocol string   `json:"protocol,omitempty"`
@@ -149,6 +167,8 @@ func (ca ChipAuthenticationInfo) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// ChipAuthenticationPublicKeyInfo is a ChipAuthenticationPublicKeyInfo SecurityInfo,
+// carrying the chip's static public key for Chip Authentication. KeyId is nil if absent.
 type ChipAuthenticationPublicKeyInfo struct {
 	Raw                         asn1.RawContent
 	Protocol                    asn1.ObjectIdentifier
@@ -156,6 +176,8 @@ type ChipAuthenticationPublicKeyInfo struct {
 	KeyId                       *big.Int `asn1:"optional"` // nil if not present
 }
 
+// MarshalJSON encodes the ChipAuthenticationPublicKeyInfo with the protocol OID in dotted
+// form, omitting the raw DER.
 func (capk ChipAuthenticationPublicKeyInfo) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Protocol                    string                   `json:"protocol,omitempty"`
@@ -168,12 +190,16 @@ func (capk ChipAuthenticationPublicKeyInfo) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// TerminalAuthenticationInfo is a TerminalAuthenticationInfo SecurityInfo, indicating
+// support for Terminal Authentication.
 type TerminalAuthenticationInfo struct {
 	Raw      asn1.RawContent
 	Protocol asn1.ObjectIdentifier
 	Version  int
 }
 
+// MarshalJSON encodes the TerminalAuthenticationInfo with the protocol OID in dotted
+// form, omitting the raw DER.
 func (ta TerminalAuthenticationInfo) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Protocol string `json:"protocol,omitempty"`
@@ -184,12 +210,15 @@ func (ta TerminalAuthenticationInfo) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// EFDirInfo is an EFDIR SecurityInfo, which carries a copy of the content of EF.DIR.
 type EFDirInfo struct {
 	Raw      asn1.RawContent
 	Protocol asn1.ObjectIdentifier
 	EFDir    []byte
 }
 
+// MarshalJSON encodes the EFDirInfo with the protocol OID in dotted form, omitting the
+// raw DER.
 func (ef EFDirInfo) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Protocol string `json:"protocol,omitempty"`
@@ -200,11 +229,14 @@ func (ef EFDirInfo) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// UnhandledInfo is a SecurityInfo whose protocol OID is not recognised, kept as raw DER.
 type UnhandledInfo struct {
 	Raw      asn1.RawContent
 	Protocol asn1.ObjectIdentifier
 }
 
+// MarshalJSON encodes the UnhandledInfo with the protocol OID in dotted form and its raw
+// DER.
 func (u UnhandledInfo) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Protocol string `json:"protocol,omitempty"`
@@ -215,6 +247,9 @@ func (u UnhandledInfo) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// SecurityInfos is a decoded SET OF SecurityInfo, as found in EF.CardAccess,
+// EF.CardSecurity and DG14, with the entries grouped by type. RawData holds the encoded
+// set.
 type SecurityInfos struct {
 	RawData              []byte                            `json:"rawData,omitempty"`
 	PaceInfos            []PaceInfo                        `json:"paceInfos,omitempty"`
@@ -377,6 +412,10 @@ func recordUnsupportedInfo(oid asn1.ObjectIdentifier, data []byte, secInfos *Sec
 * Security Info handlers configuration
  */
 
+// SecurityInfoHandlerFn is the signature of a SecurityInfo decoder used by
+// DecodeSecurityInfos. It reports whether it recognised the OID and, if so, appends the
+// parsed entry to the SecurityInfos. An error means the entry was recognised but could
+// not be parsed.
 type SecurityInfoHandlerFn func(asn1.ObjectIdentifier, []byte, *SecurityInfos) (bool, error)
 
 var securityInfoHandleFnArr []SecurityInfoHandlerFn = []SecurityInfoHandlerFn{
@@ -389,6 +428,10 @@ var securityInfoHandleFnArr []SecurityInfoHandlerFn = []SecurityInfoHandlerFn{
 	handleEfDirInfo,
 }
 
+// DecodeSecurityInfos decodes a DER-encoded SET OF SecurityInfo, classifying each entry
+// by its protocol OID; unrecognised entries are kept in UnhandledInfos. It returns an
+// error if the set is malformed or a recognised entry cannot be parsed, including a
+// PACEInfo whose version is not 2.
 func DecodeSecurityInfos(secInfoData []byte) (secInfos *SecurityInfos, err error) {
 	var secInfoOids SecurityInfoOidSET
 
@@ -466,6 +509,7 @@ func (secInfos *SecurityInfos) Contains(subsetSecInfos *SecurityInfos) error {
 	return nil
 }
 
+// TotalCnt returns the total number of SecurityInfo entries, including unhandled ones.
 func (secInfos *SecurityInfos) TotalCnt() (cnt int) {
 	cnt = 0
 	cnt += len(secInfos.PaceInfos)

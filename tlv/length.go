@@ -10,6 +10,8 @@ import (
 	"github.com/gmrtd/gmrtd/utils"
 )
 
+// TlvLength is a decoded BER-TLV length. The value -1 denotes indefinite length
+// (encoded as 0x80).
 type TlvLength int64
 
 // decodes and returns the length
@@ -52,6 +54,9 @@ func ParseLength(r io.Reader) (length TlvLength, err error) {
 	return length, nil
 }
 
+// Encode returns the BER encoding of the length: short form up to 127, long form up to
+// 0xffffffff, and 0x80 for -1 (indefinite length). It panics for any other negative
+// value or a value above 0xffffffff.
 func (length TlvLength) Encode() []byte {
 	out := make([]byte, 0)
 

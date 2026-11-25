@@ -9,6 +9,7 @@ import (
 	"github.com/gmrtd/gmrtd/utils"
 )
 
+// TlvSimpleNode is a TLV element holding a raw value, with no children.
 type TlvSimpleNode struct {
 	tag   TlvTag
 	value []byte
@@ -16,32 +17,39 @@ type TlvSimpleNode struct {
 
 var _ TlvNode = (*TlvSimpleNode)(nil)
 
+// IsValidNode always returns true.
 func (node TlvSimpleNode) IsValidNode() bool {
 	return true
 }
 
+// Tag returns the node's tag.
 func (node TlvSimpleNode) Tag() TlvTag {
 	return node.tag
 }
 
+// Value returns the node's value. The returned slice is not a copy.
 func (node TlvSimpleNode) Value() []byte {
 	return node.value
 }
 
+// NodeByTag always returns a TlvNilNode, as a simple node has no children.
 func (node TlvSimpleNode) NodeByTag(_ TlvTag) TlvNode {
 	// NB this node type cannot have children
 	return NewTlvNilNode()
 }
 
+// NodeByTagOccur always returns a TlvNilNode, as a simple node has no children.
 func (node TlvSimpleNode) NodeByTagOccur(_ TlvTag, _ int) TlvNode {
 	// NB this node type cannot have children
 	return NewTlvNilNode()
 }
 
+// Children always returns an empty slice.
 func (node TlvSimpleNode) Children() []TlvNode {
 	return []TlvNode{}
 }
 
+// Encode returns the node's BER-TLV encoding (tag, definite length and value).
 func (node TlvSimpleNode) Encode() []byte {
 	out := new(bytes.Buffer)
 	out.Write(node.tag.Encode())
@@ -72,10 +80,14 @@ func (node TlvSimpleNode) stringWithIndent(indent int) string {
 	return sb.String()
 }
 
+// String returns a human-readable line with the tag and hex value, followed by the
+// decoded OID for tag 0x06 or the text for a printable value.
 func (node TlvSimpleNode) String() string {
 	return node.stringWithIndent(0)
 }
 
+// NewTlvSimpleNode returns a simple node with the given tag and value. The value is not
+// copied, and the tag is not checked for being primitive.
 func NewTlvSimpleNode(tag TlvTag, value []byte) *TlvSimpleNode {
 	// NB we don't enforce Tag being !constructed
 	return &TlvSimpleNode{tag: tag, value: value}

@@ -15,6 +15,8 @@ type SequenceTransceiver struct {
 
 var _ Transceiver = (*SequenceTransceiver)(nil)
 
+// Transceive returns a copy of the next scripted R-APDU, then defers to Fallback once they
+// run out, or returns an empty slice if Fallback is nil.
 func (transceiver *SequenceTransceiver) Transceive(cla int, ins int, p1 int, p2 int, data []byte, le int, encodedData []byte) []byte {
 	if transceiver.idx < len(transceiver.RApdus) {
 		rApdu := transceiver.RApdus[transceiver.idx]

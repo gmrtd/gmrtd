@@ -7,6 +7,8 @@ import (
 	"github.com/gmrtd/gmrtd/utils"
 )
 
+// CApdu is an ISO/IEC 7816-4 command APDU: the CLA, INS, P1 and P2 header bytes, optional
+// command data and the expected response length Le.
 type CApdu struct {
 	cla  byte
 	ins  byte
@@ -16,10 +18,13 @@ type CApdu struct {
 	le   int    // 0-65536
 }
 
+// String returns the C-APDU's fields in a readable form, for logging.
 func (cApdu CApdu) String() string {
 	return fmt.Sprintf("[CApdu] CLA:%02x, INS:%02x, P1:%02x, P2:%02x, Data:%x, LE(dec):%d", cApdu.cla, cApdu.ins, cApdu.p1, cApdu.p2, cApdu.data, cApdu.le)
 }
 
+// IsExtended reports whether the C-APDU needs extended length fields, i.e. it has more than
+// 255 bytes of data or an Le above 256.
 func (apdu *CApdu) IsExtended() bool {
 	if (len(apdu.data) > 255) || (apdu.le > 256) {
 		return true
@@ -28,10 +33,13 @@ func (apdu *CApdu) IsExtended() bool {
 	return false
 }
 
+// NewCApdu returns a C-APDU with the given header, data and Le. Le 0 means no Le field;
+// Le 256 (short) or 65536 (extended) is encoded as zero, requesting the maximum length.
 func NewCApdu(cla byte, ins byte, p1 byte, p2 byte, data []byte, le int) *CApdu {
 	return &CApdu{cla: cla, ins: ins, p1: p1, p2: p2, data: data, le: le}
 }
 
+// EncodeHeader returns the 4-byte command header (CLA, INS, P1, P2).
 func (apdu *CApdu) EncodeHeader() []byte {
 	header := make([]byte, 4)
 
@@ -43,10 +51,13 @@ func (apdu *CApdu) EncodeHeader() []byte {
 	return header
 }
 
+// HaveLe reports whether the C-APDU has an Le field (Le > 0).
 func (apdu *CApdu) HaveLe() bool {
 	return apdu.le > 0
 }
 
+// EncodeLc returns the encoded Lc field: empty if there is no data, otherwise 1 byte, or 3
+// bytes (a leading 0x00) for an extended C-APDU.
 func (apdu *CApdu) EncodeLc() []byte {
 	var lcBytes []byte
 	var lc int = len(apdu.data)
@@ -82,6 +93,8 @@ func (apdu *CApdu) EncodeLc() []byte {
 	return lcBytes
 }
 
+// EncodeLe returns the encoded Le field: empty if Le is 0, otherwise 1 byte, or 2 bytes for
+// an extended C-APDU. The maximum value (256 or 65536) is encoded as zero bytes.
 func (apdu *CApdu) EncodeLe() []byte {
 	var leBytes []byte
 
@@ -120,10 +133,12 @@ func (apdu *CApdu) EncodeLe() []byte {
 	return leBytes
 }
 
+// HaveData reports whether the C-APDU has command data.
 func (apdu *CApdu) HaveData() bool {
 	return len(apdu.data) > 0
 }
 
+// Encode returns the complete encoded C-APDU: header, Lc, data and Le.
 func (apdu *CApdu) Encode() []byte {
 	out := apdu.EncodeHeader()
 	out = append(out, apdu.EncodeLc()...)

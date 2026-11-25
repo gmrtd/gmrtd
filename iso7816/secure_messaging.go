@@ -33,8 +33,12 @@ import (
 //Figure 6 shows the transformation of an unprotected response APDU to a protected response APDU in case Data is
 //available. If no Data is available, leave building DO ‘87’ out.
 
+// CLA_MASK is the CLA byte of a secure messaging C-APDU, indicating that the command header
+// is included in the MAC (ICAO Doc 9303 Part 11).
 const CLA_MASK byte = 0x0C
 
+// SecureMessenger protects C-APDUs and unprotects R-APDUs for an NfcSession. SecureMessaging
+// is the implementation.
 type SecureMessenger interface {
 	SSC() []byte
 	SetSSC([]byte) error
@@ -44,6 +48,9 @@ type SecureMessenger interface {
 	Decode([]byte) (*RApdu, error)
 }
 
+// SecureMessaging implements ICAO Doc 9303 Part 11 secure messaging with 3DES (retail MAC)
+// or AES (CMAC) session keys and a send sequence counter (SSC). It is not safe for concurrent
+// use.
 type SecureMessaging struct {
 	alg       cryptoutils.BlockCipherAlg
 	ksEnc     []byte
@@ -56,6 +63,7 @@ type SecureMessaging struct {
 // verify that SecureMessaging conforms to SecureMessenger
 var _ SecureMessenger = (*SecureMessaging)(nil)
 
+// Equal reports whether sm1 and sm2 have the same algorithm, session keys and SSC.
 func (sm1 SecureMessaging) Equal(sm2 SecureMessaging) bool {
 	if (sm1.alg == sm2.alg) &&
 		bytes.Equal(sm1.ksEnc, sm2.ksEnc) &&
@@ -67,14 +75,19 @@ func (sm1 SecureMessaging) Equal(sm2 SecureMessaging) bool {
 	return false
 }
 
+// KsEnc returns a copy of the encryption session key.
 func (sm SecureMessaging) KsEnc() []byte {
 	return bytes.Clone(sm.ksEnc)
 }
 
+// SSC returns a copy of the current send sequence counter.
 func (sm SecureMessaging) SSC() []byte {
 	return bytes.Clone(sm.ssc)
 }
 
+// NewSecureMessaging returns secure messaging for alg with the encryption key ksEnc and MAC
+// key ksMac, and an all-zero SSC the length of the cipher's block. It returns an error if
+// either key is invalid for alg.
 func NewSecureMessaging(alg cryptoutils.BlockCipherAlg, ksEnc []byte, ksMac []byte) (sm *SecureMessaging, err error) {
 	sm = new(SecureMessaging)
 
@@ -99,6 +112,8 @@ func NewSecureMessaging(alg cryptoutils.BlockCipherAlg, ksEnc []byte, ksMac []by
 	return sm, nil
 }
 
+// SetSSC sets the send sequence counter, e.g. to the value derived during BAC. It returns an
+// error if ssc is not the cipher's block size.
 func (sm *SecureMessaging) SetSSC(ssc []byte) error {
 	if len(ssc) != len(sm.ssc) {
 		return fmt.Errorf("[SetSSC] length mismatch (exp:%d, act:%d)", len(sm.ssc), len(ssc))
@@ -275,6 +290,9 @@ func calcSmLe(cApdu *CApdu) int {
 	return smLe
 }
 
+// Encode increments the SSC and returns cApdu protected with secure messaging: data
+// encrypted in DO'87' (even INS) or DO'85' (odd INS), Le in DO'97' and the MAC in DO'8E',
+// with CLA 0x0C and Le set to the maximum. It returns an error if cApdu is nil.
 func (sm *SecureMessaging) Encode(cApdu *CApdu) (out *CApdu, err error) {
 	// 9303p11 - page 63 (Message Structure of SM APDUs)
 
@@ -365,6 +383,10 @@ func (sm *SecureMessaging) decodeSmRApduData(encodedData []byte) (out []byte, er
 	return out, nil
 }
 
+// Decode verifies and unprotects a secure messaging R-APDU, returning the protected status
+// word from DO'99' and the decrypted data, if any. It returns an error if the MAC does not
+// match or the protected and plain status words differ. A response with no data (e.g. a
+// plain error status) is rejected and the SSC increment made by Encode is undone.
 func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
 	slog.Debug("sm.Decode", "SM(pre)", sm.String())
 

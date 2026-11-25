@@ -45,12 +45,18 @@ const chipAuthEvidenceMagic = "gmrtd-chip-auth-evidence"
 const chipAuthEvidenceMinVersion uint = 2 // v1 lacked TermMapPub and TermKaPub
 const chipAuthEvidenceVersion uint = 2
 
+// ChipAuthEvidenceBundle holds the chip authentication evidence decoded by
+// NewChipAuthEvidenceFromCbor. A field is nil when that protocol's evidence was not
+// captured.
 type ChipAuthEvidenceBundle struct {
 	PaceCam    *PaceCamEvidence
 	ChipAuth   *ChipAuthEvidence
 	ActiveAuth *ActiveAuthEvidence
 }
 
+// ChipAuthEvidenceToCbor serialises the session's PACE-CAM, Chip Authentication and
+// Active Authentication evidence to CBOR, in a versioned envelope with a SHA-256
+// checksum. Results without evidence are omitted, and success flags are not included.
 func (session *Session) ChipAuthEvidenceToCbor() ([]byte, error) {
 	var bundle cborChipAuthBundle
 
@@ -105,6 +111,10 @@ func (session *Session) ChipAuthEvidenceToCbor() ([]byte, error) {
 	return cbor.Marshal(env)
 }
 
+// NewChipAuthEvidenceFromCbor decodes the output of Session.ChipAuthEvidenceToCbor. It
+// returns an error if the envelope is malformed, its magic is not recognised, its version
+// is outside the supported range or the checksum does not match. The evidence is only
+// decoded, not verified.
 func NewChipAuthEvidenceFromCbor(data []byte) (*ChipAuthEvidenceBundle, error) {
 	var env cborEnvelope
 	if err := cbor.Unmarshal(data, &env); err != nil {

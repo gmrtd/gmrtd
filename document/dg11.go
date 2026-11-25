@@ -11,8 +11,11 @@ import (
 	"github.com/gmrtd/gmrtd/tlv"
 )
 
+// DG11Tag is the tag of the DG11 root data object.
 const DG11Tag = 0x6B
 
+// PersonDetails holds the additional personal details from DG11. A field is empty when
+// the corresponding data element is absent.
 type PersonDetails struct {
 	NameOfHolder         *mrz.MrzName  `json:"nameOfHolder,omitempty"`
 	OtherNames           []mrz.MrzName `json:"otherNames,omitempty"`
@@ -29,13 +32,18 @@ type PersonDetails struct {
 	CustodyInformation   string        `json:"custodyInformation,omitempty"`
 }
 
+// DG11 is data group 11, additional personal details.
 type DG11 struct {
 	RawData []byte        `json:"rawData,omitempty"`
 	Details PersonDetails `json:"personDetails,omitempty"`
 }
 
+// GetRawData returns the raw DG11 bytes as read from the chip.
 func (f *DG11) GetRawData() []byte { return f.RawData }
 
+// NewDG11 parses DG11. It returns nil and no error if data is empty, and an error if the
+// TLV is malformed, the root tag is missing, the tag list references an unsupported tag
+// or a name cannot be parsed.
 func NewDG11(data []byte) (*DG11, error) {
 	if len(data) < 1 {
 		return nil, nil

@@ -1,11 +1,14 @@
 package cms
 
+// CombinedCertPool is a CertPool that searches several underlying pools in the order they
+// were added and concatenates their results. The zero value is an empty pool.
 type CombinedCertPool struct {
 	certPools []CertPool
 }
 
 var _ CertPool = (*CombinedCertPool)(nil)
 
+// AddCertPool appends certPool to the pools searched by cp.
 func (cp *CombinedCertPool) AddCertPool(certPool CertPool) {
 	cp.certPools = append(cp.certPools, certPool)
 }
@@ -49,6 +52,7 @@ func (cp *CombinedCertPool) ByIssuerCountry(countryAlpha2 string) []Certificate 
 	return out
 }
 
+// All returns the certificates of every underlying pool, in the order the pools were added.
 func (cp *CombinedCertPool) All() []Certificate {
 	var out []Certificate
 

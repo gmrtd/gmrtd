@@ -11,6 +11,8 @@ import (
 
 const indentStringValue = "  "
 
+// ParseTagAndLength reads a tag followed by a length from r. The length is -1 for
+// indefinite length.
 func ParseTagAndLength(r io.Reader) (tag TlvTag, length TlvLength, err error) {
 	tag, err = ParseTag(r)
 	if err != nil {
@@ -25,6 +27,7 @@ func ParseTagAndLength(r io.Reader) (tag TlvTag, length TlvLength, err error) {
 	return tag, length, nil
 }
 
+// UnwrapTag is like Unwrap but also returns an error if the element's tag is not tag.
 func UnwrapTag(tag TlvTag, data []byte) (value []byte, err error) {
 	actTag, value, err := Unwrap(data)
 	if err != nil {
@@ -38,6 +41,9 @@ func UnwrapTag(tag TlvTag, data []byte) (value []byte, err error) {
 	return value, nil
 }
 
+// Unwrap parses data as exactly one TLV element and returns its tag and value without
+// decoding the value. It returns an error if data is malformed, uses indefinite length,
+// or has bytes after the element.
 func Unwrap(data []byte) (tag TlvTag, value []byte, err error) {
 	tmpBuf := bytes.NewBuffer(data)
 
@@ -61,6 +67,8 @@ func Unwrap(data []byte) (tag TlvTag, value []byte, err error) {
 	return tag, value, nil
 }
 
+// DecodeEncode decodes data and re-encodes it, which normalises it to definite-length
+// encoding with minimal lengths. It returns an error if data cannot be decoded.
 func DecodeEncode(data []byte) ([]byte, error) {
 	nodes, err := Decode(data)
 	if err != nil {
