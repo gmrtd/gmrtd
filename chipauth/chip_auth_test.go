@@ -888,6 +888,26 @@ func TestVerifyEvidence(t *testing.T) {
 		}
 	})
 
+	t.Run("missing DG14 security infos", func(t *testing.T) {
+		partialDoc := *doc
+		partialDoc.Mf.Lds1.Dg14 = &document.DG14{}
+		for _, tc := range []struct {
+			name string
+			doc  *document.Document
+		}{
+			{"nil document", nil},
+			{"missing DG14", &document.Document{}},
+			{"missing security infos", &partialDoc},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				result, err := VerifyEvidence(tc.doc, validEvidence)
+				if err == nil || result != nil {
+					t.Fatalf("VerifyEvidence returned result %v, error %v; want nil result and an error", result, err)
+				}
+			})
+		}
+	})
+
 	t.Run("empty TermPri", func(t *testing.T) {
 		e := &document.ChipAuthEvidence{
 			TermPri:    nil,
