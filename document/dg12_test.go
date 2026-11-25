@@ -370,3 +370,21 @@ func TestProcessTagErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestDG12RepeatedOtherPersonsField(t *testing.T) {
+	root := tlv.NewTlvConstructedNode(DG12Tag).
+		AddChild(tlv.NewTlvSimpleNode(0x5C, utils.HexToBytes("5F1A5F195F1A"))).
+		AddChild(tlv.NewTlvSimpleNode(0x5F19, []byte("AUTHORITY"))).
+		AddChild(tlv.NewTlvConstructedNode(0xA0).
+			AddChild(tlv.NewTlvSimpleNode(0x02, []byte{2})).
+			AddChild(tlv.NewTlvSimpleNode(0x5F1A, []byte("SMITH<<BRENDA<P"))).
+			AddChild(tlv.NewTlvSimpleNode(0x5F1A, []byte("SMITH<<JOHN"))))
+	dg, err := NewDG12(root.Encode())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []mrz.MrzName{{Primary: "SMITH", Secondary: "BRENDA P"}, {Primary: "SMITH", Secondary: "JOHN"}}
+	if !reflect.DeepEqual(dg.Details.OtherPersons, want) || dg.Details.IssuingAuthority != "AUTHORITY" {
+		t.Errorf("unexpected DG12 details: %+v", dg.Details)
+	}
+}

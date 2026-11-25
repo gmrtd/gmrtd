@@ -130,6 +130,33 @@ func TestVerifyAANonceMismatch(t *testing.T) {
 	}
 }
 
+func TestVerifyInvalidAASignature(t *testing.T) {
+	// The recorded signature covers testAANonce, not this challenge.
+	challenge := utils.HexToBytes("0102030405060708")
+	data := buildVerifiableDocWithAA(t, challenge, testAASig)
+
+	t.Run("with matching challenge", func(t *testing.T) {
+		v, err := emptyVerifier().WithAAChallenge(challenge)
+		if err != nil {
+			t.Fatal(err)
+		}
+		doc, err := v.Verify(data)
+		if err == nil || doc != nil {
+			t.Fatalf("expected a verification error and no document, got document present=%t, err=%v", doc != nil, err)
+		}
+	})
+
+	t.Run("without challenge", func(t *testing.T) {
+		doc, err := emptyVerifier().Verify(data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if doc.Session.ActiveAuthErr == nil || doc.Session.Offline.AAChallengeBound {
+			t.Fatal("expected a recorded AA error and an unbound challenge")
+		}
+	})
+}
+
 // verifies that Verify() actually runs Document.Verify() and surfaces its
 // result via Session.DocumentVerifyErr (previously it didn't - this path
 // used to skip the structural/completeness checks that the NFC Reader flow

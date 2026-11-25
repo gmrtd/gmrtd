@@ -534,12 +534,14 @@ func (pace *Pace) mutualAuthGmEcDh(paceConfig *PaceConfig, domainParams *DomainP
 func icPubKeyECForCAM(domainParams *DomainParams, cardSecurity *document.CardSecurity) (*cryptoutils.EcPoint, error) {
 	slog.Debug("icPubKeyECForCAM")
 
-	var caPubKeyInfos []document.ChipAuthenticationPublicKeyInfo = cardSecurity.SecurityInfos.ChipAuthPubKeyInfos
-
 	if !domainParams.isECDH {
 		return nil, fmt.Errorf("[icPubKeyECForCAM] Cannot get EC public key for !EC crypto")
 	}
+	if cardSecurity == nil || cardSecurity.SecurityInfos == nil {
+		return nil, fmt.Errorf("[icPubKeyECForCAM] EF.CardSecurity security infos are required for PACE-CAM")
+	}
 
+	caPubKeyInfos := cardSecurity.SecurityInfos.ChipAuthPubKeyInfos
 	var fallbackPoint *cryptoutils.EcPoint
 
 	for i := range caPubKeyInfos {
@@ -691,6 +693,9 @@ func (pace *Pace) loadCardSecurityFile() error {
 	fileBytes, err := pace.nfcSession.ReadFile(MRTDFileIdCardSecurity)
 	if err != nil {
 		return fmt.Errorf("[loadCardSecurityFile] ReadFile error: %w", err)
+	}
+	if len(fileBytes) == 0 {
+		return fmt.Errorf("[loadCardSecurityFile] EF.CardSecurity is required for PACE-CAM")
 	}
 
 	pace.document.Mf.CardSecurity, err = document.NewCardSecurity(fileBytes)

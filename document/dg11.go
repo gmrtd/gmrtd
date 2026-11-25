@@ -1,9 +1,7 @@
 package document
 
 import (
-	"bytes"
 	"fmt"
-	"math"
 	"slices"
 	"strings"
 
@@ -42,8 +40,9 @@ type DG11 struct {
 func (f *DG11) GetRawData() []byte { return f.RawData }
 
 // NewDG11 parses DG11. It returns nil and no error if data is empty, and an error if the
-// TLV is malformed, the root tag is missing, the tag list references an unsupported tag
-// or a name cannot be parsed.
+// TLV is malformed, the root tag is missing, the tag list references an unsupported tag,
+// a name cannot be parsed or there are more than 99 unwrapped other names. Repeated
+// references in the tag list are processed once.
 func NewDG11(data []byte) (*DG11, error) {
 	if len(data) < 1 {
 		return nil, nil
@@ -64,81 +63,13 @@ func NewDG11(data []byte) (*DG11, error) {
 		return nil, fmt.Errorf("root node (%x) missing", DG11Tag)
 	}
 
-	err = out.Details.parseData(rootNode)
+	// Belarus ID cards can list the other-names container (A0) instead of the name tag.
+	err = parseDetailFields(rootNode, map[tlv.TlvTag]tlv.TlvTag{0xA0: 0x5F0F}, out.Details.processTag)
 	if err != nil {
 		return nil, fmt.Errorf("[NewDG11] parseData error: %w", err)
 	}
 
 	return out, nil
-}
-
-func (details *PersonDetails) parseData(node tlv.TlvNode) error {
-	tagList, err := tlv.ParseTags(bytes.NewBuffer(node.NodeByTag(0x5C).Value()))
-	if err != nil {
-		return fmt.Errorf("[parseData] ParseTags error: %w", err)
-	}
-
-	for _, tag := range tagList {
-		if err := details.processTag(tag, node); err != nil {
-			return fmt.Errorf("[parseData] processTag error: %w", err)
-		}
-	}
-
-	return nil
-}
-
-func (details *PersonDetails) processTag5F0F(parentNode tlv.TlvNode) error {
-	/*
-		Expected format as per: Table 71. Data Group 11 Tags (9303 p10)
-
-		Tag 	L 		Value
-		‘A0’ 	Var 	Content-specific class
-		->	Tag 	L 		Value
-		->	‘02’ 	‘01’ 	Number of other names
-		->	‘5F0F’ 	Var 	Other name formatted per Doc 9303. The data object repeats as many times as indicated in number of other names (data object with Tag’02’)
-	*/
-
-	numOtherNamesNode := parentNode.NodeByTag(0xA0).NodeByTag(0x02)
-
-	if numOtherNamesNode.IsValidNode() {
-		// special handling as 'Other Names' are nested within tag A0 and there can be multiple instances
-		numOtherNamesBytes := numOtherNamesNode.Value()
-		if len(numOtherNamesBytes) != 1 {
-			return fmt.Errorf("[processTag5F0F] tag A0->02 length must be 1 byte (act:%d)", len(numOtherNamesBytes))
-		}
-
-		numOtherNames := int(numOtherNamesBytes[0])
-		if numOtherNames < 1 || numOtherNames > 99 {
-			return fmt.Errorf("[processTag5F0F] tag A0->02 must be 1-99 (act:%d)", numOtherNames)
-		}
-
-		return details.appendOtherNames(parentNode.NodeByTag(0xA0), numOtherNames)
-	}
-
-	/*
-	* special case handling for non-conformant encodings
-	* as we've seen China passports directly using the 5F0F tag
-	 */
-	return details.appendOtherNames(parentNode, math.MaxInt)
-}
-
-// appends the '5F0F' (Other Name) occurrences found directly under 'container', up to maxOccur
-func (details *PersonDetails) appendOtherNames(container tlv.TlvNode, maxOccur int) error {
-	for occur := 1; occur <= maxOccur; occur++ {
-		otherNameNode := container.NodeByTagOccur(0x5F0F, occur)
-		if !otherNameNode.IsValidNode() {
-			break
-		}
-
-		tmpName, err := mrz.ParseName(mrz.DecodeValue(string(otherNameNode.Value())))
-		if err != nil {
-			return fmt.Errorf("[processTag5F0F] mrz.ParseName error: %w", err)
-		}
-
-		details.OtherNames = append(details.OtherNames, *tmpName)
-	}
-
-	return nil
 }
 
 // splits on '<' filler chars, discarding any empty strings caused by
@@ -149,6 +80,13 @@ func splitFieldsFiltered(s string) []string {
 
 // processes the 'tag', getting the data from the TLV and populating PersonDetails
 func (details *PersonDetails) processTag(tag tlv.TlvTag, node tlv.TlvNode) error {
+	if tag == 0x5F0F {
+		// Some Chinese passports store other names directly under DG11 without a count.
+		names, err := parseDetailNames(node, tag, true)
+		details.OtherNames = names
+		return err
+	}
+
 	value := node.NodeByTag(tag).Value()
 
 	switch tag {
@@ -157,11 +95,6 @@ func (details *PersonDetails) processTag(tag tlv.TlvTag, node tlv.TlvNode) error
 		details.NameOfHolder, err = mrz.ParseName(mrz.DecodeValue(string(value)))
 		if err != nil {
 			return fmt.Errorf("[processTag] mrz.ParseName error: %w", err)
-		}
-	// presenсe of 'Other name(s)' should be defined by '0x5F0F' but we've also seen '0xA0' - e.g. Belarus ID card
-	case 0x5F0F, 0xA0:
-		if err := details.processTag5F0F(node); err != nil {
-			return fmt.Errorf("[processTag] processTag5F0F error: %w", err)
 		}
 	case 0x5F10:
 		details.PersonalNumber = string(value)
