@@ -507,7 +507,7 @@ func TestSignerInfoVerifyDSCertUnrecognizedCritExt(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for DS cert with unrecognized critical extension")
 	}
-	if !strings.Contains(err.Error(), "DS cert has unrecognized critical extension") {
+	if !strings.Contains(err.Error(), "signer cert has unrecognized critical extension") {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
@@ -531,7 +531,7 @@ func TestSignerInfoVerifyDSCertKUParseError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected DS cert KeyUsage parse error")
 	}
-	if !strings.Contains(err.Error(), "DS cert KeyUsage parse error") {
+	if !strings.Contains(err.Error(), "signer cert KeyUsage parse error") {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
@@ -550,7 +550,7 @@ func TestSignerInfoVerifyDSCertMissingKU(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for DS cert missing keyUsage")
 	}
-	if !strings.Contains(err.Error(), "DS cert missing keyUsage extension") {
+	if !strings.Contains(err.Error(), "signer cert missing keyUsage extension") {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
@@ -578,7 +578,7 @@ func TestSignerInfoVerifyDSCertMissingDigitalSignature(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for DS cert missing digitalSignature")
 	}
-	if !strings.Contains(err.Error(), "DS cert missing digitalSignature keyUsage") {
+	if !strings.Contains(err.Error(), "signer cert missing digitalSignature keyUsage") {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
@@ -609,7 +609,7 @@ func TestSignerInfoVerifyDSCertEKUParseError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected DS cert EKU parse error")
 	}
-	if !strings.Contains(err.Error(), "DS cert ExtKeyUsage parse error") {
+	if !strings.Contains(err.Error(), "signer cert ExtKeyUsage parse error") {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
@@ -641,7 +641,7 @@ func TestSignerInfoVerifyDSCertValidityParseError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected DS cert validity parse error")
 	}
-	if !strings.Contains(err.Error(), "DS cert validity parse error") {
+	if !strings.Contains(err.Error(), "signer cert validity parse error") {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
