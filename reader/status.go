@@ -37,6 +37,7 @@ const (
 	STATUS_PHASE_FINISHED                = 13 // the read completed
 )
 
+// String returns the phase's name, e.g. "Connecting".
 func (phase StatusPhase) String() string {
 	switch phase {
 	case STATUS_PHASE_CONNECTING:

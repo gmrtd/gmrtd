@@ -1,3 +1,10 @@
+// Package reader drives a complete MRTD read over an NFC session: selecting the
+// application, PACE or BAC access control, reading EF.COM, EF.SOD and the data groups,
+// Chip and Active Authentication, and Passive Authentication against a CSCA
+// certificate pool.
+//
+// Access control fails closed: ReadDocument returns an error, before any data group is
+// read, if no secure messaging is established.
 package reader
 
 import (
@@ -41,22 +48,30 @@ import (
 //TR-03110], they can be accessed only after TAv1 was performed successfully. For this purpose, the EF.CVCA
 //file SHALL be read first in order to obtain the information required for performing TAv1.
 
-const MRTDFileIdCardAccess = uint16(0x011C)
-const MRTDFileIdCardSecurity = uint16(0x011D)
-const MRTDFileIdEFSOD = uint16(0x011D)
-const MRTDFileIdEFCOM = uint16(0x011E)
-const MRTDFileIdEFDIR = uint16(0x2F00)
+// File identifiers of the MRTD elementary files (ICAO Doc 9303 Part 10).
+//
+// EF.CardAccess, EF.CardSecurity and EF.DIR are in the master file; EF.COM, EF.SOD and
+// the data groups are in the eMRTD application. EF.CardSecurity and EF.SOD share the
+// file identifier 0x011D because they are in different directories.
+const (
+	MRTDFileIdCardAccess   = uint16(0x011C)
+	MRTDFileIdCardSecurity = uint16(0x011D)
+	MRTDFileIdEFSOD        = uint16(0x011D)
+	MRTDFileIdEFCOM        = uint16(0x011E)
+	MRTDFileIdEFDIR        = uint16(0x2F00)
 
-const MRTDFileIdDG1 = uint16(0x0101)
-const MRTDFileIdDG2 = uint16(0x0102)
-const MRTDFileIdDG7 = uint16(0x0107)
-const MRTDFileIdDG11 = uint16(0x010B)
-const MRTDFileIdDG12 = uint16(0x010C)
-const MRTDFileIdDG13 = uint16(0x010D)
-const MRTDFileIdDG14 = uint16(0x010E)
-const MRTDFileIdDG15 = uint16(0x010F)
-const MRTDFileIdDG16 = uint16(0x0110)
+	MRTDFileIdDG1  = uint16(0x0101)
+	MRTDFileIdDG2  = uint16(0x0102)
+	MRTDFileIdDG7  = uint16(0x0107)
+	MRTDFileIdDG11 = uint16(0x010B)
+	MRTDFileIdDG12 = uint16(0x010C)
+	MRTDFileIdDG13 = uint16(0x010D)
+	MRTDFileIdDG14 = uint16(0x010E)
+	MRTDFileIdDG15 = uint16(0x010F)
+	MRTDFileIdDG16 = uint16(0x0110)
+)
 
+// MRTD_AID is the application identifier of the eMRTD (LDS1) application.
 const MRTD_AID = "A0000002471001"
 
 // Maps DG (1-16) to File Identifier
@@ -93,6 +108,8 @@ type Reader struct {
 	aaChallenge                 []byte
 }
 
+// NewReader returns a Reader that reads a document over nfc, reports progress to status,
+// and performs Passive Authentication against cscaCertPool.
 func NewReader(status ReaderStatus, nfc *iso7816.NfcSession, cscaCertPool cms.CertPool) *Reader {
 	var reader Reader
 	reader.status = status
@@ -101,12 +118,15 @@ func NewReader(status ReaderStatus, nfc *iso7816.NfcSession, cscaCertPool cms.Ce
 	return &reader
 }
 
+// SkipPace configures the reader to use BAC even when the chip supports PACE. BAC needs an
+// MRZ password, so with a CAN, ReadDocument fails with ErrNoSecureMessaging.
 func (reader *Reader) SkipPace() {
 	reader.mu.Lock()
 	defer reader.mu.Unlock()
 	reader.skipPace = true
 }
 
+// SkipImages configures the reader not to read the image data groups (DG2 and DG7).
 func (reader *Reader) SkipImages() {
 	reader.mu.Lock()
 	defer reader.mu.Unlock()
@@ -170,6 +190,8 @@ func (reader *Reader) WithAAChallenge(challenge []byte) (*Reader, error) {
 	return reader, nil
 }
 
+// ReaderState is the state of one ReadDocument call: the card's ATR and ATS, the password
+// used for access control, and the document being read.
 type ReaderState struct {
 	atr      []byte
 	ats      []byte
@@ -177,6 +199,8 @@ type ReaderState struct {
 	docEx    *document.DocumentEx
 }
 
+// NewReaderState returns the initial state for reading a document with the given ATR, ATS
+// and password.
 func NewReaderState(atr []byte, ats []byte, password *password.Password) *ReaderState {
 	var out ReaderState
 
@@ -245,6 +269,8 @@ func (reader *Reader) ReadDocument(password *password.Password, atr []byte, ats 
 	return state.docEx, reader.nfc.ApduLog(), nil
 }
 
+// ReaderStep is one step of a document read. ReadDocument runs its steps in order and stops
+// at the first error.
 type ReaderStep func(*Reader, *ReaderState) error
 
 func runSteps(reader *Reader, state *ReaderState, steps ...ReaderStep) error {
