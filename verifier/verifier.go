@@ -72,9 +72,9 @@ func (v *Verifier) WithTrustedSource() *Verifier {
 // Verify parses a serialised document (see DocumentEx.ToCbor), replays its chip authentication
 // evidence, and performs passive authentication and Document.Verify.
 //
-// Verification outcomes are recorded in the returned DocumentEx.Session rather than returned as
-// errors; use DocumentEx.Summary() for the overall verdict. The only hard error after parsing is
-// an AA nonce that does not match the challenge supplied via WithAAChallenge.
+// When WithAAChallenge is set and AA evidence is present, Verify returns an error if the
+// nonce differs from the challenge or the AA evidence fails verification. Other verification
+// outcomes are recorded in DocumentEx.Session. Use DocumentEx.Summary() for the overall verdict.
 //
 // Session.Offline records how the evidence may be trusted (see document.OfflineVerification):
 // unless WithTrustedSource is set, Summary().ChipAuthenticity only counts AA bound to a
@@ -107,6 +107,9 @@ func (v *Verifier) Verify(data []byte) (*document.DocumentEx, error) {
 	if v.aaChallenge != nil && caBundle.ActiveAuth != nil {
 		if !bytes.Equal(caBundle.ActiveAuth.Nonce, v.aaChallenge) {
 			return nil, fmt.Errorf("[Verify] AA nonce mismatch: evidence nonce does not match supplied challenge")
+		}
+		if err := docEx.Session.ActiveAuthErr; err != nil {
+			return nil, fmt.Errorf("[Verify] AA challenge verification failed: %w", err)
 		}
 		docEx.Session.Offline.AAChallengeBound = true
 	}
