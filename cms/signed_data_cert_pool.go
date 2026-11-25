@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"sync"
 
+	"github.com/gmrtd/gmrtd/oid"
 	"github.com/gmrtd/gmrtd/utils"
 )
 
@@ -30,8 +31,8 @@ type CscaMasterListCert struct {
 	Cert asn1.RawContent
 }
 
-// creates a cert-pool from the signed-data, and validates it against the root-cert
-// returns: error
+// CreateCertPoolFromSignedData imports an ICAO CSCA master list after verifying
+// each master-list signer against the supplied root certificate.
 func CreateCertPoolFromSignedData(signedDataBytes, rootCertBytes []byte) (*SignedDataCertPool, error) {
 	var out SignedDataCertPool
 	var err error
@@ -40,6 +41,9 @@ func CreateCertPoolFromSignedData(signedDataBytes, rootCertBytes []byte) (*Signe
 	signedData, err = ParseSignedData(signedDataBytes)
 	if err != nil {
 		return nil, fmt.Errorf("[CreateCertPoolFromSignedData] ParseSignedData error: %w", err)
+	}
+	if !signedData.Content.EContentType.Equal(oid.OidCscaMasterList) {
+		return nil, fmt.Errorf("[CreateCertPoolFromSignedData] expected CSCA master list content type, got %s", signedData.Content.EContentType)
 	}
 
 	rootCertPool := &GenericCertPool{}
