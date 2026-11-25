@@ -103,6 +103,36 @@ func TestNewSodInvalidCases(t *testing.T) {
 	}
 }
 
+func TestParseLdsSecurityObjectRejectsDuplicateDataGroup(t *testing.T) {
+	sod, err := NewSOD(sampleSodBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entries := sod.LdsSecurityObject.DataGroupHashValues
+	for _, tc := range []struct {
+		name string
+		hash []byte
+	}{
+		{"matching hash", entries[0].DataGroupHashValue},
+		{"conflicting hash", entries[1].DataGroupHashValue},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			lds := *sod.LdsSecurityObject
+			lds.DataGroupHashValues = []DataGroupHash{
+				entries[0], entries[1],
+				{DataGroupNumber: entries[0].DataGroupNumber, DataGroupHashValue: tc.hash},
+			}
+			data, err := asn1.Marshal(lds)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got, err := parseLdsSecurityObject(data); got != nil || err == nil || !strings.Contains(err.Error(), "duplicate data group") {
+				t.Fatalf("expected a duplicate data group error, got object %v, error %v", got, err)
+			}
+		})
+	}
+}
+
 func TestNewSod(t *testing.T) {
 	/*
 	 * get the (default) CSCA Certificate-Pool
