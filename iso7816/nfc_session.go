@@ -10,13 +10,16 @@ import (
 	"github.com/gmrtd/gmrtd/utils"
 )
 
-const INS_MANAGE_SE = byte(0x22)
-const INS_EXTERNAL_AUTHENTICATE = byte(0x82)
-const INS_GET_CHALLENGE = byte(0x84)
-const INS_GENERAL_AUTHENTICATE = byte(0x86)
-const INS_INTERNAL_AUTHENTICATE = byte(0x88)
-const INS_SELECT = byte(0xA4)
-const INS_READ_BINARY = byte(0xB0)
+// Instruction (INS) bytes of the ISO/IEC 7816-4 commands used by NfcSession.
+const (
+	INS_MANAGE_SE             = byte(0x22)
+	INS_EXTERNAL_AUTHENTICATE = byte(0x82)
+	INS_GET_CHALLENGE         = byte(0x84)
+	INS_GENERAL_AUTHENTICATE  = byte(0x86)
+	INS_INTERNAL_AUTHENTICATE = byte(0x88)
+	INS_SELECT                = byte(0xA4)
+	INS_READ_BINARY           = byte(0xB0)
+)
 
 // default to 65,535 maximum file (TLV) size
 // - as we always read the first 4 bytes (so max 2 byte length)
@@ -49,6 +52,9 @@ var ErrExtendedLeRejected = errors.New("chip rejected extended Le (6700)")
 
 // TODO - review and align with 9303 p10.. 3.6 Command Formats and Parameter Options (LDS1 and LDS2)
 
+// NfcSession sends commands to the chip over a Transceiver, applying secure messaging once
+// it has been set, and records every exchange in an ApduLog. It is not safe for concurrent
+// use.
 type NfcSession struct {
 	transceiver          Transceiver
 	sm                   SecureMessenger
@@ -60,6 +66,8 @@ type NfcSession struct {
 	lastApduLogEntry     *ApduLogEntry
 }
 
+// NewNfcSession returns a session over transceiver with no secure messaging, an Le of 256
+// and the default file read limits (READ_FILE_MAX_TLV_LENGTH and READ_FILE_MAX_CHUNKS).
 func NewNfcSession(transceiver Transceiver) *NfcSession {
 	var nfc NfcSession
 	nfc.transceiver = transceiver
@@ -71,26 +79,37 @@ func NewNfcSession(transceiver Transceiver) *NfcSession {
 	return &nfc
 }
 
+// SetSecureMessaging sets the secure messaging applied to all later commands. A nil sm sends
+// commands unprotected.
 func (nfc *NfcSession) SetSecureMessaging(sm SecureMessenger) {
 	nfc.sm = sm
 }
 
+// SM returns the current secure messaging, or nil if none has been set.
 func (nfc *NfcSession) SM() SecureMessenger {
 	return nfc.sm
 }
 
+// SetMaxLe sets the maximum Le used for READ BINARY chunks and authentication commands.
+// Values above 256 require extended length support; the session falls back to smaller
+// values if the chip rejects them.
 func (nfc *NfcSession) SetMaxLe(value int) {
 	nfc.maxLe = value
 }
 
+// ApduLog returns the log of all APDUs exchanged in the session.
 func (nfc *NfcSession) ApduLog() *ApduLog {
 	return nfc.apduLog
 }
 
+// LastApdu returns the log entry of the most recent APDU exchange, or nil if none has been
+// logged.
 func (nfc *NfcSession) LastApdu() *ApduLogEntry {
 	return nfc.lastApduLogEntry
 }
 
+// GetChallenge sends GET CHALLENGE and returns the chip's random challenge. It returns an
+// error if the status is not 9000 or the challenge is not exactly length bytes.
 func (nfc *NfcSession) GetChallenge(length int) (out []byte, err error) {
 	slog.Debug("GetChallenge", "length", length)
 
@@ -112,6 +131,9 @@ func (nfc *NfcSession) GetChallenge(length int) (out []byte, err error) {
 	return rapdu.Data, nil
 }
 
+// InternalAuthenticate sends INTERNAL AUTHENTICATE with data (as used by Active
+// Authentication) and returns the response data. If the chip rejects an extended Le the
+// command is resent once with a short Le. It returns an error if the status is not 9000.
 func (nfc *NfcSession) InternalAuthenticate(data []byte) (out []byte, err error) {
 	var rApdu *RApdu
 
@@ -136,6 +158,9 @@ func (nfc *NfcSession) InternalAuthenticate(data []byte) (out []byte, err error)
 	return out, nil
 }
 
+// ExternalAuthenticate sends EXTERNAL AUTHENTICATE with data and Le le (as used by BAC) and
+// returns the response data. It returns an error if the status is not 9000 or the response
+// is not exactly le bytes.
 func (nfc *NfcSession) ExternalAuthenticate(data []byte, le int) (out []byte, err error) {
 	slog.Debug("ExternalAuthenticate", "data", utils.BytesToHex(data), "le", le)
 
@@ -157,6 +182,10 @@ func (nfc *NfcSession) ExternalAuthenticate(data []byte, le int) (out []byte, er
 	return rapdu.Data, nil
 }
 
+// GeneralAuthenticate sends GENERAL AUTHENTICATE with data (as used by PACE and Chip
+// Authentication) and returns the response data. commandChaining sets CLA to 0x10 to mark
+// all but the last command of a chain. It returns an error if the status is not 9000, and
+// an error wrapping ErrExtendedLeRejected if the chip rejects an extended Le.
 func (nfc *NfcSession) GeneralAuthenticate(commandChaining bool, data []byte) ([]byte, error) {
 	slog.Debug("GeneralAuthenticate", "cmdChaining", commandChaining, "data", utils.BytesToHex(data))
 
@@ -205,6 +234,9 @@ func (nfc *NfcSession) doAuthAPDU(cla byte, ins byte, data []byte, desc string) 
 	return nil, fmt.Errorf("[doAuthAPDU] %s: %w", desc, ErrExtendedLeRejected)
 }
 
+// MseSetAT sends MANAGE SECURITY ENVIRONMENT with the given P1, P2 and data, e.g. MSE:Set AT
+// to select the PACE or Chip Authentication protocol. It returns an error if the status is
+// not 9000.
 func (nfc *NfcSession) MseSetAT(p1 uint8, p2 uint8, data []byte) (err error) {
 	cApdu := NewCApdu(0x00, INS_MANAGE_SE, p1, p2, data, 0)
 
@@ -289,6 +321,9 @@ func (nfc *NfcSession) SelectEF(fileId uint16) (selected bool, err error) {
 	return true, nil
 }
 
+// SelectAid selects the application aid (SELECT with P1 0x04, no response data). It returns
+// false and no error if the chip answers 6A82 (not found), and an error for any other
+// non-9000 status.
 func (nfc *NfcSession) SelectAid(aid []byte) (selected bool, err error) {
 	slog.Debug("SelectAid", "aid", utils.BytesToHex(aid))
 
@@ -483,6 +518,10 @@ func (nfc *NfcSession) readWithFallback(offset, remaining, maxReadAmount int) ([
 	return nil, maxReadAmount, err
 }
 
+// DoAPDU sends cApdu, protected with secure messaging if set, and returns the (unprotected)
+// R-APDU, logging the exchange under desc. It returns an error if the response is shorter
+// than 2 bytes or secure messaging fails, but not for a non-9000 status, which callers must
+// check.
 func (nfc *NfcSession) DoAPDU(cApdu *CApdu, desc string) (rApdu *RApdu, err error) {
 	var apduLogEntry *ApduLogEntry
 

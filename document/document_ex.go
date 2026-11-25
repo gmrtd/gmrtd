@@ -2,6 +2,8 @@ package document
 
 import "time"
 
+// DocumentEx pairs a Document with the Session that records how it was read and
+// authenticated.
 type DocumentEx struct {
 	Document Document `json:"document"`
 	Session  Session  `json:"session"`

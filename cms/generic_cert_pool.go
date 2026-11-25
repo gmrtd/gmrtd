@@ -12,6 +12,8 @@ import (
 	"github.com/gmrtd/gmrtd/utils"
 )
 
+// GenericCertPool is an in-memory CertPool backed by a slice of parsed certificates.
+// The zero value is an empty pool. It is not safe for concurrent modification.
 type GenericCertPool struct {
 	certificates []Certificate
 }
@@ -33,6 +35,7 @@ func (certPool *GenericCertPool) Add(certificates []byte) error {
 	return nil
 }
 
+// AddCerts appends already-parsed certificates to the pool without validating them.
 func (certPool *GenericCertPool) AddCerts(certificates []Certificate) {
 	certPool.certificates = append(certPool.certificates, certificates...)
 }
@@ -154,12 +157,14 @@ func (certPool *GenericCertPool) ByIssuerCountry(countryAlpha2 string) []Certifi
 	return matchingCerts
 }
 
+// All returns a copy of the slice of certificates in the pool.
 func (certPool *GenericCertPool) All() []Certificate {
 	var out []Certificate
 	out = append(out, certPool.certificates...)
 	return out
 }
 
+// Count returns the number of certificates in the pool.
 func (certPool GenericCertPool) Count() int {
 	return len(certPool.certificates)
 }

@@ -11,8 +11,11 @@ import (
 	"github.com/gmrtd/gmrtd/utils"
 )
 
+// DG16Tag is the tag of the DG16 root data object.
 const DG16Tag = 0x70
 
+// PersonToNotify is one person-to-notify entry from DG16. DateRecorded is normally
+// YYYYMMDD.
 type PersonToNotify struct {
 	DateRecorded string       `json:"dateRecorded,omitempty"`
 	Name         *mrz.MrzName `json:"name,omitempty"`
@@ -20,13 +23,18 @@ type PersonToNotify struct {
 	Address      []string     `json:"address,omitempty"`
 }
 
+// DG16 is data group 16, the person(s) to notify.
 type DG16 struct {
 	RawData         []byte           `json:"rawData,omitempty"`
 	PersonsToNotify []PersonToNotify `json:"personsToNotify,omitempty"`
 }
 
+// GetRawData returns the raw DG16 bytes as read from the chip.
 func (f *DG16) GetRawData() []byte { return f.RawData }
 
+// NewDG16 parses DG16. It returns nil and no error if data is empty, and an error if the
+// TLV is malformed, the root tag is missing, the number of entries is not 1-15, an
+// expected entry is missing or a name cannot be parsed.
 func NewDG16(data []byte) (*DG16, error) {
 	slog.Debug("NewDG16")
 

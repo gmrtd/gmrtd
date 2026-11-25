@@ -16,6 +16,10 @@ type rawDocumentEx struct {
 const documentExMagic = "gmrtd-verifiable-doc"
 const documentExVersion uint = 1
 
+// ToCbor serialises the document's raw file bytes (see Document.ToCbor) and the session's
+// chip authentication evidence (see Session.ChipAuthEvidenceToCbor) to CBOR, in a
+// versioned envelope with a SHA-256 checksum. Other session results are not included.
+// UnmarshalVerifiableDoc reverses it.
 func (docEx *DocumentEx) ToCbor() ([]byte, error) {
 	docBytes, err := docEx.Document.ToCbor()
 	if err != nil {
@@ -48,6 +52,11 @@ func (docEx *DocumentEx) ToCbor() ([]byte, error) {
 	return cbor.Marshal(env)
 }
 
+// UnmarshalVerifiableDoc decodes the output of DocumentEx.ToCbor, re-parsing each file of
+// the document and decoding the chip authentication evidence. It returns an error if the
+// envelope is malformed, its magic or version is not supported, the checksum does not
+// match, or a file or the evidence fails to parse. The checksum only detects corruption;
+// it does not authenticate the data.
 func UnmarshalVerifiableDoc(data []byte) (*Document, *ChipAuthEvidenceBundle, error) {
 	var env cborEnvelope
 	if err := cbor.Unmarshal(data, &env); err != nil {

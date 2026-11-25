@@ -9,8 +9,11 @@ import (
 	"github.com/gmrtd/gmrtd/tlv"
 )
 
+// DG12Tag is the tag of the DG12 root data object.
 const DG12Tag = 0x6C
 
+// DocumentDetails holds the additional document details from DG12. A field is empty when
+// the corresponding data element is absent.
 type DocumentDetails struct {
 	IssuingAuthority            string        `json:"issuingAuthority,omitempty"`
 	DateOfIssue                 string        `json:"dateOfIssue,omitempty"` // YYYYMMDD
@@ -23,13 +26,18 @@ type DocumentDetails struct {
 	PersoSystemSerialNumber     string        `json:"persoSystemSerialNumber,omitempty"`
 }
 
+// DG12 is data group 12, additional document details.
 type DG12 struct {
 	RawData []byte          `json:"rawData,omitempty"`
 	Details DocumentDetails `json:"documentDetails,omitempty"`
 }
 
+// GetRawData returns the raw DG12 bytes as read from the chip.
 func (f *DG12) GetRawData() []byte { return f.RawData }
 
+// NewDG12 parses DG12. It returns nil and no error if data is empty, and an error if the
+// TLV is malformed, the root tag is missing, the tag list references an unsupported tag
+// or a name cannot be parsed.
 func NewDG12(data []byte) (*DG12, error) {
 	if len(data) < 1 {
 		return nil, nil

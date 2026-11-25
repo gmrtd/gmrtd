@@ -86,6 +86,10 @@ func decodeConstructedChildren(buf *bytes.Buffer, length TlvLength, depth int, n
 	return children, nil
 }
 
+// Decode parses data as a sequence of BER-TLV elements. Constructed tags are decoded
+// recursively, and indefinite-length encoding is accepted for constructed tags only.
+// It returns an error on malformed or trailing data, or if the input exceeds the
+// nesting-depth or node-count limits that guard against hostile input.
 func Decode(data []byte) (nodes *TlvNodes, err error) {
 	nodeCount := 0
 	buf := bytes.NewBuffer(data)
@@ -102,6 +106,9 @@ func Decode(data []byte) (nodes *TlvNodes, err error) {
 	return nodes, nil
 }
 
+// MustDecode is like Decode but panics if data cannot be decoded. It is intended for
+// trusted, known-good data such as constants and tests; use Decode for chip or file
+// data.
 func MustDecode(data []byte) (nodes *TlvNodes) {
 	var err error
 

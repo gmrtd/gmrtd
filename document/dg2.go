@@ -25,23 +25,32 @@ import (
 	"github.com/gmrtd/gmrtd/utils"
 )
 
+// DG2Tag is the tag of the DG2 root data object.
 const DG2Tag = 0x75
 
+// DG2 is data group 2, the encoded face. BITs holds the parsed biometric information
+// templates and Images the face images extracted from them.
 type DG2 struct {
 	RawData []byte                  `json:"rawData,omitempty"`
 	Images  []DG2Image              `json:"images,omitempty"`
 	BITs    []BiometricInfoTemplate `json:"bits,omitempty"`
 }
 
+// DG2Image is a face image extracted from DG2.
 type DG2Image struct {
 	Image []byte `json:"image,omitempty"`
 }
 
+// BiometricInfoTemplate is one biometric information template (tag 7F60) from DG2, with
+// its header and data block.
 type BiometricInfoTemplate struct {
 	BHT BiometricHeaderTemplate `json:"bht"`
 	BDB BiometricDataBlock      `json:"bdb"`
 }
 
+// BiometricHeaderTemplate is the biometric header template (tag A1) of a biometric
+// information template, holding the raw value of each element. An absent element is nil;
+// elements marked required are not enforced.
 type BiometricHeaderTemplate struct {
 	IcaoHeaderVersion []byte `json:"icaoHeaderVersion"` // optional
 	BiometricType     []byte `json:"biometricType"`     // optional
@@ -53,6 +62,9 @@ type BiometricHeaderTemplate struct {
 	FormatType        []byte `json:"formatType"`        // required
 }
 
+// BiometricDataBlock is the parsed biometric data block of a biometric information
+// template, encoded per ISO/IEC 19794 (tag 5F2E) or ISO/IEC 39794 (tag 7F2E). Only the
+// field for the encoding used is set.
 type BiometricDataBlock struct {
 	// NB only one of the following should be present, depending on which biometric encoding is used
 	Iso19794 *iso19794.ISO19794      `json:"iso19794,omitempty"`
@@ -69,8 +81,13 @@ type BiometricDataBlock struct {
 //					88: 0008
 //				5f2e:				** 5F2E or 7F2E
 
+// GetRawData returns the raw DG2 bytes as read from the chip.
 func (f *DG2) GetRawData() []byte { return f.RawData }
 
+// NewDG2 parses DG2 and its biometric information templates. It returns nil and no error
+// if data is empty, and an error if the TLV is malformed, the root tag or template group
+// (7F61) is missing, the number of templates is not 1-9, or a template or its biometric
+// data block cannot be parsed.
 func NewDG2(data []byte) (*DG2, error) {
 	if len(data) < 1 {
 		return nil, nil

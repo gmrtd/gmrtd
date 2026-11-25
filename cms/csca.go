@@ -44,6 +44,9 @@ var id_2010series_2016 []byte
 //go:embed master_list/IDN_2010_SERIES_CSCA_CERT/2020-10_CSCA.cer
 var id_2010series_2020 []byte
 
+// DefaultMasterList returns a CombinedCertPool of the CSCA certificates embedded in this
+// package: the German and Dutch master lists (each verified against its embedded root
+// certificate when loaded) and the Indonesian 2010-series CSCA certificates.
 func DefaultMasterList() (*CombinedCertPool, error) {
 	var out CombinedCertPool
 
@@ -78,14 +81,21 @@ func DefaultMasterList() (*CombinedCertPool, error) {
 	return &out, nil
 }
 
+// GermanMasterList loads the embedded German (BSI) CSCA master list, verifying its
+// SignedData against the embedded German master-list root certificate.
 func GermanMasterList() (*SignedDataCertPool, error) {
 	return createCertPoolFromSignedDataFn(de_masterList, de_masterListRootCA)
 }
 
+// DutchMasterList loads the embedded Dutch (NPKD) CSCA master list, verifying its
+// SignedData against the embedded Dutch master-list root certificate.
 func DutchMasterList() (*SignedDataCertPool, error) {
 	return createCertPoolFromSignedDataFn(nl_masterList, nl_masterListRootCA)
 }
 
+// Indonesian2010SeriesCerts returns a pool of the embedded Indonesian 2010-series CSCA
+// certificates, which are not published via the ICAO PKD. The certificates are only parsed,
+// not verified.
 func Indonesian2010SeriesCerts() (*GenericCertPool, error) {
 	return genericCertPoolFromCerts(
 		[][]byte{

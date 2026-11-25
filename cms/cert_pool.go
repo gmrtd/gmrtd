@@ -1,5 +1,8 @@
 package cms
 
+// CertPool is a set of trusted certificates (typically CSCA certificates) that verification
+// looks up issuers in. Lookups only match certificates; they do not check signatures,
+// validity periods or extensions. All returns every certificate in the pool.
 type CertPool interface {
 	// Lookup by Subject Key Identifier (SKI)
 	BySKI(ski []byte) []Certificate

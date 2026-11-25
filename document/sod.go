@@ -19,14 +19,19 @@ import (
 * v1 introduces LDSVersionInfo to include LDS/Unicode version information within the SoD
  */
 
+// SODTag is the tag of the EF.SOD root data object.
 const SODTag = 0x77
 
+// SOD is EF.SOD, the document security object: a CMS SignedData whose content is the
+// LDSSecurityObject holding the data group hashes.
 type SOD struct {
 	RawData           []byte             `json:"rawData,omitempty"`
 	SD                *cms.SignedData    `json:"sd,omitempty"`
 	LdsSecurityObject *LDSSecurityObject `json:"ldsSecurityObject,omitempty"`
 }
 
+// LDSSecurityObject is the signed content of EF.SOD: the hash algorithm and the hash of
+// each data group. LdsVersionInfo is only present in version 1.
 type LDSSecurityObject struct {
 	Version             int                     `json:"version,omitempty"`
 	HashAlgorithm       cms.AlgorithmIdentifier `json:"hashAlgorithm,omitempty"`
@@ -34,6 +39,7 @@ type LDSSecurityObject struct {
 	LdsVersionInfo      LDSVersionInfo          `asn1:"optional" json:"ldsVersionInfo"`
 }
 
+// DataGroupHash is the hash of one data group as recorded in EF.SOD.
 type DataGroupHash struct {
 	DataGroupNumber    int    `json:"dataGroupNumber"`
 	DataGroupHashValue []byte `json:"dataGroupHashValue"`
@@ -45,8 +51,15 @@ type LDSVersionInfo struct {
 	UnicodeVersion string `json:"unicodeVersion,omitempty"`
 }
 
+// GetRawData returns the raw EF.SOD bytes as read from the chip.
 func (f *SOD) GetRawData() []byte { return f.RawData }
 
+// NewSOD parses EF.SOD and its LDSSecurityObject. If the SignedData does not parse, it is
+// retried once after TLV re-encoding, for chips that use indefinite-length encoding. It
+// returns nil and no error if data is empty, and an error if the root tag cannot be
+// unwrapped, the SignedData is malformed, the content type is not an accepted LDS
+// security object type or the LDSSecurityObject cannot be parsed. The signature is not
+// verified here; see the passiveauth package.
 func NewSOD(data []byte) (*SOD, error) {
 	var err error
 
@@ -197,6 +210,7 @@ func (sod SOD) DgHash(dgNumber int) []byte {
 	return nil
 }
 
+// HasDgHash reports whether EF.SOD has a non-empty hash for data group dgNumber.
 func (sod SOD) HasDgHash(dgNumber int) bool {
 	return len(sod.DgHash(dgNumber)) > 0
 }

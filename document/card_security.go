@@ -10,14 +10,23 @@ import (
 	"github.com/gmrtd/gmrtd/utils"
 )
 
+// CardSecurity is EF.CardSecurity: a CMS SignedData whose content is a set of
+// SecurityInfos. It is read for PACE-CAM, to obtain the chip's signed Chip Authentication
+// public key.
 type CardSecurity struct {
 	RawData       []byte          `json:"rawData,omitempty"`
 	SD            *cms.SignedData `json:"sd,omitempty"`
 	SecurityInfos *SecurityInfos  `json:"securityInfos,omitempty"`
 }
 
+// GetRawData returns the raw EF.CardSecurity bytes as read from the chip.
 func (f *CardSecurity) GetRawData() []byte { return f.RawData }
 
+// NewCardSecurity parses EF.CardSecurity as a CMS SignedData and decodes the
+// SecurityInfos in its content. It returns nil and no error if data is empty, and an
+// error if the SignedData is malformed, its content type is not id-SecurityObject or the
+// SecurityInfos cannot be decoded. The signature is not verified here; see the
+// passiveauth package.
 func NewCardSecurity(data []byte) (out *CardSecurity, err error) {
 	if len(data) < 1 {
 		return nil, nil

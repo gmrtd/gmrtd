@@ -8,11 +8,15 @@ import (
 	"github.com/gmrtd/gmrtd/tlv"
 )
 
+// COMTag is the tag of the EF.COM root data object.
 const COMTag = 0x60
 
 // Note: EF.COM is largely deprecated by EF.SOD, to access LDS/Unicode version the helpers on Document
 //		 should be used as these will give priority to data within EF.SOD
 
+// COM is EF.COM, which holds the LDS and Unicode versions and the list of data group tags
+// present. Prefer Document.LdsVersion and Document.UnicodeVersion, which use the values
+// in EF.SOD when it has them.
 type COM struct {
 	RawData        []byte       `json:"rawData,omitempty"`
 	LdsVersion     string       `json:"ldsVersion,omitempty"`
@@ -20,8 +24,12 @@ type COM struct {
 	TagList        []tlv.TlvTag `json:"tagList,omitempty"`
 }
 
+// GetRawData returns the raw EF.COM bytes as read from the chip.
 func (f *COM) GetRawData() []byte { return f.RawData }
 
+// NewCOM parses EF.COM. It returns nil and no error if data is empty, and an error if the
+// TLV is malformed, the root tag is missing, the LDS version is not 4 characters, the
+// Unicode version is not 6 characters or the tag list cannot be parsed.
 func NewCOM(data []byte) (*COM, error) {
 	if len(data) < 1 {
 		return nil, nil

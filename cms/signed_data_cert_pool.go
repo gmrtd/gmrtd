@@ -9,6 +9,8 @@ import (
 	"github.com/gmrtd/gmrtd/utils"
 )
 
+// SignedDataCertPool is a GenericCertPool populated from a CSCA master list, as created by
+// CreateCertPoolFromSignedData.
 type SignedDataCertPool struct {
 	GenericCertPool // Embedded struct
 	lock            sync.Mutex
@@ -16,11 +18,14 @@ type SignedDataCertPool struct {
 
 var _ CertPool = (*SignedDataCertPool)(nil)
 
+// CscaMasterList is the ASN.1 CscaMasterList structure carried as the eContent of a CSCA
+// master list's SignedData (ICAO Doc 9303 Part 12): a version and a SET of certificates.
 type CscaMasterList struct {
 	Version int
 	Certs   []CscaMasterListCert `asn1:"set"`
 }
 
+// CscaMasterListCert holds the raw DER encoding of one certificate in a CscaMasterList.
 type CscaMasterListCert struct {
 	Cert asn1.RawContent
 }

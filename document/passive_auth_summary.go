@@ -6,16 +6,22 @@ import (
 	"github.com/gmrtd/gmrtd/cms"
 )
 
+// PassiveAuthStatus is the Passive Authentication outcome reported in PassiveAuthSummary.
 type PassiveAuthStatus string
 
+// Passive Authentication outcomes. NOT_PERFORMED means it was not attempted; FAILED
+// covers both an error and an unsuccessful result.
 const (
 	PASSIVE_AUTH_STATUS_VERIFIED      PassiveAuthStatus = "VERIFIED"
 	PASSIVE_AUTH_STATUS_FAILED        PassiveAuthStatus = "FAILED"
 	PASSIVE_AUTH_STATUS_NOT_PERFORMED PassiveAuthStatus = "NOT_PERFORMED"
 )
 
+// CertificateRole is the role of a certificate in a TrustChainCertificate.
 type CertificateRole string
 
+// Certificate roles: a document signer (not a CA), a CSCA, or a CSCA link certificate.
+// The role is inferred from the certificate itself, not its position in the chain.
 const (
 	CERTIFICATE_ROLE_DOCUMENT_SIGNER CertificateRole = "DOCUMENT_SIGNER"
 	CERTIFICATE_ROLE_CSCA            CertificateRole = "CSCA"
@@ -43,6 +49,8 @@ type SignedObjectTrust struct {
 	Chain    []TrustChainCertificate `json:"chain,omitempty"`
 }
 
+// TrustChainCertificate is one certificate in a SignedObjectTrust chain: its role,
+// whether it has expired and the details from cms.CertificateInfo.
 type TrustChainCertificate struct {
 	Role CertificateRole `json:"role"`
 
