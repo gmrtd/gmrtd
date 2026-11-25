@@ -1210,6 +1210,31 @@ func TestVerifyEvidenceSameTermMapAndChipMapPub(t *testing.T) {
 	}
 }
 
+func TestLoadCardSecurityFileMissing(t *testing.T) {
+	nfc := iso7816.NewNfcSession(&iso7816.StaticTransceiver{RApdu: utils.HexToBytes("6A82")})
+	p := NewPace(nfc, &document.Document{}, password.NewPasswordCan("123456"))
+	if err := p.loadCardSecurityFile(); err == nil || !strings.Contains(err.Error(), "EF.CardSecurity") {
+		t.Fatalf("expected a missing EF.CardSecurity error, got %v", err)
+	}
+}
+
+func TestDoPaceCamMissingSecurityInfos(t *testing.T) {
+	cardAccess, err := document.NewCardAccess(deCamCardAccessBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, doc := newDeCamPace(t, deCamTransceiver(), cardAccess)
+	doc.Mf.CardSecurity = &document.CardSecurity{}
+
+	result, camResult, err := p.DoPACE()
+	if err == nil || !strings.Contains(err.Error(), "EF.CardSecurity") {
+		t.Fatalf("expected an EF.CardSecurity error, got %v", err)
+	}
+	if result == nil || result.Success || camResult != nil {
+		t.Fatalf("unexpected authentication results: PACE %v, CAM %v", result, camResult)
+	}
+}
+
 func TestCardSecurityFileApduErr(t *testing.T) {
 	// NB we expect an error when an APDU error occurs
 
