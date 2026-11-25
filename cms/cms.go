@@ -1015,13 +1015,15 @@ func (si *SignerInfo) VerifyWithConfig(config *CMSConfig, sd *SignedData, truste
 		return nil, fmt.Errorf("[Verify] selectCertificate error: %w", err)
 	}
 
+	// The signer is a Document Signer for an EF.SOD or EF.CardSecurity, or a Master List
+	// Signer for a CSCA master list, so errors name the signer cert rather than assume a DS.
 	if err := validateSignerCertExtensions(cert, sd.Content.EContentType); err != nil {
-		return nil, fmt.Errorf("[Verify] DS cert %w", err)
+		return nil, fmt.Errorf("[Verify] signer cert %w", err)
 	}
 
-	// enforce DS cert validity period against reference time (ICAO 9303 Part 11 §5.1)
+	// enforce signer cert validity period against reference time (ICAO 9303 Part 11 §5.1)
 	if err := checkValidityPeriod(cert.TbsCertificate.Validity, config.ReferenceTime); err != nil {
-		return nil, fmt.Errorf("[Verify] DS cert %w", err)
+		return nil, fmt.Errorf("[Verify] signer cert %w", err)
 	}
 
 	/*
@@ -1071,13 +1073,19 @@ func (si *SignerInfo) resolveSigningTime() *time.Time {
 	return &st
 }
 
+// validateSignerCertExtensions enforces the RFC 5280 and ICAO Doc 9303 Part 12 extension
+// requirements on the certificate that signed a SignedData: no unrecognised critical
+// extensions, keyUsage present with digitalSignature, and a well-formed extended key usage
+// if present. When contentType is the CSCA master list type, the extended key usage must
+// also include the master-list signing purpose, so only an authorised Master List Signer
+// can add certificates to a trust pool.
 func validateSignerCertExtensions(cert *Certificate, contentType asn1.ObjectIdentifier) error {
-	// reject DS cert with unrecognized critical extensions (RFC 5280 4.2)
+	// reject a signer cert with unrecognized critical extensions (RFC 5280 4.2)
 	if unrecognized := cert.TbsCertificate.Extensions.UnrecognizedCriticalExtensions(); len(unrecognized) > 0 {
 		return fmt.Errorf("has unrecognized critical extension: %v", unrecognized[0].ObjectId)
 	}
 
-	// DS cert must have keyUsage with digitalSignature (ICAO 9303 Part 12)
+	// the signer cert must have keyUsage with digitalSignature (ICAO 9303 Part 12)
 	ku, kuErr := cert.TbsCertificate.Extensions.KeyUsage()
 	if kuErr != nil {
 		return fmt.Errorf("KeyUsage parse error: %w", kuErr)
