@@ -9,6 +9,8 @@ import (
 	"unicode"
 )
 
+// TrimLeadingZeroBytes returns data without its leading zero bytes, as a sub-slice of data
+// (not a copy). If data is empty or all zeros, it returns an empty, non-nil slice.
 func TrimLeadingZeroBytes(data []byte) []byte {
 	for i, b := range data {
 		if b != 0 {
@@ -69,6 +71,8 @@ func SafePrefix(data []byte, prefixLength int) []byte {
 	return data[:prefixLength]
 }
 
+// XorBytes returns a new slice holding the byte-wise XOR of arr1 and arr2. It panics if the
+// slices differ in length.
 func XorBytes(arr1, arr2 []byte) []byte {
 	if len(arr1) != len(arr2) {
 		panic(fmt.Sprintf("Arrays must be the same length (arr1:%1d, arr2:%1d)", len(arr1), len(arr2)))
@@ -83,6 +87,8 @@ func XorBytes(arr1, arr2 []byte) []byte {
 	return out
 }
 
+// HexToBytes decodes the hex string str (upper or lower case, no separators). It panics if
+// str is not valid hex, so it is intended for constants and tests, not untrusted input.
 func HexToBytes(str string) []byte {
 	out, err := hex.DecodeString(str)
 	if err != nil {
@@ -91,10 +97,13 @@ func HexToBytes(str string) []byte {
 	return out
 }
 
+// BytesToHex returns bytes encoded as lower-case hex with no separators.
 func BytesToHex(bytes []byte) string {
 	return fmt.Sprintf("%x", bytes)
 }
 
+// PrintableBytes reports whether every byte of data, taken as a Latin-1 code point, is
+// printable according to unicode.IsPrint. It returns true for empty data.
 func PrintableBytes(data []byte) bool {
 	for _, b := range data {
 		if !unicode.IsPrint(rune(b)) {
@@ -105,6 +114,8 @@ func PrintableBytes(data []byte) bool {
 	return true
 }
 
+// BytesFromBuffer reads exactly length bytes from r into a new slice. It returns an error if
+// length is negative or fewer bytes are available (wrapping io.EOF or io.ErrUnexpectedEOF).
 func BytesFromBuffer(r io.Reader, length int) ([]byte, error) {
 	if length < 0 {
 		return nil, fmt.Errorf("[BytesFromBuffer] invalid length (%d)", length)
@@ -134,6 +145,7 @@ func BytesFromBuffer(r io.Reader, length int) ([]byte, error) {
 	return tmp, nil
 }
 
+// ByteFromBuffer reads a single byte from r, returning an error if none is available.
 func ByteFromBuffer(r io.Reader) (byte, error) {
 	tmp, err := BytesFromBuffer(r, 1)
 	if err != nil {
@@ -143,6 +155,8 @@ func ByteFromBuffer(r io.Reader) (byte, error) {
 	return tmp[0], err
 }
 
+// BytesToInt interprets bytes as an unsigned big-endian integer; empty input gives 0. Inputs
+// longer than the size of int overflow silently, so callers must bound the length.
 func BytesToInt(bytes []byte) int {
 	var out int
 
@@ -154,18 +168,21 @@ func BytesToInt(bytes []byte) int {
 	return out
 }
 
+// UInt16ToBytes returns value as 2 big-endian bytes.
 func UInt16ToBytes(value uint16) []byte {
 	var out []byte = make([]byte, 2)
 	binary.BigEndian.PutUint16(out, value)
 	return out
 }
 
+// UInt32ToBytes returns value as 4 big-endian bytes.
 func UInt32ToBytes(value uint32) []byte {
 	var out []byte = make([]byte, 4)
 	binary.BigEndian.PutUint32(out, value)
 	return out
 }
 
+// UInt64ToBytes returns value as 8 big-endian bytes.
 func UInt64ToBytes(value uint64) []byte {
 	var out []byte = make([]byte, 8)
 	binary.BigEndian.PutUint64(out, value)

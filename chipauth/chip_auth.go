@@ -18,12 +18,16 @@ import (
 	"github.com/gmrtd/gmrtd/utils"
 )
 
+// ChipAuth runs Chip Authentication against a chip over an NFC session, using the security
+// infos from the document's DG14. Create one with NewChipAuth.
 type ChipAuth struct {
 	keyGeneratorEc cryptoutils.KeyGeneratorEcFn
 	nfcSession     **iso7816.NfcSession
 	document       **document.Document
 }
 
+// NewChipAuth returns a ChipAuth for the given NFC session and document. It sends nothing
+// to the chip; call DoChipAuth to run the protocol.
 func NewChipAuth(nfc *iso7816.NfcSession, doc *document.Document) *ChipAuth {
 	var chipAuth ChipAuth
 	chipAuth.keyGeneratorEc = cryptoutils.KeyGeneratorEc
@@ -68,6 +72,15 @@ func selectChipAuthParams(doc *document.Document) (*ChipAuthParams, error) {
 	}, nil
 }
 
+// DoChipAuth performs Chip Authentication using the parameters advertised in DG14. Only the
+// ECDH variant is implemented; a DH key is reported as an error.
+//
+// On success it replaces the NFC session's secure messaging with keys derived from the CA
+// key agreement, confirms them with a SELECT of DG14, and returns a result with Success set
+// and the captured Evidence (see VerifyEvidence). It returns (nil, nil) without sending
+// anything if DG14 is absent or advertises no CA info or CA public key. On failure it
+// returns the error with a non-nil result whose Success is false; if the failure comes
+// after the new keys are installed, the session keeps them.
 func (chipAuth *ChipAuth) DoChipAuth() (result *document.ChipAuthResult, err error) {
 	if !caAdvertised(*chipAuth.document) {
 		slog.Debug("doChipAuth - skipping CA as not advertised")
@@ -273,6 +286,8 @@ func selectCAPubKeyInfo(caInfo *document.ChipAuthenticationInfo, caAlgInfo *CaAl
 	return nil, fmt.Errorf("[selectCAPubKeyInfo] unable to locate public key (oid:%s) (keyId:%s)", caAlgInfo.targetOid.String(), caInfo.KeyId)
 }
 
+// CaAlgorithmInfo describes a Chip Authentication protocol OID: its key-agreement type
+// (DH/ECDH), cipher and key size. Its fields are internal to the package.
 type CaAlgorithmInfo struct {
 	targetOid   asn1.ObjectIdentifier
 	cipherAlg   cryptoutils.BlockCipherAlg
@@ -503,6 +518,9 @@ func (chipAuth *ChipAuth) doCaEcdh(params *ChipAuthParams) (evidence *caEcdhEvid
 	return evidence, nil
 }
 
+// maxEvidenceFieldLen bounds each untrusted evidence field accepted by VerifyEvidence.
+const maxEvidenceFieldLen = 1024
+
 // VerifyEvidence verifies the internal cryptographic consistency of Chip Authentication
 // evidence captured during a previous NFC session. It requires only the Document (which
 // supplies the chip's EC public key from DG14).
@@ -531,8 +549,6 @@ func (chipAuth *ChipAuth) doCaEcdh(params *ChipAuthParams) (evidence *caEcdhEvid
 // This function does not perform replay detection. Applications should implement
 // their own checks (e.g. tracking previously seen evidence) to prevent a valid
 // evidence payload from being replayed.
-const maxEvidenceFieldLen = 1024
-
 func VerifyEvidence(doc *document.Document, evidence *document.ChipAuthEvidence) (*document.ChipAuthResult, error) {
 	if evidence == nil {
 		return nil, fmt.Errorf("[VerifyEvidence] evidence is nil")

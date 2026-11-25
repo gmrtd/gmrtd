@@ -5,8 +5,10 @@ import (
 	"log/slog"
 )
 
+// ImageFormat is the MIME type of an image format recognised by DetectImageFormat.
 type ImageFormat string
 
+// Image formats recognised by DetectImageFormat.
 const (
 	ImageFormatJPEG     ImageFormat = "image/jpeg"
 	ImageFormatJPEG2000 ImageFormat = "image/jp2"

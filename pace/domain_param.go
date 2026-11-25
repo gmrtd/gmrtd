@@ -9,6 +9,8 @@ import (
 	"github.com/osanderson/brainpool"
 )
 
+// DomainParams holds the standardised PACE domain parameters selected by a PACEInfo
+// ParameterId (ICAO Doc 9303 Part 11 s9.5.1). Its fields are internal to the package.
 type DomainParams struct {
 	id     int
 	isECDH bool
@@ -16,9 +18,18 @@ type DomainParams struct {
 }
 
 var (
-	ErrPACEParamRFU            = errors.New("PACE parameter is RFU")
+	// ErrPACEParamRFU is returned for a standardised domain parameter ID reserved for future
+	// use (3-7, 19-31). DoPACE treats it as a non-conformant entry, not a local limitation.
+	ErrPACEParamRFU = errors.New("PACE parameter is RFU")
+
+	// ErrPACEParamNotImplemented is returned for a standardised domain parameter ID this
+	// package recognises but does not implement (the MODP groups 0-2). DoPACE reports it
+	// wrapped in ErrPACEUnsupportedLocally.
 	ErrPACEParamNotImplemented = errors.New("PACE parameter is recognised but not implemented")
-	ErrPACEParamUnsupported    = errors.New("PACE parameter is unsupported")
+
+	// ErrPACEParamUnsupported is returned for a domain parameter ID outside the standardised
+	// range (e.g. proprietary). DoPACE reports it wrapped in ErrPACEUnsupportedLocally.
+	ErrPACEParamUnsupported = errors.New("PACE parameter is unsupported")
 
 	// ErrPACEUnsupportedLocally marks a PACE configuration advertised by the chip that this
 	// reader cannot perform: no PACE protocol OID it implements, or domain parameters that are

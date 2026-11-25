@@ -8,8 +8,11 @@ import (
 	"github.com/gmrtd/gmrtd/utils"
 )
 
+// KDFCounterType is the 32-bit counter c that KDF appends to the shared secret.
 type KDFCounterType int
 
+// KDF counter values defined by ICAO Doc 9303 Part 11: 1 derives an encryption key, 2 a MAC
+// key and 3 the PACE password key.
 const (
 	KDF_COUNTER_KSENC KDFCounterType = 1
 	KDF_COUNTER_KSMAC KDFCounterType = 2

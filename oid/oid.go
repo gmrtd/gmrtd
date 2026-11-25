@@ -22,122 +22,198 @@ import (
 
 // TODO - missing sig alg: 0.4.0.127.0.7.1.1.4.1.5
 
+// BSI (bsi-de, 0.4.0.127.0.7) arcs under which the BSI TR-03110 / ICAO Doc 9303
+// algorithm and protocol identifiers below are defined.
 var (
-	OidBsiDe                            = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7}
-	OidBsiDeAlgorithms                  = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 1}
-	OidBsiDeEcKeyType                   = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 1, 2}
-	OidBsiDeProtocols                   = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2}
-	OidBsiDeProtocolsSmartcard          = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2}
-	OidPk                               = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 1}
-	OidPkDh                             = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 1, 1}
-	OidPkEcdh                           = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 1, 2}
-	OidTa                               = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 2}
-	OidTaRsa                            = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 2, 1}
-	OidTaRsaPssSha256                   = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 2, 1, 4}
-	OidTaRsaPssSha512                   = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 2, 1, 6}
-	OidTaEcdsa                          = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 2, 2}
-	OidTaEcdsaSha224                    = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 2, 2, 2}
-	OidTaEcdsaSha256                    = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 2, 2, 3}
-	OidTaEcdsaSha384                    = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 2, 2, 4}
-	OidTaEcdsaSha512                    = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 2, 2, 5}
-	OidCa                               = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3}
-	OidCaDh                             = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 1}
-	OidCaDh3DesCbcCbc                   = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 1, 1}
-	OidCaDhAesCbcCmac128                = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 1, 2}
-	OidCaDhAesCbcCmac192                = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 1, 3}
-	OidCaDhAesCbcCmac256                = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 1, 4}
-	OidCaEcdh                           = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 2}
-	OidCaEcdh3DesCbcCbc                 = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 2, 1}
-	OidCaEcdhAesCbcCmac128              = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 2, 2}
-	OidCaEcdhAesCbcCmac192              = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 2, 3}
-	OidCaEcdhAesCbcCmac256              = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 2, 4}
-	OidPace                             = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4}
-	OidPaceDhGm                         = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 1}
-	OidPaceDhGm3DesCbcCbc               = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 1, 1}
-	OidPaceDhGmAesCbcCmac128            = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 1, 2}
-	OidPaceDhGmAesCbcCmac192            = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 1, 3}
-	OidPaceDhGmAesCbcCmac256            = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 1, 4}
-	OidPaceEcdhGm                       = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 2}
-	OidPaceEcdhGm3DesCbcCbc             = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 2, 1}
-	OidPaceEcdhGmAesCbcCmac128          = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 2, 2}
-	OidPaceEcdhGmAesCbcCmac192          = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 2, 3}
-	OidPaceEcdhGmAesCbcCmac256          = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 2, 4}
-	OidPaceDhIm                         = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 3}
-	OidPaceDhIm3DesCbcCbc               = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 3, 1}
-	OidPaceDhImAesCbcCmac128            = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 3, 2}
-	OidPaceDhImAesCbcCmac192            = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 3, 3}
-	OidPaceDhImAesCbcCmac256            = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 3, 4}
-	OidPaceEcdhIm                       = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 4}
-	OidPaceEcdhIm3DesCbcCbc             = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 4, 1}
-	OidPaceEcdhImAesCbcCmac128          = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 4, 2}
-	OidPaceEcdhImAesCbcCmac192          = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 4, 3}
-	OidPaceEcdhImAesCbcCmac256          = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 4, 4}
-	OidPaceEcdhCam                      = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 6}
-	OidPaceEcdhCamAesCbcCmac128         = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 6, 2}
-	OidPaceEcdhCamAesCbcCmac192         = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 6, 3}
-	OidPaceEcdhCamAesCbcCmac256         = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 6, 4}
-	OidSecurityObject                   = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 3, 2, 1}
-	OidLdsSecurityObjectSdu             = asn1.ObjectIdentifier{1, 2, 528, 1, 1006, 1, 20, 1} // Sdu Identification (NL) variant of ldsSecurityObject content-type
-	OidPrimeField                       = asn1.ObjectIdentifier{1, 2, 840, 10045, 1, 1}
-	OidEcPublicKey                      = asn1.ObjectIdentifier{1, 2, 840, 10045, 2, 1}
-	OidPrime192v1                       = asn1.ObjectIdentifier{1, 2, 840, 10045, 3, 1, 1}
-	OidPrime256v1                       = asn1.ObjectIdentifier{1, 2, 840, 10045, 3, 1, 7}
-	OidEcdsaWithSHA1                    = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 1}
-	OidEcdsaWithSHA224                  = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 3, 1}
-	OidEcdsaWithSHA256                  = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 3, 2}
-	OidEcdsaWithSHA384                  = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 3, 3}
-	OidEcdsaWithSHA512                  = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 3, 4}
-	OidRsaEncryption                    = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 1}
-	OidSha1WithRsaEncryption            = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 5}
-	OidMgf1                             = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 8}
-	OidRsaSsaPss                        = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 10}
-	OidSha256WithRSAEncryption          = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 11}
-	OidSha384WithRSAEncryption          = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 12}
-	OidSha512WithRSAEncryption          = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 13}
-	OidSha224WithRSAEncryption          = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 14}
-	OidIdData                           = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 7, 1}
-	OidSignedData                       = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 7, 2}
-	OidEmailAddress                     = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 1}
-	OidContentType                      = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 3}
-	OidMessageDigest                    = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 4}
-	OidSigningTime                      = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 5}
-	OidCmsAlgorithmProtection           = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 52}
-	OidHashAlgorithmMD5                 = asn1.ObjectIdentifier{1, 2, 840, 113549, 2, 5}
-	OidHashAlgorithmSHA1                = asn1.ObjectIdentifier{1, 3, 14, 3, 2, 26}
-	OidLdsSecurityObjectLegacy          = asn1.ObjectIdentifier{1, 3, 27, 1, 1, 1} // legacy ICAO icao(27) arc for ldsSecurityObject; seen on Belgian/French MRTDs
-	OidEfDir                            = asn1.ObjectIdentifier{1, 3, 27, 1, 1, 13}
-	OidBrainpoolP192r1                  = asn1.ObjectIdentifier{1, 3, 36, 3, 3, 2, 8, 1, 1, 3}
-	OidBrainpoolP224r1                  = asn1.ObjectIdentifier{1, 3, 36, 3, 3, 2, 8, 1, 1, 5}
-	OidBrainpoolP256r1                  = asn1.ObjectIdentifier{1, 3, 36, 3, 3, 2, 8, 1, 1, 7}
-	OidBrainpoolP320r1                  = asn1.ObjectIdentifier{1, 3, 36, 3, 3, 2, 8, 1, 1, 9}
-	OidBrainpoolP384r1                  = asn1.ObjectIdentifier{1, 3, 36, 3, 3, 2, 8, 1, 1, 11}
-	OidBrainpoolP512r1                  = asn1.ObjectIdentifier{1, 3, 36, 3, 3, 2, 8, 1, 1, 13}
-	OidSecp224r1                        = asn1.ObjectIdentifier{1, 3, 132, 0, 33}
-	OidSecp384r1                        = asn1.ObjectIdentifier{1, 3, 132, 0, 34}
-	OidSecp521r1                        = asn1.ObjectIdentifier{1, 3, 132, 0, 35}
-	OidNameChange                       = asn1.ObjectIdentifier{2, 23, 136, 1, 1, 6, 1}
-	OidCommonName                       = asn1.ObjectIdentifier{2, 5, 4, 3}
-	OidSerialNumber                     = asn1.ObjectIdentifier{2, 5, 4, 5}
-	OidCountryName                      = asn1.ObjectIdentifier{2, 5, 4, 6}
-	OidLocalityName                     = asn1.ObjectIdentifier{2, 5, 4, 7}
-	OidStateOrProvinceName              = asn1.ObjectIdentifier{2, 5, 4, 8}
-	OidOrganizationName                 = asn1.ObjectIdentifier{2, 5, 4, 10}
-	OidOrganizationalUnitName           = asn1.ObjectIdentifier{2, 5, 4, 11}
-	OidSubjectKeyIdentifier             = asn1.ObjectIdentifier{2, 5, 29, 14}
-	OidCeKeyUsage                       = asn1.ObjectIdentifier{2, 5, 29, 15}
-	OidPrivateKeyUsagePeriod            = asn1.ObjectIdentifier{2, 5, 29, 16}
-	OidSubjectAltName                   = asn1.ObjectIdentifier{2, 5, 29, 17}
-	OidCeIssuerAltName                  = asn1.ObjectIdentifier{2, 5, 29, 18}
-	OidCeBasicConstraints               = asn1.ObjectIdentifier{2, 5, 29, 19}
-	OidCeCRLDistributionPoints          = asn1.ObjectIdentifier{2, 5, 29, 31}
-	OidCertificatePolicies              = asn1.ObjectIdentifier{2, 5, 29, 32}
-	OidAuthorityKeyIdentifier           = asn1.ObjectIdentifier{2, 5, 29, 35}
-	OidCeExtKeyUsage                    = asn1.ObjectIdentifier{2, 5, 29, 37}
-	OidAnyExtendedKeyUsage              = asn1.ObjectIdentifier{2, 5, 29, 37, 0}
-	OidHashAlgorithmSHA256              = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 2, 1}
-	OidHashAlgorithmSHA384              = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 2, 2}
-	OidHashAlgorithmSHA512              = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 2, 3}
-	OidHashAlgorithmSHA224              = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 2, 4}
+	OidBsiDe                   = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7}
+	OidBsiDeAlgorithms         = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 1}
+	OidBsiDeEcKeyType          = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 1, 2}
+	OidBsiDeProtocols          = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2}
+	OidBsiDeProtocolsSmartcard = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2}
+)
+
+// Public key protocol identifiers (id-PK-*), used in ChipAuthenticationPublicKeyInfo.
+var (
+	OidPk     = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 1}
+	OidPkDh   = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 1, 1}
+	OidPkEcdh = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 1, 2}
+)
+
+// Terminal Authentication protocol identifiers (id-TA-*) and their signature algorithms.
+var (
+	OidTa             = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 2}
+	OidTaRsa          = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 2, 1}
+	OidTaRsaPssSha256 = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 2, 1, 4}
+	OidTaRsaPssSha512 = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 2, 1, 6}
+	OidTaEcdsa        = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 2, 2}
+	OidTaEcdsaSha224  = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 2, 2, 2}
+	OidTaEcdsaSha256  = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 2, 2, 3}
+	OidTaEcdsaSha384  = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 2, 2, 4}
+	OidTaEcdsaSha512  = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 2, 2, 5}
+)
+
+// Chip Authentication protocol identifiers (id-CA-*), by key agreement (DH/ECDH) and
+// secure messaging cipher suite.
+var (
+	OidCa                  = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3}
+	OidCaDh                = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 1}
+	OidCaDh3DesCbcCbc      = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 1, 1}
+	OidCaDhAesCbcCmac128   = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 1, 2}
+	OidCaDhAesCbcCmac192   = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 1, 3}
+	OidCaDhAesCbcCmac256   = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 1, 4}
+	OidCaEcdh              = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 2}
+	OidCaEcdh3DesCbcCbc    = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 2, 1}
+	OidCaEcdhAesCbcCmac128 = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 2, 2}
+	OidCaEcdhAesCbcCmac192 = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 2, 3}
+	OidCaEcdhAesCbcCmac256 = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 3, 2, 4}
+)
+
+// PACE protocol identifiers (id-PACE-*), by key agreement (DH/ECDH), mapping (Generic,
+// Integrated or Chip Authentication Mapping) and secure messaging cipher suite.
+var (
+	OidPace                     = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4}
+	OidPaceDhGm                 = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 1}
+	OidPaceDhGm3DesCbcCbc       = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 1, 1}
+	OidPaceDhGmAesCbcCmac128    = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 1, 2}
+	OidPaceDhGmAesCbcCmac192    = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 1, 3}
+	OidPaceDhGmAesCbcCmac256    = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 1, 4}
+	OidPaceEcdhGm               = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 2}
+	OidPaceEcdhGm3DesCbcCbc     = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 2, 1}
+	OidPaceEcdhGmAesCbcCmac128  = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 2, 2}
+	OidPaceEcdhGmAesCbcCmac192  = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 2, 3}
+	OidPaceEcdhGmAesCbcCmac256  = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 2, 4}
+	OidPaceDhIm                 = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 3}
+	OidPaceDhIm3DesCbcCbc       = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 3, 1}
+	OidPaceDhImAesCbcCmac128    = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 3, 2}
+	OidPaceDhImAesCbcCmac192    = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 3, 3}
+	OidPaceDhImAesCbcCmac256    = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 3, 4}
+	OidPaceEcdhIm               = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 4}
+	OidPaceEcdhIm3DesCbcCbc     = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 4, 1}
+	OidPaceEcdhImAesCbcCmac128  = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 4, 2}
+	OidPaceEcdhImAesCbcCmac192  = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 4, 3}
+	OidPaceEcdhImAesCbcCmac256  = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 4, 4}
+	OidPaceEcdhCam              = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 6}
+	OidPaceEcdhCamAesCbcCmac128 = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 6, 2}
+	OidPaceEcdhCamAesCbcCmac192 = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 6, 3}
+	OidPaceEcdhCamAesCbcCmac256 = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 2, 2, 4, 6, 4}
+)
+
+// OidSecurityObject is id-SecurityObject, the signed content type of EF.CardSecurity
+// (BSI TR-03110).
+var OidSecurityObject = asn1.ObjectIdentifier{0, 4, 0, 127, 0, 7, 3, 2, 1}
+
+// OidLdsSecurityObjectSdu is a national (NL) variant of the ldsSecurityObject content type
+// accepted for EF.SOD.
+var OidLdsSecurityObjectSdu = asn1.ObjectIdentifier{1, 2, 528, 1, 1006, 1, 20, 1} // Sdu Identification (NL) variant of ldsSecurityObject content-type
+
+// ANSI X9.62 identifiers: prime field type, EC public key, named prime curves and
+// ECDSA signature algorithms.
+var (
+	OidPrimeField      = asn1.ObjectIdentifier{1, 2, 840, 10045, 1, 1}
+	OidEcPublicKey     = asn1.ObjectIdentifier{1, 2, 840, 10045, 2, 1}
+	OidPrime192v1      = asn1.ObjectIdentifier{1, 2, 840, 10045, 3, 1, 1}
+	OidPrime256v1      = asn1.ObjectIdentifier{1, 2, 840, 10045, 3, 1, 7}
+	OidEcdsaWithSHA1   = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 1}
+	OidEcdsaWithSHA224 = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 3, 1}
+	OidEcdsaWithSHA256 = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 3, 2}
+	OidEcdsaWithSHA384 = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 3, 3}
+	OidEcdsaWithSHA512 = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 3, 4}
+)
+
+// PKCS #1 RSA identifiers: RSA encryption, PKCS #1 v1.5 signatures, RSASSA-PSS and MGF1.
+var (
+	OidRsaEncryption           = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 1}
+	OidSha1WithRsaEncryption   = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 5}
+	OidMgf1                    = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 8}
+	OidRsaSsaPss               = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 10}
+	OidSha256WithRSAEncryption = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 11}
+	OidSha384WithRSAEncryption = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 12}
+	OidSha512WithRSAEncryption = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 13}
+	OidSha224WithRSAEncryption = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 14}
+)
+
+// PKCS #7 / CMS content type identifiers (RFC 5652).
+var (
+	OidIdData     = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 7, 1}
+	OidSignedData = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 7, 2}
+)
+
+// PKCS #9 attribute identifiers, including the CMS signed attributes (RFC 5652) and
+// CMS algorithm protection (RFC 6211).
+var (
+	OidEmailAddress           = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 1}
+	OidContentType            = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 3}
+	OidMessageDigest          = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 4}
+	OidSigningTime            = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 5}
+	OidCmsAlgorithmProtection = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 52}
+)
+
+// Legacy hash algorithm identifiers (MD5, SHA-1).
+var (
+	OidHashAlgorithmMD5  = asn1.ObjectIdentifier{1, 2, 840, 113549, 2, 5}
+	OidHashAlgorithmSHA1 = asn1.ObjectIdentifier{1, 3, 14, 3, 2, 26}
+)
+
+// OidLdsSecurityObjectLegacy is the ldsSecurityObject content type under the legacy
+// 1.3.27 ICAO arc, accepted for EF.SOD.
+var OidLdsSecurityObjectLegacy = asn1.ObjectIdentifier{1, 3, 27, 1, 1, 1} // legacy ICAO icao(27) arc for ldsSecurityObject; seen on Belgian/French MRTDs
+
+// OidEfDir is id-EFDIR, identifying EFDIRInfo in a SecurityInfos set (ICAO Doc 9303
+// Part 11).
+var OidEfDir = asn1.ObjectIdentifier{1, 3, 27, 1, 1, 13}
+
+// Named elliptic curve identifiers: Brainpool (RFC 5639) and SEC 2 (secp*) curves.
+var (
+	OidBrainpoolP192r1 = asn1.ObjectIdentifier{1, 3, 36, 3, 3, 2, 8, 1, 1, 3}
+	OidBrainpoolP224r1 = asn1.ObjectIdentifier{1, 3, 36, 3, 3, 2, 8, 1, 1, 5}
+	OidBrainpoolP256r1 = asn1.ObjectIdentifier{1, 3, 36, 3, 3, 2, 8, 1, 1, 7}
+	OidBrainpoolP320r1 = asn1.ObjectIdentifier{1, 3, 36, 3, 3, 2, 8, 1, 1, 9}
+	OidBrainpoolP384r1 = asn1.ObjectIdentifier{1, 3, 36, 3, 3, 2, 8, 1, 1, 11}
+	OidBrainpoolP512r1 = asn1.ObjectIdentifier{1, 3, 36, 3, 3, 2, 8, 1, 1, 13}
+	OidSecp224r1       = asn1.ObjectIdentifier{1, 3, 132, 0, 33}
+	OidSecp384r1       = asn1.ObjectIdentifier{1, 3, 132, 0, 34}
+	OidSecp521r1       = asn1.ObjectIdentifier{1, 3, 132, 0, 35}
+)
+
+// OidNameChange is the ICAO nameChange certificate extension (ICAO Doc 9303 Part 12).
+var OidNameChange = asn1.ObjectIdentifier{2, 23, 136, 1, 1, 6, 1}
+
+// X.520 attribute types used in X.509 distinguished names.
+var (
+	OidCommonName             = asn1.ObjectIdentifier{2, 5, 4, 3}
+	OidSerialNumber           = asn1.ObjectIdentifier{2, 5, 4, 5}
+	OidCountryName            = asn1.ObjectIdentifier{2, 5, 4, 6}
+	OidLocalityName           = asn1.ObjectIdentifier{2, 5, 4, 7}
+	OidStateOrProvinceName    = asn1.ObjectIdentifier{2, 5, 4, 8}
+	OidOrganizationName       = asn1.ObjectIdentifier{2, 5, 4, 10}
+	OidOrganizationalUnitName = asn1.ObjectIdentifier{2, 5, 4, 11}
+)
+
+// X.509 certificate extension identifiers (RFC 5280), plus anyExtendedKeyUsage.
+var (
+	OidSubjectKeyIdentifier    = asn1.ObjectIdentifier{2, 5, 29, 14}
+	OidCeKeyUsage              = asn1.ObjectIdentifier{2, 5, 29, 15}
+	OidPrivateKeyUsagePeriod   = asn1.ObjectIdentifier{2, 5, 29, 16}
+	OidSubjectAltName          = asn1.ObjectIdentifier{2, 5, 29, 17}
+	OidCeIssuerAltName         = asn1.ObjectIdentifier{2, 5, 29, 18}
+	OidCeBasicConstraints      = asn1.ObjectIdentifier{2, 5, 29, 19}
+	OidCeCRLDistributionPoints = asn1.ObjectIdentifier{2, 5, 29, 31}
+	OidCertificatePolicies     = asn1.ObjectIdentifier{2, 5, 29, 32}
+	OidAuthorityKeyIdentifier  = asn1.ObjectIdentifier{2, 5, 29, 35}
+	OidCeExtKeyUsage           = asn1.ObjectIdentifier{2, 5, 29, 37}
+	OidAnyExtendedKeyUsage     = asn1.ObjectIdentifier{2, 5, 29, 37, 0}
+)
+
+// SHA-2 hash algorithm identifiers (NIST).
+var (
+	OidHashAlgorithmSHA256 = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 2, 1}
+	OidHashAlgorithmSHA384 = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 2, 2}
+	OidHashAlgorithmSHA512 = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 2, 3}
+	OidHashAlgorithmSHA224 = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 2, 4}
+)
+
+// ICAO Doc 9303 identifiers under the id-icao (2.23.136) arc.
+var (
 	OidIcao                             = asn1.ObjectIdentifier{2, 23, 136}
 	OidIcaoMrtdSecurity                 = asn1.ObjectIdentifier{2, 23, 136, 1, 1}
 	OidLdsSecurityObject                = asn1.ObjectIdentifier{2, 23, 136, 1, 1, 1}
@@ -268,17 +344,19 @@ var oidLookup = map[string]string{
 	OidDocumentTypeList.String():                 "documentTypeList",
 }
 
-// returns the OID Description (where known)
+// OidDesc returns the name of oid, e.g. "id-PACE-ECDH-GM-AES-CBC-CMAC-128", or "" if it is
+// not known.
 func OidDesc(oid asn1.ObjectIdentifier) string {
 	return oidLookup[oid.String()]
 }
 
-// returns the OID Description for a dotted OID string (where known)
+// OidDescStr is like OidDesc but takes the OID in dotted form, e.g. "0.4.0.127.0.7".
 func OidDescStr(oidStr string) string {
 	return oidLookup[oidStr]
 }
 
-// determines if 'Oid' starts with 'prefix' (but not equal to - i.e. Oid != prefix)
+// OidHasPrefix reports whether oid starts with prefixOid and is longer than it, so an OID
+// equal to prefixOid returns false.
 func OidHasPrefix(oid, prefixOid asn1.ObjectIdentifier) bool {
 	// oid must be longer than prefix
 	if len(oid) <= len(prefixOid) {
@@ -288,7 +366,8 @@ func OidHasPrefix(oid, prefixOid asn1.ObjectIdentifier) bool {
 	return prefixOid.Equal(oid[:len(prefixOid)])
 }
 
-// gets the raw OID bytes (without the leading tag/length - 0x06,<len>)
+// OidBytes returns the DER content bytes of oid, without the 0x06 tag and length. It panics
+// if oid cannot be encoded (e.g. it has fewer than two arcs).
 func OidBytes(oid asn1.ObjectIdentifier) []byte {
 	asn1bytes, err := asn1.Marshal(oid)
 	if err != nil {
@@ -299,7 +378,9 @@ func OidBytes(oid asn1.ObjectIdentifier) []byte {
 	return bytes.Clone(asn1bytes[2:])
 }
 
-// decodes the raw OID bytes (excluding the tag/length)
+// DecodeAsn1objectId decodes DER OID content bytes (without the 0x06 tag and length). It
+// panics if data is not a valid OID, and only supports content of up to 127 bytes; it is
+// meant for known-good data, so callers decoding chip or file data must recover.
 func DecodeAsn1objectId(data []byte) (oid asn1.ObjectIdentifier) {
 	var dataWithTag []byte
 
