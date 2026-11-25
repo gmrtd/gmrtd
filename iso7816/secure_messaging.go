@@ -3,6 +3,7 @@ package iso7816
 import (
 	"bytes"
 	"crypto/cipher"
+	"crypto/hmac"
 	"encoding/binary"
 	"fmt"
 	"log/slog"
@@ -199,8 +200,6 @@ func (sm *SecureMessaging) generateMac(data []byte) (mac []byte, err error) {
 		}
 	}
 
-	//slog.Debug("GenerateMac", "Data", BytesToHex(data), "MAC", BytesToHex(mac))
-
 	return mac, nil
 }
 
@@ -345,9 +344,8 @@ func (sm *SecureMessaging) decodeVerifyMAC(tlv *tlv.TlvNodes) error {
 		return fmt.Errorf("(sm.decodeVerifyMAC) generateMac error: %w", err)
 	}
 
-	if !bytes.Equal(expMAC, actMAC) {
-		slog.Debug("sm.decodeVerifyMAC: MAC mismatch", "Exp", utils.BytesToHex(expMAC), "Act", utils.BytesToHex(actMAC))
-		return fmt.Errorf("(sm.decodeVerifyMAC) MAC mismatch (Exp: %x) (Act: %x)", expMAC, actMAC)
+	if !hmac.Equal(expMAC, actMAC) {
+		return fmt.Errorf("(sm.decodeVerifyMAC) MAC mismatch")
 	}
 
 	return nil
@@ -461,7 +459,7 @@ func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
 	rApdu = NewRApdu(rApduStatus, rapduData)
 
 	// Not the decrypted data: it holds chip file contents, i.e. the holder's personal data.
-	slog.Debug("sm.Decode", "In", utils.BytesToHex(rApduBytes), "Status", fmt.Sprintf("%04x", rApdu.Status), "DataLen", len(rApdu.Data))
+	slog.Debug("sm.Decode", "Status", fmt.Sprintf("%04x", rApdu.Status), "DataLen", len(rApdu.Data))
 
 	return rApdu, err
 }

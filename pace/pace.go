@@ -29,6 +29,7 @@ import (
 	"cmp"
 	"crypto/cipher"
 	"crypto/elliptic"
+	"crypto/hmac"
 	"encoding/asn1"
 	"errors"
 	"fmt"
@@ -497,8 +498,8 @@ func (pace *Pace) mutualAuthGmEcDh(paceConfig *PaceConfig, domainParams *DomainP
 		}
 
 		// verify that chip responded with the expected 'tIC' value
-		if !bytes.Equal(tIc2, tIc) {
-			return nil, fmt.Errorf("[mutualAuthGmEcDh] Incorrect TIC returned by chip\n[Exp] %x\n[Act] %x", tIc, tIc2)
+		if !hmac.Equal(tIc2, tIc) {
+			return nil, fmt.Errorf("[mutualAuthGmEcDh] Incorrect TIC returned by chip")
 		}
 
 		// get Encrypted Chip Authentication Data' (tag:8A) if CAM

@@ -177,8 +177,6 @@ func (nfc *NfcSession) ExternalAuthenticate(data []byte, le int) (out []byte, er
 		return nil, fmt.Errorf("[ExternalAuthenticate] Incorrect length (exp:%d, act:%d)", le, len(rapdu.Data))
 	}
 
-	slog.Debug("ExternalAuthenticate", "out", utils.BytesToHex(rapdu.Data))
-
 	return rapdu.Data, nil
 }
 
@@ -199,7 +197,7 @@ func (nfc *NfcSession) GeneralAuthenticate(commandChaining bool, data []byte) ([
 		return nil, fmt.Errorf("[GeneralAuthenticate] DoAPDU error: %w", err)
 	}
 
-	slog.Debug("GeneralAuthenticate", "rApdu", rApdu.String())
+	slog.Debug("GeneralAuthenticate", "status", fmt.Sprintf("%04x", rApdu.Status), "dataLen", len(rApdu.Data))
 
 	if !rApdu.IsSuccess() {
 		return nil, fmt.Errorf("[GeneralAuthenticate] DoAPDU bad rApdu status: %x", rApdu.Status)

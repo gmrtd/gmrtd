@@ -997,6 +997,29 @@ func newDeCamPace(tb testing.TB, transceiver iso7816.Transceiver, cardAccess *do
 	return pace, &doc
 }
 
+func TestDoPaceIncorrectChipToken(t *testing.T) {
+	logs := testlog.CaptureDebug(t)
+	cardAccess, err := document.NewCardAccess(deCamCardAccessBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var transceiver iso7816.MockTransceiver
+	for _, pair := range deCamRecording[:4] {
+		transceiver.AddReqRsp(pair[0], pair[1])
+	}
+	const receivedToken = "0102030405060708"
+	transceiver.AddReqRsp(deCamRecording[4][0], "7c0a8608"+receivedToken+"9000")
+	p, _ := newDeCamPace(t, &transceiver, cardAccess)
+	_, _, err = p.DoPACE()
+	if err == nil || !strings.Contains(err.Error(), "Incorrect TIC") {
+		t.Fatal("expected chip token verification to fail")
+	}
+	testlog.AssertNoSecrets(t, logs.String()+"\n"+err.Error(), map[string]string{
+		"expected chip token": "19a2b9192e11512a",
+		"received chip token": receivedToken,
+	})
+}
+
 func setupDeCamEvidence(t testing.TB) (*document.Document, *document.PaceCamEvidence) {
 	t.Helper()
 
