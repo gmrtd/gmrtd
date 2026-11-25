@@ -9,6 +9,7 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/gmrtd/gmrtd.svg)](https://pkg.go.dev/github.com/gmrtd/gmrtd)
 [![codecov](https://codecov.io/gh/gmrtd/gmrtd/graph/badge.svg?token=DRKVXTREWV)](https://codecov.io/gh/gmrtd/gmrtd)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/gmrtd/gmrtd/badge)](https://scorecard.dev/viewer/?uri=github.com/gmrtd/gmrtd)
+[![Mentioned in Awesome Go](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go)
 
 # gmrtd
 Go library for reading **Machine Readable Travel Documents (MRTDs)** such as passports and identity cards, as specified by **ICAO Doc 9303**.
