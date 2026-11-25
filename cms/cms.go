@@ -1015,9 +1015,7 @@ func (si *SignerInfo) VerifyWithConfig(config *CMSConfig, sd *SignedData, truste
 		return nil, fmt.Errorf("[Verify] selectCertificate error: %w", err)
 	}
 
-	// DS cert must satisfy RFC-5280/ICAO-9303 extension requirements (critical
-	// extensions recognized, keyUsage present with digitalSignature, EKU well-formed)
-	if err := validateDSCertExtensions(cert); err != nil {
+	if err := validateSignerCertExtensions(cert, sd.Content.EContentType); err != nil {
 		return nil, fmt.Errorf("[Verify] DS cert %w", err)
 	}
 
@@ -1073,10 +1071,7 @@ func (si *SignerInfo) resolveSigningTime() *time.Time {
 	return &st
 }
 
-// validateDSCertExtensions enforces RFC-5280/ICAO-9303 extension requirements on the
-// document signer certificate: no unrecognized critical extensions, keyUsage present
-// with digitalSignature, and a well-formed EKU (if present).
-func validateDSCertExtensions(cert *Certificate) error {
+func validateSignerCertExtensions(cert *Certificate, contentType asn1.ObjectIdentifier) error {
 	// reject DS cert with unrecognized critical extensions (RFC 5280 4.2)
 	if unrecognized := cert.TbsCertificate.Extensions.UnrecognizedCriticalExtensions(); len(unrecognized) > 0 {
 		return fmt.Errorf("has unrecognized critical extension: %v", unrecognized[0].ObjectId)
@@ -1094,9 +1089,13 @@ func validateDSCertExtensions(cert *Certificate) error {
 		return fmt.Errorf("missing digitalSignature keyUsage")
 	}
 
-	// validate EKU if present (parse to confirm well-formed)
-	if _, ekuErr := cert.TbsCertificate.Extensions.ExtKeyUsage(); ekuErr != nil {
+	eku, ekuErr := cert.TbsCertificate.Extensions.ExtKeyUsage()
+	if ekuErr != nil {
 		return fmt.Errorf("ExtKeyUsage parse error: %w", ekuErr)
+	}
+	// ICAO Doc 9303 Part 12 §7.1.1.3 requires an explicit master-list signing purpose.
+	if contentType.Equal(oid.OidCscaMasterList) && !eku.HasOID(oid.OidCscaMasterListSigningKey) {
+		return fmt.Errorf("missing master-list signing extended key usage (%s)", oid.OidCscaMasterListSigningKey)
 	}
 
 	return nil

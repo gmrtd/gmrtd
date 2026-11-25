@@ -217,6 +217,8 @@ var (
 	OidIcao                             = asn1.ObjectIdentifier{2, 23, 136}
 	OidIcaoMrtdSecurity                 = asn1.ObjectIdentifier{2, 23, 136, 1, 1}
 	OidLdsSecurityObject                = asn1.ObjectIdentifier{2, 23, 136, 1, 1, 1}
+	OidCscaMasterList                   = asn1.ObjectIdentifier{2, 23, 136, 1, 1, 2}
+	OidCscaMasterListSigningKey         = asn1.ObjectIdentifier{2, 23, 136, 1, 1, 3}
 	OidIcaoMrtdSecurityAaProtocolObject = asn1.ObjectIdentifier{2, 23, 136, 1, 1, 5}
 	OidDocumentTypeList                 = asn1.ObjectIdentifier{2, 23, 136, 1, 1, 6, 2}
 )
@@ -338,6 +340,8 @@ var oidLookup = map[string]string{
 	OidIcao.String():                             "id-icao",
 	OidIcaoMrtdSecurity.String():                 "id-icao-mrtd-security",
 	OidLdsSecurityObject.String():                "ldsSecurityObject",
+	OidCscaMasterList.String():                   "id-icao-cscaMasterList",
+	OidCscaMasterListSigningKey.String():         "id-icao-cscaMasterListSigningKey",
 	OidLdsSecurityObjectLegacy.String():          "ldsSecurityObject-legacy",
 	OidLdsSecurityObjectSdu.String():             "ldsSecurityObject-sdu",
 	OidIcaoMrtdSecurityAaProtocolObject.String(): "id-icao-mrtd-security-aaProtocolObject",
