@@ -29,6 +29,13 @@ type rawDoc struct {
 const envelopeMagic = "gmrtd-raw-doc"
 const envelopeVersion uint = 1
 
+// MaxCBORSize is the maximum encoded size in bytes of an imported document or
+// evidence envelope. It leaves room for all supported chip files and evidence.
+const MaxCBORSize = 8 << 20
+
+// ErrCBORTooLarge indicates that a CBOR input exceeds MaxCBORSize.
+var ErrCBORTooLarge = fmt.Errorf("CBOR input exceeds the %d-byte limit", MaxCBORSize)
+
 // cborEnvelope is the outer CBOR wrapper that frames a serialised rawDoc.
 // The SHA-256 checksum covers the payload bytes exactly, enabling corruption
 // detection before the inner document is parsed.
@@ -37,6 +44,13 @@ type cborEnvelope struct {
 	Version uint   `cbor:"version"`
 	SHA256  []byte `cbor:"sha256"`
 	Payload []byte `cbor:"payload"`
+}
+
+func (env *cborEnvelope) decode(data []byte) error {
+	if len(data) > MaxCBORSize {
+		return ErrCBORTooLarge
+	}
+	return cbor.Unmarshal(data, env)
 }
 
 // ToCbor returns a CBOR-encoded binary snapshot of the document containing
@@ -109,8 +123,8 @@ func (doc *Document) ToCbor() ([]byte, error) {
 // Document by passing each raw byte slice through its normal constructor.
 func NewDocumentFromCbor(data []byte) (*Document, error) {
 	var env cborEnvelope
-	if err := cbor.Unmarshal(data, &env); err != nil {
-		return nil, fmt.Errorf("[NewDocumentFromCbor] cbor.Unmarshal(envelope) error: %w", err)
+	if err := env.decode(data); err != nil {
+		return nil, fmt.Errorf("[NewDocumentFromCbor] decode envelope: %w", err)
 	}
 
 	if env.Magic != envelopeMagic {

@@ -3,10 +3,28 @@ package document
 import (
 	"bytes"
 	"encoding/asn1"
+	"errors"
 	"testing"
 
 	cbor "github.com/fxamacker/cbor/v2"
 )
+
+func TestCBORImportSizeLimit(t *testing.T) {
+	data := make([]byte, MaxCBORSize+1)
+	if _, _, err := UnmarshalVerifiableDoc(data); !errors.Is(err, ErrCBORTooLarge) {
+		t.Errorf("UnmarshalVerifiableDoc: got %v, want ErrCBORTooLarge", err)
+	}
+	if _, err := NewDocumentFromCbor(data); !errors.Is(err, ErrCBORTooLarge) {
+		t.Errorf("NewDocumentFromCbor: got %v, want ErrCBORTooLarge", err)
+	}
+	if _, err := NewChipAuthEvidenceFromCbor(data); !errors.Is(err, ErrCBORTooLarge) {
+		t.Errorf("NewChipAuthEvidenceFromCbor: got %v, want ErrCBORTooLarge", err)
+	}
+	// At the limit, the malformed envelope should reach the CBOR decoder.
+	if _, _, err := UnmarshalVerifiableDoc(data[:MaxCBORSize]); err == nil || errors.Is(err, ErrCBORTooLarge) {
+		t.Errorf("UnmarshalVerifiableDoc at the limit: expected a decode error, got %v", err)
+	}
+}
 
 func TestDocumentExToCbor(t *testing.T) {
 	var docEx DocumentEx

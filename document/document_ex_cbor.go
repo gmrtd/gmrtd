@@ -59,8 +59,8 @@ func (docEx *DocumentEx) ToCbor() ([]byte, error) {
 // it does not authenticate the data.
 func UnmarshalVerifiableDoc(data []byte) (*Document, *ChipAuthEvidenceBundle, error) {
 	var env cborEnvelope
-	if err := cbor.Unmarshal(data, &env); err != nil {
-		return nil, nil, fmt.Errorf("[UnmarshalVerifiableDoc] cbor.Unmarshal(envelope) error: %w", err)
+	if err := env.decode(data); err != nil {
+		return nil, nil, fmt.Errorf("[UnmarshalVerifiableDoc] decode envelope: %w", err)
 	}
 
 	if env.Magic != documentExMagic {

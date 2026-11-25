@@ -117,8 +117,8 @@ func (session *Session) ChipAuthEvidenceToCbor() ([]byte, error) {
 // decoded, not verified.
 func NewChipAuthEvidenceFromCbor(data []byte) (*ChipAuthEvidenceBundle, error) {
 	var env cborEnvelope
-	if err := cbor.Unmarshal(data, &env); err != nil {
-		return nil, fmt.Errorf("[NewChipAuthEvidenceFromCbor] cbor.Unmarshal(envelope) error: %w", err)
+	if err := env.decode(data); err != nil {
+		return nil, fmt.Errorf("[NewChipAuthEvidenceFromCbor] decode envelope: %w", err)
 	}
 
 	if env.Magic != chipAuthEvidenceMagic {
