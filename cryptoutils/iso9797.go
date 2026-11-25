@@ -6,6 +6,8 @@ import (
 	"fmt"
 )
 
+// ISO9797Method2Pad returns a copy of data padded per ISO/IEC 9797-1 padding method 2: a 0x80
+// byte then zero bytes up to a multiple of blockSize. A full block is added if data is aligned.
 func ISO9797Method2Pad(data []byte, blockSize int) []byte {
 	paddedLen := ((len(data) + blockSize) / blockSize) * blockSize
 	out := make([]byte, paddedLen)
@@ -15,6 +17,9 @@ func ISO9797Method2Pad(data []byte, blockSize int) []byte {
 	return out
 }
 
+// ISO9797Method2Unpad removes ISO/IEC 9797-1 padding method 2 by stripping all trailing zero
+// bytes and then a single 0x80 byte. It returns a sub-slice of data (not a copy), or an error
+// if no 0x80 byte remains.
 func ISO9797Method2Unpad(data []byte) ([]byte, error) {
 	out := bytes.TrimRight(data, string([]byte{0}))
 	if len(out) > 0 {

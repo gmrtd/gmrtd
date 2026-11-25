@@ -83,6 +83,8 @@ func parseEcdsaSignatureDER(sigBytes []byte) (sig *EcdsaSignature, err error) {
 	return sig, nil
 }
 
+// ActiveAuth runs Active Authentication against a chip over an NFC session, using the AA
+// public key from the document's DG15. Create one with NewActiveAuth.
 type ActiveAuth struct {
 	randomBytesFn cryptoutils.RandomBytesFn
 	nfcSession    **iso7816.NfcSession
@@ -90,6 +92,8 @@ type ActiveAuth struct {
 	challenge     []byte // optional caller-supplied RND.IFD
 }
 
+// NewActiveAuth returns an ActiveAuth for the given NFC session and document. It sends
+// nothing to the chip; call DoActiveAuth to run the protocol.
 func NewActiveAuth(nfc *iso7816.NfcSession, doc *document.Document) *ActiveAuth {
 	var activeAuth ActiveAuth
 	activeAuth.randomBytesFn = cryptoutils.RandomBytes

@@ -23,14 +23,20 @@ import (
 )
 
 var (
+	// ErrPasswordTypeUnsupported is returned by Password.Type and Password.Key for a
+	// password type other than MRZi or CAN (e.g. PASSWORD_TYPE_NIL).
 	ErrPasswordTypeUnsupported = errors.New("Password.Type is unsupported")
 )
 
+// PasswordType identifies the kind of secret a Password holds.
 type PasswordType int
 
 const (
+	// PASSWORD_TYPE_NIL is an empty password that cannot be used for BAC or PACE.
 	PASSWORD_TYPE_NIL PasswordType = iota
+	// PASSWORD_TYPE_MRZi is an MRZ information password, usable for BAC and PACE.
 	PASSWORD_TYPE_MRZi
+	// PASSWORD_TYPE_CAN is a Card Access Number password, usable for PACE only.
 	PASSWORD_TYPE_CAN
 )
 
@@ -66,6 +72,8 @@ func NewPasswordMrz(mrzStr string) (pass *Password, err error) {
 	return pass, nil
 }
 
+// NewPasswordMrzi builds an MRZi password from the document number, date of birth and date
+// of expiry (YYMMDD), padding with '<' and appending the computed check digits.
 func NewPasswordMrzi(documentNo, dateOfBirth, dateOfExpiry string) (pass *Password, err error) {
 	pass = new(Password)
 	pass.PasswordType = PASSWORD_TYPE_MRZi
@@ -84,6 +92,7 @@ func NewPasswordMrzi(documentNo, dateOfBirth, dateOfExpiry string) (pass *Passwo
 	return pass, nil
 }
 
+// NewPasswordCan returns a CAN password holding can as given, without validation.
 func NewPasswordCan(can string) *Password {
 	var out Password
 	out.PasswordType = PASSWORD_TYPE_CAN
@@ -91,6 +100,8 @@ func NewPasswordCan(can string) *Password {
 	return &out
 }
 
+// Type returns the password reference sent to the chip in PACE MSE:Set AT: 1 for MRZi and
+// 2 for CAN. Any other type returns an error wrapping ErrPasswordTypeUnsupported.
 func (password *Password) Type() (byte, error) {
 	// manually convert value to reduce reliance on iota values!
 	var passwordTypeValue byte

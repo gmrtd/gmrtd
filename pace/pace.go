@@ -45,6 +45,8 @@ import (
 	"github.com/gmrtd/gmrtd/utils"
 )
 
+// Pace runs PACE against a chip over an NFC session, using the PACEInfos advertised in the
+// document's EF.CardAccess and an MRZi or CAN password. Create one with NewPace.
 type Pace struct {
 	keyGeneratorEc cryptoutils.KeyGeneratorEcFn
 	nfcSession     *iso7816.NfcSession
@@ -63,6 +65,8 @@ type paceCamEvidence struct {
 	ecadIC     []byte
 }
 
+// NewPace returns a Pace for the given NFC session, document and password. It sends nothing
+// to the chip; call DoPACE to run the protocol.
 func NewPace(nfc *iso7816.NfcSession, doc *document.Document, pass *password.Password) *Pace {
 	var pace Pace
 	pace.keyGeneratorEc = cryptoutils.KeyGeneratorEc
@@ -72,20 +76,28 @@ func NewPace(nfc *iso7816.NfcSession, doc *document.Document, pass *password.Pas
 	return &pace
 }
 
+// PACEMapping identifies the PACE nonce mapping a protocol OID uses.
 type PACEMapping int
 
 const (
+	// GM is Generic Mapping.
 	GM PACEMapping = iota
+	// IM is Integrated Mapping, which this package does not implement.
 	IM
+	// CAM is Chip Authentication Mapping: Generic Mapping plus chip authentication.
 	CAM
 )
 
+// PACESeccureMessaging is unused; secure messaging is inferred from the cipher instead.
 type PACESeccureMessaging int
 
+// PACEAuthToken identifies the MAC used for the PACE authentication tokens.
 type PACEAuthToken int
 
 const (
+	// CBC is the 3DES retail MAC (ISO/IEC 9797-1 MAC algorithm 3), used with 3DES.
 	CBC PACEAuthToken = iota
+	// CMAC is AES-CMAC with an 8-byte MAC, used with AES.
 	CMAC
 )
 
@@ -99,6 +111,7 @@ type PaceConfig struct {
 	weighting     int
 }
 
+// String returns the configuration's fields in a form suited to debug logging.
 func (cfg *PaceConfig) String() string {
 	return fmt.Sprintf("(oid:%s, mapping:%d, cipher:%d, keyLenBits:%d, authToken:%d, weighting:%d)",
 		cfg.oid.String(), cfg.mapping, cfg.cipher, cfg.keyLengthBits, cfg.authToken, cfg.weighting)
@@ -747,6 +760,20 @@ func (pace *Pace) doGenericMappingGmCam(paceConfig *PaceConfig, domainParams *Do
 	return evidence, nil
 }
 
+// DoPACE selects the highest-weighted PACE configuration this package can perform from
+// EF.CardAccess and runs PACE with it. Only ECDH Generic Mapping and Chip Authentication
+// Mapping are implemented. If the chip rejects an extended Le, PACE is restarted once.
+//
+// On success it installs secure messaging on the NFC session and returns a result with
+// Success, Oid and ParameterId set. For CAM it also reads EF.CardSecurity if not already
+// loaded (storing it in the document), verifies the chip's mapping key against it, and
+// returns a camResult with the captured Evidence (see VerifyEvidence); otherwise camResult
+// is nil. It returns (nil, nil, nil) without sending anything if the document has no
+// EF.CardAccess. On failure it returns the error with a non-nil result whose Success is
+// false; the error wraps ErrPACEUnsupportedLocally when no advertised configuration is
+// usable here and none was non-conformant, in which case no PACE command was sent. Secure
+// messaging is installed once the chip's authentication token verifies, so it remains in
+// place if a later CAM step fails.
 func (pace *Pace) DoPACE() (result *document.PaceResult, camResult *document.PaceCamResult, err error) {
 	slog.Debug("DoPACE")
 
@@ -851,6 +878,9 @@ func (pace *Pace) doMapping(paceConfig *PaceConfig, domainParams *DomainParams, 
 	}
 }
 
+// maxEvidenceFieldLen bounds each untrusted evidence field accepted by VerifyEvidence.
+const maxEvidenceFieldLen = 1024
+
 // VerifyEvidence verifies the internal cryptographic consistency of PACE-CAM evidence
 // captured during a previous NFC session. It requires the Document (which supplies the
 // chip's static EC public key from CardSecurity).
@@ -893,8 +923,6 @@ func (pace *Pace) doMapping(paceConfig *PaceConfig, domainParams *DomainParams, 
 // by a trusted terminal, subject to the structural gap above. The overall security claim
 // requires trusting the capturing terminal and must be paired with Passive Authentication
 // to confirm CardSecurity is bound to a trusted CSCA chain.
-const maxEvidenceFieldLen = 1024
-
 func VerifyEvidence(doc *document.Document, evidence *document.PaceCamEvidence) (*document.PaceCamResult, error) {
 	if evidence == nil {
 		return nil, fmt.Errorf("[VerifyEvidence] evidence is nil")

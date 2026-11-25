@@ -26,25 +26,35 @@ import (
 	"github.com/gmrtd/gmrtd/utils"
 )
 
+// BlockCipherAlg identifies a block cipher algorithm, as passed to CipherForKey and KDF.
 type BlockCipherAlg int
 
+// Supported block cipher algorithms.
 const (
-	DES BlockCipherAlg = iota
-	TDES
-	AES
+	DES  BlockCipherAlg = iota // single DES (8-byte key), as used by ISO9797RetailMacDes
+	TDES                       // Triple DES (8-, 16- or 24-byte key, see CipherForKey)
+	AES                        // AES-128, AES-192 or AES-256, selected by key length
 )
 
+// DES_BLOCK_SIZE_BYTES is the DES (and Triple DES) block size in bytes.
 const DES_BLOCK_SIZE_BYTES = 8
 
+// RandomBytesFn returns length random bytes; it allows the random source to be replaced
+// (e.g. with fixed values in tests). RandomBytes is the production implementation.
 type RandomBytesFn func(length int) []byte
 
+// KeyGeneratorEcFn generates an EC keypair on the given curve; it allows key generation to
+// be replaced (e.g. with fixed keys in tests). KeyGeneratorEc is the production implementation.
 type KeyGeneratorEcFn func(ec elliptic.Curve) EcKeypair
 
+// EcKeypair is an EC keypair: Pri is the big-endian private scalar and Pub the public point.
 type EcKeypair struct {
 	Pri []byte
 	Pub *EcPoint
 }
 
+// NewEcKeypair returns a keypair from a big-endian private scalar and public point
+// coordinates. pri is copied; x and y are converted to big.Int values.
 func NewEcKeypair(pri, x, y []byte) EcKeypair {
 	var keypair EcKeypair
 
@@ -54,11 +64,14 @@ func NewEcKeypair(pri, x, y []byte) EcKeypair {
 	return keypair
 }
 
+// EcPoint is an affine elliptic curve point.
 type EcPoint struct {
 	X *big.Int
 	Y *big.Int
 }
 
+// NewEcPoint returns the point whose coordinates are the unsigned big-endian integers x and y.
+// It does not check that the point lies on any curve.
 func NewEcPoint(x, y []byte) *EcPoint {
 	var point EcPoint
 
@@ -68,12 +81,16 @@ func NewEcPoint(x, y []byte) *EcPoint {
 	return &point
 }
 
+// ECCurve is the ASN.1 Curve structure (coefficients a and b, optional seed) of explicit
+// EC domain parameters, as defined in ANSI X9.62 / RFC 3279.
 type ECCurve struct {
 	A    []byte
 	B    []byte
 	Seed asn1.BitString `asn1:"optional"`
 }
 
+// ECField is the ASN.1 FieldID structure (field type OID and its parameters, e.g. the prime
+// p for a prime field) of explicit EC domain parameters, as defined in ANSI X9.62 / RFC 3279.
 type ECField struct {
 	FieldType  asn1.ObjectIdentifier
 	Parameters asn1.RawValue
@@ -90,10 +107,12 @@ func (ecKeypair EcKeypair) String() string {
 	return fmt.Sprintf("(Pub:%s)", ecKeypair.Pub.String())
 }
 
+// String returns the point's coordinates as minimal-length lower-case hex, for logging.
 func (ec EcPoint) String() string {
 	return fmt.Sprintf("(x:%x, y:%x)", ec.X.Bytes(), ec.Y.Bytes())
 }
 
+// Equal reports whether ec and ec2 have the same X and Y coordinate values.
 func (ec EcPoint) Equal(ec2 EcPoint) bool {
 	if !bytes.Equal(ec.X.Bytes(), ec2.X.Bytes()) || !bytes.Equal(ec.Y.Bytes(), ec2.Y.Bytes()) {
 		return false
@@ -155,6 +174,9 @@ func tdesKey(key []byte) ([]byte, error) {
 	return out, nil
 }
 
+// CryptCBC encrypts (encrypt=true) or decrypts data with blockCipher in CBC mode using iv.
+// No padding is applied or removed. It returns a new slice, or an error if len(iv) is not
+// the block size or len(data) is not a multiple of it.
 func CryptCBC(blockCipher cipher.Block, iv []byte, data []byte, encrypt bool) ([]byte, error) {
 	// check that the IV length matches the block-size
 	if len(iv) != blockCipher.BlockSize() {
@@ -215,6 +237,8 @@ func CryptoHashByOid(oid asn1.ObjectIdentifier, data []byte) ([]byte, error) {
 	return CryptoHash(hashAlg, data), nil
 }
 
+// CryptoHash returns the digest of data using alg (MD5, SHA-1, SHA-224, SHA-256, SHA-384 or
+// SHA-512). It panics if alg is any other algorithm.
 func CryptoHash(alg crypto.Hash, data []byte) []byte {
 	var hashFn hash.Hash
 
@@ -241,11 +265,15 @@ func CryptoHash(alg crypto.Hash, data []byte) []byte {
 	return hashFn.Sum(nil)
 }
 
+// CryptoHashDigestSize returns the digest length in bytes of alg. Like CryptoHash, it panics
+// if alg is not one of the supported algorithms.
 func CryptoHashDigestSize(alg crypto.Hash) int {
 	// this is a bit of a hack, but we do a dummy hash to calculate the size
 	return len(CryptoHash(alg, []byte{}))
 }
 
+// DesKeyAdjustParity returns a copy of key with each byte's least significant bit set so the
+// byte has odd parity, as required for DES keys.
 func DesKeyAdjustParity(key []byte) []byte {
 	out := slices.Clone(key)
 
@@ -265,6 +293,7 @@ func DesKeyAdjustParity(key []byte) []byte {
 	return out
 }
 
+// RandomBytes returns length bytes from crypto/rand. It panics if the random source fails.
 func RandomBytes(length int) []byte {
 	out := make([]byte, length)
 	if n, err := rand.Read(out); (err != nil) || (n != length) {
@@ -273,6 +302,8 @@ func RandomBytes(length int) []byte {
 	return out
 }
 
+// KeyGeneratorEc generates a random keypair on curve ec using crypto/rand. It panics if key
+// generation fails.
 func KeyGeneratorEc(ec elliptic.Curve) EcKeypair {
 	var err error
 	var out EcKeypair
@@ -291,10 +322,14 @@ func KeyGeneratorEc(ec elliptic.Curve) EcKeypair {
 	return out
 }
 
+// EncodeX962EcPoint encodes point in the uncompressed ANSI X9.62 form (0x04 || X || Y, each
+// coordinate padded to the field size), as returned by elliptic.Marshal.
 func EncodeX962EcPoint(ec elliptic.Curve, point *EcPoint) []byte {
 	return elliptic.Marshal(ec, point.X, point.Y)
 }
 
+// DecodeX962EcPoint decodes an uncompressed ANSI X9.62 point (0x04 || X || Y) on curve ec.
+// It returns an error if data is malformed or the point is not on the curve.
 func DecodeX962EcPoint(ec elliptic.Curve, data []byte) (*EcPoint, error) {
 	x, y := elliptic.Unmarshal(ec, data)
 
@@ -314,6 +349,8 @@ func EcDhSharedSecret(localPrivate []byte, remotePublic *EcPoint, ec elliptic.Cu
 	return shared.X.FillBytes(make([]byte, (ec.Params().BitSize+7)/8))
 }
 
+// DoEcDh returns the ECDH shared point: remotePublic multiplied by the big-endian scalar
+// localPrivate on curve ec. It does not validate remotePublic; see also EcDhSharedSecret.
 func DoEcDh(localPrivate []byte, remotePublic *EcPoint, ec elliptic.Curve) *EcPoint {
 	var point EcPoint
 	point.X, point.Y = ec.ScalarMult(remotePublic.X, remotePublic.Y, localPrivate)
@@ -321,6 +358,9 @@ func DoEcDh(localPrivate []byte, remotePublic *EcPoint, ec elliptic.Curve) *EcPo
 	return &point
 }
 
+// RsaDecryptWithPublicKey applies the raw RSA public-key operation (ciphertext^E mod N) and
+// returns the result left-padded with zeros to the modulus length. No padding is removed or
+// checked. It returns an error if ciphertext is empty.
 func RsaDecryptWithPublicKey(ciphertext []byte, publicKey RsaPublicKey) ([]byte, error) {
 	if len(ciphertext) < 1 {
 		return nil, fmt.Errorf("[RsaDecryptWithPublicKey] ciphertext too short (len:%01d)", len(ciphertext))
@@ -345,6 +385,8 @@ func RsaDecryptWithPublicKey(ciphertext []byte, publicKey RsaPublicKey) ([]byte,
 	return result, nil
 }
 
+// CryptoHashFromEcPubKey returns the hash matched to the size of pub's curve order: SHA-512
+// for 512 bits or more, SHA-384 for 384 or more, SHA-256 for 256 or more, otherwise SHA-224.
 func CryptoHashFromEcPubKey(pub *ecdsa.PublicKey) crypto.Hash {
 	nbits := pub.Params().N.BitLen()
 	switch {

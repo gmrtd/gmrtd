@@ -8,11 +8,15 @@ import (
 	"strings"
 )
 
+// MrzName is the holder's name from the MRZ, split into its primary and secondary
+// identifiers, with '<' fillers decoded to spaces.
 type MrzName struct {
 	Primary   string `json:"primary,omitempty"`
 	Secondary string `json:"secondary,omitempty"` // optional
 }
 
+// MRZ holds the fields decoded from a TD1, TD2 or TD3 MRZ, with '<' fillers decoded to
+// spaces and trailing spaces removed. Dates are YYMMDD as printed.
 type MRZ struct {
 	DocumentCode   string   `json:"documentCode,omitempty"`
 	IssuingState   string   `json:"issuingState,omitempty"`
@@ -30,9 +34,12 @@ type MRZ struct {
 // "Type 2" is relatively rare with 2 lines × 36 characters.
 // "Type 1" is of a credit card-size with 3 lines × 30 characters.
 
-const MRZLengthTD1 = 90
-const MRZLengthTD2 = 72
-const MRZLengthTD3 = 88
+// MRZ lengths, in characters with no line separators, for each document type.
+const (
+	MRZLengthTD1 = 90
+	MRZLengthTD2 = 72
+	MRZLengthTD3 = 88
+)
 
 // parses the name into primary and secondary (if present) components
 // NB field separator is '  ' (double-space) as we've already converted '<' to ' ' earlier
@@ -76,6 +83,8 @@ func encodeValue(value string, minLength int, maxLength int) string {
 	return out
 }
 
+// DecodeValue converts an MRZ field to text by replacing '<' fillers with spaces and
+// trimming trailing spaces.
 func DecodeValue(value string) string {
 	decodedValue := value
 
@@ -85,6 +94,9 @@ func DecodeValue(value string) string {
 	return decodedValue
 }
 
+// MrzDecode parses an MRZ, given as its lines concatenated without separators, choosing
+// TD1, TD2 or TD3 by length. Spaces are read as '<'. It verifies every check digit,
+// including the composite, and returns an error on any mismatch or unsupported length.
 func MrzDecode(mrz string) (*MRZ, error) {
 	// as ConvertMrzToMrzi: OCR can read the '<' filler as a space, which would otherwise be missed
 	// when locating the separator of an extended (TD1/TD2) document number
@@ -435,6 +447,9 @@ func ConvertMrzToMrzi(mrzStr string) (string, error) {
 	return "", fmt.Errorf("unsupported MRZ length (length:%d)", len(mrzStr))
 }
 
+// EncodeMrzi builds the MRZi (document number, date of birth and date of expiry, each
+// followed by its check digit) from the MRZ fields, padding with '<' as required. It
+// returns an error if a field contains a character other than 0-9, A-Z, '<' or space.
 func (mrz *MRZ) EncodeMrzi() (string, error) {
 	// [9] document-number
 	documentNumber := encodeValue(mrz.DocumentNumber, 9, -1)

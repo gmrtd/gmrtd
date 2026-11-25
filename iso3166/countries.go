@@ -7,12 +7,14 @@ import "strings"
 * adapted from: https://djangocas.dev/blog/posts/ios-3166-country-codes-json/
  */
 
+// Country is a country's name with its ISO 3166-1 alpha-2 and alpha-3 codes.
 type Country struct {
 	Name   string
 	Alpha2 string
 	Alpha3 string
 }
 
+// Countries lists the known countries, plus a European Union entry with no alpha-3 code.
 var Countries = []Country{
 	{"Afghanistan", "AF", "AFG"},
 	{"Åland Islands", "AX", "ALA"},

@@ -14,6 +14,8 @@ import (
 	"github.com/gmrtd/gmrtd/utils"
 )
 
+// BAC runs Basic Access Control against a chip over an NFC session, using an MRZi password.
+// Create one with NewBAC.
 type BAC struct {
 	randomBytesFn cryptoutils.RandomBytesFn
 	nfcSession    *iso7816.NfcSession
@@ -21,6 +23,8 @@ type BAC struct {
 	password      *password.Password
 }
 
+// NewBAC returns a BAC for the given NFC session, document and password. It sends nothing
+// to the chip; call DoBAC to run the protocol.
 func NewBAC(nfc *iso7816.NfcSession, doc *document.Document, pass *password.Password) *BAC {
 	var bac BAC
 	bac.randomBytesFn = cryptoutils.RandomBytes
@@ -175,6 +179,11 @@ func (bac *BAC) setupSecureMessaging(kEnc, kMac, rndIc, rndIfd []byte) (err erro
 	return nil
 }
 
+// DoBAC performs Basic Access Control (ICAO Doc 9303 Part 11) and, on success, installs
+// TDES secure messaging on the NFC session and returns a result with Success set.
+//
+// It returns (nil, nil) without sending anything if the password is not an MRZi password.
+// On failure it returns the error with a non-nil result whose Success is false.
 func (bac *BAC) DoBAC() (result *document.BacResult, err error) {
 	slog.Debug("DoBAC")
 
