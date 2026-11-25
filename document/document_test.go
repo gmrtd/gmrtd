@@ -473,6 +473,40 @@ func TestVerifyCardAccessWithinCardSecurity(t *testing.T) {
 	}
 }
 
+func TestVerifyCardAccessMissingFilesAndInfos(t *testing.T) {
+	access, err := NewCardAccess(utils.HexToBytes("31143012060A04007F0007020204060202010202010D"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name         string
+		cardAccess   *CardAccess
+		cardSecurity *CardSecurity
+		dg14         *DG14
+		wantError    string
+	}{
+		{name: "no comparison file", cardAccess: access},
+		{name: "missing DG14 infos", cardAccess: access, dg14: &DG14{}, wantError: "missing SecurityInfos comparing EF.CardAccess with DG14"},
+		{name: "missing CardSecurity infos", cardAccess: access, cardSecurity: &CardSecurity{}, wantError: "missing SecurityInfos comparing EF.CardAccess with EF.CardSecurity"},
+		{name: "missing CardAccess infos", cardAccess: &CardAccess{}, cardSecurity: &CardSecurity{SecurityInfos: access.SecurityInfos}, wantError: "missing SecurityInfos comparing EF.CardAccess with EF.CardSecurity"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			doc := Document{Mf: MasterFile{
+				CardAccess: tc.cardAccess, CardSecurity: tc.cardSecurity,
+				Lds1: LDS1{Dg1: &DG1{}, Sod: &SOD{}, Dg14: tc.dg14},
+			}}
+			err := doc.Verify()
+			if tc.wantError == "" {
+				if err != nil {
+					t.Fatal(err)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), tc.wantError) {
+				t.Fatalf("Verify() = %v, want error containing %q", err, tc.wantError)
+			}
+		})
+	}
+}
+
 func TestDgHashBadDgErr(t *testing.T) {
 	var doc Document
 
