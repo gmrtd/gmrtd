@@ -1,7 +1,6 @@
 package document
 
 import (
-	"bytes"
 	"fmt"
 	"slices"
 
@@ -37,7 +36,7 @@ func (f *DG12) GetRawData() []byte { return f.RawData }
 
 // NewDG12 parses DG12. It returns nil and no error if data is empty, and an error if the
 // TLV is malformed, the root tag is missing, the tag list references an unsupported tag
-// or a name cannot be parsed.
+// or a name cannot be parsed. Repeated references in the tag list are processed once.
 func NewDG12(data []byte) (*DG12, error) {
 	if len(data) < 1 {
 		return nil, nil
@@ -58,27 +57,12 @@ func NewDG12(data []byte) (*DG12, error) {
 		return nil, fmt.Errorf("[NewDG12] root node (%x) missing", DG12Tag)
 	}
 
-	err = out.Details.parseData(rootNode)
+	err = parseDetailFields(rootNode, nil, out.Details.processTag)
 	if err != nil {
 		return nil, fmt.Errorf("[NewDG12] parseData error: %w", err)
 	}
 
 	return out, nil
-}
-
-func (details *DocumentDetails) parseData(node tlv.TlvNode) error {
-	tagList, err := tlv.ParseTags(bytes.NewBuffer(node.NodeByTag(0x5C).Value()))
-	if err != nil {
-		return fmt.Errorf("[parseData] ParseTags error: %w", err)
-	}
-
-	for _, tag := range tagList {
-		if err := details.processTag(tag, node); err != nil {
-			return fmt.Errorf("[parseData] processTag(%x) error: %w", tag, err)
-		}
-	}
-
-	return nil
 }
 
 // processes the 'tag', getting the data from the TLV and populating PersonDetails
@@ -87,35 +71,9 @@ func (details *DocumentDetails) processTag(tag tlv.TlvTag, node tlv.TlvNode) err
 	case 0x5F19:
 		details.IssuingAuthority = string(node.NodeByTag(tag).Value())
 	case 0x5F1A:
-		// special handling as 'Other Persons' are nested within tag A0 and there can be multiple instances
-		numOtherPersonsNode := node.NodeByTag(0xA0).NodeByTag(0x02)
-		if !numOtherPersonsNode.IsValidNode() {
-			break
-		}
-
-		numOtherPersonsBytes := numOtherPersonsNode.Value()
-		if len(numOtherPersonsBytes) != 1 {
-			return fmt.Errorf("[processTag] tag A0->02 length must be 1 byte (act:%d)", len(numOtherPersonsBytes))
-		}
-
-		numOtherPersons := int(numOtherPersonsBytes[0])
-		if numOtherPersons < 1 || numOtherPersons > 99 {
-			return fmt.Errorf("[processTag] tag A0->02 must be 1-99 (act:%d)", numOtherPersons)
-		}
-
-		for occur := 1; occur <= numOtherPersons; occur++ {
-			otherPersonNode := node.NodeByTag(0xA0).NodeByTagOccur(tag, occur)
-			if !otherPersonNode.IsValidNode() {
-				break
-			}
-
-			tmpName, err := mrz.ParseName(mrz.DecodeValue(string(otherPersonNode.Value())))
-			if err != nil {
-				return fmt.Errorf("[processTag] mrz.ParseName error: %w", err)
-			}
-
-			details.OtherPersons = append(details.OtherPersons, *tmpName)
-		}
+		names, err := parseDetailNames(node, tag, false)
+		details.OtherPersons = names
+		return err
 	case 0x5F1B:
 		details.EndorsementsAndObservations = string(node.NodeByTag(tag).Value())
 	case 0x5F1C:
