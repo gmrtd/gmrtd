@@ -1,3 +1,5 @@
+// Package htmlreport renders a document, and optionally the APDU log of its read, as a
+// self-contained HTML report. It is used by the gmrtd-reader and gmrtd-verify tools.
 package htmlreport
 
 import (

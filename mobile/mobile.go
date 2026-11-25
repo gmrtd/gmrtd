@@ -1,3 +1,6 @@
+// Package mobile is gmrtd's API for iOS and Android apps, bound with gomobile: reading a
+// document through a Transceiver the app provides, verifying a serialised document
+// offline, and getting the results as JSON or CBOR.
 package mobile
 
 import (
@@ -24,6 +27,10 @@ var (
 	cscaInitErr  error
 )
 
+// PreloadCscaCertPool loads the bundled CSCA master list, which is otherwise loaded on the
+// first read or verification. Call it early, e.g. at app launch and off the main thread,
+// to avoid that delay. It returns the load error, if any; later calls return the same
+// result.
 func PreloadCscaCertPool() error {
 	cscaOnce.Do(func() {
 		cscaCertPool, cscaInitErr = cms.DefaultMasterList()
@@ -102,14 +109,18 @@ func (adapter *readerStatusAdapter) Status(status reader.Status) {
 	adapter.status.Status(int(status.Phase), status.DataGroup)
 }
 
+// MrtdPassword is the credential used for access control: a full MRZ, the MRZ fields BAC
+// and PACE use (MRZi), or a CAN.
 type MrtdPassword struct {
 	password *password.Password
 }
 
+// Version returns the gmrtd library version.
 func Version() string {
 	return version.Version
 }
 
+// NewPasswordMrz returns a password from a full MRZ, or an error if it can't be parsed.
 func NewPasswordMrz(mrz string) (*MrtdPassword, error) {
 	var err error
 	var pass *password.Password
@@ -122,6 +133,8 @@ func NewPasswordMrz(mrz string) (*MrtdPassword, error) {
 	return &MrtdPassword{password: pass}, nil
 }
 
+// NewPasswordMrzi returns a password from the MRZ fields access control uses: the document
+// number, the date of birth and the date of expiry (YYMMDD).
 func NewPasswordMrzi(documentNo, dateOfBirth, dateOfExpiry string) (*MrtdPassword, error) {
 	var err error
 	var pass *password.Password
@@ -134,6 +147,8 @@ func NewPasswordMrzi(documentNo, dateOfBirth, dateOfExpiry string) (*MrtdPasswor
 	return &MrtdPassword{password: pass}, nil
 }
 
+// NewPasswordCan returns a password from the Card Access Number printed on the document.
+// A CAN can only be used with PACE. The error is always nil.
 func NewPasswordCan(can string) (*MrtdPassword, error) {
 	return &MrtdPassword{password: password.NewPasswordCan(can)}, nil
 }
@@ -187,11 +202,15 @@ const (
 	READ_ERROR_DOCUMENT_NOT_AUTHENTIC int = 4
 )
 
+// Document is the result of Reader.ReadDocument or Verifier.Verify: the document and its
+// session (access control and authentication results), plus, for a read, the APDU log.
 type Document struct {
 	documentEx *document.DocumentEx
 	apduLog    *iso7816.ApduLog
 }
 
+// NewReader returns a Reader that exchanges APDUs through transceiver and reports progress
+// to status, which may be nil.
 func NewReader(status ReaderStatus, transceiver Transceiver) *Reader {
 	var out Reader
 	out.status = status
@@ -300,6 +319,10 @@ func (r *Reader) WithAAChallenge(challenge []byte) (*Reader, error) {
 	return r, nil
 }
 
+// ReadDocument reads and verifies the document, using password for access control. atr and
+// ats are the card's answer to reset and answer to select, if the platform provides them,
+// and may be empty. After a failure, LastReadError classifies the cause and, when
+// RequireAuthenticDocument rejected the document, RejectedDocument returns it.
 func (r *Reader) ReadDocument(password *MrtdPassword, atr []byte, ats []byte) (doc *Document, err error) {
 	// Locked for the whole call: see the Reader docstring above.
 	r.mu.Lock()
@@ -461,6 +484,7 @@ type Verifier struct {
 	trustedSource bool
 }
 
+// NewVerifier returns a Verifier that verifies against the bundled CSCA master list.
 func NewVerifier() *Verifier {
 	return &Verifier{}
 }
@@ -486,6 +510,10 @@ func (v *Verifier) WithAAChallenge(challenge []byte) (*Verifier, error) {
 	return v, nil
 }
 
+// Verify verifies a document serialised with Document.DocumentExCbor: it replays the
+// captured chip authentication evidence and performs Passive Authentication. See
+// WithAAChallenge and WithTrustedSource for which evidence counts towards chip
+// authenticity.
 func (v *Verifier) Verify(data []byte) (doc *Document, err error) {
 	// Locked for the whole call: see the Verifier docstring above.
 	v.mu.Lock()
@@ -554,6 +582,7 @@ func NewSampleDocument() (*Document, error) {
 	return &Document{documentEx: documentEx}, nil
 }
 
+// DocumentExJson returns the document and its session as JSON.
 func (doc *Document) DocumentExJson() (jsonData []byte, err error) {
 	if doc.documentEx == nil {
 		return nil, fmt.Errorf("[DocumentJson] No document available")
@@ -577,6 +606,8 @@ func (doc *Document) SummaryJson() (jsonData []byte, err error) {
 	return jsonData, err
 }
 
+// DocumentExCbor returns the document and its session as CBOR, the format Verifier.Verify
+// accepts.
 func (doc *Document) DocumentExCbor() (cborData []byte, err error) {
 	if doc.documentEx == nil {
 		return nil, fmt.Errorf("[DocumentExCbor] No document available")

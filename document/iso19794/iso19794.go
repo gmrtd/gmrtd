@@ -1,3 +1,5 @@
+// Package iso19794 parses ISO/IEC 19794-5 facial records, the format of the face image in
+// DG2 of most eMRTDs.
 package iso19794
 
 import (
@@ -19,15 +21,18 @@ const (
 	MaxFacialFeatures = 32
 )
 
+// ISO19794 is a parsed ISO/IEC 19794-5 facial record.
 type ISO19794 struct {
 	Facial FacialType `json:"facial,omitempty"`
 }
 
+// FacialType is the facial record: its header and the face images it contains.
 type FacialType struct {
 	Header FacialHeader `json:"header"`
 	Images []Image      `json:"images,omitempty"`
 }
 
+// FacialHeader is the facial record header.
 type FacialHeader struct {
 	FormatID      [4]byte `json:"formatID,omitempty"`
 	VersionID     [4]byte `json:"versionID,omitempty"`
@@ -35,6 +40,8 @@ type FacialHeader struct {
 	NumberOfFaces uint16  `json:"numberOfFaces,omitempty"`
 }
 
+// Image is one face image: its facial and image information, its feature points, and the
+// encoded image data (e.g. JPEG or JPEG 2000).
 type Image struct {
 	FacialInformation FacialInfo      `json:"facialInformation"`
 	Features          []FacialFeature `json:"features,omitempty"`
@@ -42,6 +49,7 @@ type Image struct {
 	Data              []byte          `json:"data,omitempty"`
 }
 
+// FacialFeature is a facial feature point.
 type FacialFeature struct {
 	Type       uint8  `json:"type"`
 	MajorPoint uint8  `json:"majorPoint"`
@@ -51,6 +59,8 @@ type FacialFeature struct {
 	Reserved   uint8  `json:"reserved"`
 }
 
+// FacialInfo is an image's facial information: gender, eye and hair colour, expression and
+// pose.
 type FacialInfo struct {
 	Length          uint32  `json:"length"`
 	NumberOfPoints  uint16  `json:"numberOfPoints"`
@@ -63,6 +73,8 @@ type FacialInfo struct {
 	PoseUncertainty [3]byte `json:"poseUncertainty"`
 }
 
+// ImageInfo is an image's image information: type, dimensions, colour space, source and
+// quality.
 type ImageInfo struct {
 	Type       uint8  `json:"type"`
 	DataType   uint8  `json:"dataType"`
@@ -74,6 +86,8 @@ type ImageInfo struct {
 	Quality    uint16 `json:"quality"`
 }
 
+// ProcessISO19794 parses an ISO/IEC 19794-5 facial record. A record length that differs
+// from the data by up to 8 bytes, as seen on real passports, is tolerated.
 func ProcessISO19794(data []byte) (*ISO19794, error) {
 	r := bytes.NewReader(data)
 
@@ -125,6 +139,7 @@ func ProcessISO19794(data []byte) (*ISO19794, error) {
 	return &out, nil
 }
 
+// Images returns a copy of the encoded image data of each face image.
 func (ap ISO19794) Images() [][]byte {
 	var out [][]byte = make([][]byte, 0)
 
