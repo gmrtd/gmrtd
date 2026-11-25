@@ -58,8 +58,8 @@ func (f *SOD) GetRawData() []byte { return f.RawData }
 // retried once after TLV re-encoding, for chips that use indefinite-length encoding. It
 // returns nil and no error if data is empty, and an error if the root tag cannot be
 // unwrapped, the SignedData is malformed, the content type is not an accepted LDS
-// security object type or the LDSSecurityObject cannot be parsed. The signature is not
-// verified here; see the passiveauth package.
+// security object type, or the LDSSecurityObject is malformed or repeats a data group
+// number. The signature is not verified here; see the passiveauth package.
 func NewSOD(data []byte) (*SOD, error) {
 	var err error
 
@@ -192,7 +192,14 @@ func parseLdsSecurityObject(data []byte) (*LDSSecurityObject, error) {
 		return nil, fmt.Errorf("[parseLdsSecurityObject] ParseAsn1 error: %w", err)
 	}
 
-	// NB main difference between v0 and v1 is the presence of LDSVersionInfo in v1
+	// The reader uses this list to schedule NFC reads before passive authentication.
+	seen := make(map[int]bool)
+	for _, entry := range securityObject.DataGroupHashValues {
+		if seen[entry.DataGroupNumber] {
+			return nil, fmt.Errorf("[parseLdsSecurityObject] duplicate data group number %d", entry.DataGroupNumber)
+		}
+		seen[entry.DataGroupNumber] = true
+	}
 
 	return &securityObject, nil
 }
