@@ -63,7 +63,8 @@ func NewDG11(data []byte) (*DG11, error) {
 		return nil, fmt.Errorf("root node (%x) missing", DG11Tag)
 	}
 
-	err = parseDetailFields(rootNode, out.Details.processTag)
+	// Belarus ID cards can list the other-names container (A0) instead of the name tag.
+	err = parseDetailFields(rootNode, map[tlv.TlvTag]tlv.TlvTag{0xA0: 0x5F0F}, out.Details.processTag)
 	if err != nil {
 		return nil, fmt.Errorf("[NewDG11] parseData error: %w", err)
 	}
@@ -80,7 +81,8 @@ func splitFieldsFiltered(s string) []string {
 // processes the 'tag', getting the data from the TLV and populating PersonDetails
 func (details *PersonDetails) processTag(tag tlv.TlvTag, node tlv.TlvNode) error {
 	if tag == 0x5F0F {
-		names, err := parseDetailNames(node, tag)
+		// Some Chinese passports store other names directly under DG11 without a count.
+		names, err := parseDetailNames(node, tag, true)
 		details.OtherNames = names
 		return err
 	}

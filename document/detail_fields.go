@@ -8,7 +8,10 @@ import (
 	"github.com/gmrtd/gmrtd/tlv"
 )
 
-func parseDetailFields(root tlv.TlvNode, process func(tlv.TlvTag, tlv.TlvNode) error) error {
+// parseDetailFields calls process once for each tag in root's tag list (tag 5C), in list
+// order. aliases maps a listed tag to the tag it stands for, so a field listed under both
+// names is still processed once.
+func parseDetailFields(root tlv.TlvNode, aliases map[tlv.TlvTag]tlv.TlvTag, process func(tlv.TlvTag, tlv.TlvNode) error) error {
 	list := bytes.NewReader(root.NodeByTag(0x5C).Value())
 	seen := make(map[tlv.TlvTag]bool)
 	for list.Len() > 0 {
@@ -16,9 +19,8 @@ func parseDetailFields(root tlv.TlvNode, process func(tlv.TlvTag, tlv.TlvNode) e
 		if err != nil {
 			return fmt.Errorf("invalid tag in field list: %w", err)
 		}
-		// Belarus ID cards can list the other-names container instead of the name tag.
-		if root.Tag() == DG11Tag && tag == 0xA0 {
-			tag = 0x5F0F
+		if alias, ok := aliases[tag]; ok {
+			tag = alias
 		}
 		if seen[tag] {
 			continue
@@ -31,7 +33,12 @@ func parseDetailFields(root tlv.TlvNode, process func(tlv.TlvTag, tlv.TlvNode) e
 	return nil
 }
 
-func parseDetailNames(root tlv.TlvNode, tag tlv.TlvTag) ([]mrz.MrzName, error) {
+// parseDetailNames returns the repeated name field tag, in document order. ICAO Doc 9303
+// Part 10 nests these names in a content-specific container: tag A0 holds a count (tag 02,
+// one byte, 1-99) followed by that many name fields (Table 71 for DG11 other names; DG12
+// other persons use the same structure). Without a count it returns no names, unless
+// unwrappedFallback is set, in which case names are read directly from root, up to 99.
+func parseDetailNames(root tlv.TlvNode, tag tlv.TlvTag, unwrappedFallback bool) ([]mrz.MrzName, error) {
 	const maxNames = 99
 	container := root.NodeByTag(0xA0)
 	count := container.NodeByTag(0x02)
@@ -45,8 +52,7 @@ func parseDetailNames(root tlv.TlvNode, tag tlv.TlvTag) ([]mrz.MrzName, error) {
 		if declared < 1 || declared > maxNames {
 			return nil, fmt.Errorf("tag A0->02 must be 1-99 (act:%d)", declared)
 		}
-	} else if root.Tag() == DG11Tag {
-		// Some Chinese passports store other names directly under DG11 without a count.
+	} else if unwrappedFallback {
 		container = root
 	} else {
 		return nil, nil

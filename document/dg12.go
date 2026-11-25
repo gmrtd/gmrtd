@@ -57,7 +57,7 @@ func NewDG12(data []byte) (*DG12, error) {
 		return nil, fmt.Errorf("[NewDG12] root node (%x) missing", DG12Tag)
 	}
 
-	err = parseDetailFields(rootNode, out.Details.processTag)
+	err = parseDetailFields(rootNode, nil, out.Details.processTag)
 	if err != nil {
 		return nil, fmt.Errorf("[NewDG12] parseData error: %w", err)
 	}
@@ -71,7 +71,7 @@ func (details *DocumentDetails) processTag(tag tlv.TlvTag, node tlv.TlvNode) err
 	case 0x5F19:
 		details.IssuingAuthority = string(node.NodeByTag(tag).Value())
 	case 0x5F1A:
-		names, err := parseDetailNames(node, tag)
+		names, err := parseDetailNames(node, tag, false)
 		details.OtherPersons = names
 		return err
 	case 0x5F1B:
