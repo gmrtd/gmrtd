@@ -335,6 +335,24 @@ func TestReadCborFile(t *testing.T) {
 			t.Fatal("expected error for missing file")
 		}
 	})
+
+	t.Run("stdin closed before read", func(t *testing.T) {
+		f, err := os.CreateTemp(t.TempDir(), "stdin")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := f.Close(); err != nil {
+			t.Fatal(err)
+		}
+		stdin := os.Stdin
+		os.Stdin = f
+		t.Cleanup(func() { os.Stdin = stdin })
+
+		data, err := readCborFile("-")
+		if !errors.Is(err, os.ErrClosed) || data != nil {
+			t.Fatalf("closed stdin: got %d bytes, err = %v", len(data), err)
+		}
+	})
 }
 
 func TestReadCborFileSizeLimit(t *testing.T) {
