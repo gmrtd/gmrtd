@@ -1,3 +1,6 @@
+// Package passiveauth implements Passive Authentication (ICAO Doc 9303 Part 11): verifying
+// the signature and certificate chain of EF.SOD, and of EF.CardSecurity when present,
+// against a CSCA certificate pool, and checking the data groups against their hashes.
 package passiveauth
 
 import (

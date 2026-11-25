@@ -36,6 +36,7 @@ type Verifier struct {
 	trustedSource bool
 }
 
+// NewVerifier returns a Verifier that performs Passive Authentication against cscaCertPool.
 func NewVerifier(cscaCertPool cms.CertPool) *Verifier {
 	return &Verifier{cscaCertPool: cscaCertPool}
 }

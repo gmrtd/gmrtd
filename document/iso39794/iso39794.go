@@ -1,3 +1,5 @@
+// Package iso39794 parses ISO/IEC 39794-5 face image data, the extensible successor to
+// ISO/IEC 19794-5 used in DG2 of newer eMRTDs.
 package iso39794
 
 import (
@@ -14,6 +16,8 @@ import (
 
 // TODO - review use of GenericBlockType(placeholder) / asn1.RawValue / asn1.RawContent
 
+// ProcessISO39794p5 parses an ISO/IEC 39794-5 face image data block. It expects exactly one
+// representation block, containing a recognised image format.
 func ProcessISO39794p5(data []byte) (*ISO39794_5_AP, error) {
 	var ap ISO39794_5_AP
 
@@ -50,6 +54,7 @@ func ProcessISO39794p5(data []byte) (*ISO39794_5_AP, error) {
 	return &ap, nil
 }
 
+// Images returns a copy of the encoded image data of each representation block.
 func (ap ISO39794_5_AP) Images() [][]byte {
 	var out [][]byte = make([][]byte, 0)
 
@@ -98,6 +103,7 @@ type DateTimeBlockType struct {
 	Millisecond int `asn1:"tag:6,optional" json:"millisecond"`
 }
 
+// ISO39794_5_AP is a parsed ISO/IEC 39794-5 face image data block.
 type ISO39794_5_AP struct {
 	FaceImageDataBlock FaceImageDataBlockType `asn1:"application,tag:5" json:"faceImageDataBlock"`
 }
@@ -253,6 +259,7 @@ CertificationIdBlocks ::= SEQUENCE OF CertificationIdBlock
 */
 type CertificationIdBlockType RegistryIdBlockType
 
+// CertificationIdBlocksType holds the capture device's certification identifier.
 type CertificationIdBlocksType struct {
 	CertificationIdBlock CertificationIdBlockType `json:"certificationIdBlock"`
 }
@@ -269,6 +276,7 @@ type CaptureDeviceBlockType struct {
 	CertificationIdBlocks CertificationIdBlocksType `asn1:"tag:1,optional" json:"certificationIdBlocks"`
 }
 
+// GenericBlockType holds an ASN.1 block kept as raw bytes rather than parsed.
 type GenericBlockType struct {
 	Raw asn1.RawContent `json:"raw"`
 }
