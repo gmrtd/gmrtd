@@ -16,6 +16,7 @@ import (
 	"github.com/gmrtd/gmrtd/iso7816"
 	"github.com/gmrtd/gmrtd/oid"
 	"github.com/gmrtd/gmrtd/password"
+	"github.com/gmrtd/gmrtd/tlv"
 	"github.com/gmrtd/gmrtd/utils"
 	"github.com/osanderson/brainpool"
 )
@@ -1008,8 +1009,17 @@ func TestDoPaceRejectsEqualKeyAgreementPublicKeys(t *testing.T) {
 	}
 	// Return the recorded terminal key (tag 83) as the chip key (tag 84).
 	request := deCamRecording[3][0]
-	key := strings.TrimSuffix(strings.TrimPrefix(request, "10860000457c438341"), "00")
-	chip.AddReqRsp(request, "7c438441"+key+"9000")
+	cApdu := utils.HexToBytes(request) // short APDU: CLA INS P1 P2 Lc data Le
+	nodes, err := tlv.Decode(cApdu[5 : 5+int(cApdu[4])])
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := nodes.NodeByTag(0x7C).NodeByTag(0x83).Value()
+	if len(key) == 0 {
+		t.Fatal("recorded key-agreement request has no terminal key (tag 83)")
+	}
+	rsp := tlv.NewTlvConstructedNode(0x7C).AddChild(tlv.NewTlvSimpleNode(0x84, key)).Encode()
+	chip.AddReqRsp(request, utils.BytesToHex(rsp)+"9000")
 	p, _ := newDeCamPace(t, &chip, cardAccess)
 	result, cam, err := p.DoPACE()
 	if err == nil || !strings.Contains(err.Error(), "[keyAgreementGmEcDh] terminal and chip public-keys must not be the same") {
