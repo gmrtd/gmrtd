@@ -209,6 +209,38 @@ func TestRunWithDepsSuccessWithChallenge(t *testing.T) {
 	}
 }
 
+// rsa-aa.gmrtd holds the DG15 and signed nonce from the verifier's RSA AA vector.
+func TestCLIEnforcesRecordedAAChallenge(t *testing.T) {
+	const file = "../../verifier/testdata/rsa-aa.gmrtd"
+	for _, tc := range []struct {
+		name, challenge string
+		wantBound       bool
+	}{
+		{"signed nonce", "96302b0f3d7e7864", true},
+		{"different nonce", "96302b0f3d7e7865", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var reported *document.DocumentEx
+			deps := defaultAppDeps()
+			deps.generateDocument = func(doc *document.DocumentEx, _ *iso7816.ApduLog) (*bytes.Buffer, error) {
+				reported = doc
+				return new(bytes.Buffer), nil
+			}
+			deps.openBrowser = func(io.Reader) error { return nil }
+			err := runWithDeps([]string{"-file", file, "-challenge", tc.challenge}, deps)
+			if !tc.wantBound {
+				if err == nil || !strings.Contains(err.Error(), "AA nonce mismatch") || reported != nil {
+					t.Fatalf("expected nonce mismatch before reporting, got report=%t, err=%v", reported != nil, err)
+				}
+				return
+			}
+			if err != nil || reported == nil || reported.Session.Offline == nil || !reported.Session.Offline.AAChallengeBound {
+				t.Fatalf("expected report with bound challenge, got err=%v", err)
+			}
+		})
+	}
+}
+
 func TestRunWithDepsCmdParamsError(t *testing.T) {
 	err := runWithDeps([]string{}, makeDeps(nil))
 	if err == nil {

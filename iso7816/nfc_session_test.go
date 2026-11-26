@@ -1134,3 +1134,24 @@ func TestReadFileReusesSuccessfulFallbackLength(t *testing.T) {
 		t.Errorf("APDU sequence = %v, want %v", commands, want)
 	}
 }
+
+func TestReadFileDiscardsDataAfterLaterChunkFails(t *testing.T) {
+	chip := &SequenceTransceiver{RApdus: [][]byte{
+		utils.HexToBytes("9000"), utils.HexToBytes("530E01029000"),
+		utils.HexToBytes("030405069000"), utils.HexToBytes("6985"),
+	}, Fallback: &StaticTransceiver{RApdu: utils.HexToBytes("6985")}}
+	nfc := NewNfcSession(chip)
+	nfc.SetMaxLe(4)
+	data, err := nfc.ReadFile(0x0101)
+	if data != nil || err == nil || !strings.Contains(err.Error(), "(offset:8,length:4):6985") {
+		t.Fatalf("expected no partial file and a read error at offset 8, got %x, %v", data, err)
+	}
+	var commands []string
+	for _, entry := range nfc.ApduLog().Entries {
+		commands = append(commands, fmt.Sprintf("%X", entry.Tx))
+	}
+	want := []string{"00A4020C020101", "00B0000004", "00B0000404", "00B0000804"}
+	if !slices.Equal(commands, want) {
+		t.Errorf("commands = %v, want %v", commands, want)
+	}
+}
