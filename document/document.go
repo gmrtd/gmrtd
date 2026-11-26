@@ -232,6 +232,30 @@ func (doc *Document) DgHash(dgNumber int) ([]byte, error) {
 
 }
 
+func (doc *Document) verifyCardAccess() error {
+	if doc.Mf.CardAccess == nil {
+		return nil
+	}
+
+	var source string
+	var infos *SecurityInfos
+	switch {
+	case doc.Mf.Lds1.Dg14 != nil:
+		source, infos = "DG14", doc.Mf.Lds1.Dg14.SecInfos
+	case doc.Mf.CardSecurity != nil:
+		source, infos = "EF.CardSecurity", doc.Mf.CardSecurity.SecurityInfos
+	default:
+		return nil
+	}
+	if infos == nil || doc.Mf.CardAccess.SecurityInfos == nil {
+		return fmt.Errorf("[doc.Verify] missing SecurityInfos comparing EF.CardAccess with %s", source)
+	}
+	if err := infos.Contains(doc.Mf.CardAccess.SecurityInfos); err != nil {
+		return fmt.Errorf("[doc.Verify] CardAccess SecInfos are not present within %s: %w", source, err)
+	}
+	return nil
+}
+
 // Verify checks that the document's files are structurally complete and
 // internally consistent. It does NOT perform Passive-Authentication - it
 // doesn't validate the SOD signature/cert chain, nor compute or compare any
@@ -246,8 +270,8 @@ func (doc *Document) DgHash(dgNumber int) ([]byte, error) {
 //     wasn't stripped after the SOD was signed).
 //   - DG15 is present if EF.SOD's hash list references DG15 (same, for
 //     Active Authentication).
-//   - if both EF.CardAccess and DG14 are present, DG14's SecurityInfos are
-//     a superset of EF.CardAccess's SecurityInfos.
+//   - DG14 contains the SecurityInfos advertised in EF.CardAccess when both files
+//     are present. If DG14 is absent, EF.CardSecurity supplies the comparison when available.
 //
 // Callers should treat a non-nil error as informational rather than
 // necessarily fatal: both Reader.ReadDocument and Verifier.Verify record the
@@ -268,12 +292,8 @@ func (doc *Document) Verify() error {
 		return fmt.Errorf("(doc.Verify) DG14 file missing but referenced by SOD")
 	}
 
-	// error if CardAccess SecInfos are not present within DG14
-	if (doc.Mf.CardAccess != nil) && (doc.Mf.Lds1.Dg14 != nil) {
-		slog.Debug("Document.Verify: Verifying that CardAccess content is present within DG14")
-		if err := doc.Mf.Lds1.Dg14.SecInfos.Contains(doc.Mf.CardAccess.SecurityInfos); err != nil {
-			return fmt.Errorf("[doc.Verify] CardAccess SecInfos are not present within DG14: %w", err)
-		}
+	if err := doc.verifyCardAccess(); err != nil {
+		return err
 	}
 
 	if (doc.Mf.Dir != nil) && (doc.Mf.Lds1.Dg14 != nil) {

@@ -54,8 +54,6 @@ func (paceConfig *PaceConfig) computeAuthToken(key, data []byte) ([]byte, error)
 			return nil, fmt.Errorf("[computeAuthToken] ISO9797RetailMacDes error: %w", err)
 		}
 
-		slog.Debug("computeAuthToken", "authToken(CBC)", utils.BytesToHex(authToken))
-
 		return authToken, nil
 	case CMAC:
 		// CMAC-mode with MAC length of 8 bytes
@@ -77,8 +75,6 @@ func (paceConfig *PaceConfig) computeAuthToken(key, data []byte) ([]byte, error)
 		if err != nil {
 			return nil, fmt.Errorf("[computeAuthToken] cmac.Sum error: %w", err)
 		}
-
-		slog.Debug("computeAuthToken", "authToken(CMAC)", utils.BytesToHex(authToken))
 
 		return authToken, nil
 	}
