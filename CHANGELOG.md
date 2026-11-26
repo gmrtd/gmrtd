@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.10.2](https://github.com/gmrtd/gmrtd/compare/v1.10.1...v1.10.2) (2026-11-26)
+
+
+### Bug Fixes
+
+* bound DG11 and DG12 name processing ([#598](https://github.com/gmrtd/gmrtd/issues/598)) ([2379127](https://github.com/gmrtd/gmrtd/commit/237912763191b374f5a74ea98e33b6d3a524cb8b))
+* bound offline CBOR verification inputs ([#604](https://github.com/gmrtd/gmrtd/issues/604)) ([af7b7a2](https://github.com/gmrtd/gmrtd/commit/af7b7a2876345081750fa6f022eef56dcba9aecf))
+* check CardAccess against CardSecurity when DG14 is absent ([#603](https://github.com/gmrtd/gmrtd/issues/603)) ([dbb884f](https://github.com/gmrtd/gmrtd/commit/dbb884fccd5b0fe0c9456ab1679c81ff26eb32d8))
+* omit authenticators from mismatch diagnostics ([#601](https://github.com/gmrtd/gmrtd/issues/601)) ([e4f5dd5](https://github.com/gmrtd/gmrtd/commit/e4f5dd511270da9143d84a343f73b881b5821f8f))
+* reject invalid AA signatures for verifier challenges ([#600](https://github.com/gmrtd/gmrtd/issues/600)) ([8a78a03](https://github.com/gmrtd/gmrtd/commit/8a78a03a8913b7e2af6572720981020a8bb486ed))
+* require EF.CardSecurity for PACE-CAM ([#599](https://github.com/gmrtd/gmrtd/issues/599)) ([75d1af1](https://github.com/gmrtd/gmrtd/commit/75d1af1a4c47edca6593687381d9ab5735648836))
+
 ## [1.10.1](https://github.com/gmrtd/gmrtd/compare/v1.10.0...v1.10.1) (2026-11-25)
 
 
