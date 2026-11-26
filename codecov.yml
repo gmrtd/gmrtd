@@ -1,0 +1,4 @@
+# Test-only infrastructure: simulated chips used by other packages' tests. Its lines would
+# otherwise count towards library coverage (CI measures with -coverpkg=./...).
+ignore:
+  - "internal/testchip"
