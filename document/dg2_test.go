@@ -3,8 +3,12 @@ package document
 import (
 	"bytes"
 	_ "embed" // Import for loading test files
+	"encoding/asn1"
+	"os"
+	"strings"
 	"testing"
 
+	"github.com/gmrtd/gmrtd/document/iso39794"
 	"github.com/gmrtd/gmrtd/tlv"
 	"github.com/gmrtd/gmrtd/utils"
 )
@@ -184,5 +188,71 @@ func TestNewDG2MultipleBiometricTemplates(t *testing.T) {
 		if !bytes.Equal(image.Image, want[i]) {
 			t.Errorf("image %d differs from its source template", i)
 		}
+	}
+}
+
+// dg2WithRepresentations preserves the ICAO fixture's biometric header and version,
+// varying the representations inside its single template.
+func dg2WithRepresentations(t *testing.T, images [][]byte) []byte {
+	t.Helper()
+	nodes := tlv.MustDecode(dg2MandFields39794)
+	template := nodes.NodeByTag(DG2Tag).NodeByTag(0x7F61).NodeByTag(0x7F60)
+	block := template.NodeByTag(0x7F2E)
+	var face iso39794.ISO39794_5_AP
+	if _, err := asn1.UnmarshalWithParams(block.Value(), &face, "tag:1"); err != nil {
+		t.Fatal(err)
+	}
+	reference := face.FaceImageDataBlock.RepresentationBlocks[0]
+	face.FaceImageDataBlock.RepresentationBlocks = nil
+	for i, data := range images {
+		rep := reference
+		rep.RepresentationId = i
+		rep.ImageRepresentation.Base.ImageRepresentation2DBlock.RepresentationData2D = data
+		face.FaceImageDataBlock.RepresentationBlocks = append(face.FaceImageDataBlock.RepresentationBlocks, rep)
+	}
+	raw, err := asn1.MarshalWithParams(face, "tag:1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	block.Children()[0] = tlv.MustDecode(raw).NodeByTag(0xA1)
+	return nodes.Encode()
+}
+
+func TestNewDG2FaceRepresentations(t *testing.T) {
+	jpeg, err := os.ReadFile("iso19794/test_data/ISO19794_Test1_Face.jpg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	jp2 := dg2MandFields39794Face
+	for _, tc := range []struct {
+		name    string
+		images  [][]byte
+		wantErr string
+	}{
+		{"empty", nil, "representation block"},
+		{"single", [][]byte{jp2}, ""},
+		{"multiple in file order", [][]byte{jp2, jpeg}, ""},
+		{"unrecognised second image", [][]byte{jp2, {0x42}}, "Unknown image type"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dg, err := NewDG2(dg2WithRepresentations(t, tc.images))
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) || dg != nil {
+					t.Fatalf("expected nil DG2 and %q, got DG2 present=%t, err=%v", tc.wantErr, dg != nil, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(dg.BITs) != 1 || len(dg.Images) != len(tc.images) {
+				t.Fatalf("got %d templates, %d images; want one template, %d images", len(dg.BITs), len(dg.Images), len(tc.images))
+			}
+			for i, want := range tc.images {
+				if !bytes.Equal(dg.Images[i].Image, want) {
+					t.Errorf("image %d differs from the encoded representation", i)
+				}
+			}
+		})
 	}
 }
