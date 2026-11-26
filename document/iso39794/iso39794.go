@@ -22,14 +22,6 @@ import (
 func ProcessISO39794p5(data []byte) (*ISO39794_5_AP, error) {
 	var ap ISO39794_5_AP
 
-	/*
-		{
-			// TLV debug
-			nodes, _ := tlv.Decode(data)
-			log.Printf("TLV:\n\n%s\n\n", nodes.String())
-		}
-	*/
-
 	var err error
 
 	// parse ASN1
