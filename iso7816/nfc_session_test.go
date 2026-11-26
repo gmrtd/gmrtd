@@ -3,6 +3,7 @@ package iso7816
 import (
 	"bytes"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
@@ -723,6 +724,33 @@ func TestReadFileErrorMissingHeaderLength(t *testing.T) {
 	}
 }
 
+func TestReadFileCompleteInFirstRead(t *testing.T) {
+	for _, tc := range []struct {
+		name, data string
+		wantErr    bool
+	}{
+		{"shorter than requested", "5301AB", false},
+		{"exactly four bytes", "5302ABCD", false},
+		{"extra byte after TLV", "5301ABCD", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var chip MockTransceiver
+			chip.AddReqRsp("00A4020C020101", "9000")
+			chip.AddReqRsp("00B0000004", tc.data+"9000")
+			got, err := NewNfcSession(&chip).ReadFile(0x0101)
+			if tc.wantErr {
+				if err == nil || got != nil {
+					t.Fatalf("expected a length error and no data, got %x, %v", got, err)
+				}
+				return
+			}
+			if err != nil || !bytes.Equal(got, utils.HexToBytes(tc.data)) {
+				t.Fatalf("ReadFile = %x, %v; want %s", got, err, tc.data)
+			}
+		})
+	}
+}
+
 func TestReadFileErrorMoreData(t *testing.T) {
 	var fileId uint16 = 0x0101
 
@@ -823,6 +851,58 @@ func TestLastApdu(t *testing.T) {
 
 	if lastApdu.Child != nil {
 		t.Errorf("LastApdu Child should be nil without SM")
+	}
+}
+
+type observedMessenger struct {
+	SecureMessenger
+	encodeErr error
+	decoded   bool
+}
+
+func (sm *observedMessenger) Encode(cmd *CApdu) (*CApdu, error) {
+	if sm.encodeErr != nil {
+		return nil, sm.encodeErr
+	}
+	return sm.SecureMessenger.Encode(cmd)
+}
+
+func (sm *observedMessenger) Decode(data []byte) (*RApdu, error) {
+	sm.decoded = true
+	return sm.SecureMessenger.Decode(data)
+}
+
+func TestDoAPDUStopsOnProtectedCommandFailure(t *testing.T) {
+	encodeErr := errors.New("cannot protect command")
+	for _, tc := range []struct {
+		name      string
+		encodeErr error
+		wantSent  int
+		wantErr   string
+	}{
+		{"encoding failed", encodeErr, 0, "SM.Encode error"},
+		{"truncated protected response", nil, 1, "doTransceive error"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			sm, err := NewSecureMessaging(cryptoutils.AES, make([]byte, 16), make([]byte, 16))
+			if err != nil {
+				t.Fatal(err)
+			}
+			observer := &observedMessenger{SecureMessenger: sm, encodeErr: tc.encodeErr}
+			chip := &SequenceTransceiver{RApdus: [][]byte{{0x90}}}
+			nfc := NewNfcSession(chip)
+			nfc.SetSecureMessaging(observer)
+			response, err := nfc.DoAPDU(NewCApdu(0, INS_READ_BINARY, 0, 0, nil, 4), "read")
+			if response != nil || err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("expected nil response and %q, got %v, %v", tc.wantErr, response, err)
+			}
+			if tc.encodeErr != nil && !errors.Is(err, tc.encodeErr) {
+				t.Errorf("lost encoding error: %v", err)
+			}
+			if chip.idx != tc.wantSent || observer.decoded {
+				t.Errorf("sent %d commands, decode called %v", chip.idx, observer.decoded)
+			}
+		})
 	}
 }
 

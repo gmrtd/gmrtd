@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"math/big"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/oid"
@@ -137,6 +138,40 @@ func TestDecodeSecurityInfos(t *testing.T) {
 			}
 
 		}
+	}
+}
+
+func TestDecodePaceDomainParameterInfo(t *testing.T) {
+	// id-PACE-ECDH-GM, with an id-ecPublicKey AlgorithmIdentifier naming prime256v1.
+	for _, tc := range []struct {
+		name, der string
+		wantID    *big.Int
+		wantErr   bool
+	}{
+		{"without parameter ID", "31223020060904007F000702020402301306072A8648CE3D020106082A8648CE3D030107", nil, false},
+		{"with parameter ID", "31253023060904007F000702020402301306072A8648CE3D020106082A8648CE3D03010702010C", big.NewInt(12), false},
+		{"missing algorithm identifier", "310D300B060904007F000702020402", nil, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			infos, err := DecodeSecurityInfos(utils.HexToBytes(tc.der))
+			if tc.wantErr {
+				if infos != nil || err == nil || !strings.Contains(err.Error(), "handlePaceDomainParameterInfo") {
+					t.Fatalf("expected a domain-parameter parse error, got %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(infos.PaceDomainParamInfos) != 1 || infos.TotalCnt() != 1 {
+				t.Fatal("expected exactly one PACE domain-parameter record")
+			}
+			got := infos.PaceDomainParamInfos[0]
+			if !got.Protocol.Equal(oid.OidPaceEcdhGm) || !got.DomainParameter.Algorithm.Equal(oid.OidEcPublicKey) ||
+				!bytes.Equal(got.DomainParameter.Parameters.FullBytes, utils.HexToBytes("06082A8648CE3D030107")) || !reflect.DeepEqual(got.ParameterId, tc.wantID) {
+				t.Errorf("incorrectly decoded domain parameters: %+v", got)
+			}
+		})
 	}
 }
 

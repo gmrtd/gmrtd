@@ -97,9 +97,11 @@ func FuzzSecureMessagingDecodeSmRApduData(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, encodedData []byte) {
 		smTDES := smFuzzSeedTDES.newSecureMessaging(t)
-		_, _ = smTDES.decodeSmRApduData(encodedData)
+		_, _ = smTDES.decodeSmRApduData(0x85, encodedData)
+		_, _ = smTDES.decodeSmRApduData(0x87, encodedData)
 
 		smAES := smFuzzSeedAES.newSecureMessaging(t)
-		_, _ = smAES.decodeSmRApduData(encodedData)
+		_, _ = smAES.decodeSmRApduData(0x85, encodedData)
+		_, _ = smAES.decodeSmRApduData(0x87, encodedData)
 	})
 }

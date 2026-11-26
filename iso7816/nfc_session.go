@@ -396,13 +396,11 @@ func (nfc *NfcSession) ReadFile(fileId uint16) (fileData []byte, err error) {
 		if err := nfc.readFileRemainder(fileBuf, totalBytes); err != nil {
 			return nil, err
 		}
-
-		fileData = bytes.Clone(fileBuf.Bytes())
-
-		if len(fileData) != totalBytes {
-			return nil, fmt.Errorf("[ReadFile] Data read differs to expected length (exp:%d, act:%d)", totalBytes, len(fileData))
-		}
 	}
+	if fileBuf.Len() != totalBytes {
+		return nil, fmt.Errorf("[ReadFile] Data read differs to expected length (exp:%d, act:%d)", totalBytes, fileBuf.Len())
+	}
+	fileData = fileBuf.Bytes()
 
 	// Length only: file data holds the holder's personal data (DG1 MRZ, DG2 face, DG11...).
 	slog.Debug("ReadFile", "fileId", fileId, "length", len(fileData))
@@ -426,10 +424,8 @@ func (nfc *NfcSession) readFileTotalLength(fileHeader []byte) (int, error) {
 		return 0, fmt.Errorf("[ReadFile] TLV length exceeds permitted maximum (len:%1d, max:%1d)", tmpTlvLength, nfc.readFileMaxTlvLength)
 	}
 
-	totalBytes := int(tmpTlvLength)
-	totalBytes += 4 - tmpBuf.Len()
-
-	return totalBytes, nil
+	headerLength := len(fileHeader) - tmpBuf.Len()
+	return headerLength + int(tmpTlvLength), nil
 }
 
 // reads chunks from the file into fileBuf (which already holds the 4-byte

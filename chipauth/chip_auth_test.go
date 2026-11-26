@@ -783,6 +783,37 @@ func TestInferCAInfoFromKeyProtocol(t *testing.T) {
 	}
 }
 
+func TestSelectChipAuthParamsPrefersStrongerAlgorithm(t *testing.T) {
+	weak := document.ChipAuthenticationInfo{Protocol: oid.OidCaEcdhAesCbcCmac128, Version: 1, KeyId: big.NewInt(1)}
+	strong := document.ChipAuthenticationInfo{Protocol: oid.OidCaEcdhAesCbcCmac256, Version: 1, KeyId: big.NewInt(2)}
+	for _, tc := range []struct {
+		name  string
+		infos []document.ChipAuthenticationInfo
+	}{
+		{"weaker first", []document.ChipAuthenticationInfo{weak, strong}},
+		{"stronger first", []document.ChipAuthenticationInfo{strong, weak}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			infos := &document.SecurityInfos{
+				ChipAuthInfos: tc.infos,
+				ChipAuthPubKeyInfos: []document.ChipAuthenticationPublicKeyInfo{
+					{Protocol: oid.OidPkEcdh, KeyId: weak.KeyId},
+					{Protocol: oid.OidPkEcdh, KeyId: strong.KeyId},
+				},
+			}
+			var doc document.Document
+			doc.Mf.Lds1.Dg14 = &document.DG14{SecInfos: infos}
+			params, err := selectChipAuthParams(&doc)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !params.Info.Protocol.Equal(strong.Protocol) || params.AlgInfo.keySizeBits != 256 || params.PubKeyInfo != &infos.ChipAuthPubKeyInfos[1] {
+				t.Errorf("expected ECDH-AES-256 and its key, got %s, %d bits, key %v", params.Info.Protocol, params.AlgInfo.keySizeBits, params.PubKeyInfo.KeyId)
+			}
+		})
+	}
+}
+
 func TestSelectChipAuthParams(t *testing.T) {
 	testCases := []struct {
 		name    string
