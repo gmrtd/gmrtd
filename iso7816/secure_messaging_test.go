@@ -324,6 +324,16 @@ func TestSecureMessageEncode(t *testing.T) {
 		expEncCApdu []byte
 	}{
 		{
+			// Odd READ BINARY, offset 0x8000. Expected bytes independently computed with OpenSSL AES-CBC and CMAC.
+			alg:         cryptoutils.AES,
+			ksEnc:       utils.HexToBytes("cc86415f2ed7e8fd663b754265695ae1"),
+			ksMac:       utils.HexToBytes("581e84b8ee06c4d3eee30461498d7fb3"),
+			ssc:         utils.HexToBytes("000000000000000000000000000000ba"),
+			cApdu:       NewCApdu(0, 0xB1, 0, 0, utils.HexToBytes("54028000"), 4),
+			expSsc:      utils.HexToBytes("000000000000000000000000000000bb"),
+			expEncCApdu: utils.HexToBytes("0cb100001f8510c5a336d85279c04670501af40e8b245d9701048e0813eb22fa6bd4c35e00"),
+		},
+		{
 			// SELECT EF.COM (cAPDU)
 			alg:         cryptoutils.TDES,
 			ksEnc:       utils.HexToBytes("979EC13B1CBFE9DCD01AB0FED307EAE5"),
@@ -384,6 +394,16 @@ func TestSecureMessageDecode(t *testing.T) {
 		expSsc     []byte
 		expRApdu   *RApdu
 	}{
+		{
+			// Matching DO85 response to the odd READ BINARY vector in TestSecureMessageEncode.
+			alg:        cryptoutils.AES,
+			ksEnc:      utils.HexToBytes("cc86415f2ed7e8fd663b754265695ae1"),
+			ksMac:      utils.HexToBytes("581e84b8ee06c4d3eee30461498d7fb3"),
+			ssc:        utils.HexToBytes("000000000000000000000000000000bb"),
+			rApduBytes: utils.HexToBytes("85102f658f0cbdc82a464ce0da4923f24a89990290008e0816472f37efb08a559000"),
+			expSsc:     utils.HexToBytes("000000000000000000000000000000bc"),
+			expRApdu:   NewRApdu(0x9000, utils.HexToBytes("5302abcd")),
+		},
 		{
 			// SELECT EF.COM (rAPDU)
 			alg:        cryptoutils.TDES,
@@ -624,7 +644,7 @@ func TestDecodeSmRApduData(t *testing.T) {
 
 			var actData []byte
 
-			actData, err = sm.decodeSmRApduData(tc.encodedData)
+			actData, err = sm.decodeSmRApduData(0x87, tc.encodedData)
 			if tc.wantErr && err == nil {
 				t.Fatalf("Expected error")
 			} else if !tc.wantErr && err != nil {
