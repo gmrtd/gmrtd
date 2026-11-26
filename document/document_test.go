@@ -428,6 +428,9 @@ func TestVerifyCardAccessWithinDg14(t *testing.T) {
 			if err = doc.NewDG(14, dg14); err != nil {
 				t.Fatalf("unexpected error (NewDG:14): %s", err)
 			}
+			if doc.Mf.CardSecurity, err = NewCardSecurity(deCardSecurityFile); err != nil {
+				t.Fatal(err)
+			}
 			if doc.Mf.Lds1.Sod, err = NewSOD(sod); err != nil {
 				t.Fatalf("unexpected error (NewSOD): %s", err)
 			}
@@ -438,6 +441,67 @@ func TestVerifyCardAccessWithinDg14(t *testing.T) {
 			err = doc.Verify()
 			if (err != nil) != tc.expErr {
 				t.Errorf("Verify() error = %v, expErr %t", err, tc.expErr)
+			}
+		})
+	}
+}
+
+func TestVerifyCardAccessWithinCardSecurity(t *testing.T) {
+	cardSecurity, err := NewCardSecurity(deCardSecurityFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name       string
+		cardAccess string
+		wantErr    bool
+	}{
+		{"matching PACE parameters", "31143012060A04007F0007020204060202010202010D", false},
+		{"different parameter ID", "31143012060A04007F0007020204060202010202010C", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cardAccess, err := NewCardAccess(utils.HexToBytes(tc.cardAccess))
+			if err != nil {
+				t.Fatal(err)
+			}
+			doc := Document{Mf: MasterFile{CardAccess: cardAccess, CardSecurity: cardSecurity, Lds1: LDS1{Dg1: &DG1{}, Sod: &SOD{}}}}
+			err = doc.Verify()
+			if (err != nil) != tc.wantErr || (err != nil && !strings.Contains(err.Error(), "EF.CardSecurity")) {
+				t.Fatalf("Verify() = %v, want CardSecurity error = %t", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestVerifyCardAccessMissingFilesAndInfos(t *testing.T) {
+	access, err := NewCardAccess(utils.HexToBytes("31143012060A04007F0007020204060202010202010D"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name         string
+		cardAccess   *CardAccess
+		cardSecurity *CardSecurity
+		dg14         *DG14
+		wantError    string
+	}{
+		{name: "no comparison file", cardAccess: access},
+		{name: "missing DG14 infos", cardAccess: access, dg14: &DG14{}, wantError: "missing SecurityInfos comparing EF.CardAccess with DG14"},
+		{name: "missing CardSecurity infos", cardAccess: access, cardSecurity: &CardSecurity{}, wantError: "missing SecurityInfos comparing EF.CardAccess with EF.CardSecurity"},
+		{name: "missing CardAccess infos", cardAccess: &CardAccess{}, cardSecurity: &CardSecurity{SecurityInfos: access.SecurityInfos}, wantError: "missing SecurityInfos comparing EF.CardAccess with EF.CardSecurity"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			doc := Document{Mf: MasterFile{
+				CardAccess: tc.cardAccess, CardSecurity: tc.cardSecurity,
+				Lds1: LDS1{Dg1: &DG1{}, Sod: &SOD{}, Dg14: tc.dg14},
+			}}
+			err := doc.Verify()
+			if tc.wantError == "" {
+				if err != nil {
+					t.Fatal(err)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), tc.wantError) {
+				t.Fatalf("Verify() = %v, want error containing %q", err, tc.wantError)
 			}
 		})
 	}
