@@ -1780,3 +1780,9 @@ func (transceiver *filesTransceiver) Transceive(_ int, ins int, p1 int, p2 int, 
 
 	return utils.HexToBytes("6D00")
 }
+
+// NewTestBACTransceiver exposes the reader's chip fixture to external-package integration tests.
+func NewTestBACTransceiver(t *testing.T, pass *password.Password, files map[uint16][]byte) iso7816.Transceiver {
+	t.Helper()
+	return newBacChip(t, pass, &filesTransceiver{files: files})
+}

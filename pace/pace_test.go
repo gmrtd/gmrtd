@@ -1030,6 +1030,37 @@ func TestDoPaceRejectsEqualKeyAgreementPublicKeys(t *testing.T) {
 	}
 }
 
+func TestDoPaceRejectsMalformedHandshakeResponse(t *testing.T) {
+	for _, tc := range []struct {
+		name            string
+		step            int
+		response, cause string
+	}{
+		{"invalid key agreement point", 3, "7C038401049000", "unable to decode X9.62 EC point"},
+		{"missing chip token", 4, "7C009000", "missing tag 86 within 7C"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			access, err := document.NewCardAccess(deCamCardAccessBytes)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var chip iso7816.MockTransceiver
+			for _, exchange := range deCamRecording[:tc.step] {
+				chip.AddReqRsp(exchange[0], exchange[1])
+			}
+			chip.AddReqRsp(deCamRecording[tc.step][0], tc.response)
+			p, _ := newDeCamPace(t, &chip, access)
+			result, cam, err := p.DoPACE()
+			if err == nil || !strings.Contains(err.Error(), tc.cause) {
+				t.Fatalf("expected %q, got %v", tc.cause, err)
+			}
+			if result == nil || result.Success || cam != nil || p.nfcSession.SM() != nil {
+				t.Fatal("failed handshake produced success, CAM evidence, or secure messaging")
+			}
+		})
+	}
+}
+
 func TestDoPaceCamMissingEncryptedChipData(t *testing.T) {
 	cardAccess, err := document.NewCardAccess(deCamCardAccessBytes)
 	if err != nil {
@@ -1142,6 +1173,29 @@ func TestVerifyEvidenceGenericCaKeyFirst(t *testing.T) {
 
 	if !result.Success {
 		t.Errorf("Expected success")
+	}
+}
+
+func TestVerifyEvidenceFiltersUnrelatedCAMKeys(t *testing.T) {
+	doc, evidence := setupDeCamEvidence(t)
+	infos := doc.Mf.CardSecurity.SecurityInfos
+	keys := deCaPubKeyInfos(t, doc)
+	cam := keys[0]
+	// Use the generic key's different point so selecting either distractor fails verification.
+	otherType, otherCurve := keys[1], keys[1]
+	otherType.ChipAuthenticationPublicKey.Algorithm.Algorithm = oid.OidRsaEncryption
+	otherCurve.ChipAuthenticationPublicKey.Algorithm.Parameters.Bytes = []byte{12}
+	otherType.KeyId, otherCurve.KeyId = cam.KeyId, cam.KeyId
+
+	infos.ChipAuthPubKeyInfos = []document.ChipAuthenticationPublicKeyInfo{otherType, otherCurve, cam}
+	result, err := VerifyEvidence(doc, evidence)
+	if err != nil || result == nil || !result.Success {
+		t.Fatalf("CAM key after unrelated keys failed: %v", err)
+	}
+	infos.ChipAuthPubKeyInfos = infos.ChipAuthPubKeyInfos[:2]
+	result, err = VerifyEvidence(doc, evidence)
+	if result != nil || err == nil || !strings.Contains(err.Error(), "Unable to get Public-Key for CAM") {
+		t.Fatalf("expected missing CAM key, got result %v, error %v", result, err)
 	}
 }
 

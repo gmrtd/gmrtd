@@ -3,6 +3,8 @@ package iso7816
 import (
 	"bytes"
 	"errors"
+	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -1095,5 +1097,40 @@ func TestInternalAuthenticateRetriesWithShortLeOnWrongLength(t *testing.T) {
 	}
 	if !bytes.Equal(out, utils.HexToBytes("0123456789ABCDEF")) {
 		t.Errorf("unexpected response: %x", out)
+	}
+}
+
+func TestReadFileReusesSuccessfulFallbackLength(t *testing.T) {
+	payload := make([]byte, 400)
+	for i := range payload {
+		payload[i] = byte(i)
+	}
+	file := tlv.NewTlvSimpleNode(0x53, payload).Encode()
+	var chip MockTransceiver
+	chip.AddReqRsp("00A4020C020101", "9000")
+	chip.AddReqRsp("00A4020C020102", "9000")
+	chip.AddReqRsp("00B0000004", fmt.Sprintf("%x9000", file[:4]))
+	chip.AddReqRsp("00B0000400", "6700") // Le=256 is too large.
+	chip.AddReqRsp("00B00004C0", fmt.Sprintf("%x9000", file[4:196]))
+	chip.AddReqRsp("00B000C4C0", fmt.Sprintf("%x9000", file[196:388]))
+	chip.AddReqRsp("00B0018410", fmt.Sprintf("%x9000", file[388:]))
+	nfc := NewNfcSession(&chip)
+	nfc.SetMaxLe(256)
+	for _, id := range []uint16{0x0101, 0x0102} {
+		got, err := nfc.ReadFile(id)
+		if err != nil || !bytes.Equal(got, file) {
+			t.Fatalf("ReadFile(%04x) returned %d bytes, error %v", id, len(got), err)
+		}
+	}
+	var commands []string
+	for _, entry := range nfc.ApduLog().Entries {
+		commands = append(commands, fmt.Sprintf("%X", entry.Tx))
+	}
+	want := []string{
+		"00A4020C020101", "00B0000004", "00B0000400", "00B00004C0", "00B000C4C0", "00B0018410",
+		"00A4020C020102", "00B0000004", "00B00004C0", "00B000C4C0", "00B0018410",
+	}
+	if !slices.Equal(commands, want) {
+		t.Errorf("APDU sequence = %v, want %v", commands, want)
 	}
 }
