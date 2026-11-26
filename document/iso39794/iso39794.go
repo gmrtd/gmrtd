@@ -16,8 +16,9 @@ import (
 
 // TODO - review use of GenericBlockType(placeholder) / asn1.RawValue / asn1.RawContent
 
-// ProcessISO39794p5 parses an ISO/IEC 39794-5 face image data block. It expects exactly one
-// representation block, containing a recognised image format.
+// ProcessISO39794p5 parses an ISO/IEC 39794-5 face image data block. The ICAO profile
+// specifies one representation. For compatibility the reader also accepts multiple
+// representations in file order, provided each contains a recognised image.
 func ProcessISO39794p5(data []byte) (*ISO39794_5_AP, error) {
 	var ap ISO39794_5_AP
 
@@ -38,16 +39,14 @@ func ProcessISO39794p5(data []byte) (*ISO39794_5_AP, error) {
 		return nil, fmt.Errorf("[processISO39794_5_AP] asn1 parsing error: %w", err)
 	}
 
-	// check we have a valid image
-	{
-		if len(ap.FaceImageDataBlock.RepresentationBlocks) != 1 {
-			return nil, fmt.Errorf("[processISO39794_5_AP] Expected 1 RepresentationBlocks (act:%1d)", len(ap.FaceImageDataBlock.RepresentationBlocks))
-		}
-
-		var imageBytes []byte = ap.FaceImageDataBlock.RepresentationBlocks[0].ImageRepresentation.Base.ImageRepresentation2DBlock.RepresentationData2D
-
+	blocks := ap.FaceImageDataBlock.RepresentationBlocks
+	if len(blocks) == 0 {
+		return nil, fmt.Errorf("[processISO39794_5_AP] missing representation block")
+	}
+	for i := range blocks {
+		imageBytes := blocks[i].ImageRepresentation.Base.ImageRepresentation2DBlock.RepresentationData2D
 		if !utils.IsImage(imageBytes) {
-			return nil, fmt.Errorf("[processISO39794_5_AP] Unknown image type [prefixBytes:%x]", utils.SafePrefix(imageBytes, 10))
+			return nil, fmt.Errorf("[processISO39794_5_AP] Unknown image type in representation %d [prefixBytes:%x]", i+1, utils.SafePrefix(imageBytes, 10))
 		}
 	}
 
