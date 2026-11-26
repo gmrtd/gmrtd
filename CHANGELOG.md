@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.0](https://github.com/gmrtd/gmrtd/compare/v1.10.3...v1.11.0) (2026-11-26)
+
+
+### Features
+
+* read every ISO 39794 face representation in DG2 ([#616](https://github.com/gmrtd/gmrtd/issues/616)) ([2c713ee](https://github.com/gmrtd/gmrtd/commit/2c713ee14c76351e9d0fc3d047fd55a95963950d))
+
 ## [1.10.3](https://github.com/gmrtd/gmrtd/compare/v1.10.2...v1.10.3) (2026-11-26)
 
 
