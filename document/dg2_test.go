@@ -177,17 +177,12 @@ func TestNewDG2MultipleBiometricTemplates(t *testing.T) {
 	if len(got.BITs) != 2 || got.BITs[0].BDB.Iso19794 == nil || got.BITs[1].BDB.Iso39794 == nil {
 		t.Fatal("expected both templates in file order")
 	}
-	t.Run("extracted images", func(t *testing.T) {
-		if len(got.Images) == 1 && bytes.Equal(got.Images[0].Image, want[1]) {
-			t.Skip("known DG2 bug: only the last template's image is retained")
+	if len(got.Images) != len(want) {
+		t.Fatalf("got %d images from two templates, want %d", len(got.Images), len(want))
+	}
+	for i, image := range got.Images {
+		if !bytes.Equal(image.Image, want[i]) {
+			t.Errorf("image %d differs from its source template", i)
 		}
-		if len(got.Images) != len(want) {
-			t.Fatalf("got %d images from two templates, want %d", len(got.Images), len(want))
-		}
-		for i, image := range got.Images {
-			if !bytes.Equal(image.Image, want[i]) {
-				t.Errorf("image %d differs from its source template", i)
-			}
-		}
-	})
+	}
 }
