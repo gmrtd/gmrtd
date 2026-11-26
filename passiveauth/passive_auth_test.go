@@ -2,6 +2,7 @@ package passiveauth
 
 import (
 	"bytes"
+	"encoding/asn1"
 	"strings"
 	"testing"
 
@@ -273,6 +274,17 @@ func TestPassiveAuthImportedDoc(t *testing.T) {
 	if paResult == nil || paResult.Success != expPaResultSuccess {
 		t.Errorf("Expected success result")
 	}
+	t.Run("unsupported data group digest", func(t *testing.T) {
+		doc.Mf.Lds1.Sod.LdsSecurityObject.HashAlgorithm.Algorithm = asn1.ObjectIdentifier{1, 2, 3, 4}
+		result, err := PassiveAuth(&doc, &trustedCerts)
+		if err == nil || !strings.Contains(err.Error(), "unable to resolve hash algorithm OID (oid: 1.2.3.4)") {
+			t.Fatalf("expected data group hashing to fail, got %v", err)
+		}
+		if result == nil || result.Success || result.Sod != nil {
+			t.Fatalf("unexpected passive authentication result: %+v", result)
+		}
+	})
+
 }
 
 func TestPassiveAuthInjectedDgError(t *testing.T) {
