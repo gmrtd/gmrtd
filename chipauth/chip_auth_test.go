@@ -9,6 +9,7 @@ import (
 	"log"
 	"math/big"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
@@ -1014,6 +1015,28 @@ func TestVerifyEvidence(t *testing.T) {
 		_, err := VerifyEvidence(doc, e)
 		if err == nil {
 			t.Error("expected error for oversized SmSsc")
+		}
+	})
+
+	t.Run("undecodable terminal point", func(t *testing.T) {
+		evidence := *validEvidence
+		evidence.TermPubKey = []byte{0x04}
+		result, err := VerifyEvidence(doc, &evidence)
+		if result != nil || err == nil || !strings.Contains(err.Error(), "DecodeX962EcPoint error") {
+			t.Fatalf("expected no CA result and a terminal point error, got %v, %v", result, err)
+		}
+	})
+
+	t.Run("unusable DG14 curve", func(t *testing.T) {
+		var badDoc document.Document
+		if err := badDoc.NewDG(14, dg14bytes); err != nil {
+			t.Fatal(err)
+		}
+		key := &badDoc.Mf.Lds1.Dg14.SecInfos.ChipAuthPubKeyInfos[0].ChipAuthenticationPublicKey
+		key.Algorithm.Parameters = asn1.RawValue{}
+		result, err := VerifyEvidence(&badDoc, validEvidence)
+		if result != nil || err == nil || !strings.Contains(err.Error(), "EcCurveAndPubKey error") {
+			t.Fatalf("expected no CA result and a DG14 key error, got %v, %v", result, err)
 		}
 	})
 

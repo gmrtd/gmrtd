@@ -1,11 +1,13 @@
 package verifier
 
 import (
+	"crypto/sha256"
 	"os"
 	"strings"
 	"sync"
 	"testing"
 
+	"github.com/fxamacker/cbor/v2"
 	"github.com/gmrtd/gmrtd/cms"
 	"github.com/gmrtd/gmrtd/document"
 	"github.com/gmrtd/gmrtd/oid"
@@ -273,6 +275,48 @@ func TestVerifyReplayedChipEvidence(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestVerifyRejectsInvalidInnerCBOR(t *testing.T) {
+	marshal := func(t *testing.T, value any) []byte {
+		t.Helper()
+		data, err := cbor.Marshal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return data
+	}
+	var input document.DocumentEx
+	doc, err := input.Document.ToCbor()
+	if err != nil {
+		t.Fatal(err)
+	}
+	evidence, err := input.Session.ChipAuthEvidenceToCbor()
+	if err != nil {
+		t.Fatal(err)
+	}
+	invalid := []byte{0xff}
+	for _, tc := range []struct {
+		name    string
+		payload []byte
+		want    string
+	}{
+		{"payload", invalid, "cbor.Unmarshal(rawDocumentEx)"},
+		{"document", marshal(t, map[string][]byte{"document": invalid, "chipAuthEvidence": evidence}), "NewDocumentFromCbor error"},
+		{"evidence", marshal(t, map[string][]byte{"document": doc, "chipAuthEvidence": invalid}), "NewChipAuthEvidenceFromCbor error"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			digest := sha256.Sum256(tc.payload)
+			data := marshal(t, map[string]any{
+				"magic": "gmrtd-verifiable-doc", "version": 1,
+				"payload": tc.payload, "sha256": digest[:],
+			})
+			result, err := emptyVerifier().Verify(data)
+			if result != nil || err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("expected no document and %q, got document %v, error %v", tc.want, result != nil, err)
+			}
+		})
 	}
 }
 
