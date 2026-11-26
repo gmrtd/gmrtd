@@ -29,7 +29,7 @@ import (
 const DG2Tag = 0x75
 
 // DG2 is data group 2, the encoded face. BITs holds the parsed biometric information
-// templates and Images the face images extracted from them.
+// templates and Images the face images extracted from every template, in template order.
 type DG2 struct {
 	RawData []byte                  `json:"rawData,omitempty"`
 	Images  []DG2Image              `json:"images,omitempty"`
@@ -130,7 +130,7 @@ func NewDG2(data []byte) (*DG2, error) {
 				return nil, fmt.Errorf("[NewDG2] processBIT error: %w", err)
 			}
 
-			out.Images = tmpImages
+			out.Images = append(out.Images, tmpImages...)
 			out.BITs = append(out.BITs, *tmpBIT)
 		}
 	}
