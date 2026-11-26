@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
 	"github.com/gmrtd/gmrtd/oid"
@@ -56,6 +57,51 @@ func TestCertificateVerifyRsaPssLinkCert(t *testing.T) {
 	parent := parseSingleCert(t, chain[0])
 	if ski := parent.Info().SubjectKeyId; ski != "3A4D8DE8FE2407A702BB9F7A320313098A2D4A8D" {
 		t.Errorf("chain[0] SKI = %s, want Singapore Passport CA 4", ski)
+	}
+}
+
+func TestCertificateSelectsValidParentWithSharedSKI(t *testing.T) {
+	const dir = "master_list/IDN_2010_SERIES_CSCA_CERT/"
+	childDER, err := os.ReadFile(dir + "2020-10_CSCA_LINK.cer")
+	if err != nil {
+		t.Fatal(err)
+	}
+	child := parseSingleCert(t, childDER)
+	expired, err := os.ReadFile(dir + "2016-01_CSCA_LINK.cer")
+	if err != nil {
+		t.Fatal(err)
+	}
+	valid := id_2010series_2016
+	// Both parents certify the same key. Only the self-signed CA was still valid in 2022.
+	when := time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC)
+	config := NewDefaultCMSConfig()
+	config.ReferenceTime = &when
+	for _, tc := range []struct {
+		name    string
+		parents [][]byte
+	}{
+		{"expired first", [][]byte{expired, valid}},
+		{"expired last", [][]byte{valid, expired}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var pool GenericCertPool
+			for _, raw := range tc.parents {
+				if err := pool.Add(raw); err != nil {
+					t.Fatal(err)
+				}
+			}
+			aki, err := child.TbsCertificate.Extensions.AuthorityKeyIdentifier()
+			if err != nil || aki == nil || len(pool.BySKI(aki.KeyIdentifier)) != 2 {
+				t.Fatal("fixture must yield two candidate parents")
+			}
+			chain, err := child.VerifyWithConfig(config, &pool)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(chain) != 1 || !bytes.Equal(chain[0], valid) {
+				t.Fatal("expected only the valid 2016 CA in the chain")
+			}
+		})
 	}
 }
 
