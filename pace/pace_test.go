@@ -1030,6 +1030,43 @@ func TestDoPaceRejectsEqualKeyAgreementPublicKeys(t *testing.T) {
 	}
 }
 
+func TestDoPaceCamMissingEncryptedChipData(t *testing.T) {
+	cardAccess, err := document.NewCardAccess(deCamCardAccessBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var chip iso7816.MockTransceiver
+	for _, pair := range deCamRecording[:4] {
+		chip.AddReqRsp(pair[0], pair[1])
+	}
+	// The recorded chip token is valid, but the response omits the CAM data.
+	chip.AddReqRsp(deCamRecording[4][0], "7c0a860819a2b9192e11512a9000")
+	p, _ := newDeCamPace(t, &chip, cardAccess)
+	result, cam, err := p.DoPACE()
+	if err == nil || !strings.Contains(err.Error(), "Tag:8A") {
+		t.Fatalf("expected missing CAM data error, got %v", err)
+	}
+	if result == nil || result.Success || cam != nil || p.nfcSession.SM() != nil {
+		t.Fatal("missing CAM data established PACE, CAM evidence, or secure messaging")
+	}
+}
+
+func TestDoPaceCamRejectsMappingKeyMismatch(t *testing.T) {
+	recorded, _ := setupDeCamEvidence(t)
+	keys := deCaPubKeyInfos(t, recorded)
+	// The generic CA key uses the same curve but cannot confirm the recorded CAM mapping.
+	recorded.Mf.CardSecurity.SecurityInfos.ChipAuthPubKeyInfos = keys[1:]
+	p, doc := newDeCamPace(t, deCamTransceiver(), recorded.Mf.CardAccess)
+	doc.Mf.CardSecurity = recorded.Mf.CardSecurity
+	result, cam, err := p.DoPACE()
+	if err == nil || !strings.Contains(err.Error(), "PACE CAM verification failed") {
+		t.Fatalf("expected CAM mapping-key mismatch, got %v", err)
+	}
+	if result == nil || result.Success || cam != nil {
+		t.Fatal("mapping-key mismatch produced successful PACE or CAM evidence")
+	}
+}
+
 func TestDoPaceIncorrectChipToken(t *testing.T) {
 	logs := testlog.CaptureDebug(t)
 	cardAccess, err := document.NewCardAccess(deCamCardAccessBytes)

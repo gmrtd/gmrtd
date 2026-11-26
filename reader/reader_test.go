@@ -697,6 +697,28 @@ func TestPerformPaceSkipPace(t *testing.T) {
 	}
 }
 
+func TestPerformBacPreservesPaceSession(t *testing.T) {
+	nfc := iso7816.NewNfcSession(&PanicTransceiver{P: "BAC sent an APDU after PACE"})
+	reader := NewReader(&MockStatus{}, nfc, EmptyCscaTrustStore(t))
+	sm, err := iso7816.NewSecureMessaging(cryptoutils.AES, make([]byte, 16), make([]byte, 16))
+	if err != nil {
+		t.Fatal(err)
+	}
+	nfc.SetSecureMessaging(sm)
+	pass, err := password.NewPasswordMrzi("123456", "100101", "301225")
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := NewReaderState(nil, nil, pass)
+	state.docEx.Session.PaceResult = &document.PaceResult{Success: true}
+	if err := performBac(reader, state); err != nil {
+		t.Fatal(err)
+	}
+	if nfc.SM() != sm || state.docEx.Session.BacResult != nil || state.docEx.Session.BacErr != nil {
+		t.Fatal("expected the original PACE secure messaging session and no BAC attempt")
+	}
+}
+
 func TestPerformBacExternalAuthenticateRejected(t *testing.T) {
 	// The chip answers GET CHALLENGE, then rejects EXTERNAL AUTHENTICATE (6300: wrong key). BAC must
 	// fail closed: performBac returns an error that wraps Session.BacErr, and no secure messaging is set
