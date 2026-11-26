@@ -997,6 +997,29 @@ func newDeCamPace(tb testing.TB, transceiver iso7816.Transceiver, cardAccess *do
 	return pace, &doc
 }
 
+func TestDoPaceRejectsEqualKeyAgreementPublicKeys(t *testing.T) {
+	cardAccess, err := document.NewCardAccess(deCamCardAccessBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var chip iso7816.MockTransceiver
+	for _, pair := range deCamRecording[:3] {
+		chip.AddReqRsp(pair[0], pair[1])
+	}
+	// Return the recorded terminal key (tag 83) as the chip key (tag 84).
+	request := deCamRecording[3][0]
+	key := strings.TrimSuffix(strings.TrimPrefix(request, "10860000457c438341"), "00")
+	chip.AddReqRsp(request, "7c438441"+key+"9000")
+	p, _ := newDeCamPace(t, &chip, cardAccess)
+	result, cam, err := p.DoPACE()
+	if err == nil || !strings.Contains(err.Error(), "[keyAgreementGmEcDh] terminal and chip public-keys must not be the same") {
+		t.Fatalf("expected equal key-agreement keys to be rejected, got %v", err)
+	}
+	if result == nil || result.Success || cam != nil || p.nfcSession.SM() != nil {
+		t.Fatal("failed key agreement established PACE, CAM evidence, or secure messaging")
+	}
+}
+
 func TestDoPaceIncorrectChipToken(t *testing.T) {
 	logs := testlog.CaptureDebug(t)
 	cardAccess, err := document.NewCardAccess(deCamCardAccessBytes)

@@ -6,10 +6,12 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
 	"encoding/asn1"
 	"math/big"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
@@ -887,6 +889,24 @@ func TestParseEcdsaSignatureDER(t *testing.T) {
 			t.Errorf("expected error for 0 values")
 		}
 	})
+}
+
+func TestActiveAuthRejectsUndersizedRSAKey(t *testing.T) {
+	modulus := new(big.Int).Lsh(big.NewInt(1), 1022)
+	modulus.SetBit(modulus, 0, 1)
+	spki, err := x509.MarshalPKIXPublicKey(&rsa.PublicKey{N: modulus, E: 65537})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc document.Document
+	if err := doc.NewDG(15, tlv.NewTlvSimpleNode(0x6F, spki).Encode()); err != nil {
+		t.Fatal(err)
+	}
+	nfc := iso7816.NewNfcSession(&iso7816.StaticTransceiver{RApdu: utils.HexToBytes("019000")})
+	result, err := NewActiveAuth(nfc, &doc).DoActiveAuth()
+	if err == nil || !strings.Contains(err.Error(), "RSA modulus too small (1023 bits") || result == nil || result.Success {
+		t.Fatalf("expected AA to reject a 1023-bit modulus, got result %v, error %v", result, err)
+	}
 }
 
 func TestValidateActiveAuthSignatureRsaEmptyAuthRspBytes(t *testing.T) {

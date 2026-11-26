@@ -2,6 +2,7 @@ package verifier
 
 import (
 	"os"
+	"strings"
 	"sync"
 	"testing"
 
@@ -183,6 +184,119 @@ func TestVerifyDocumentVerifyErrMissingDG1(t *testing.T) {
 
 	if summary := result.Summary(); summary == nil || summary.DataTrusted {
 		t.Errorf("expected DataTrusted to be false when DocumentVerifyErr is set")
+	}
+}
+
+// ca-cam.gmrtd combines the AT Chip Authentication and DE PACE-CAM test recordings
+// with sample DG1/DG15. Its SOD and CardSecurity are signed under a test-only CSCA.
+func readEvidenceFixture(t *testing.T) (*document.Document, *document.ChipAuthEvidenceBundle, *cms.GenericCertPool) {
+	t.Helper()
+	data, err := os.ReadFile("testdata/ca-cam.gmrtd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, evidence, err := document.UnmarshalVerifiableDoc(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := os.ReadFile("testdata/evidence-test-root.cer")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pool cms.GenericCertPool
+	if err := pool.Add(root); err != nil {
+		t.Fatal(err)
+	}
+	return doc, evidence, &pool
+}
+
+func TestVerifyReplayedChipEvidence(t *testing.T) {
+	for _, method := range []document.ChipAuthStatus{document.CHIP_AUTH_STATUS_CA, document.CHIP_AUTH_STATUS_PACE_CAM} {
+		for _, tc := range []struct {
+			name    string
+			trusted bool
+			tamper  bool
+		}{
+			{name: "untrusted source"},
+			{name: "trusted source", trusted: true},
+			{name: "invalid evidence", trusted: true, tamper: true},
+		} {
+			t.Run(method.String()+"/"+tc.name, func(t *testing.T) {
+				doc, evidence, pool := readEvidenceFixture(t)
+				input := document.DocumentEx{Document: *doc}
+				switch method {
+				case document.CHIP_AUTH_STATUS_CA:
+					if tc.tamper {
+						evidence.ChipAuth.SmSsc[0] ^= 1
+					}
+					input.Session.ChipAuthResult = &document.ChipAuthResult{Evidence: evidence.ChipAuth}
+				case document.CHIP_AUTH_STATUS_PACE_CAM:
+					if tc.tamper {
+						evidence.PaceCam.Nonce[0] ^= 1
+					}
+					input.Session.PaceCamResult = &document.PaceCamResult{Evidence: evidence.PaceCam}
+				}
+				data, err := input.ToCbor()
+				if err != nil {
+					t.Fatal(err)
+				}
+				v := NewVerifier(pool)
+				if tc.trusted {
+					v.WithTrustedSource()
+				}
+				verified, err := v.Verify(data)
+				if err != nil {
+					t.Fatal(err)
+				}
+				session := verified.Session
+				wantMethod := method
+				if tc.tamper {
+					wantMethod = document.CHIP_AUTH_STATUS_NONE
+				}
+				if got := session.ChipAuthProtocolStatus(); got != wantMethod {
+					t.Errorf("replayed protocol = %v, want %v", got, wantMethod)
+				}
+				if (session.ChipAuthErr != nil) != (tc.tamper && method == document.CHIP_AUTH_STATUS_CA) ||
+					(session.PaceErr != nil) != (tc.tamper && method == document.CHIP_AUTH_STATUS_PACE_CAM) {
+					t.Errorf("unexpected verification errors: CA=%v, PACE=%v", session.ChipAuthErr, session.PaceErr)
+				}
+				summary := verified.Summary()
+				if !summary.DataTrusted || session.PassiveAuthResult.CardSec == nil {
+					t.Fatalf("fixture did not authenticate: document=%v, passive auth=%v", session.DocumentVerifyErr, session.PassiveAuthErr)
+				}
+				wantAuthenticity := wantMethod
+				if !tc.trusted {
+					wantAuthenticity = document.CHIP_AUTH_STATUS_NONE
+				}
+				if summary.ChipAuthenticity != wantAuthenticity {
+					t.Errorf("chip authenticity = %v, want %v", summary.ChipAuthenticity, wantAuthenticity)
+				}
+			})
+		}
+	}
+}
+
+func TestVerifySODReferencesMissingDG15(t *testing.T) {
+	doc, _, pool := readEvidenceFixture(t)
+	doc.Mf.Lds1.Dg15 = nil
+	input := document.DocumentEx{Document: *doc}
+	data, err := input.ToCbor()
+	if err != nil {
+		t.Fatal(err)
+	}
+	verified, err := NewVerifier(pool).Verify(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	session := verified.Session
+	if session.PassiveAuthErr != nil || session.PassiveAuthResult == nil || !session.PassiveAuthResult.Success {
+		t.Fatalf("expected passive authentication to succeed for the remaining files, got %v", session.PassiveAuthErr)
+	}
+	if session.DocumentVerifyErr == nil || !strings.Contains(session.DocumentVerifyErr.Error(), "DG15 file missing but referenced by SOD") {
+		t.Errorf("expected document verification to identify missing DG15, got %v", session.DocumentVerifyErr)
+	}
+	if verified.Summary().DataTrusted {
+		t.Error("trusted a document missing its signed DG15")
 	}
 }
 
