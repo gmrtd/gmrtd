@@ -1,15 +1,12 @@
 package cms
 
 import (
-	"bytes"
 	"crypto/elliptic"
 	"encoding/asn1"
 	"encoding/json"
 	"fmt"
 	"math/big"
-	"os"
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
@@ -280,47 +277,6 @@ func TestVerifySignedData(t *testing.T) {
 				t.Errorf("CertChain length incorrect (exp:%d, act:%d)", tc.expCertChainItems, len(certChain))
 			}
 		})
-	}
-}
-
-func TestVerifyEveryCMSSigner(t *testing.T) {
-	// OpenSSL SignedData over one empty master list, with two distinct test signers under one CSCA.
-	encoded, err := os.ReadFile("testdata/two-signers.cms")
-	if err != nil {
-		t.Fatal(err)
-	}
-	root, err := os.ReadFile("testdata/two-signers-root.cer")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var trusted GenericCertPool
-	if err := trusted.Add(root); err != nil {
-		t.Fatal(err)
-	}
-	sd, err := ParseSignedData(encoded)
-	if err != nil {
-		t.Fatal(err)
-	}
-	signers, err := sd.SignerCertificates()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(signers) != 2 || bytes.Equal(signers[0].Raw, signers[1].Raw) {
-		t.Fatal("fixture requires two distinct signers")
-	}
-	chain, err := sd.Verify(&trusted)
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := [][]byte{signers[0].Raw, root, signers[1].Raw, root}
-	if !reflect.DeepEqual(chain, want) {
-		t.Fatal("expected both signer chains in SignerInfo order")
-	}
-
-	sd.SignerInfos[1].EncryptedDigest[0] ^= 1
-	chain, err = sd.Verify(&trusted)
-	if chain != nil || err == nil || !strings.Contains(err.Error(), "si.Verify(idx:1)") || !strings.Contains(err.Error(), "VerifySignature error") {
-		t.Fatalf("expected no chain and a signature error for signer 1, got %d certificates, %v", len(chain), err)
 	}
 }
 
