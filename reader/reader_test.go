@@ -2,22 +2,22 @@ package reader
 
 import (
 	"bytes"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"os"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/cms"
 	"github.com/gmrtd/gmrtd/cryptoutils"
 	"github.com/gmrtd/gmrtd/document"
+	"github.com/gmrtd/gmrtd/internal/testchip"
 	"github.com/gmrtd/gmrtd/iso7816"
 	"github.com/gmrtd/gmrtd/oid"
 	"github.com/gmrtd/gmrtd/pace"
 	"github.com/gmrtd/gmrtd/password"
-	"github.com/gmrtd/gmrtd/tlv"
 	"github.com/gmrtd/gmrtd/utils"
 )
 
@@ -153,6 +153,67 @@ func TestReadLDS1DgsFilesNotFound(t *testing.T) {
 	err = readLDS1dgs(reader, state)
 	if err != nil {
 		t.Errorf("Unexpected error: readLDS1files: %s", err)
+	}
+}
+
+// dropDG1Read simulates loss of the protected READ BINARY response after DG1 selection.
+type dropDG1Read struct {
+	iso7816.Transceiver
+	files *testchip.Files
+}
+
+func (chip dropDG1Read) Transceive(cla, ins, p1, p2 int, data []byte, le int, encoded []byte) []byte {
+	if ins == int(iso7816.INS_READ_BINARY) && bytes.Equal(chip.files.Selected(), chip.files.ByID[MRTDFileIdDG1]) {
+		return nil
+	}
+	return chip.Transceiver.Transceive(cla, ins, p1, p2, data, le, encoded)
+}
+
+func TestReadDocumentStopsOnDG1Failure(t *testing.T) {
+	doc, err := document.SampleDocument()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pass, err := password.NewPasswordMrzi("123456", "100101", "301225")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name                   string
+		loseResponse           bool
+		wantContext, wantCause string
+	}{
+		{"transport error", true, fmt.Sprintf("ReadFile(fileId:%d)", MRTDFileIdDG1), "rApdu length"},
+		{"missing MRZ", false, "Parse DG(fileId:1)", "MRZ Tag (5F1F) missing"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			files := &testchip.Files{ByID: map[uint16][]byte{
+				MRTDFileIdEFSOD: doc.Mf.Lds1.Sod.RawData,
+				MRTDFileIdDG1:   utils.HexToBytes("61025C00"),
+			}}
+			var chip iso7816.Transceiver = testchip.NewBAC(t, pass, files)
+			if tc.loseResponse {
+				chip = dropDG1Read{chip, files}
+			}
+			var status MockStatus
+			r := NewReader(&status, iso7816.NewNfcSession(chip), EmptyCscaTrustStore(t))
+			_, _, err := r.ReadDocument(pass, nil, nil)
+			if err == nil || !strings.Contains(err.Error(), tc.wantContext) || !strings.Contains(err.Error(), tc.wantCause) {
+				t.Fatalf("expected DG1 %s, got %v", tc.name, err)
+			}
+			var groups []int
+			for _, event := range status.Recorded() {
+				switch event.Phase {
+				case STATUS_PHASE_READING_DATA_GROUP:
+					groups = append(groups, event.DataGroup)
+				case STATUS_PHASE_FINISHED:
+					t.Error("reported a finished read after DG1 failed")
+				}
+			}
+			if !reflect.DeepEqual(groups, []int{1}) {
+				t.Errorf("read groups %v, want only DG1", groups)
+			}
+		})
 	}
 }
 
@@ -697,6 +758,28 @@ func TestPerformPaceSkipPace(t *testing.T) {
 	}
 }
 
+func TestPerformBacPreservesPaceSession(t *testing.T) {
+	nfc := iso7816.NewNfcSession(&PanicTransceiver{P: "BAC sent an APDU after PACE"})
+	reader := NewReader(&MockStatus{}, nfc, EmptyCscaTrustStore(t))
+	sm, err := iso7816.NewSecureMessaging(cryptoutils.AES, make([]byte, 16), make([]byte, 16))
+	if err != nil {
+		t.Fatal(err)
+	}
+	nfc.SetSecureMessaging(sm)
+	pass, err := password.NewPasswordMrzi("123456", "100101", "301225")
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := NewReaderState(nil, nil, pass)
+	state.docEx.Session.PaceResult = &document.PaceResult{Success: true}
+	if err := performBac(reader, state); err != nil {
+		t.Fatal(err)
+	}
+	if nfc.SM() != sm || state.docEx.Session.BacResult != nil || state.docEx.Session.BacErr != nil {
+		t.Fatal("expected the original PACE secure messaging session and no BAC attempt")
+	}
+}
+
 func TestPerformBacExternalAuthenticateRejected(t *testing.T) {
 	// The chip answers GET CHALLENGE, then rejects EXTERNAL AUTHENTICATE (6300: wrong key). BAC must
 	// fail closed: performBac returns an error that wraps Session.BacErr, and no secure messaging is set
@@ -741,7 +824,7 @@ func TestPerformBacExternalAuthenticateRejected(t *testing.T) {
 // bacRejectingTransceiver rejects EXTERNAL AUTHENTICATE but, like a clone or an emulator, still
 // serves EF.SOD in plain afterwards
 type bacRejectingTransceiver struct {
-	filesTransceiver
+	testchip.Files
 }
 
 func (transceiver *bacRejectingTransceiver) Transceive(cla int, ins int, p1 int, p2 int, data []byte, le int, encodedData []byte) []byte {
@@ -751,7 +834,7 @@ func (transceiver *bacRejectingTransceiver) Transceive(cla int, ins int, p1 int,
 	case int(iso7816.INS_EXTERNAL_AUTHENTICATE):
 		return utils.HexToBytes("6300")
 	}
-	return transceiver.filesTransceiver.Transceive(cla, ins, p1, p2, data, le, encodedData)
+	return transceiver.Files.Transceive(cla, ins, p1, p2, data, le, encodedData)
 }
 
 func TestReadDocumentFailsClosedOnBacError(t *testing.T) {
@@ -761,7 +844,7 @@ func TestReadDocumentFailsClosedOnBacError(t *testing.T) {
 	}
 
 	var status MockStatus
-	transceiver := &bacRejectingTransceiver{filesTransceiver{files: map[uint16][]byte{MRTDFileIdEFSOD: sampleDoc.Mf.Lds1.Sod.RawData}}}
+	transceiver := &bacRejectingTransceiver{testchip.Files{ByID: map[uint16][]byte{MRTDFileIdEFSOD: sampleDoc.Mf.Lds1.Sod.RawData}}}
 	var reader *Reader = NewReader(&status, iso7816.NewNfcSession(transceiver), EmptyCscaTrustStore(t))
 
 	pass, err := password.NewPasswordMrzi("123456", "100101", "301225")
@@ -843,7 +926,7 @@ func TestReadDocumentCanWithoutPaceFailsClosed(t *testing.T) {
 			}
 
 			var status MockStatus
-			var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&filesTransceiver{files: files})
+			var nfc *iso7816.NfcSession = iso7816.NewNfcSession(&testchip.Files{ByID: files})
 			var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
 			tc.configure(reader)
 
@@ -864,6 +947,34 @@ func TestReadDocumentCanWithoutPaceFailsClosed(t *testing.T) {
 				t.Fatalf("no LDS file expected to be read without secure messaging")
 			}
 		})
+	}
+}
+
+func TestPerformChipAuthenticationUsesAAChallenge(t *testing.T) {
+	// Recorded RSA AA response for the DG15 in SampleDocument.
+	challenge := utils.HexToBytes("96302b0f3d7e7864")
+	var chip iso7816.MockTransceiver
+	chip.AddReqRsp("008800000896302b0f3d7e786400", "474256306840c0ab1b63c10e1c26bdfef4a0dd843920283cc4e6e70a60f2bd25dc7725f9677bc1cde66379dc28b38e8490f33afb2d10f9980c44c0bfc175d2b6684218f535c92fdd3e18db770a9ccbf91db3c7f0138e6d9e94b9bc8371761e3abed5e5e9b260279cfb238b58ae0d6a01da51c74c2a3ecd62c448bd9f20127f7384587287fa971204234e55b1a856c3e5aaaa620bb799a68fbae08ee132bb61683eba9b0b40dc1e54641cad975b16991cab50af82e3f3985afd19e7427a125f5b4b9878b12a5d2e01c7eedca3bb41c6fc05dccd818bce379d04b1f2f5d43487d39000")
+	reader, err := NewReader(&MockStatus{}, iso7816.NewNfcSession(&chip), EmptyCscaTrustStore(t)).WithAAChallenge(challenge)
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := document.SampleDocument()
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := NewReaderState(nil, nil, password.NewPasswordNil())
+	state.docEx.Document.Mf.Lds1.Dg15 = doc.Mf.Lds1.Dg15
+	if err := performChipAuthentication(reader, state); err != nil {
+		t.Fatal(err)
+	}
+	session := state.docEx.Session
+	result := session.ActiveAuthResult
+	if session.ActiveAuthErr != nil || result == nil || !result.Success || result.Evidence == nil {
+		t.Fatalf("expected successful AA evidence, got result %v, error %v", result, session.ActiveAuthErr)
+	}
+	if !bytes.Equal(result.Evidence.Nonce, challenge) {
+		t.Errorf("evidence nonce = %x, want %x", result.Evidence.Nonce, challenge)
 	}
 }
 
@@ -1437,234 +1548,4 @@ func TestRequireAuthenticDocumentRealVerification(t *testing.T) {
 			}
 		})
 	}
-}
-
-// bacChip is a test chip that completes BAC (9303p11 4.3) for one MRZ and then answers every command
-// under 3DES secure messaging, passing the unwrapped command to an inner chip that answers in plain.
-// A command that is not SM-wrapped, or whose MAC does not verify, is refused with 6988 once BAC has
-// completed, so a read that goes through this chip end to end proves it ran under secure messaging.
-type bacChip struct {
-	t     *testing.T
-	inner iso7816.Transceiver
-
-	kEnc, kMac []byte // BAC keys derived from the MRZ
-	rndIc      []byte
-	kIc        []byte
-
-	ksEnc, ksMac []byte // session keys, set once EXTERNAL AUTHENTICATE succeeds
-	ssc          []byte
-}
-
-var _ iso7816.Transceiver = (*bacChip)(nil)
-
-func newBacChip(t *testing.T, pass *password.Password, inner iso7816.Transceiver) *bacChip {
-	t.Helper()
-
-	key, err := pass.Key()
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
-	seed := key[0:16]
-
-	return &bacChip{
-		t:     t,
-		inner: inner,
-		kEnc:  cryptoutils.KDF(seed, cryptoutils.KDF_COUNTER_KSENC, cryptoutils.TDES, 112),
-		kMac:  cryptoutils.KDF(seed, cryptoutils.KDF_COUNTER_KSMAC, cryptoutils.TDES, 112),
-		rndIc: utils.HexToBytes("4608F91988702212"),
-		kIc:   utils.HexToBytes("0B4F80323EB3191CB04970CB4052790B"),
-	}
-}
-
-func (chip *bacChip) Transceive(cla int, ins int, p1 int, p2 int, data []byte, le int, encodedData []byte) []byte {
-	if chip.ksEnc == nil {
-		switch ins {
-		case int(iso7816.INS_GET_CHALLENGE):
-			return append(bytes.Clone(chip.rndIc), 0x90, 0x00)
-		case int(iso7816.INS_EXTERNAL_AUTHENTICATE):
-			return chip.externalAuthenticate(data)
-		}
-		return chip.inner.Transceive(cla, ins, p1, p2, data, le, encodedData)
-	}
-
-	return chip.smTransceive(cla, ins, p1, p2, data)
-}
-
-func (chip *bacChip) tdes(key, data []byte, encrypt bool) []byte {
-	block, err := cryptoutils.CipherForKey(cryptoutils.TDES, key)
-	if err != nil {
-		chip.t.Errorf("test chip: CipherForKey error: %s", err)
-		return nil
-	}
-	out, err := cryptoutils.CryptCBC(block, make([]byte, cryptoutils.DES_BLOCK_SIZE_BYTES), data, encrypt)
-	if err != nil {
-		chip.t.Errorf("test chip: CryptCBC error: %s", err)
-		return nil
-	}
-	return out
-}
-
-func (chip *bacChip) mac(key, data []byte) []byte {
-	out, err := cryptoutils.ISO9797RetailMacDes(key, cryptoutils.ISO9797Method2Pad(data, cryptoutils.DES_BLOCK_SIZE_BYTES))
-	if err != nil {
-		chip.t.Errorf("test chip: ISO9797RetailMacDes error: %s", err)
-		return nil
-	}
-	return out
-}
-
-func (chip *bacChip) externalAuthenticate(data []byte) []byte {
-	if len(data) != 40 {
-		return utils.HexToBytes("6700")
-	}
-
-	eIfd, mIfd := data[0:32], data[32:40]
-	if !bytes.Equal(chip.mac(chip.kMac, eIfd), mIfd) {
-		return utils.HexToBytes("6300")
-	}
-
-	s := chip.tdes(chip.kEnc, eIfd, false)
-	if len(s) != 32 || !bytes.Equal(s[8:16], chip.rndIc) {
-		return utils.HexToBytes("6300")
-	}
-	rndIfd, kIfd := s[0:8], s[16:32]
-
-	r := make([]byte, 0, 32)
-	r = append(r, chip.rndIc...)
-	r = append(r, rndIfd...)
-	r = append(r, chip.kIc...)
-	eIc := chip.tdes(chip.kEnc, r, true)
-	mIc := chip.mac(chip.kMac, eIc)
-
-	seed := utils.XorBytes(kIfd, chip.kIc)
-	chip.ksEnc = cryptoutils.KDF(seed, cryptoutils.KDF_COUNTER_KSENC, cryptoutils.TDES, 112)
-	chip.ksMac = cryptoutils.KDF(seed, cryptoutils.KDF_COUNTER_KSMAC, cryptoutils.TDES, 112)
-	chip.ssc = append(bytes.Clone(chip.rndIc[4:8]), rndIfd[4:8]...)
-
-	out := append(eIc, mIc...)
-	return append(out, 0x90, 0x00)
-}
-
-func (chip *bacChip) sscIncrement() {
-	for i := len(chip.ssc) - 1; i >= 0; i-- {
-		chip.ssc[i]++
-		if chip.ssc[i] != 0 {
-			return
-		}
-	}
-}
-
-func (chip *bacChip) smTransceive(cla int, ins int, p1 int, p2 int, data []byte) []byte {
-	const rApduSmDataObjectsMissing = "6988"
-
-	if cla&0x0C != 0x0C {
-		return utils.HexToBytes(rApduSmDataObjectsMissing)
-	}
-
-	nodes, err := tlv.Decode(data)
-	if err != nil {
-		return utils.HexToBytes(rApduSmDataObjectsMissing)
-	}
-
-	do87 := nodes.NodeByTag(0x87)
-	do97 := nodes.NodeByTag(0x97)
-	do8E := nodes.NodeByTag(0x8E)
-	if !do8E.IsValidNode() {
-		return utils.HexToBytes(rApduSmDataObjectsMissing)
-	}
-
-	// command MAC: SSC || padded header || DO87 || DO97
-	chip.sscIncrement()
-	macData := bytes.Clone(chip.ssc)
-	macData = append(macData, cryptoutils.ISO9797Method2Pad([]byte{byte(cla), byte(ins), byte(p1), byte(p2)}, cryptoutils.DES_BLOCK_SIZE_BYTES)...)
-	macData = append(macData, do87.Encode()...)
-	macData = append(macData, do97.Encode()...)
-	if !bytes.Equal(chip.mac(chip.ksMac, macData), do8E.Value()) {
-		return utils.HexToBytes(rApduSmDataObjectsMissing)
-	}
-
-	var plain []byte
-	if do87.IsValidNode() {
-		value := do87.Value()
-		if len(value) < 1 || value[0] != 0x01 {
-			return utils.HexToBytes(rApduSmDataObjectsMissing)
-		}
-		if plain, err = cryptoutils.ISO9797Method2Unpad(chip.tdes(chip.ksEnc, value[1:], false)); err != nil {
-			return utils.HexToBytes(rApduSmDataObjectsMissing)
-		}
-	}
-
-	le := 0
-	if do97.IsValidNode() {
-		for _, b := range do97.Value() {
-			le = (le << 8) | int(b)
-		}
-		if le == 0 {
-			le = 256
-			if len(do97.Value()) > 1 {
-				le = 65536
-			}
-		}
-	}
-
-	rsp := chip.inner.Transceive(cla&^0x0C, ins, p1, p2, plain, le, nil)
-	if len(rsp) < 2 {
-		return []byte{0x6F, 0x00}
-	}
-	rData, sw := rsp[:len(rsp)-2], rsp[len(rsp)-2:]
-
-	// response: [DO87] DO99 DO8E, MAC over SSC || DO87 || DO99
-	chip.sscIncrement()
-	out := &tlv.TlvNodes{}
-	if len(rData) > 0 {
-		encrypted := chip.tdes(chip.ksEnc, cryptoutils.ISO9797Method2Pad(rData, cryptoutils.DES_BLOCK_SIZE_BYTES), true)
-		out.AddNode(tlv.NewTlvSimpleNode(tlv.TlvTag(0x87), append([]byte{0x01}, encrypted...)))
-	}
-	out.AddNode(tlv.NewTlvSimpleNode(tlv.TlvTag(0x99), bytes.Clone(sw)))
-	out.AddNode(tlv.NewTlvSimpleNode(tlv.TlvTag(0x8E), chip.mac(chip.ksMac, append(bytes.Clone(chip.ssc), out.Encode()...))))
-
-	return append(out.Encode(), sw...)
-}
-
-// filesTransceiver is a plain chip that serves a set of EFs by file id: SELECT succeeds for the MF,
-// the MRTD AID and those files, READ BINARY returns slices of the selected file, and anything else
-// (e.g. BAC or PACE) is answered as unsupported. Enough for a read to run all of its steps without
-// a card.
-type filesTransceiver struct {
-	files    map[uint16][]byte
-	selected []byte
-}
-
-var _ iso7816.Transceiver = (*filesTransceiver)(nil)
-
-func (transceiver *filesTransceiver) Transceive(_ int, ins int, p1 int, p2 int, data []byte, le int, _ []byte) []byte {
-	switch {
-	case ins == int(iso7816.INS_SELECT) && p1 == 0x02: // select EF
-		transceiver.selected = nil
-		if len(data) != 2 {
-			return utils.HexToBytes("6A82")
-		}
-		fileData, ok := transceiver.files[binary.BigEndian.Uint16(data)]
-		if !ok {
-			return utils.HexToBytes("6A82")
-		}
-		transceiver.selected = fileData
-		return utils.HexToBytes("9000")
-
-	case ins == int(iso7816.INS_SELECT): // select MF / AID
-		return utils.HexToBytes("9000")
-
-	case ins == int(iso7816.INS_READ_BINARY):
-		if transceiver.selected == nil {
-			return utils.HexToBytes("6A82")
-		}
-		offset := (p1 * 256) + p2
-		if offset > len(transceiver.selected) {
-			return utils.HexToBytes("6B00")
-		}
-		end := min(offset+le, len(transceiver.selected))
-		return append(bytes.Clone(transceiver.selected[offset:end]), 0x90, 0x00)
-	}
-
-	return utils.HexToBytes("6D00")
 }

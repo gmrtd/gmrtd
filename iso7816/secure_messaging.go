@@ -222,22 +222,17 @@ func (sm *SecureMessaging) cryptoUnpad(data []byte) ([]byte, error) {
 // adds the tag (if any) to 'nodes'
 func (sm *SecureMessaging) buildTag85or87(cApdu *CApdu, nodes *tlv.TlvNodes) error {
 	if cApdu.HaveData() {
-		var tag tlv.TlvTag
-		if cApdu.ins%2 == 0 {
-			tag = 0x87
-		} else {
-			tag = 0x85
-		}
-
-		tmpEncryptedValue, err := sm.cbcCrypt(sm.cryptoPad(cApdu.data), true)
+		value, err := sm.cbcCrypt(sm.cryptoPad(cApdu.data), true)
 		if err != nil {
 			return fmt.Errorf("[buildTag85or87] cbcCrypt error: %w", err)
 		}
-
-		value := []byte{0x01}
-		value = append(value, tmpEncryptedValue...)
-
-		nodes.AddNode(tlv.NewTlvSimpleNode(tlv.TlvTag(tag), value))
+		// ICAO 9303 supplement R2-p1_v2_sIV_0033: only DO87 carries a padding indicator.
+		tag := tlv.TlvTag(0x85)
+		if cApdu.ins%2 == 0 {
+			tag = 0x87
+			value = append([]byte{0x01}, value...)
+		}
+		nodes.AddNode(tlv.NewTlvSimpleNode(tag, value))
 	}
 
 	return nil
@@ -351,24 +346,18 @@ func (sm *SecureMessaging) decodeVerifyMAC(tlv *tlv.TlvNodes) error {
 	return nil
 }
 
-func (sm *SecureMessaging) decodeSmRApduData(encodedData []byte) (out []byte, err error) {
-	tmpBytes := bytes.Clone(encodedData)
-
-	if len(tmpBytes) < 1 {
+func (sm *SecureMessaging) decodeSmRApduData(tag tlv.TlvTag, encodedData []byte) (out []byte, err error) {
+	if len(encodedData) == 0 {
 		return nil, fmt.Errorf("[sm.decodeSmRApduData] encodeData must be >= 1 bytes")
 	}
-
-	// field has a MANDATORY leading 'version' byte that needs to be removed
-
-	// verify that 'version' is 0x01 before removing
-	if tmpBytes[0] != 0x01 {
-		return nil, fmt.Errorf("[sm.decodeSmRApduData] version not set to 0x01")
+	if tag == 0x87 {
+		if encodedData[0] != 0x01 {
+			return nil, fmt.Errorf("[sm.decodeSmRApduData] version not set to 0x01")
+		}
+		encodedData = encodedData[1:]
 	}
 
-	// remove the leading 'version' byte
-	tmpBytes = tmpBytes[1:]
-
-	tmpDecryptedValue, err := sm.cbcCrypt(tmpBytes, false)
+	tmpDecryptedValue, err := sm.cbcCrypt(encodedData, false)
 	if err != nil {
 		return nil, fmt.Errorf("[sm.decodeSmRApduData] cbcCrypt error: %w", err)
 	}
@@ -450,7 +439,7 @@ func (sm *SecureMessaging) Decode(rApduBytes []byte) (rApdu *RApdu, err error) {
 	// decrypt and unpad the data (if applicable)
 	var rapduData []byte
 	if tag85or87.IsValidNode() {
-		rapduData, err = sm.decodeSmRApduData(tag85or87.Value())
+		rapduData, err = sm.decodeSmRApduData(tag85or87.Tag(), tag85or87.Value())
 		if err != nil {
 			return nil, fmt.Errorf("(sm.Decode) error decoding rApduData: %w", err)
 		}

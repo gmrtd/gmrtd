@@ -9,6 +9,7 @@ import (
 	"log"
 	"math/big"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
@@ -782,6 +783,37 @@ func TestInferCAInfoFromKeyProtocol(t *testing.T) {
 	}
 }
 
+func TestSelectChipAuthParamsPrefersStrongerAlgorithm(t *testing.T) {
+	weak := document.ChipAuthenticationInfo{Protocol: oid.OidCaEcdhAesCbcCmac128, Version: 1, KeyId: big.NewInt(1)}
+	strong := document.ChipAuthenticationInfo{Protocol: oid.OidCaEcdhAesCbcCmac256, Version: 1, KeyId: big.NewInt(2)}
+	for _, tc := range []struct {
+		name  string
+		infos []document.ChipAuthenticationInfo
+	}{
+		{"weaker first", []document.ChipAuthenticationInfo{weak, strong}},
+		{"stronger first", []document.ChipAuthenticationInfo{strong, weak}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			infos := &document.SecurityInfos{
+				ChipAuthInfos: tc.infos,
+				ChipAuthPubKeyInfos: []document.ChipAuthenticationPublicKeyInfo{
+					{Protocol: oid.OidPkEcdh, KeyId: weak.KeyId},
+					{Protocol: oid.OidPkEcdh, KeyId: strong.KeyId},
+				},
+			}
+			var doc document.Document
+			doc.Mf.Lds1.Dg14 = &document.DG14{SecInfos: infos}
+			params, err := selectChipAuthParams(&doc)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !params.Info.Protocol.Equal(strong.Protocol) || params.AlgInfo.keySizeBits != 256 || params.PubKeyInfo != &infos.ChipAuthPubKeyInfos[1] {
+				t.Errorf("expected ECDH-AES-256 and its key, got %s, %d bits, key %v", params.Info.Protocol, params.AlgInfo.keySizeBits, params.PubKeyInfo.KeyId)
+			}
+		})
+	}
+}
+
 func TestSelectChipAuthParams(t *testing.T) {
 	testCases := []struct {
 		name    string
@@ -1017,6 +1049,28 @@ func TestVerifyEvidence(t *testing.T) {
 		}
 	})
 
+	t.Run("undecodable terminal point", func(t *testing.T) {
+		evidence := *validEvidence
+		evidence.TermPubKey = []byte{0x04}
+		result, err := VerifyEvidence(doc, &evidence)
+		if result != nil || err == nil || !strings.Contains(err.Error(), "DecodeX962EcPoint error") {
+			t.Fatalf("expected no CA result and a terminal point error, got %v, %v", result, err)
+		}
+	})
+
+	t.Run("unusable DG14 curve", func(t *testing.T) {
+		var badDoc document.Document
+		if err := badDoc.NewDG(14, dg14bytes); err != nil {
+			t.Fatal(err)
+		}
+		key := &badDoc.Mf.Lds1.Dg14.SecInfos.ChipAuthPubKeyInfos[0].ChipAuthenticationPublicKey
+		key.Algorithm.Parameters = asn1.RawValue{}
+		result, err := VerifyEvidence(&badDoc, validEvidence)
+		if result != nil || err == nil || !strings.Contains(err.Error(), "EcCurveAndPubKey error") {
+			t.Fatalf("expected no CA result and a DG14 key error, got %v, %v", result, err)
+		}
+	})
+
 	t.Run("mismatched TermPubKey", func(t *testing.T) {
 		// chip public key from DG14 — a valid curve point, but does not correspond to validEvidence.TermPri
 		chipPubKey := utils.HexToBytes("041983917269AC877C0B61544C2C022000D2A5ABA723E2D80141E648B40911DC3459761F27480E4B57181A53D8FE1190EA86C939AC14363178CAFFC621F0F905C3")
@@ -1149,6 +1203,35 @@ func (t *abortingOnExtendedLeTransceiver) Transceive(_, ins, _, _ int, _ []byte,
 	return utils.HexToBytes("6A82")
 }
 
+func recordedATKeypair(_ elliptic.Curve) cryptoutils.EcKeypair {
+	return cryptoutils.NewEcKeypair(
+		utils.HexToBytes("80EBAFC8A51BECD4D90BB640EE38C9FD5C12748D28AAA37096B98C4533C4F5F5"),
+		utils.HexToBytes("4827C781BE1AC7A00B351214FD783AC76D99E831A6316C8FD6DE7BD96CFA31DA"),
+		utils.HexToBytes("06B6B57BA380789729F4A028212A768C49BF5F97D98B1DB12BEEC1A1CD324FB2"))
+}
+
+func TestChipAuthRejectsUnselectedDG14(t *testing.T) {
+	// Final SELECT response with the AT session's AES-CMAC over SSC=2 and DO99=6A82.
+	chip := &iso7816.SequenceTransceiver{RApdus: [][]byte{
+		utils.HexToBytes("9000"),
+		utils.HexToBytes("7C009000"),
+		utils.HexToBytes("99026A828E08BD17D956ED23A6FE6A82"),
+	}}
+	nfc := iso7816.NewNfcSession(chip)
+	ca := NewChipAuth(nfc, chipAuthATDG14(t))
+	ca.keyGeneratorEc = recordedATKeypair
+	result, err := ca.DoChipAuth()
+	if err == nil || !strings.Contains(err.Error(), "unable to select DG14") {
+		t.Fatalf("expected failed DG14 confirmation, got %v", err)
+	}
+	if result == nil || result.Success || result.Evidence != nil {
+		t.Fatalf("failed confirmation returned %+v", result)
+	}
+	if last := nfc.LastApdu(); last == nil || !bytes.Equal(last.Tx, utils.HexToBytes("00A4020C02010E")) || !bytes.Equal(last.Rx, utils.HexToBytes("6A82")) {
+		t.Fatal("expected a decoded file-not-found response for SELECT DG14")
+	}
+}
+
 // Chip Authentication must restart from MSE:Set AT (not just resend GENERAL AUTHENTICATE) when the
 // chip rejects an extended Le. Uses the AT passport's DG14 (id-CA-ECDH-AES-CBC-CMAC-128) without
 // secure messaging, so CA itself can't complete (the confirming SELECT has no valid SM response):
@@ -1161,12 +1244,7 @@ func TestChipAuthRestartsAfterExtendedLeRejected(t *testing.T) {
 	nfc.SetMaxLe(65536)
 
 	chipAuth := NewChipAuth(nfc, doc)
-	chipAuth.keyGeneratorEc = func(ec elliptic.Curve) cryptoutils.EcKeypair {
-		return cryptoutils.NewEcKeypair(
-			utils.HexToBytes("80EBAFC8A51BECD4D90BB640EE38C9FD5C12748D28AAA37096B98C4533C4F5F5"),
-			utils.HexToBytes("4827C781BE1AC7A00B351214FD783AC76D99E831A6316C8FD6DE7BD96CFA31DA"),
-			utils.HexToBytes("06B6B57BA380789729F4A028212A768C49BF5F97D98B1DB12BEEC1A1CD324FB2"))
-	}
+	chipAuth.keyGeneratorEc = recordedATKeypair
 
 	_, _ = chipAuth.DoChipAuth()
 
@@ -1187,12 +1265,7 @@ func TestChipAuthMseSetATRejected(t *testing.T) {
 	nfc := iso7816.NewNfcSession(&iso7816.StaticTransceiver{RApdu: utils.HexToBytes("6A80")})
 
 	chipAuth := NewChipAuth(nfc, at)
-	chipAuth.keyGeneratorEc = func(ec elliptic.Curve) cryptoutils.EcKeypair {
-		return cryptoutils.NewEcKeypair(
-			utils.HexToBytes("80EBAFC8A51BECD4D90BB640EE38C9FD5C12748D28AAA37096B98C4533C4F5F5"),
-			utils.HexToBytes("4827C781BE1AC7A00B351214FD783AC76D99E831A6316C8FD6DE7BD96CFA31DA"),
-			utils.HexToBytes("06B6B57BA380789729F4A028212A768C49BF5F97D98B1DB12BEEC1A1CD324FB2"))
-	}
+	chipAuth.keyGeneratorEc = recordedATKeypair
 
 	result, _ := chipAuth.DoChipAuth()
 	if result != nil && result.Success {

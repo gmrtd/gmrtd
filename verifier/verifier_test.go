@@ -1,10 +1,13 @@
 package verifier
 
 import (
+	"crypto/sha256"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 
+	"github.com/fxamacker/cbor/v2"
 	"github.com/gmrtd/gmrtd/cms"
 	"github.com/gmrtd/gmrtd/document"
 	"github.com/gmrtd/gmrtd/oid"
@@ -183,6 +186,277 @@ func TestVerifyDocumentVerifyErrMissingDG1(t *testing.T) {
 
 	if summary := result.Summary(); summary == nil || summary.DataTrusted {
 		t.Errorf("expected DataTrusted to be false when DocumentVerifyErr is set")
+	}
+}
+
+// ca-cam.gmrtd combines the AT Chip Authentication and DE PACE-CAM test recordings
+// with sample DG1/DG15. Its SOD and CardSecurity are signed under a test-only CSCA.
+func readEvidenceFixture(t *testing.T) (*document.Document, *document.ChipAuthEvidenceBundle, *cms.GenericCertPool) {
+	t.Helper()
+	data, err := os.ReadFile("testdata/ca-cam.gmrtd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, evidence, err := document.UnmarshalVerifiableDoc(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := os.ReadFile("testdata/evidence-test-root.cer")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pool cms.GenericCertPool
+	if err := pool.Add(root); err != nil {
+		t.Fatal(err)
+	}
+	return doc, evidence, &pool
+}
+
+func TestVerifyCombinedChipEvidence(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		badCA, badCAM bool
+		want          document.ChipAuthStatus
+	}{
+		{"both valid", false, false, document.CHIP_AUTH_STATUS_PACE_CAM},
+		{"CA fails", true, false, document.CHIP_AUTH_STATUS_PACE_CAM},
+		{"CAM fails", false, true, document.CHIP_AUTH_STATUS_CA},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			doc, ev, pool := readEvidenceFixture(t)
+			if tc.badCA {
+				ev.ChipAuth.SmSsc[0] ^= 1
+			}
+			if tc.badCAM {
+				ev.PaceCam.Nonce[0] ^= 1
+			}
+			input := document.DocumentEx{Document: *doc, Session: document.Session{
+				ChipAuthResult: &document.ChipAuthResult{Evidence: ev.ChipAuth},
+				PaceCamResult:  &document.PaceCamResult{Evidence: ev.PaceCam},
+			}}
+			data, err := input.ToCbor()
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := NewVerifier(pool).WithTrustedSource().Verify(data)
+			if err != nil {
+				t.Fatal(err)
+			}
+			s := got.Session
+			if (s.ChipAuthErr != nil) != tc.badCA || (s.ChipAuthResult != nil && s.ChipAuthResult.Success) == tc.badCA {
+				t.Errorf("CA result %v, error %v", s.ChipAuthResult, s.ChipAuthErr)
+			}
+			if (s.PaceErr != nil) != tc.badCAM || (s.PaceCamResult != nil && s.PaceCamResult.Success) == tc.badCAM {
+				t.Errorf("CAM result %v, error %v", s.PaceCamResult, s.PaceErr)
+			}
+			if summary := got.Summary(); !summary.DataTrusted || summary.ChipAuthenticity != tc.want {
+				t.Errorf("data trusted %v, chip authenticity %v, want true and %v", summary.DataTrusted, summary.ChipAuthenticity, tc.want)
+			}
+		})
+	}
+}
+
+func TestVerifyChallengeWithoutAAEvidence(t *testing.T) {
+	_, _, pool := readEvidenceFixture(t)
+	data, err := os.ReadFile("testdata/ca-cam.gmrtd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	v, err := NewVerifier(pool).WithAAChallenge(testAANonce)
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := v.Verify(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := doc.Session
+	if s.ChipAuthResult == nil || !s.ChipAuthResult.Success || s.PaceCamResult == nil || !s.PaceCamResult.Success {
+		t.Fatalf("fixture replay failed: CA %v, CAM %v", s.ChipAuthErr, s.PaceErr)
+	}
+	if s.Offline == nil || s.Offline.AAChallengeBound || s.ActiveAuthResult != nil {
+		t.Fatal("expected an unbound challenge and no AA result")
+	}
+	if summary := doc.Summary(); !summary.DataTrusted || summary.ChipAuthenticity != document.CHIP_AUTH_STATUS_NONE {
+		t.Errorf("data trusted %v, chip authenticity %v, want true and NONE", summary.DataTrusted, summary.ChipAuthenticity)
+	}
+}
+
+func TestVerifyReplayedChipEvidence(t *testing.T) {
+	for _, method := range []document.ChipAuthStatus{document.CHIP_AUTH_STATUS_CA, document.CHIP_AUTH_STATUS_PACE_CAM} {
+		for _, tc := range []struct {
+			name    string
+			trusted bool
+			tamper  bool
+		}{
+			{name: "untrusted source"},
+			{name: "trusted source", trusted: true},
+			{name: "invalid evidence", trusted: true, tamper: true},
+		} {
+			t.Run(method.String()+"/"+tc.name, func(t *testing.T) {
+				doc, evidence, pool := readEvidenceFixture(t)
+				input := document.DocumentEx{Document: *doc}
+				switch method {
+				case document.CHIP_AUTH_STATUS_CA:
+					if tc.tamper {
+						evidence.ChipAuth.SmSsc[0] ^= 1
+					}
+					input.Session.ChipAuthResult = &document.ChipAuthResult{Evidence: evidence.ChipAuth}
+				case document.CHIP_AUTH_STATUS_PACE_CAM:
+					if tc.tamper {
+						evidence.PaceCam.Nonce[0] ^= 1
+					}
+					input.Session.PaceCamResult = &document.PaceCamResult{Evidence: evidence.PaceCam}
+				}
+				data, err := input.ToCbor()
+				if err != nil {
+					t.Fatal(err)
+				}
+				v := NewVerifier(pool)
+				if tc.trusted {
+					v.WithTrustedSource()
+				}
+				verified, err := v.Verify(data)
+				if err != nil {
+					t.Fatal(err)
+				}
+				session := verified.Session
+				wantMethod := method
+				if tc.tamper {
+					wantMethod = document.CHIP_AUTH_STATUS_NONE
+				}
+				if got := session.ChipAuthProtocolStatus(); got != wantMethod {
+					t.Errorf("replayed protocol = %v, want %v", got, wantMethod)
+				}
+				if (session.ChipAuthErr != nil) != (tc.tamper && method == document.CHIP_AUTH_STATUS_CA) ||
+					(session.PaceErr != nil) != (tc.tamper && method == document.CHIP_AUTH_STATUS_PACE_CAM) {
+					t.Errorf("unexpected verification errors: CA=%v, PACE=%v", session.ChipAuthErr, session.PaceErr)
+				}
+				summary := verified.Summary()
+				if !summary.DataTrusted || session.PassiveAuthResult.CardSec == nil {
+					t.Fatalf("fixture did not authenticate: document=%v, passive auth=%v", session.DocumentVerifyErr, session.PassiveAuthErr)
+				}
+				wantAuthenticity := wantMethod
+				if !tc.trusted {
+					wantAuthenticity = document.CHIP_AUTH_STATUS_NONE
+				}
+				if summary.ChipAuthenticity != wantAuthenticity {
+					t.Errorf("chip authenticity = %v, want %v", summary.ChipAuthenticity, wantAuthenticity)
+				}
+			})
+		}
+	}
+}
+
+// rewrapExport decodes a real DocumentEx.ToCbor export, lets mutate edit its inner payload
+// fields, and re-encodes it with a matching checksum. Taking the envelope from an export,
+// rather than spelling out its magic and version, keeps the test valid across format
+// versions; fields mutate touches must exist, so a renamed field fails loudly.
+func rewrapExport(t *testing.T, export []byte, mutate func(payload []byte) []byte) []byte {
+	t.Helper()
+	var env map[string]cbor.RawMessage
+	if err := cbor.Unmarshal(export, &env); err != nil {
+		t.Fatal(err)
+	}
+	var payload []byte
+	if err := cbor.Unmarshal(env["payload"], &payload); err != nil || payload == nil {
+		t.Fatalf("export has no payload field: %v", err)
+	}
+	if _, ok := env["sha256"]; !ok {
+		t.Fatal("export has no sha256 field")
+	}
+	payload = mutate(payload)
+	digest := sha256.Sum256(payload)
+	for key, value := range map[string][]byte{"payload": payload, "sha256": digest[:]} {
+		encoded, err := cbor.Marshal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		env[key] = encoded
+	}
+	data, err := cbor.Marshal(env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
+}
+
+// replacePayloadField returns a mutate function for rewrapExport that replaces one of the
+// payload's byte-string fields with value.
+func replacePayloadField(t *testing.T, field string, value []byte) func([]byte) []byte {
+	return func(payload []byte) []byte {
+		t.Helper()
+		var inner map[string]cbor.RawMessage
+		if err := cbor.Unmarshal(payload, &inner); err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := inner[field]; !ok {
+			t.Fatalf("export payload has no %q field", field)
+		}
+		encoded, err := cbor.Marshal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		inner[field] = encoded
+		data, err := cbor.Marshal(inner)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return data
+	}
+}
+
+func TestVerifyRejectsInvalidInnerCBOR(t *testing.T) {
+	var input document.DocumentEx
+	export, err := input.ToCbor()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Control: re-wrapping the unchanged payload must still verify, so the failures below
+	// come from the replaced content rather than from the re-wrapping.
+	if _, err := emptyVerifier().Verify(rewrapExport(t, export, func(p []byte) []byte { return p })); err != nil {
+		t.Fatalf("re-wrapped unchanged export: %v", err)
+	}
+	invalid := []byte{0xff}
+	for _, tc := range []struct {
+		name   string
+		mutate func([]byte) []byte
+		want   string
+	}{
+		{"payload", func([]byte) []byte { return invalid }, "cbor.Unmarshal(rawDocumentEx)"},
+		{"document", replacePayloadField(t, "document", invalid), "NewDocumentFromCbor error"},
+		{"evidence", replacePayloadField(t, "chipAuthEvidence", invalid), "NewChipAuthEvidenceFromCbor error"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := emptyVerifier().Verify(rewrapExport(t, export, tc.mutate))
+			if result != nil || err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("expected no document and %q, got document %v, error %v", tc.want, result != nil, err)
+			}
+		})
+	}
+}
+
+func TestVerifySODReferencesMissingDG15(t *testing.T) {
+	doc, _, pool := readEvidenceFixture(t)
+	doc.Mf.Lds1.Dg15 = nil
+	input := document.DocumentEx{Document: *doc}
+	data, err := input.ToCbor()
+	if err != nil {
+		t.Fatal(err)
+	}
+	verified, err := NewVerifier(pool).Verify(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	session := verified.Session
+	if session.PassiveAuthErr != nil || session.PassiveAuthResult == nil || !session.PassiveAuthResult.Success {
+		t.Fatalf("expected passive authentication to succeed for the remaining files, got %v", session.PassiveAuthErr)
+	}
+	if session.DocumentVerifyErr == nil || !strings.Contains(session.DocumentVerifyErr.Error(), "DG15 file missing but referenced by SOD") {
+		t.Errorf("expected document verification to identify missing DG15, got %v", session.DocumentVerifyErr)
+	}
+	if verified.Summary().DataTrusted {
+		t.Error("trusted a document missing its signed DG15")
 	}
 }
 

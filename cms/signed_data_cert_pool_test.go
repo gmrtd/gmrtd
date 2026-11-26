@@ -2,6 +2,7 @@ package cms
 
 import (
 	"encoding/asn1"
+	"os"
 	"strings"
 	"testing"
 
@@ -25,6 +26,33 @@ func TestSignedDataCertPoolErrors(t *testing.T) {
 			pool, err := CreateCertPoolFromSignedData(tc.list, tc.root)
 			if pool != nil || err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("expected no pool and error containing %q, got pool %v, error %v", tc.want, pool != nil, err)
+			}
+		})
+	}
+}
+
+func TestSignedMasterListInvalidContent(t *testing.T) {
+	root, err := os.ReadFile("testdata/master-list-test-root.cer")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Both lists have a valid CMS signature from a signer with the master-list EKU.
+	for _, tc := range []struct {
+		name string
+		file string
+		want string
+	}{
+		{"malformed list", "malformed-list.cms", "ParseAsn1 error"},
+		{"invalid certificate after valid root", "invalid-second-cert.cms", "certPool.Add error"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			list, err := os.ReadFile("testdata/" + tc.file)
+			if err != nil {
+				t.Fatal(err)
+			}
+			pool, err := CreateCertPoolFromSignedData(list, root)
+			if pool != nil || err == nil || !strings.Contains(err.Error(), "[CreateCertPoolFromSignedData] "+tc.want) {
+				t.Fatalf("expected nil pool and %q, got pool %v, error %v", tc.want, pool != nil, err)
 			}
 		})
 	}

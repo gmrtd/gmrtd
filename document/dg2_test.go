@@ -5,6 +5,7 @@ import (
 	_ "embed" // Import for loading test files
 	"testing"
 
+	"github.com/gmrtd/gmrtd/tlv"
 	"github.com/gmrtd/gmrtd/utils"
 )
 
@@ -148,5 +149,40 @@ func TestNewDG2MandFields39794(t *testing.T) {
 	// verify that the photo matches the reference data
 	if !bytes.Equal(doc.Mf.Lds1.Dg2.Images[0].Image, dg2MandFields39794Face) {
 		t.Fatalf("DG2 photo differs to expected")
+	}
+}
+
+func TestNewDG2MultipleBiometricTemplates(t *testing.T) {
+	group := tlv.NewTlvConstructedNode(0x7F61).AddChild(tlv.NewTlvSimpleNode(0x02, []byte{2}))
+	var want [][]byte
+	for _, data := range [][]byte{sampleDg2Bytes, dg2AllFields39794} {
+		single, err := NewDG2(data)
+		if err != nil || single == nil || len(single.Images) != 1 {
+			t.Fatalf("expected a single-image fixture: %v", err)
+		}
+		want = append(want, single.Images[0].Image)
+		nodes, err := tlv.Decode(data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		group.AddChild(nodes.NodeByTag(DG2Tag).NodeByTag(0x7F61).NodeByTag(0x7F60))
+	}
+	if bytes.Equal(want[0], want[1]) {
+		t.Fatal("fixtures must contain distinct images")
+	}
+	got, err := NewDG2(tlv.NewTlvConstructedNode(DG2Tag).AddChild(group).Encode())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.BITs) != 2 || got.BITs[0].BDB.Iso19794 == nil || got.BITs[1].BDB.Iso39794 == nil {
+		t.Fatal("expected both templates in file order")
+	}
+	if len(got.Images) != len(want) {
+		t.Fatalf("got %d images from two templates, want %d", len(got.Images), len(want))
+	}
+	for i, image := range got.Images {
+		if !bytes.Equal(image.Image, want[i]) {
+			t.Errorf("image %d differs from its source template", i)
+		}
 	}
 }
