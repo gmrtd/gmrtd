@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gmrtd/gmrtd/document"
+	"github.com/gmrtd/gmrtd/internal/testchip"
 	"github.com/gmrtd/gmrtd/iso7816"
 	"github.com/gmrtd/gmrtd/password"
 	"github.com/gmrtd/gmrtd/utils"
@@ -232,7 +233,7 @@ func TestReadDocumentReportsPhases(t *testing.T) {
 
 	// the chip completes BAC, then serves EF.SOD under secure messaging
 	var status MockStatus
-	chip := newBacChip(t, pass, &filesTransceiver{files: map[uint16][]byte{MRTDFileIdEFSOD: sampleDoc.Mf.Lds1.Sod.RawData}})
+	chip := testchip.NewBAC(t, pass, &testchip.Files{ByID: map[uint16][]byte{MRTDFileIdEFSOD: sampleDoc.Mf.Lds1.Sod.RawData}})
 	var nfc *iso7816.NfcSession = iso7816.NewNfcSession(chip)
 	var reader *Reader = NewReader(&status, nfc, EmptyCscaTrustStore(t))
 
@@ -283,7 +284,7 @@ func TestReadDocumentReportsPhasesUntilBacFailure(t *testing.T) {
 
 	// the chip answers neither PACE nor BAC
 	var status MockStatus
-	transceiver := &filesTransceiver{files: map[uint16][]byte{MRTDFileIdEFSOD: sampleDoc.Mf.Lds1.Sod.RawData}}
+	transceiver := &testchip.Files{ByID: map[uint16][]byte{MRTDFileIdEFSOD: sampleDoc.Mf.Lds1.Sod.RawData}}
 	var reader *Reader = NewReader(&status, iso7816.NewNfcSession(transceiver), EmptyCscaTrustStore(t))
 
 	pass, err := password.NewPasswordMrzi("123456", "100101", "301225")

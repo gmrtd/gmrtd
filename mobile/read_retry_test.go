@@ -1,10 +1,11 @@
-package reader_test
+package mobile_test
 
 import (
 	"bytes"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/document"
+	"github.com/gmrtd/gmrtd/internal/testchip"
 	"github.com/gmrtd/gmrtd/mobile"
 	"github.com/gmrtd/gmrtd/password"
 	"github.com/gmrtd/gmrtd/reader"
@@ -24,7 +25,7 @@ func TestMobileReadDocumentSucceedsAfterAccessFailure(t *testing.T) {
 		reader.MRTDFileIdEFSOD: sample.Mf.Lds1.Sod.RawData,
 		reader.MRTDFileIdDG1:   sample.Mf.Lds1.Dg1.RawData,
 	}
-	r := mobile.NewReader(nil, reader.NewTestBACTransceiver(t, credential, files))
+	r := mobile.NewReader(nil, testchip.NewBAC(t, credential, &testchip.Files{ByID: files}))
 	can, err := mobile.NewPasswordCan("123456")
 	if err != nil {
 		t.Fatal(err)
