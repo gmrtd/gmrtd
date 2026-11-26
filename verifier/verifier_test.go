@@ -278,41 +278,87 @@ func TestVerifyReplayedChipEvidence(t *testing.T) {
 	}
 }
 
-func TestVerifyRejectsInvalidInnerCBOR(t *testing.T) {
-	marshal := func(t *testing.T, value any) []byte {
+// rewrapExport decodes a real DocumentEx.ToCbor export, lets mutate edit its inner payload
+// fields, and re-encodes it with a matching checksum. Taking the envelope from an export,
+// rather than spelling out its magic and version, keeps the test valid across format
+// versions; fields mutate touches must exist, so a renamed field fails loudly.
+func rewrapExport(t *testing.T, export []byte, mutate func(payload []byte) []byte) []byte {
+	t.Helper()
+	var env map[string]cbor.RawMessage
+	if err := cbor.Unmarshal(export, &env); err != nil {
+		t.Fatal(err)
+	}
+	var payload []byte
+	if err := cbor.Unmarshal(env["payload"], &payload); err != nil || payload == nil {
+		t.Fatalf("export has no payload field: %v", err)
+	}
+	if _, ok := env["sha256"]; !ok {
+		t.Fatal("export has no sha256 field")
+	}
+	payload = mutate(payload)
+	digest := sha256.Sum256(payload)
+	for key, value := range map[string][]byte{"payload": payload, "sha256": digest[:]} {
+		encoded, err := cbor.Marshal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		env[key] = encoded
+	}
+	data, err := cbor.Marshal(env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
+}
+
+// replacePayloadField returns a mutate function for rewrapExport that replaces one of the
+// payload's byte-string fields with value.
+func replacePayloadField(t *testing.T, field string, value []byte) func([]byte) []byte {
+	return func(payload []byte) []byte {
 		t.Helper()
-		data, err := cbor.Marshal(value)
+		var inner map[string]cbor.RawMessage
+		if err := cbor.Unmarshal(payload, &inner); err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := inner[field]; !ok {
+			t.Fatalf("export payload has no %q field", field)
+		}
+		encoded, err := cbor.Marshal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		inner[field] = encoded
+		data, err := cbor.Marshal(inner)
 		if err != nil {
 			t.Fatal(err)
 		}
 		return data
 	}
+}
+
+func TestVerifyRejectsInvalidInnerCBOR(t *testing.T) {
 	var input document.DocumentEx
-	doc, err := input.Document.ToCbor()
+	export, err := input.ToCbor()
 	if err != nil {
 		t.Fatal(err)
 	}
-	evidence, err := input.Session.ChipAuthEvidenceToCbor()
-	if err != nil {
-		t.Fatal(err)
+	// Control: re-wrapping the unchanged payload must still verify, so the failures below
+	// come from the replaced content rather than from the re-wrapping.
+	if _, err := emptyVerifier().Verify(rewrapExport(t, export, func(p []byte) []byte { return p })); err != nil {
+		t.Fatalf("re-wrapped unchanged export: %v", err)
 	}
 	invalid := []byte{0xff}
 	for _, tc := range []struct {
-		name    string
-		payload []byte
-		want    string
+		name   string
+		mutate func([]byte) []byte
+		want   string
 	}{
-		{"payload", invalid, "cbor.Unmarshal(rawDocumentEx)"},
-		{"document", marshal(t, map[string][]byte{"document": invalid, "chipAuthEvidence": evidence}), "NewDocumentFromCbor error"},
-		{"evidence", marshal(t, map[string][]byte{"document": doc, "chipAuthEvidence": invalid}), "NewChipAuthEvidenceFromCbor error"},
+		{"payload", func([]byte) []byte { return invalid }, "cbor.Unmarshal(rawDocumentEx)"},
+		{"document", replacePayloadField(t, "document", invalid), "NewDocumentFromCbor error"},
+		{"evidence", replacePayloadField(t, "chipAuthEvidence", invalid), "NewChipAuthEvidenceFromCbor error"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			digest := sha256.Sum256(tc.payload)
-			data := marshal(t, map[string]any{
-				"magic": "gmrtd-verifiable-doc", "version": 1,
-				"payload": tc.payload, "sha256": digest[:],
-			})
-			result, err := emptyVerifier().Verify(data)
+			result, err := emptyVerifier().Verify(rewrapExport(t, export, tc.mutate))
 			if result != nil || err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("expected no document and %q, got document %v, error %v", tc.want, result != nil, err)
 			}
