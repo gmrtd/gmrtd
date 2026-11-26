@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.10.3](https://github.com/gmrtd/gmrtd/compare/v1.10.2...v1.10.3) (2026-11-26)
+
+
+### Bug Fixes
+
+* correct DO85 framing and short NFC file reads ([#609](https://github.com/gmrtd/gmrtd/issues/609)) ([996954a](https://github.com/gmrtd/gmrtd/commit/996954a9fe8806be0e08cfb6ebda12127c894be6))
+* keep the images from every DG2 biometric template ([#613](https://github.com/gmrtd/gmrtd/issues/613)) ([c78106a](https://github.com/gmrtd/gmrtd/commit/c78106a6cb9c2b6d6d429aa3096a9fa7b66be8b1))
+
 ## [1.10.2](https://github.com/gmrtd/gmrtd/compare/v1.10.1...v1.10.2) (2026-11-26)
 
 
