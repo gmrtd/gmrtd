@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gmrtd/gmrtd/cms"
 	"github.com/gmrtd/gmrtd/cryptoutils"
 	"github.com/gmrtd/gmrtd/document"
 	"github.com/gmrtd/gmrtd/iso7816"
@@ -889,6 +890,46 @@ func TestParseEcdsaSignatureDER(t *testing.T) {
 			t.Errorf("expected error for 0 values")
 		}
 	})
+}
+
+func TestActiveAuthRejectsUnusableDG15Key(t *testing.T) {
+	curve, err := asn1.Marshal(oid.OidPrime256v1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	spki := func(algorithm asn1.ObjectIdentifier, parameters []byte) []byte {
+		t.Helper()
+		key, err := asn1.Marshal(cms.SubjectPublicKeyInfo{
+			Algorithm:        cms.AlgorithmIdentifier{Algorithm: algorithm, Parameters: asn1.RawValue{FullBytes: parameters}},
+			SubjectPublicKey: asn1.BitString{Bytes: []byte{0x04}, BitLength: 8},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return key
+	}
+	for _, tc := range []struct {
+		name string
+		key  []byte
+		want string
+	}{
+		{"malformed SPKI", []byte{0x30}, "Asn1decodeSubjectPublicKeyInfo"},
+		{"unsupported Ed25519 algorithm", spki(asn1.ObjectIdentifier{1, 3, 101, 112}, nil), "unsupported SubjectPublicKeyInfo"},
+		{"invalid RSA key", spki(oid.OidRsaEncryption, asn1.NullBytes), "RsaPubKey error"},
+		{"invalid EC point", spki(oid.OidEcPublicKey, curve), "EcCurveAndPubKey error"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var doc document.Document
+			if err := doc.NewDG(15, tlv.NewTlvSimpleNode(0x6F, tc.key).Encode()); err != nil {
+				t.Fatal(err)
+			}
+			nfc := iso7816.NewNfcSession(&iso7816.StaticTransceiver{RApdu: utils.HexToBytes("019000")})
+			result, err := NewActiveAuth(nfc, &doc).DoActiveAuth()
+			if err == nil || !strings.Contains(err.Error(), tc.want) || (result != nil && result.Success) {
+				t.Fatalf("expected unsuccessful AA with %q, got result %v, error %v", tc.want, result, err)
+			}
+		})
+	}
 }
 
 func TestActiveAuthRejectsUndersizedRSAKey(t *testing.T) {

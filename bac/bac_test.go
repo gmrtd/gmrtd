@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/gmrtd/gmrtd/internal/testlog"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
@@ -431,6 +432,51 @@ func TestDoBAC(t *testing.T) {
 		if !smExp.Equal(*smAct) {
 			t.Errorf("SecureMessaging differs to expected")
 		}
+	}
+}
+
+func TestDoBACRejectsUnauthenticatedResponse(t *testing.T) {
+	pass, err := password.NewPasswordMrzi("L898902C", "690806", "940623")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Use the ICAO D.3 response. The MAC case changes its last MAC byte.
+	// The nonce cases keep the authenticated response intact and change one challenge.
+	for _, tc := range []struct {
+		name   string
+		rndIcc string
+		rndIfd string
+		badMAC bool
+		want   string
+	}{
+		{"response MAC", "4608F91988702212", "781723860C06C226", true, "MAC mismatch"},
+		{"terminal nonce", "4608F91988702212", "781723860C06C227", false, "RND.IFD mismatch"},
+		{"chip nonce", "4608F91988702213", "781723860C06C226", false, "RND.IC mismatch"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			response := utils.HexToBytes("46B9342A41396CD7386BF5803104D7CEDC122B9132139BAF2EEDC94EE178534F2F2D235D074D7449")
+			if tc.badMAC {
+				response[len(response)-1] ^= 1
+			}
+			chip := &iso7816.SequenceTransceiver{RApdus: [][]byte{
+				utils.HexToBytes(tc.rndIcc + "9000"), append(response, 0x90, 0),
+			}}
+			nfc := iso7816.NewNfcSession(chip)
+			b := NewBAC(nfc, &document.Document{}, pass)
+			b.randomBytesFn = func(n int) []byte {
+				if n == 8 {
+					return utils.HexToBytes(tc.rndIfd)
+				}
+				return utils.HexToBytes("0B795240CB7049B01C19B33E32804F0B")
+			}
+			result, err := b.DoBAC()
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("expected %q, got %v", tc.want, err)
+			}
+			if result == nil || result.Success || nfc.SM() != nil {
+				t.Fatal("unauthenticated response established BAC or secure messaging")
+			}
+		})
 	}
 }
 
