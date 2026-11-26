@@ -51,13 +51,10 @@ type cborEnvelope struct {
 // encode marshals the envelope, enforcing MaxCBORSize so that every export can be imported.
 func (env *cborEnvelope) encode() ([]byte, error) {
 	data, err := cbor.Marshal(env)
-	if err != nil {
-		return nil, err
-	}
-	if len(data) > MaxCBORSize {
+	if err == nil && len(data) > MaxCBORSize {
 		return nil, ErrCBORTooLarge
 	}
-	return data, nil
+	return data, err
 }
 
 func (env *cborEnvelope) decode(data []byte) error {
