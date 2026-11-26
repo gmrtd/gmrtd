@@ -46,12 +46,12 @@ func NewDG1(data []byte) (dg1 *DG1, err error) {
 	}
 
 	{
-		mrzBytes := rootNode.NodeByTag(0x5f1f).Value()
-		if mrzBytes == nil {
+		mrzNode := rootNode.NodeByTag(0x5f1f)
+		if !mrzNode.IsValidNode() {
 			return nil, fmt.Errorf("MRZ Tag (5F1F) missing")
 		}
 
-		dg1.RawMrz = string(mrzBytes)
+		dg1.RawMrz = string(mrzNode.Value())
 
 		dg1.Mrz, err = mrz.MrzDecode(dg1.RawMrz)
 		if err != nil {

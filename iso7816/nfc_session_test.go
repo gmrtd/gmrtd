@@ -724,6 +724,33 @@ func TestReadFileErrorMissingHeaderLength(t *testing.T) {
 	}
 }
 
+func TestReadFileCompleteInFirstRead(t *testing.T) {
+	for _, tc := range []struct {
+		name, data string
+		wantErr    bool
+	}{
+		{"shorter than requested", "5301AB", false},
+		{"exactly four bytes", "5302ABCD", false},
+		{"extra byte after TLV", "5301ABCD", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var chip MockTransceiver
+			chip.AddReqRsp("00A4020C020101", "9000")
+			chip.AddReqRsp("00B0000004", tc.data+"9000")
+			got, err := NewNfcSession(&chip).ReadFile(0x0101)
+			if tc.wantErr {
+				if err == nil || got != nil {
+					t.Fatalf("expected a length error and no data, got %x, %v", got, err)
+				}
+				return
+			}
+			if err != nil || !bytes.Equal(got, utils.HexToBytes(tc.data)) {
+				t.Fatalf("ReadFile = %x, %v; want %s", got, err, tc.data)
+			}
+		})
+	}
+}
+
 func TestReadFileErrorMoreData(t *testing.T) {
 	var fileId uint16 = 0x0101
 

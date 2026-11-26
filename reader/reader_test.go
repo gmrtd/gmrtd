@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 
@@ -153,6 +154,67 @@ func TestReadLDS1DgsFilesNotFound(t *testing.T) {
 	err = readLDS1dgs(reader, state)
 	if err != nil {
 		t.Errorf("Unexpected error: readLDS1files: %s", err)
+	}
+}
+
+// dropDG1Read simulates loss of the protected READ BINARY response after DG1 selection.
+type dropDG1Read struct {
+	iso7816.Transceiver
+	files *filesTransceiver
+}
+
+func (chip dropDG1Read) Transceive(cla, ins, p1, p2 int, data []byte, le int, encoded []byte) []byte {
+	if ins == int(iso7816.INS_READ_BINARY) && bytes.Equal(chip.files.selected, chip.files.files[MRTDFileIdDG1]) {
+		return nil
+	}
+	return chip.Transceiver.Transceive(cla, ins, p1, p2, data, le, encoded)
+}
+
+func TestReadDocumentStopsOnDG1Failure(t *testing.T) {
+	doc, err := document.SampleDocument()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pass, err := password.NewPasswordMrzi("123456", "100101", "301225")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name                   string
+		loseResponse           bool
+		wantContext, wantCause string
+	}{
+		{"transport error", true, fmt.Sprintf("ReadFile(fileId:%d)", MRTDFileIdDG1), "rApdu length"},
+		{"missing MRZ", false, "Parse DG(fileId:1)", "MRZ Tag (5F1F) missing"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			files := &filesTransceiver{files: map[uint16][]byte{
+				MRTDFileIdEFSOD: doc.Mf.Lds1.Sod.RawData,
+				MRTDFileIdDG1:   utils.HexToBytes("61025C00"),
+			}}
+			var chip iso7816.Transceiver = newBacChip(t, pass, files)
+			if tc.loseResponse {
+				chip = dropDG1Read{chip, files}
+			}
+			var status MockStatus
+			r := NewReader(&status, iso7816.NewNfcSession(chip), EmptyCscaTrustStore(t))
+			_, _, err := r.ReadDocument(pass, nil, nil)
+			if err == nil || !strings.Contains(err.Error(), tc.wantContext) || !strings.Contains(err.Error(), tc.wantCause) {
+				t.Fatalf("expected DG1 %s, got %v", tc.name, err)
+			}
+			var groups []int
+			for _, event := range status.Recorded() {
+				switch event.Phase {
+				case STATUS_PHASE_READING_DATA_GROUP:
+					groups = append(groups, event.DataGroup)
+				case STATUS_PHASE_FINISHED:
+					t.Error("reported a finished read after DG1 failed")
+				}
+			}
+			if !reflect.DeepEqual(groups, []int{1}) {
+				t.Errorf("read groups %v, want only DG1", groups)
+			}
+		})
 	}
 }
 
