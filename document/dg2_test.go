@@ -3,6 +3,8 @@ package document
 import (
 	"bytes"
 	_ "embed" // Import for loading test files
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/tlv"
@@ -184,5 +186,40 @@ func TestNewDG2MultipleBiometricTemplates(t *testing.T) {
 		if !bytes.Equal(image.Image, want[i]) {
 			t.Errorf("image %d differs from its source template", i)
 		}
+	}
+}
+
+func TestNewDG2RepresentationBlockCount(t *testing.T) {
+	for _, count := range []int{0, 1, 2} {
+		t.Run(fmt.Sprintf("%d representations", count), func(t *testing.T) {
+			nodes, err := tlv.Decode(dg2MandFields39794)
+			if err != nil {
+				t.Fatal(err)
+			}
+			template := nodes.NodeByTag(DG2Tag).NodeByTag(0x7F61).NodeByTag(0x7F60)
+			face := template.NodeByTag(0x7F2E).NodeByTag(0xA1).NodeByTag(0x65)
+			// In the mandatory-fields fixture the face block holds a version followed by a representation list.
+			fields := face.Children()
+			if len(fields) != 2 || fields[1].Tag() != 0xA1 || len(fields[1].Children()) != 1 {
+				t.Fatal("expected one representation in the fixture")
+			}
+			representation := fields[1].Children()[0]
+			list := tlv.NewTlvConstructedNode(fields[1].Tag())
+			for range count {
+				list.AddChild(representation)
+			}
+			fields[1] = list
+			dg, err := NewDG2(nodes.Encode())
+			if count == 1 {
+				if err != nil || dg == nil || len(dg.Images) != 1 || !bytes.Equal(dg.Images[0].Image, dg2MandFields39794Face) {
+					t.Fatalf("expected the fixture image, got err=%v", err)
+				}
+				return
+			}
+			want := fmt.Sprintf("Expected 1 RepresentationBlocks (act:%d)", count)
+			if dg != nil || err == nil || !strings.Contains(err.Error(), want) {
+				t.Fatalf("expected nil DG2 and %q, got err=%v", want, err)
+			}
+		})
 	}
 }

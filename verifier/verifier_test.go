@@ -436,6 +436,33 @@ func TestVerifyRejectsInvalidInnerCBOR(t *testing.T) {
 	}
 }
 
+func TestVerifyRejectsWrongEvidencePayloadType(t *testing.T) {
+	doc, evidence, pool := readEvidenceFixture(t)
+	input := document.DocumentEx{Document: *doc, Session: document.Session{
+		ChipAuthResult: &document.ChipAuthResult{Evidence: evidence.ChipAuth},
+	}}
+	export, err := input.ToCbor()
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := NewVerifier(pool)
+	control, err := v.Verify(export)
+	if err != nil || control == nil || !control.Summary().DataTrusted || control.Session.ChipAuthResult == nil || !control.Session.ChipAuthResult.Success {
+		t.Fatalf("fixture failed verification: %v", err)
+	}
+	bundle, err := input.Session.ChipAuthEvidenceToCbor()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Both checksums are valid. The evidence payload is a CBOR integer instead of a bundle.
+	bundle = rewrapExport(t, bundle, func([]byte) []byte { return []byte{0x01} })
+	export = rewrapExport(t, export, replacePayloadField(t, "chipAuthEvidence", bundle))
+	got, err := v.Verify(export)
+	if got != nil || err == nil || !strings.Contains(err.Error(), "cbor.Unmarshal(bundle)") {
+		t.Fatalf("expected a bundle decoding error and no document, got document=%t, err=%v", got != nil, err)
+	}
+}
+
 func TestVerifySODReferencesMissingDG15(t *testing.T) {
 	doc, _, pool := readEvidenceFixture(t)
 	doc.Mf.Lds1.Dg15 = nil

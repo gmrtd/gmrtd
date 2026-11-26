@@ -625,6 +625,50 @@ func TestVerifierWithAAChallenge(t *testing.T) {
 	}
 }
 
+func TestVerifierEnforcesRecordedAAChallenge(t *testing.T) {
+	data, err := os.ReadFile("../verifier/testdata/rsa-aa.gmrtd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name, challenge string
+		wantBound       bool
+	}{
+		{"signed nonce", "96302b0f3d7e7864", true},
+		{"different nonce", "96302b0f3d7e7865", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			v, err := NewVerifier().WithAAChallenge(utils.HexToBytes(tc.challenge))
+			if err != nil {
+				t.Fatal(err)
+			}
+			doc, err := v.Verify(data)
+			if !tc.wantBound {
+				if err == nil || !strings.Contains(err.Error(), "AA nonce mismatch") || doc != nil {
+					t.Fatalf("expected nonce mismatch and no document, got document=%t, err=%v", doc != nil, err)
+				}
+				return
+			}
+			if err != nil || doc == nil {
+				t.Fatalf("Verify: %v", err)
+			}
+			raw, err := doc.DocumentExJson()
+			if err != nil {
+				t.Fatal(err)
+			}
+			var result struct {
+				Session struct{ Offline *document.OfflineVerification }
+			}
+			if err := json.Unmarshal(raw, &result); err != nil {
+				t.Fatal(err)
+			}
+			if result.Session.Offline == nil || !result.Session.Offline.AAChallengeBound {
+				t.Fatal("mobile result did not bind the recorded challenge")
+			}
+		})
+	}
+}
+
 func TestDocumentExJsonError(t *testing.T) {
 	// error expected as we attempt to get Document-Json before ReadDocument
 
