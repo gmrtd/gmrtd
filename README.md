@@ -147,7 +147,7 @@ go run ./cmd/gmrtd-verify -file document.gmrtd -trusted-source
 ### Flags
 | Flag | Description |
 |---|---|
-| `-file <path>` | Path to CBOR document file; use `-` for stdin |
+| `-file <path>` | Path to a CBOR document of up to 8 MiB (use `-` for stdin) |
 | `-challenge <hex>` | 8-byte AA nonce challenge (16 hex chars); binds against AA evidence to close the relay-attack window. Required for chip authenticity unless `-trusted-source` is set |
 | `-trusted-source` | Treat the evidence as captured by a trusted reader, so Chip Authentication, PACE-CAM and unbound Active Authentication evidence count towards chip authenticity |
 | `-debug` | Enable debug logging |

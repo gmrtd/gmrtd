@@ -335,6 +335,52 @@ func TestReadCborFile(t *testing.T) {
 			t.Fatal("expected error for missing file")
 		}
 	})
+
+	t.Run("stdin closed before read", func(t *testing.T) {
+		f, err := os.CreateTemp(t.TempDir(), "stdin")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := f.Close(); err != nil {
+			t.Fatal(err)
+		}
+		stdin := os.Stdin
+		os.Stdin = f
+		t.Cleanup(func() { os.Stdin = stdin })
+
+		data, err := readCborFile("-")
+		if !errors.Is(err, os.ErrClosed) || data != nil {
+			t.Fatalf("closed stdin: got %d bytes, err = %v", len(data), err)
+		}
+	})
+}
+
+func TestReadCborFileSizeLimit(t *testing.T) {
+	f, err := os.CreateTemp(t.TempDir(), "*.cbor")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	if err := f.Truncate(document.MaxCBORSize); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := readCborFile(f.Name()); err != nil || len(data) != document.MaxCBORSize {
+		t.Fatalf("input at limit: read %d bytes, err = %v", len(data), err)
+	}
+	if err := f.Truncate(document.MaxCBORSize + 1024); err != nil {
+		t.Fatal(err)
+	}
+	stdin := os.Stdin
+	os.Stdin = f
+	defer func() { os.Stdin = stdin }()
+	for _, path := range []string{f.Name(), "-"} {
+		if data, err := readCborFile(path); !errors.Is(err, document.ErrCBORTooLarge) || data != nil {
+			t.Fatalf("oversized input %q: read %d bytes, err = %v", path, len(data), err)
+		}
+	}
+	if pos, err := f.Seek(0, io.SeekCurrent); err != nil || pos != document.MaxCBORSize+1 {
+		t.Fatalf("stdin read position = %d, err = %v", pos, err)
+	}
 }
 
 func TestVerifyDocument(t *testing.T) {

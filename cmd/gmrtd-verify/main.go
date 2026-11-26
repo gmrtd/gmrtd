@@ -77,10 +77,23 @@ func cscaMasterList() (cms.CertPool, error) {
 }
 
 func readCborFile(path string) ([]byte, error) {
-	if path == "-" {
-		return io.ReadAll(os.Stdin)
+	input := os.Stdin
+	if path != "-" {
+		f, err := os.Open(path)
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		input = f
 	}
-	return os.ReadFile(path)
+	data, err := io.ReadAll(io.LimitReader(input, document.MaxCBORSize+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > document.MaxCBORSize {
+		return nil, document.ErrCBORTooLarge
+	}
+	return data, nil
 }
 
 func verifyDocument(cscaCertPool cms.CertPool, opts verifyOptions, data []byte) (*document.DocumentEx, error) {

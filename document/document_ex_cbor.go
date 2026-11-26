@@ -19,7 +19,8 @@ const documentExVersion uint = 1
 // ToCbor serialises the document's raw file bytes (see Document.ToCbor) and the session's
 // chip authentication evidence (see Session.ChipAuthEvidenceToCbor) to CBOR, in a
 // versioned envelope with a SHA-256 checksum. Other session results are not included.
-// UnmarshalVerifiableDoc reverses it.
+// UnmarshalVerifiableDoc reverses it. It returns ErrCBORTooLarge if the result would exceed
+// MaxCBORSize.
 func (docEx *DocumentEx) ToCbor() ([]byte, error) {
 	docBytes, err := docEx.Document.ToCbor()
 	if err != nil {
@@ -49,7 +50,7 @@ func (docEx *DocumentEx) ToCbor() ([]byte, error) {
 		Payload: payload,
 	}
 
-	return cbor.Marshal(env)
+	return env.encode()
 }
 
 // UnmarshalVerifiableDoc decodes the output of DocumentEx.ToCbor, re-parsing each file of
@@ -59,8 +60,8 @@ func (docEx *DocumentEx) ToCbor() ([]byte, error) {
 // it does not authenticate the data.
 func UnmarshalVerifiableDoc(data []byte) (*Document, *ChipAuthEvidenceBundle, error) {
 	var env cborEnvelope
-	if err := cbor.Unmarshal(data, &env); err != nil {
-		return nil, nil, fmt.Errorf("[UnmarshalVerifiableDoc] cbor.Unmarshal(envelope) error: %w", err)
+	if err := env.decode(data); err != nil {
+		return nil, nil, fmt.Errorf("[UnmarshalVerifiableDoc] decode envelope: %w", err)
 	}
 
 	if env.Magic != documentExMagic {

@@ -3,6 +3,7 @@ package document
 import (
 	"bytes"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 
 	cbor "github.com/fxamacker/cbor/v2"
@@ -29,6 +30,14 @@ type rawDoc struct {
 const envelopeMagic = "gmrtd-raw-doc"
 const envelopeVersion uint = 1
 
+// MaxCBORSize is the maximum encoded size in bytes of a document or evidence envelope,
+// enforced both when exporting (ToCbor) and importing. It leaves room for all supported
+// chip files and evidence.
+const MaxCBORSize = 8 << 20
+
+// ErrCBORTooLarge indicates that encoded CBOR data exceeds MaxCBORSize.
+var ErrCBORTooLarge = errors.New("CBOR data exceeds the 8 MiB limit (MaxCBORSize)")
+
 // cborEnvelope is the outer CBOR wrapper that frames a serialised rawDoc.
 // The SHA-256 checksum covers the payload bytes exactly, enabling corruption
 // detection before the inner document is parsed.
@@ -39,9 +48,26 @@ type cborEnvelope struct {
 	Payload []byte `cbor:"payload"`
 }
 
+// encode marshals the envelope, enforcing MaxCBORSize so that every export can be imported.
+func (env *cborEnvelope) encode() ([]byte, error) {
+	data, err := cbor.Marshal(env)
+	if err == nil && len(data) > MaxCBORSize {
+		return nil, ErrCBORTooLarge
+	}
+	return data, err
+}
+
+func (env *cborEnvelope) decode(data []byte) error {
+	if len(data) > MaxCBORSize {
+		return ErrCBORTooLarge
+	}
+	return cbor.Unmarshal(data, env)
+}
+
 // ToCbor returns a CBOR-encoded binary snapshot of the document containing
 // only the RawData bytes for each present file, wrapped in a versioned
-// envelope with a SHA-256 integrity checksum.
+// envelope with a SHA-256 integrity checksum. It returns ErrCBORTooLarge if the result would
+// exceed MaxCBORSize.
 func (doc *Document) ToCbor() ([]byte, error) {
 	mf := doc.Mf
 	raw := rawDoc{}
@@ -102,15 +128,15 @@ func (doc *Document) ToCbor() ([]byte, error) {
 		Payload: payload,
 	}
 
-	return cbor.Marshal(env)
+	return env.encode()
 }
 
 // NewDocumentFromCbor decodes a CBOR blob produced by ToCbor and reconstructs a
 // Document by passing each raw byte slice through its normal constructor.
 func NewDocumentFromCbor(data []byte) (*Document, error) {
 	var env cborEnvelope
-	if err := cbor.Unmarshal(data, &env); err != nil {
-		return nil, fmt.Errorf("[NewDocumentFromCbor] cbor.Unmarshal(envelope) error: %w", err)
+	if err := env.decode(data); err != nil {
+		return nil, fmt.Errorf("[NewDocumentFromCbor] decode envelope: %w", err)
 	}
 
 	if env.Magic != envelopeMagic {
