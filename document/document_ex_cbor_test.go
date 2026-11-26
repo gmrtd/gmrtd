@@ -26,6 +26,18 @@ func TestCBORImportSizeLimit(t *testing.T) {
 	}
 }
 
+func TestCBORExportSizeLimit(t *testing.T) {
+	// Raw file bytes are copied into the envelope as-is, so an oversized DG2 makes the
+	// export exceed the limit.
+	docEx := DocumentEx{Document: Document{Mf: MasterFile{Lds1: LDS1{Dg2: &DG2{RawData: make([]byte, MaxCBORSize)}}}}}
+	if _, err := docEx.Document.ToCbor(); !errors.Is(err, ErrCBORTooLarge) {
+		t.Errorf("Document.ToCbor: got %v, want ErrCBORTooLarge", err)
+	}
+	if _, err := docEx.ToCbor(); !errors.Is(err, ErrCBORTooLarge) {
+		t.Errorf("DocumentEx.ToCbor: got %v, want ErrCBORTooLarge", err)
+	}
+}
+
 func TestDocumentExToCbor(t *testing.T) {
 	var docEx DocumentEx
 	var err error

@@ -56,7 +56,8 @@ type ChipAuthEvidenceBundle struct {
 
 // ChipAuthEvidenceToCbor serialises the session's PACE-CAM, Chip Authentication and
 // Active Authentication evidence to CBOR, in a versioned envelope with a SHA-256
-// checksum. Results without evidence are omitted, and success flags are not included.
+// checksum. Results without evidence are omitted, and success flags are not included. It
+// returns ErrCBORTooLarge if the result would exceed MaxCBORSize.
 func (session *Session) ChipAuthEvidenceToCbor() ([]byte, error) {
 	var bundle cborChipAuthBundle
 
@@ -108,7 +109,7 @@ func (session *Session) ChipAuthEvidenceToCbor() ([]byte, error) {
 		Payload: payload,
 	}
 
-	return cbor.Marshal(env)
+	return env.encode()
 }
 
 // NewChipAuthEvidenceFromCbor decodes the output of Session.ChipAuthEvidenceToCbor. It
