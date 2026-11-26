@@ -867,6 +867,34 @@ func TestReadDocumentCanWithoutPaceFailsClosed(t *testing.T) {
 	}
 }
 
+func TestPerformChipAuthenticationUsesAAChallenge(t *testing.T) {
+	// Recorded RSA AA response for the DG15 in SampleDocument.
+	challenge := utils.HexToBytes("96302b0f3d7e7864")
+	var chip iso7816.MockTransceiver
+	chip.AddReqRsp("008800000896302b0f3d7e786400", "474256306840c0ab1b63c10e1c26bdfef4a0dd843920283cc4e6e70a60f2bd25dc7725f9677bc1cde66379dc28b38e8490f33afb2d10f9980c44c0bfc175d2b6684218f535c92fdd3e18db770a9ccbf91db3c7f0138e6d9e94b9bc8371761e3abed5e5e9b260279cfb238b58ae0d6a01da51c74c2a3ecd62c448bd9f20127f7384587287fa971204234e55b1a856c3e5aaaa620bb799a68fbae08ee132bb61683eba9b0b40dc1e54641cad975b16991cab50af82e3f3985afd19e7427a125f5b4b9878b12a5d2e01c7eedca3bb41c6fc05dccd818bce379d04b1f2f5d43487d39000")
+	reader, err := NewReader(&MockStatus{}, iso7816.NewNfcSession(&chip), EmptyCscaTrustStore(t)).WithAAChallenge(challenge)
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := document.SampleDocument()
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := NewReaderState(nil, nil, password.NewPasswordNil())
+	state.docEx.Document.Mf.Lds1.Dg15 = doc.Mf.Lds1.Dg15
+	if err := performChipAuthentication(reader, state); err != nil {
+		t.Fatal(err)
+	}
+	session := state.docEx.Session
+	result := session.ActiveAuthResult
+	if session.ActiveAuthErr != nil || result == nil || !result.Success || result.Evidence == nil {
+		t.Fatalf("expected successful AA evidence, got result %v, error %v", result, session.ActiveAuthErr)
+	}
+	if !bytes.Equal(result.Evidence.Nonce, challenge) {
+		t.Errorf("evidence nonce = %x, want %x", result.Evidence.Nonce, challenge)
+	}
+}
+
 func TestPerformChipAuthenticationForEmptyDocument(t *testing.T) {
 	// note: nothing in the document suggests CA/AA are supported, so they will be silently skipped
 
