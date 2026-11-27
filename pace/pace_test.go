@@ -1263,11 +1263,28 @@ func TestVerifyEvidenceEmptyField(t *testing.T) {
 func TestVerifyEvidenceOversizedField(t *testing.T) {
 	doc, evidence := setupDeCamEvidence(t)
 
-	tampered := *evidence
-	tampered.EcadIC = make([]byte, 1025)
-	_, err := VerifyEvidence(doc, &tampered)
-	if err == nil {
-		t.Fatalf("Expected error for oversized field")
+	oversized := make([]byte, maxEvidenceFieldLen+1)
+	for _, tc := range []struct {
+		name         string
+		setOversized func(*document.PaceCamEvidence)
+	}{
+		{"Nonce", func(e *document.PaceCamEvidence) { e.Nonce = oversized }},
+		{"TermMapPri", func(e *document.PaceCamEvidence) { e.TermMapPri = oversized }},
+		{"TermMapPub", func(e *document.PaceCamEvidence) { e.TermMapPub = oversized }},
+		{"ChipMapPub", func(e *document.PaceCamEvidence) { e.ChipMapPub = oversized }},
+		{"TermKaPri", func(e *document.PaceCamEvidence) { e.TermKaPri = oversized }},
+		{"TermKaPub", func(e *document.PaceCamEvidence) { e.TermKaPub = oversized }},
+		{"ChipKaPub", func(e *document.PaceCamEvidence) { e.ChipKaPub = oversized }},
+		{"EcadIC", func(e *document.PaceCamEvidence) { e.EcadIC = oversized }},
+	} {
+		t.Run("oversized "+tc.name, func(t *testing.T) {
+			input := *evidence
+			tc.setOversized(&input)
+			result, err := VerifyEvidence(doc, &input)
+			if result != nil || err == nil || !strings.Contains(err.Error(), "evidence field exceeds maximum length") {
+				t.Fatalf("expected field size error and nil result, got result %v, err %v", result, err)
+			}
+		})
 	}
 }
 

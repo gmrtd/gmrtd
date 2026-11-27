@@ -1,6 +1,7 @@
 package verifier
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"os"
 	"strings"
@@ -98,10 +99,12 @@ func TestWithAAChallenge(t *testing.T) {
 func TestVerifyAANonceMatch(t *testing.T) {
 	data := buildVerifiableDocWithAA(t, testAANonce, testAASig)
 
-	v, err := emptyVerifier().WithAAChallenge(testAANonce)
+	challenge := bytes.Clone(testAANonce)
+	v, err := emptyVerifier().WithAAChallenge(challenge)
 	if err != nil {
 		t.Fatalf("WithAAChallenge error: %s", err)
 	}
+	clear(challenge) // The caller can reuse its buffer after setting the challenge.
 
 	docEx, err := v.Verify(data)
 	if err != nil {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -214,6 +215,44 @@ func TestReadDocumentStopsOnDG1Failure(t *testing.T) {
 				t.Errorf("read groups %v, want only DG1", groups)
 			}
 		})
+	}
+}
+
+func TestReadDocumentRetainsDG1AfterDG2Fails(t *testing.T) {
+	sample, err := document.SampleDocument()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pass, err := password.NewPasswordMrzi("123456", "100101", "301225")
+	if err != nil {
+		t.Fatal(err)
+	}
+	files := &testchip.Files{ByID: map[uint16][]byte{
+		MRTDFileIdEFSOD: sample.Mf.Lds1.Sod.RawData,
+		MRTDFileIdDG1:   sample.Mf.Lds1.Dg1.RawData,
+		MRTDFileIdDG2:   utils.HexToBytes("75025C00"), // No biometric information group.
+	}}
+	var status MockStatus
+	r := NewReader(&status, iso7816.NewNfcSession(testchip.NewBAC(t, pass, files)), EmptyCscaTrustStore(t))
+	doc, log, err := r.ReadDocument(pass, nil, nil)
+	if err == nil || !strings.Contains(err.Error(), "Parse DG(fileId:2)") || !strings.Contains(err.Error(), "missing tag (7F61)") {
+		t.Fatalf("expected DG2 parse error, got %v", err)
+	}
+	if doc == nil || !reflect.DeepEqual(doc.Document.Mf.Lds1.Dg1, sample.Mf.Lds1.Dg1) || doc.Document.Mf.Lds1.Dg2 != nil {
+		t.Fatal("expected the partial document to retain the parsed DG1 and omit DG2")
+	}
+	if log == nil || len(log.Entries) == 0 {
+		t.Fatal("expected the APDU log for the partial read")
+	}
+	last := log.Entries[len(log.Entries)-1]
+	if !bytes.Equal(last.Rx, utils.HexToBytes("75025C009000")) || last.Child == nil {
+		t.Fatalf("expected the final protected read to return the DG2 bytes, got %x", last.Rx)
+	}
+	events := status.Recorded()
+	want := []Status{{Phase: STATUS_PHASE_READING_DATA_GROUP, DataGroup: 1}, {Phase: STATUS_PHASE_READING_DATA_GROUP, DataGroup: 2}}
+	first := slices.Index(events, want[0])
+	if first < 0 || !slices.Equal(events[first:], want) {
+		t.Errorf("expected the read to stop at DG2 after DG1, got %v", events)
 	}
 }
 
@@ -976,10 +1015,12 @@ func TestPerformChipAuthenticationUsesAAChallenge(t *testing.T) {
 			var chip iso7816.MockTransceiver
 			chip.AddReqRsp(command, tc.response)
 			nfc := iso7816.NewNfcSession(&chip)
-			reader, err := NewReader(&MockStatus{}, nfc, EmptyCscaTrustStore(t)).WithAAChallenge(challenge)
+			callerBuffer := bytes.Clone(challenge)
+			reader, err := NewReader(&MockStatus{}, nfc, EmptyCscaTrustStore(t)).WithAAChallenge(callerBuffer)
 			if err != nil {
 				t.Fatal(err)
 			}
+			clear(callerBuffer) // The APDU must retain the challenge configured above.
 			state := NewReaderState(nil, nil, password.NewPasswordNil())
 			state.docEx.Document.Mf.Lds1.Dg15 = doc.Mf.Lds1.Dg15
 			session := &state.docEx.Session

@@ -1024,17 +1024,23 @@ func TestVerifyEvidence(t *testing.T) {
 		}
 	})
 
-	t.Run("oversized field", func(t *testing.T) {
-		e := &document.ActiveAuthEvidence{
-			Algorithm: validEvidence.Algorithm,
-			Nonce:     validEvidence.Nonce,
-			Signature: make([]byte, maxEvidenceFieldLen+1),
-		}
-		_, err := VerifyEvidence(doc, e)
-		if err == nil {
-			t.Error("expected error for oversized Signature")
-		}
-	})
+	oversized := make([]byte, maxEvidenceFieldLen+1)
+	for _, tc := range []struct {
+		name         string
+		setOversized func(*document.ActiveAuthEvidence)
+	}{
+		{"Nonce", func(e *document.ActiveAuthEvidence) { e.Nonce = oversized }},
+		{"Signature", func(e *document.ActiveAuthEvidence) { e.Signature = oversized }},
+	} {
+		t.Run("oversized "+tc.name, func(t *testing.T) {
+			input := *validEvidence
+			tc.setOversized(&input)
+			result, err := VerifyEvidence(doc, &input)
+			if result != nil || err == nil || !strings.Contains(err.Error(), "evidence field exceeds maximum length") {
+				t.Fatalf("expected field size error and nil result, got result %v, err %v", result, err)
+			}
+		})
+	}
 
 	t.Run("nil DG15", func(t *testing.T) {
 		emptyDoc := &document.Document{}

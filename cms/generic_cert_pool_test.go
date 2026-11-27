@@ -158,6 +158,10 @@ func TestGenericCertPoolSkipsDamagedCandidates(t *testing.T) {
 	}
 	badIssuer := good
 	badIssuer.TbsCertificate.Issuer = asn1.RawValue{FullBytes: []byte{0x30}}
+	noSKI := good
+	noSKI.TbsCertificate.Extensions = slices.DeleteFunc(slices.Clone(good.TbsCertificate.Extensions), func(ext Extension) bool {
+		return ext.ObjectId.Equal(oid.OidSubjectKeyIdentifier)
+	})
 	bySKI := func(p *GenericCertPool) ([]Certificate, error) { return p.BySKI(*ski), nil }
 	byCountry := func(p *GenericCertPool) ([]Certificate, error) { return p.ByIssuerCountry("DE"), nil }
 	byIssuerSerial := func(p *GenericCertPool) ([]Certificate, error) { return p.ByIssuerAndSerial(sid) }
@@ -167,6 +171,7 @@ func TestGenericCertPoolSkipsDamagedCandidates(t *testing.T) {
 		lookup  func(*GenericCertPool) ([]Certificate, error)
 	}{
 		{"SKI lookup with unreadable SKI", badSKI, bySKI},
+		{"SKI lookup with absent SKI", noSKI, bySKI},
 		{"country lookup with unreadable SKI", badSKI, byCountry},
 		{"country lookup with unreadable issuer", badIssuer, byCountry},
 		{"issuer and serial lookup with unreadable issuer", badIssuer, byIssuerSerial},

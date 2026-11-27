@@ -478,6 +478,48 @@ func TestByIssuerAndSerialMalformedInput(t *testing.T) {
 	}
 }
 
+func TestByIssuerAndSerialChecksAttributeType(t *testing.T) {
+	var pool GenericCertPool
+	if err := pool.Add(de_masterListRootCA); err != nil {
+		t.Fatal(err)
+	}
+	cert := pool.All()[0]
+	for _, tc := range []struct {
+		name       string
+		class, tag int
+		wantCount  int
+	}{
+		{"UTF8String", asn1.ClassUniversal, asn1.TagUTF8String, 1},
+		{"context-specific tag with UTF8String number", asn1.ClassContextSpecific, asn1.TagUTF8String, 0},
+		{"OCTET STRING", asn1.ClassUniversal, asn1.TagOctetString, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			issuer, err := cert.TbsCertificate.IssuerRDN()
+			if err != nil {
+				t.Fatal(err)
+			}
+			attr := &(*issuer)[0][0]
+			if !attr.Type.Equal(oid.OidCountryName) || string(attr.Values.Bytes) != "DE" {
+				t.Fatal("expected the German root's first issuer attribute to be its country")
+			}
+			// Clear the cached DER so Marshal uses the replacement class and tag.
+			attr.Raw = nil
+			attr.Values = asn1.RawValue{Class: tc.class, Tag: tc.tag, Bytes: attr.Values.Bytes}
+			sid, err := asn1.Marshal(struct {
+				Issuer RDNSequence
+				Serial *big.Int
+			}{*issuer, cert.TbsCertificate.SerialNumber})
+			if err != nil {
+				t.Fatal(err)
+			}
+			matches, err := pool.ByIssuerAndSerial(sid)
+			if err != nil || len(matches) != tc.wantCount {
+				t.Errorf("ByIssuerAndSerial returned %d certificates, err %v, want %d", len(matches), err, tc.wantCount)
+			}
+		})
+	}
+}
+
 func TestByIssuerAndSerialNoMatch(t *testing.T) {
 	t.Parallel()
 
