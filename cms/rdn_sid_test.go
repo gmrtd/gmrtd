@@ -3,6 +3,7 @@ package cms
 import (
 	"encoding/asn1"
 	"math/big"
+	"strings"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/oid"
@@ -592,4 +593,29 @@ func containsImpl(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+func TestSignedDataRejectsUnreadableSIDIssuer(t *testing.T) {
+	sd, err := ParseSignedData(utils.HexToBytes(atSODHex))
+	if err != nil {
+		t.Fatal(err)
+	}
+	certs, err := ParseCertificates(sd.Certificates.Bytes)
+	if err != nil || len(certs) != 1 || len(sd.SignerInfos) != 1 {
+		t.Fatalf("expected one embedded certificate and signer: %v", err)
+	}
+	sid, err := asn1.Marshal(struct {
+		Issuer asn1.RawValue
+		Serial *big.Int
+	}{asn1.RawValue{Tag: asn1.TagNull}, certs[0].TbsCertificate.SerialNumber})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := asn1.Unmarshal(sid, &sd.SignerInfos[0].Sid); err != nil {
+		t.Fatal(err)
+	}
+	chain, err := sd.Verify(&GenericCertPool{})
+	if chain != nil || err == nil || !strings.Contains(err.Error(), "parse SID issuer RDN") {
+		t.Fatalf("expected issuer-name error and no chain, got %d certificates, err=%v", len(chain), err)
+	}
 }

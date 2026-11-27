@@ -1155,3 +1155,31 @@ func TestReadFileDiscardsDataAfterLaterChunkFails(t *testing.T) {
 		t.Errorf("commands = %v, want %v", commands, want)
 	}
 }
+
+func TestSecureMessagingRetriesAfterUnprotectedStatus(t *testing.T) {
+	// ICAO 9303 Part 11 D.4 SELECT EF.COM, after a status-only rejection of the first command.
+	var retry MockTransceiver
+	retry.AddReqRsp("0CA4020C158709016375432908C044F68E08BF8B92D635FF24F800", "990290008E08FA855A5D4C50A8ED9000")
+	nfc := NewNfcSession(&SequenceTransceiver{RApdus: [][]byte{utils.HexToBytes("6985")}, Fallback: &retry})
+	sm, err := NewSecureMessaging(cryptoutils.TDES, utils.HexToBytes("979EC13B1CBFE9DCD01AB0FED307EAE5"), utils.HexToBytes("F1CB1F1FB5ADF208806B89DC579DC1F8"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := utils.HexToBytes("887022120C06C226")
+	if err := sm.SetSSC(start); err != nil {
+		t.Fatal(err)
+	}
+	nfc.SetSecureMessaging(sm)
+	if selected, err := nfc.SelectEF(0x011E); selected || err == nil || !strings.Contains(err.Error(), "missing data") {
+		t.Fatalf("expected rejection of the unprotected response, got selected=%t, err=%v", selected, err)
+	}
+	if !bytes.Equal(sm.SSC(), start) {
+		t.Fatalf("SSC after rejection = %x, want %x", sm.SSC(), start)
+	}
+	if selected, err := nfc.SelectEF(0x011E); !selected || err != nil {
+		t.Fatalf("protected retry failed: selected=%t, err=%v", selected, err)
+	}
+	if want := utils.HexToBytes("887022120C06C228"); !bytes.Equal(sm.SSC(), want) {
+		t.Fatalf("SSC after retry = %x, want %x", sm.SSC(), want)
+	}
+}
