@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.1](https://github.com/gmrtd/gmrtd/compare/v1.11.0...v1.11.1) (2026-11-27)
+
+
+### Bug Fixes
+
+* verify each CMS signer at its own signing time ([#621](https://github.com/gmrtd/gmrtd/issues/621)) ([293e511](https://github.com/gmrtd/gmrtd/commit/293e511c534433f1c74bc64f2e8c951f2de09f5f))
+
 ## [1.11.0](https://github.com/gmrtd/gmrtd/compare/v1.10.3...v1.11.0) (2026-11-26)
 
 
