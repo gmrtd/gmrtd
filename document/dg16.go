@@ -8,7 +8,6 @@ import (
 
 	"github.com/gmrtd/gmrtd/mrz"
 	"github.com/gmrtd/gmrtd/tlv"
-	"github.com/gmrtd/gmrtd/utils"
 )
 
 // DG16Tag is the tag of the DG16 root data object.
@@ -68,7 +67,12 @@ func NewDG16(data []byte) (*DG16, error) {
 func parseData(node tlv.TlvNode) ([]PersonToNotify, error) {
 	var out []PersonToNotify = []PersonToNotify{}
 
-	numTemplates := utils.BytesToInt(node.NodeByTag(0x2).Value())
+	// One byte, as for the DG11/DG12 counts: a longer value could wrap into range.
+	countBytes := node.NodeByTag(0x2).Value()
+	if len(countBytes) != 1 {
+		return nil, fmt.Errorf("[parseData] numTemplates must be 1 byte (act-len:%d)", len(countBytes))
+	}
+	numTemplates := int(countBytes[0])
 	if (numTemplates < 1) || (numTemplates > 15) {
 		// NB numTemplates must be between 1 and 15 as we construct the tag using 4-bits(0-15).. e.g. 0xA{Occur} (where 'Occur' is 1..15)
 		return nil, fmt.Errorf("[parseData] numTemplates (%1d) must be between 1 and 15(xF)", numTemplates)
