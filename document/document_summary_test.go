@@ -409,3 +409,22 @@ func TestSummaryIdentityAttributesStillPopulatedWhenNotTrusted(t *testing.T) {
 		t.Errorf("IdentityAttributes.DocumentNumber = %q", summary.IdentityAttributes.DocumentNumber)
 	}
 }
+
+func TestCalculateAgeAtBirthday(t *testing.T) {
+	birth := time.Date(2000, time.June, 15, 0, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		month     time.Month
+		day, want int
+	}{
+		{time.May, 31, 17},
+		{time.June, 14, 17},
+		{time.June, 15, 18},
+		{time.June, 16, 18},
+		{time.July, 1, 18},
+	} {
+		now := time.Date(2018, tc.month, tc.day, 0, 0, 0, 0, time.UTC)
+		if got := calculateAge(birth, now); got != tc.want {
+			t.Errorf("age on %s = %d, want %d", now.Format(time.DateOnly), got, tc.want)
+		}
+	}
+}

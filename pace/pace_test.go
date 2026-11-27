@@ -1087,6 +1087,42 @@ func TestDoPaceCamMissingEncryptedChipData(t *testing.T) {
 	}
 }
 
+func TestDoPaceCamRejectsInvalidChipData(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		tokenResponse  string
+		badStaticPoint bool
+		wantErr        string
+	}{
+		{"invalid static public point", deCamRecording[4][1], true, "unable to decode X9.62 EC point"},
+		// Keep the recorded authentication token and shorten tag 8A to one ciphertext byte.
+		{"incomplete ciphertext block", "7c0d860819a2b9192e11512a8a01019000", false, "[decryptEcadIC] CryptCBC error"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			recorded, _ := setupDeCamEvidence(t)
+			if tc.badStaticPoint {
+				keys := deCaPubKeyInfos(t, recorded)[:1]
+				keys[0].ChipAuthenticationPublicKey.SubjectPublicKey = asn1.BitString{Bytes: []byte{0x04}, BitLength: 8}
+				recorded.Mf.CardSecurity.SecurityInfos.ChipAuthPubKeyInfos = keys
+			}
+			var chip iso7816.MockTransceiver
+			for _, exchange := range deCamRecording[:4] {
+				chip.AddReqRsp(exchange[0], exchange[1])
+			}
+			chip.AddReqRsp(deCamRecording[4][0], tc.tokenResponse)
+			p, doc := newDeCamPace(t, &chip, recorded.Mf.CardAccess)
+			doc.Mf.CardSecurity = recorded.Mf.CardSecurity
+			result, cam, err := p.DoPACE()
+			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("DoPACE error = %v, want %q", err, tc.wantErr)
+			}
+			if result == nil || result.Success || cam != nil {
+				t.Fatalf("expected unsuccessful PACE without CAM evidence, got result %v, CAM %v", result, cam)
+			}
+		})
+	}
+}
+
 func TestDoPaceCamRejectsMappingKeyMismatch(t *testing.T) {
 	recorded, _ := setupDeCamEvidence(t)
 	keys := deCaPubKeyInfos(t, recorded)

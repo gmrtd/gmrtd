@@ -951,30 +951,64 @@ func TestReadDocumentCanWithoutPaceFailsClosed(t *testing.T) {
 }
 
 func TestPerformChipAuthenticationUsesAAChallenge(t *testing.T) {
-	// Recorded RSA AA response for the DG15 in SampleDocument.
+	// Recorded RSA AA exchange for the DG15 in SampleDocument.
+	const command = "008800000896302b0f3d7e786400"
+	const signedResponse = "474256306840c0ab1b63c10e1c26bdfef4a0dd843920283cc4e6e70a60f2bd25dc7725f9677bc1cde66379dc28b38e8490f33afb2d10f9980c44c0bfc175d2b6684218f535c92fdd3e18db770a9ccbf91db3c7f0138e6d9e94b9bc8371761e3abed5e5e9b260279cfb238b58ae0d6a01da51c74c2a3ecd62c448bd9f20127f7384587287fa971204234e55b1a856c3e5aaaa620bb799a68fbae08ee132bb61683eba9b0b40dc1e54641cad975b16991cab50af82e3f3985afd19e7427a125f5b4b9878b12a5d2e01c7eedca3bb41c6fc05dccd818bce379d04b1f2f5d43487d39000"
 	challenge := utils.HexToBytes("96302b0f3d7e7864")
-	var chip iso7816.MockTransceiver
-	chip.AddReqRsp("008800000896302b0f3d7e786400", "474256306840c0ab1b63c10e1c26bdfef4a0dd843920283cc4e6e70a60f2bd25dc7725f9677bc1cde66379dc28b38e8490f33afb2d10f9980c44c0bfc175d2b6684218f535c92fdd3e18db770a9ccbf91db3c7f0138e6d9e94b9bc8371761e3abed5e5e9b260279cfb238b58ae0d6a01da51c74c2a3ecd62c448bd9f20127f7384587287fa971204234e55b1a856c3e5aaaa620bb799a68fbae08ee132bb61683eba9b0b40dc1e54641cad975b16991cab50af82e3f3985afd19e7427a125f5b4b9878b12a5d2e01c7eedca3bb41c6fc05dccd818bce379d04b1f2f5d43487d39000")
-	reader, err := NewReader(&MockStatus{}, iso7816.NewNfcSession(&chip), EmptyCscaTrustStore(t)).WithAAChallenge(challenge)
-	if err != nil {
-		t.Fatal(err)
-	}
 	doc, err := document.SampleDocument()
 	if err != nil {
 		t.Fatal(err)
 	}
-	state := NewReaderState(nil, nil, password.NewPasswordNil())
-	state.docEx.Document.Mf.Lds1.Dg15 = doc.Mf.Lds1.Dg15
-	if err := performChipAuthentication(reader, state); err != nil {
-		t.Fatal(err)
+	if doc.Mf.Lds1.Dg14 == nil || doc.Mf.Lds1.Dg15 == nil {
+		t.Fatal("sample must support both CA and AA")
 	}
-	session := state.docEx.Session
-	result := session.ActiveAuthResult
-	if session.ActiveAuthErr != nil || result == nil || !result.Success || result.Evidence == nil {
-		t.Fatalf("expected successful AA evidence, got result %v, error %v", result, session.ActiveAuthErr)
-	}
-	if !bytes.Equal(result.Evidence.Nonce, challenge) {
-		t.Errorf("evidence nonce = %x, want %x", result.Evidence.Nonce, challenge)
+	for _, tc := range []struct {
+		name             string
+		paceCamCompleted bool
+		response         string
+		wantSuccess      bool
+	}{
+		{"AA only", false, signedResponse, true},
+		{"AA after PACE-CAM", true, signedResponse, true},
+		{"chip rejects AA after PACE-CAM", true, "6985", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var chip iso7816.MockTransceiver
+			chip.AddReqRsp(command, tc.response)
+			nfc := iso7816.NewNfcSession(&chip)
+			reader, err := NewReader(&MockStatus{}, nfc, EmptyCscaTrustStore(t)).WithAAChallenge(challenge)
+			if err != nil {
+				t.Fatal(err)
+			}
+			state := NewReaderState(nil, nil, password.NewPasswordNil())
+			state.docEx.Document.Mf.Lds1.Dg15 = doc.Mf.Lds1.Dg15
+			session := &state.docEx.Session
+			if tc.paceCamCompleted {
+				session.PaceCamResult = &document.PaceCamResult{Success: true}
+				state.docEx.Document.Mf.Lds1.Dg14 = doc.Mf.Lds1.Dg14
+			}
+			if err := performChipAuthentication(reader, state); err != nil {
+				t.Fatal(err)
+			}
+			entries := nfc.ApduLog().Entries
+			if len(entries) != 1 || !bytes.Equal(entries[0].Tx, utils.HexToBytes(command)) {
+				t.Fatalf("expected only INTERNAL AUTHENTICATE with the caller's challenge, got %v", entries)
+			}
+			if session.ChipAuthResult != nil || session.ChipAuthErr != nil {
+				t.Fatalf("unexpected CA result %v, error %v", session.ChipAuthResult, session.ChipAuthErr)
+			}
+			result := session.ActiveAuthResult
+			if result == nil || result.Success != tc.wantSuccess {
+				t.Fatalf("AA result = %v, want success %t (error %v)", result, tc.wantSuccess, session.ActiveAuthErr)
+			}
+			if tc.wantSuccess {
+				if session.ActiveAuthErr != nil || result.Evidence == nil || !bytes.Equal(result.Evidence.Nonce, challenge) {
+					t.Fatalf("expected AA evidence for challenge %x, got %v, error %v", challenge, result.Evidence, session.ActiveAuthErr)
+				}
+			} else if session.ActiveAuthErr == nil || !strings.Contains(session.ActiveAuthErr.Error(), tc.response) || result.Evidence != nil {
+				t.Fatalf("expected chip rejection without AA evidence, got %v, error %v", result.Evidence, session.ActiveAuthErr)
+			}
+		})
 	}
 }
 
