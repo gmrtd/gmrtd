@@ -274,3 +274,26 @@ func TestNewDG2RejectsInvalidSecondISO19794Template(t *testing.T) {
 		t.Fatalf("expected nil DG2 and truncated face record error, got DG2 present=%t, err=%v", dg2 != nil, err)
 	}
 }
+
+func TestNewDG2RejectsIncompleteSecondTemplate(t *testing.T) {
+	first := tlv.MustDecode(sampleDg2Bytes).NodeByTag(DG2Tag).NodeByTag(0x7F61).NodeByTag(0x7F60)
+	for _, tc := range []struct {
+		name      string
+		remaining tlv.TlvTag
+		wantErr   string
+	}{
+		{"missing biometric header", 0x5F2E, "Incorrect BHT tag"},
+		{"missing biometric data block", 0xA1, "DG2 must have tag 5F2E or 7F2E"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			second := tlv.NewTlvConstructedNode(0x7F60).AddChild(first.NodeByTag(tc.remaining))
+			group := tlv.NewTlvConstructedNode(0x7F61).
+				AddChild(tlv.NewTlvSimpleNode(0x02, []byte{2})).
+				AddChild(first).AddChild(second)
+			dg, err := NewDG2(tlv.NewTlvConstructedNode(DG2Tag).AddChild(group).Encode())
+			if dg != nil || err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("expected nil DG2 and %q, got DG2 present=%t, err=%v", tc.wantErr, dg != nil, err)
+			}
+		})
+	}
+}

@@ -625,3 +625,28 @@ func assertGbrTrustChain(t *testing.T, pa *document.PassiveAuthSummary) {
 		t.Errorf("expected document signer (valid to 2022-12-01) to be reported expired")
 	}
 }
+
+func TestTrustedSourceEnforcesAAChallenge(t *testing.T) {
+	challenge := utils.HexToBytes("0102030405060708")
+	for _, tc := range []struct {
+		name          string
+		evidenceNonce []byte
+		wantErr       string
+	}{
+		{"nonce mismatch", testAANonce, "AA nonce mismatch"},
+		{"invalid signature for matching nonce", challenge, "AA challenge verification failed"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// The recorded signature authenticates only testAANonce.
+			data := buildVerifiableDocWithAA(t, tc.evidenceNonce, testAASig)
+			v, err := emptyVerifier().WithTrustedSource().WithAAChallenge(challenge)
+			if err != nil {
+				t.Fatal(err)
+			}
+			doc, err := v.Verify(data)
+			if doc != nil || err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("expected no document and %q, got document present=%t, err=%v", tc.wantErr, doc != nil, err)
+			}
+		})
+	}
+}
