@@ -1549,3 +1549,59 @@ func TestRequireAuthenticDocumentRealVerification(t *testing.T) {
 		})
 	}
 }
+
+func TestReadDocumentBACFallbackAfterPACERejection(t *testing.T) {
+	sample, err := document.SampleDocument()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pass, err := password.NewPasswordMrzi("123456", "100101", "301225")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name          string
+		allowFallback bool
+	}{
+		{"default stops at PACE", false},
+		{"opt in completes BAC", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Files advertises PACE but answers MSE:Set AT with 6D00. After BAC,
+			// the simulated chip requires secure messaging for all file reads.
+			files := &testchip.Files{ByID: map[uint16][]byte{
+				MRTDFileIdCardAccess: utils.HexToBytes("31143012060A04007F0007020204020402010202010D"),
+				MRTDFileIdEFSOD:      sample.Mf.Lds1.Sod.RawData,
+				MRTDFileIdDG1:        sample.Mf.Lds1.Dg1.RawData,
+			}}
+			nfc := iso7816.NewNfcSession(testchip.NewBAC(t, pass, files))
+			r := NewReader(&MockStatus{}, nfc, EmptyCscaTrustStore(t))
+			if tc.allowFallback {
+				r.AllowBacFallbackOnPaceError()
+			}
+			doc, _, err := r.ReadDocument(pass, nil, nil)
+			if doc == nil {
+				t.Fatalf("expected a read result, got %v", err)
+			}
+			session := doc.Session
+			if session.PaceResult == nil || session.PaceResult.Success || session.PaceErr == nil || !strings.Contains(session.PaceErr.Error(), "Status:6d00") {
+				t.Fatalf("expected recorded PACE rejection, got %v", session.PaceErr)
+			}
+			if !tc.allowFallback {
+				if !errors.Is(err, session.PaceErr) || session.BacResult != nil || nfc.SM() != nil || doc.Document.Mf.Lds1.Dg1 != nil {
+					t.Fatalf("expected read to stop at PACE, got %v", err)
+				}
+				if last := nfc.LastApdu(); last == nil || !bytes.HasPrefix(last.Tx, utils.HexToBytes("0022C1A4")) {
+					t.Fatal("expected MSE:Set AT to be the last command")
+				}
+				return
+			}
+			if err != nil || session.BacErr != nil || session.BacResult == nil || !session.BacResult.Success || nfc.SM() == nil {
+				t.Fatalf("expected successful BAC fallback, read error=%v, BAC error=%v", err, session.BacErr)
+			}
+			if dg1 := doc.Document.Mf.Lds1.Dg1; dg1 == nil || !bytes.Equal(dg1.RawData, sample.Mf.Lds1.Dg1.RawData) {
+				t.Fatal("expected DG1 from the protected read")
+			}
+		})
+	}
+}

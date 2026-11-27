@@ -515,3 +515,54 @@ func TestAlpha2CountryCodeBlankDg1IssuingStateError(t *testing.T) {
 		t.Errorf("expected an unresolvable-country error, got: %s", err)
 	}
 }
+
+type recordingCountryPool struct {
+	cms.GenericCertPool
+	lookups []string
+}
+
+func (pool *recordingCountryPool) ByIssuerCountry(country string) []cms.Certificate {
+	pool.lookups = append(pool.lookups, country)
+	return pool.GenericCertPool.ByIssuerCountry(country)
+}
+
+func TestPassiveAuthStopsOnUnreadableSignerIssuer(t *testing.T) {
+	doc, err := document.SampleDocument()
+	if err != nil {
+		t.Fatal(err)
+	}
+	embedded := &doc.Mf.Lds1.Sod.SD.Certificates
+	certs, err := cms.ParseCertificates(embedded.Bytes)
+	if err != nil || len(certs) != 1 {
+		t.Fatalf("expected one sample signer, got %d: %v", len(certs), err)
+	}
+	cert := certs[0]
+	// Clear the cached DER so Marshal encodes the replacement issuer.
+	cert.Raw = nil
+	cert.TbsCertificate.Raw = nil
+	cert.TbsCertificate.Issuer = asn1.RawValue{Tag: asn1.TagNull}
+	badIssuer, err := asn1.Marshal(cert)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name         string
+		certificates []byte
+		want         string
+	}{
+		{"truncated embedded certificate", embedded.Bytes[:2], "[CertCountryAlpha2] certPool.Add error"},
+		{"unreadable issuer name", badIssuer, "[CertCountryAlpha2] IssuerRDN error"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			embedded.Bytes = tc.certificates
+			var trusted recordingCountryPool
+			result, err := PassiveAuth(doc, &trusted)
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("expected %q, got %v", tc.want, err)
+			}
+			if result == nil || result.Success || result.Sod != nil || len(trusted.lookups) != 0 {
+				t.Fatalf("expected rejection before SOD verification or trust lookup, country lookups=%v", trusted.lookups)
+			}
+		})
+	}
+}
