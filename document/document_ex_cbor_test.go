@@ -320,3 +320,34 @@ func TestDocumentExFromCborChecksumMismatch(t *testing.T) {
 		t.Error("expected checksum mismatch error for corrupted payload")
 	}
 }
+
+func TestDocumentExExportEvidenceSizeLimit(t *testing.T) {
+	for _, tc := range []struct {
+		name                       string
+		documentSize, evidenceSize int
+	}{
+		{"oversized evidence", 0, MaxCBORSize},
+		{"only combined envelope oversized", MaxCBORSize / 2, MaxCBORSize / 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var doc DocumentEx
+			doc.Document.Mf.Lds1.Dg2 = &DG2{RawData: make([]byte, tc.documentSize)}
+			doc.Session.ChipAuthResult = &ChipAuthResult{Evidence: &ChipAuthEvidence{SmRapdu: make([]byte, tc.evidenceSize)}}
+			if _, err := doc.Document.ToCbor(); err != nil {
+				t.Fatalf("document alone must fit: %v", err)
+			}
+			evidence, err := doc.Session.ChipAuthEvidenceToCbor()
+			if tc.evidenceSize == MaxCBORSize {
+				if evidence != nil || !errors.Is(err, ErrCBORTooLarge) {
+					t.Fatalf("oversized evidence: got %d bytes, err=%v", len(evidence), err)
+				}
+			} else if err != nil {
+				t.Fatalf("evidence alone must fit: %v", err)
+			}
+			data, err := doc.ToCbor()
+			if data != nil || !errors.Is(err, ErrCBORTooLarge) {
+				t.Fatalf("combined export: got %d bytes, err=%v, want no bytes and ErrCBORTooLarge", len(data), err)
+			}
+		})
+	}
+}

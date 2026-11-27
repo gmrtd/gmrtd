@@ -1,7 +1,13 @@
 package cms
 
 import (
+	"encoding/asn1"
+	"math/big"
+	"reflect"
+	"slices"
 	"testing"
+
+	"github.com/gmrtd/gmrtd/oid"
 
 	"github.com/gmrtd/gmrtd/utils"
 )
@@ -122,5 +128,64 @@ func TestGenericCertPoolBadCertBytes(t *testing.T) {
 	err := certPool.Add(badCertBytes)
 	if err == nil {
 		t.Fatalf("expected error")
+	}
+}
+
+func TestGenericCertPoolSkipsDamagedCandidates(t *testing.T) {
+	certs, err := ParseCertificates(de_masterListRootCA)
+	if err != nil || len(certs) != 1 {
+		t.Fatalf("expected one German root certificate, got %d: %v", len(certs), err)
+	}
+	good := certs[0]
+	ski, err := good.TbsCertificate.Extensions.SubjectKeyIdentifier()
+	if err != nil || ski == nil {
+		t.Fatalf("expected a subject key identifier: %v", err)
+	}
+	sid, err := asn1.Marshal(struct {
+		Issuer asn1.RawValue
+		Serial *big.Int
+	}{good.TbsCertificate.Issuer, good.TbsCertificate.SerialNumber})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	badSKI := good
+	badSKI.TbsCertificate.Extensions = slices.Clone(good.TbsCertificate.Extensions)
+	for i, ext := range badSKI.TbsCertificate.Extensions {
+		if ext.ObjectId.Equal(oid.OidSubjectKeyIdentifier) {
+			badSKI.TbsCertificate.Extensions[i].ExtnValue.Bytes = []byte{0x04}
+		}
+	}
+	badIssuer := good
+	badIssuer.TbsCertificate.Issuer = asn1.RawValue{FullBytes: []byte{0x30}}
+	bySKI := func(p *GenericCertPool) ([]Certificate, error) { return p.BySKI(*ski), nil }
+	byCountry := func(p *GenericCertPool) ([]Certificate, error) { return p.ByIssuerCountry("DE"), nil }
+	byIssuerSerial := func(p *GenericCertPool) ([]Certificate, error) { return p.ByIssuerAndSerial(sid) }
+	for _, tc := range []struct {
+		name    string
+		damaged Certificate
+		lookup  func(*GenericCertPool) ([]Certificate, error)
+	}{
+		{"SKI lookup with unreadable SKI", badSKI, bySKI},
+		{"country lookup with unreadable SKI", badSKI, byCountry},
+		{"country lookup with unreadable issuer", badIssuer, byCountry},
+		{"issuer and serial lookup with unreadable issuer", badIssuer, byIssuerSerial},
+	} {
+		for _, order := range []struct {
+			name  string
+			certs []Certificate
+		}{
+			{"damaged first", []Certificate{tc.damaged, good}},
+			{"damaged last", []Certificate{good, tc.damaged}},
+		} {
+			t.Run(tc.name+"/"+order.name, func(t *testing.T) {
+				var pool GenericCertPool
+				pool.AddCerts(order.certs)
+				got, err := tc.lookup(&pool)
+				if err != nil || !reflect.DeepEqual(got, []Certificate{good}) {
+					t.Errorf("got %d candidates, err=%v, want only the intact certificate", len(got), err)
+				}
+			})
+		}
 	}
 }

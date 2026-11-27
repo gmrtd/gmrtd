@@ -1036,6 +1036,7 @@ func TestDoPaceRejectsMalformedHandshakeResponse(t *testing.T) {
 		step            int
 		response, cause string
 	}{
+		{"invalid nonce ciphertext length", 1, "7C038001009000", "[getNonce] decryptNonce error"},
 		{"invalid key agreement point", 3, "7C038401049000", "unable to decode X9.62 EC point"},
 		{"missing chip token", 4, "7C009000", "missing tag 86 within 7C"},
 	} {
@@ -1056,6 +1057,9 @@ func TestDoPaceRejectsMalformedHandshakeResponse(t *testing.T) {
 			}
 			if result == nil || result.Success || cam != nil || p.nfcSession.SM() != nil {
 				t.Fatal("failed handshake produced success, CAM evidence, or secure messaging")
+			}
+			if got := len(p.nfcSession.ApduLog().Entries); got != tc.step+1 {
+				t.Fatalf("sent %d APDUs, want %d through the failed exchange", got, tc.step+1)
 			}
 		})
 	}
@@ -1943,5 +1947,27 @@ func TestDoPace_MseSetATRejected(t *testing.T) {
 	}
 	if n := len(nfc.ApduLog().Entries); n != 1 {
 		t.Errorf("expected 1 APDU (no restart), got %d", n)
+	}
+}
+
+func TestDoPaceCamInvalidCardSecurityFile(t *testing.T) {
+	access, err := document.NewCardAccess(deCamCardAccessBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var chip iso7816.MockTransceiver
+	for _, exchange := range deCamRecording[:6] {
+		chip.AddReqRsp(exchange[0], exchange[1])
+	}
+	// The protected READ BINARY returns 30020500, a complete four-byte file
+	// containing ASN.1 NULL where CMS expects a content type. DE session SSC = 4.
+	chip.AddReqRsp(deCamRecording[6][0], "871101383bf65f717a82a5c6b83237ccd4f700990290008e08f1230c008454fe8d9000")
+	p, doc := newDeCamPace(t, &chip, access)
+	result, cam, err := p.DoPACE()
+	if err == nil || !strings.Contains(err.Error(), "[loadCardSecurityFile] NewCardSecurity error") {
+		t.Fatalf("expected EF.CardSecurity parse error, got %v", err)
+	}
+	if result == nil || result.Success || cam != nil || doc.Mf.CardSecurity != nil {
+		t.Fatal("invalid EF.CardSecurity produced successful PACE, CAM evidence, or a parsed file")
 	}
 }
