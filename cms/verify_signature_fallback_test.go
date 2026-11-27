@@ -15,11 +15,10 @@ import (
 	"github.com/osanderson/brainpool"
 )
 
-// TestVerifySignatureCurveMismatchFallback tests the curve fallback mechanism
-// This test creates a scenario similar to the LTU passport bug:
-// 1. Create a public key that decodes properly with P-224
-// 2. Generate a signature where R exceeds BrainpoolP224r1 order but is valid for P-224
-// 3. Verify that the fallback mechanism is triggered (even if final verification fails)
+// The curve fallback exists for an LTU passport (#130, #220) whose signature values exceed
+// the order of its declared curve but are valid for another curve of the same size. This
+// uses that passport's R and S against an unrelated P-224 key: whichever curves are tried,
+// a signature the key did not make must still be rejected.
 func TestVerifySignatureCurveMismatchFallback(t *testing.T) {
 	// Generate a P-224 key pair
 	privateKey, err := ecdsa.GenerateKey(elliptic.P224(), rand.Reader)
@@ -53,13 +52,8 @@ func TestVerifySignatureCurveMismatchFallback(t *testing.T) {
 	// This will fail because the signature doesn't match, but it should try P-224 directly
 	err = VerifySignature(keyDerCorrect, oid.OidHashAlgorithmSHA256, hash[:], oid.OidEcdsaWithSHA256, sigASN1)
 	if err == nil {
-		t.Log("Signature verified (unexpected - wrong signature for this key)")
+		t.Fatal("accepted a signature made with a different key")
 	}
-
-	t.Log("Test completed - check logs for:")
-	t.Log("- Detection of out-of-range R value when using BrainpoolP224r1")
-	t.Log("- Fallback mechanism triggered")
-	t.Log("- Alternative curve (P-224) attempted")
 }
 
 // encodePublicKey encodes a public key with specified curve OID
@@ -172,21 +166,8 @@ func TestSignatureOutOfRange(t *testing.T) {
 	data := utils.HexToBytes("313233343030")
 	hash := sha256.Sum256(data)
 
-	// This should trigger the fallback mechanism
-	// The signature won't verify (wrong key/digest combination) but we can verify
-	// the fallback logic is executed by checking the logs
-	err = VerifySignature(keyDer, oid.OidHashAlgorithmSHA256, hash[:], oid.OidEcdsaWithSHA256, sigASN1)
-
-	// We expect an error because the signature doesn't match this data/key
-	// But the logs should show the fallback attempt
-	if err == nil {
-		t.Log("Unexpected success - signature shouldn't verify with wrong data")
-	} else {
-		t.Logf("Expected error: %v", err)
-		t.Log("Check logs above for fallback mechanism messages:")
-		t.Log("- 'VerifySignature ECDSA signature values out of range for curve'")
-		t.Log("- 'VerifySignature attempting curve fallback'")
-		t.Log("- 'VerifySignature trying alternative curve curve=P-224'")
+	if err := VerifySignature(keyDer, oid.OidHashAlgorithmSHA256, hash[:], oid.OidEcdsaWithSHA256, sigASN1); err == nil {
+		t.Fatal("accepted a signature over a different digest")
 	}
 }
 
@@ -277,5 +258,30 @@ func TestVerifyECDSASignatureFallbackSucceeds(t *testing.T) {
 	otherDigest := sha512.Sum512([]byte("different data"))
 	if err := verifyECDSASignature([]byte("pub"), otherDigest[:], sig); err == nil {
 		t.Fatal("expected error for a signature over different data, got nil")
+	}
+}
+
+func TestVerifySignatureSkipsOutOfRangeAlternativeCurve(t *testing.T) {
+	curve := elliptic.P224()
+	params := curve.Params()
+	key := buildPublicKeyDER(t, oid.OidSecp224r1, params.Gx.Bytes(), params.Gy.Bytes())
+	// R at the P-224 order exceeds the BrainpoolP224r1 order as well.
+	sig, err := asn1.Marshal(struct{ R, S *big.Int }{params.N, big.NewInt(1)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	verify := ecdsaVerifyASN1Fn
+	t.Cleanup(func() { ecdsaVerifyASN1Fn = verify })
+	var attempts int
+	ecdsaVerifyASN1Fn = func(pub *ecdsa.PublicKey, digest, sig []byte) bool {
+		attempts++
+		if pub.Curve.Params().N.Cmp(params.N) != 0 {
+			t.Fatal("attempted verification on an out-of-range alternative curve")
+		}
+		return verify(pub, digest, sig)
+	}
+	digest := sha256.Sum256([]byte("curve range check"))
+	if err := VerifySignature(key, oid.OidHashAlgorithmSHA256, digest[:], oid.OidEcdsaWithSHA256, sig); err == nil || attempts != 1 {
+		t.Fatalf("expected rejection after the original curve attempt, got attempts=%d, err=%v", attempts, err)
 	}
 }

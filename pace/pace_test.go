@@ -1030,7 +1030,7 @@ func TestDoPaceRejectsEqualKeyAgreementPublicKeys(t *testing.T) {
 	}
 }
 
-func TestDoPaceRejectsMalformedHandshakeResponse(t *testing.T) {
+func TestDoPaceRejectsFailedHandshakeExchange(t *testing.T) {
 	for _, tc := range []struct {
 		name            string
 		step            int
@@ -1038,6 +1038,7 @@ func TestDoPaceRejectsMalformedHandshakeResponse(t *testing.T) {
 	}{
 		{"invalid nonce ciphertext length", 1, "7C038001009000", "[getNonce] decryptNonce error"},
 		{"invalid key agreement point", 3, "7C038401049000", "unable to decode X9.62 EC point"},
+		{"chip rejects final token exchange", 4, "6300", "[GeneralAuthenticate] DoAPDU bad rApdu status: 6300"},
 		{"missing chip token", 4, "7C009000", "missing tag 86 within 7C"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
