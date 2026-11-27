@@ -1082,21 +1082,37 @@ func TestGeneralAuthenticateOtherErrorNoRetry(t *testing.T) {
 }
 
 func TestInternalAuthenticateRetriesWithShortLeOnWrongLength(t *testing.T) {
-	rndIfd := utils.HexToBytes("0102030405060708")
+	challenge := utils.HexToBytes("0102030405060708")
+	extended := NewCApdu(0, INS_INTERNAL_AUTHENTICATE, 0, 0, challenge, 65536).Encode()
+	short := NewCApdu(0, INS_INTERNAL_AUTHENTICATE, 0, 0, challenge, 256).Encode()
+	for _, tc := range []struct {
+		name, shortResponse, wantErr string
+	}{
+		{"short retry succeeds", "0123456789ABCDEF9000", ""},
+		{"short retry rejected", "0123456789ABCDEF6985", "Status:6985"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var chip MockTransceiver
+			chip.AddReqRsp(utils.BytesToHex(extended), "6700")
+			chip.AddReqRsp(utils.BytesToHex(short), tc.shortResponse)
+			nfc := NewNfcSession(&chip)
+			nfc.SetMaxLe(65536)
 
-	transceiver := new(MockTransceiver)
-	transceiver.AddReqRsp(utils.BytesToHex(NewCApdu(0x00, INS_INTERNAL_AUTHENTICATE, 0x00, 0x00, rndIfd, 65536).Encode()), "6700")
-	transceiver.AddReqRsp(utils.BytesToHex(NewCApdu(0x00, INS_INTERNAL_AUTHENTICATE, 0x00, 0x00, rndIfd, authShortLe).Encode()), "0123456789ABCDEF9000")
-
-	nfc := NewNfcSession(transceiver)
-	nfc.SetMaxLe(65536)
-
-	out, err := nfc.InternalAuthenticate(rndIfd)
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
-	if !bytes.Equal(out, utils.HexToBytes("0123456789ABCDEF")) {
-		t.Errorf("unexpected response: %x", out)
+			out, err := nfc.InternalAuthenticate(challenge)
+			entries := nfc.ApduLog().Entries
+			if len(entries) != 2 || !bytes.Equal(entries[0].Tx, extended) || !bytes.Equal(entries[1].Tx, short) {
+				t.Fatalf("expected the same challenge in one extended and one short command, got %v", entries)
+			}
+			if tc.wantErr != "" {
+				if out != nil || err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("expected no data and %q, got %x, %v", tc.wantErr, out, err)
+				}
+				return
+			}
+			if err != nil || !bytes.Equal(out, utils.HexToBytes("0123456789ABCDEF")) {
+				t.Fatalf("short retry returned %x, %v", out, err)
+			}
+		})
 	}
 }
 

@@ -198,6 +198,41 @@ func mustMarshalTime(t *testing.T, tm time.Time) asn1.RawValue {
 	return raw
 }
 
+func TestCertificateValidityEndpoints(t *testing.T) {
+	start := time.Date(2020, 1, 1, 12, 0, 0, 0, time.UTC)
+	end := start.AddDate(1, 0, 0)
+	validity := Validity{NotBefore: mustMarshalTime(t, start), NotAfter: mustMarshalTime(t, end)}
+	for _, role := range []struct {
+		name  string
+		check func(Validity, *time.Time) error
+	}{
+		{"signer", checkValidityPeriod},
+		{"parent", func(v Validity, at *time.Time) error { return checkParentValidityPeriod(v, at, 0) }},
+	} {
+		for _, tc := range []struct {
+			name    string
+			at      time.Time
+			wantErr string
+		}{
+			{"before NotBefore", start.Add(-time.Second), "not yet valid"},
+			{"at NotBefore", start, ""},
+			{"at NotAfter", end, ""},
+			{"after NotAfter", end.Add(time.Second), "expired"},
+		} {
+			t.Run(role.name+"/"+tc.name, func(t *testing.T) {
+				err := role.check(validity, &tc.at)
+				if tc.wantErr == "" {
+					if err != nil {
+						t.Fatalf("expected validity at the endpoint, got %v", err)
+					}
+				} else if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("expected %q, got %v", tc.wantErr, err)
+				}
+			})
+		}
+	}
+}
+
 // The OpenSSL test fixture has two RSA signatures over the same empty master list. Signer 0
 // signed in 2020 (valid 2019–2024), signer 1 in 2022 (valid 2021–2026).
 func TestSignedDataUsesEachSignersSigningTime(t *testing.T) {

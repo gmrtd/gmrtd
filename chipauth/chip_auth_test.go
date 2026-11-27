@@ -955,17 +955,24 @@ func TestVerifyEvidence(t *testing.T) {
 		}
 	})
 
-	t.Run("oversized field", func(t *testing.T) {
-		e := &document.ChipAuthEvidence{
-			TermPri:    validEvidence.TermPri,
-			TermPubKey: validEvidence.TermPubKey,
-			SmRapdu:    make([]byte, maxEvidenceFieldLen+1),
-		}
-		_, err := VerifyEvidence(doc, e)
-		if err == nil {
-			t.Error("expected error for oversized SmRapdu")
-		}
-	})
+	oversized := make([]byte, maxEvidenceFieldLen+1)
+	for _, tc := range []struct {
+		name         string
+		setOversized func(*document.ChipAuthEvidence)
+	}{
+		{"TermPri", func(e *document.ChipAuthEvidence) { e.TermPri = oversized }},
+		{"TermPubKey", func(e *document.ChipAuthEvidence) { e.TermPubKey = oversized }},
+		{"SmRapdu", func(e *document.ChipAuthEvidence) { e.SmRapdu = oversized }},
+	} {
+		t.Run("oversized "+tc.name, func(t *testing.T) {
+			input := *validEvidence
+			tc.setOversized(&input)
+			result, err := VerifyEvidence(doc, &input)
+			if result != nil || err == nil || !strings.Contains(err.Error(), "evidence field exceeds maximum length") {
+				t.Fatalf("expected field size error and nil result, got result %v, err %v", result, err)
+			}
+		})
+	}
 
 	t.Run("wrong private key", func(t *testing.T) {
 		e := &document.ChipAuthEvidence{
