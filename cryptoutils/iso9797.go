@@ -17,17 +17,41 @@ func ISO9797Method2Pad(data []byte, blockSize int) []byte {
 	return out
 }
 
+// ISO9797Method2UnpadBlock removes ISO/IEC 9797-1 padding method 2 from data, which must be a
+// non-empty multiple of blockSize: the padding is a 0x80 byte followed by zero bytes, all within
+// the final block. It returns a copy of the unpadded data, or an error if data is not padded
+// that way.
+//
+// The input is typically decrypted secure-messaging plaintext, i.e. chip file contents, so the
+// error reports lengths only, never the data.
+func ISO9797Method2UnpadBlock(data []byte, blockSize int) ([]byte, error) {
+	if blockSize < 1 || len(data) == 0 || len(data)%blockSize != 0 {
+		return nil, fmt.Errorf("[ISO9797Method2UnpadBlock] data length %d is not a non-zero multiple of the block size %d", len(data), blockSize)
+	}
+	lastBlock := len(data) - blockSize
+	i := len(data) - 1
+	for i > lastBlock && data[i] == 0x00 {
+		i--
+	}
+	if data[i] != 0x80 {
+		return nil, fmt.Errorf("[ISO9797Method2UnpadBlock] data is not padded (len:%d)", len(data))
+	}
+	return bytes.Clone(data[:i]), nil
+}
+
 // ISO9797Method2Unpad removes ISO/IEC 9797-1 padding method 2 by stripping all trailing zero
-// bytes and then a single 0x80 byte. It returns a sub-slice of data (not a copy), or an error
-// if no 0x80 byte remains.
+// bytes and then a single 0x80 byte, without regard to block boundaries. It returns a copy of
+// the unpadded data, or an error if no 0x80 byte remains. The error reports the length only,
+// never the data.
+//
+// Deprecated: Use ISO9797Method2UnpadBlock, which also checks that the padding lies within
+// the final block.
 func ISO9797Method2Unpad(data []byte) ([]byte, error) {
 	out := bytes.TrimRight(data, string([]byte{0}))
-	if len(out) > 0 {
-		if out[len(out)-1] == 0x80 {
-			return out[:len(out)-1], nil
-		}
+	if len(out) > 0 && out[len(out)-1] == 0x80 {
+		return bytes.Clone(out[:len(out)-1]), nil
 	}
-	return nil, fmt.Errorf("[ISO9797Method2Unpad] Data is not padded (%x -> %x)", data, out)
+	return nil, fmt.Errorf("[ISO9797Method2Unpad] data is not padded (len:%d)", len(data))
 }
 
 type blockCipherFactory func(alg BlockCipherAlg, key []byte) (cipher.Block, error)

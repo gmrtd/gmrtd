@@ -165,7 +165,7 @@ func (chip *BACChip) smTransceive(cla int, ins int, p1 int, p2 int, data []byte)
 		if len(value) < 1 || value[0] != 0x01 {
 			return utils.HexToBytes(rApduSmDataObjectsMissing)
 		}
-		if plain, err = cryptoutils.ISO9797Method2Unpad(chip.tdes(chip.ksEnc, value[1:], false)); err != nil {
+		if plain, err = cryptoutils.ISO9797Method2UnpadBlock(chip.tdes(chip.ksEnc, value[1:], false), 8); err != nil {
 			return utils.HexToBytes(rApduSmDataObjectsMissing)
 		}
 	}

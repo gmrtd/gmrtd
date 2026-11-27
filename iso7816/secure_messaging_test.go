@@ -8,6 +8,7 @@ import (
 
 	"github.com/gmrtd/gmrtd/cryptoutils"
 	"github.com/gmrtd/gmrtd/internal/testlog"
+	"github.com/gmrtd/gmrtd/tlv"
 	"github.com/gmrtd/gmrtd/utils"
 )
 
@@ -453,6 +454,49 @@ func TestSecureMessageDecode(t *testing.T) {
 			t.Fatalf("Incorrect rApdu (Exp:%s) (Act:%s)", tc.expRApdu, out)
 		}
 	}
+}
+
+// A chip whose response is correctly MACed but whose decrypted data is not padded must not have
+// that plaintext (file contents, e.g. the holder's MRZ) copied into the error or the debug log.
+func TestSecureMessageDecodeBadPaddingOmitsPlaintext(t *testing.T) {
+	logs := testlog.CaptureDebug(t)
+	sm, err := NewSecureMessaging(cryptoutils.TDES, utils.HexToBytes("979EC13B1CBFE9DCD01AB0FED307EAE5"), utils.HexToBytes("F1CB1F1FB5ADF208806B89DC579DC1F8"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := utils.HexToBytes("887022120C06C227")
+	if err := sm.SetSSC(start); err != nil {
+		t.Fatal(err)
+	}
+
+	// Build the response the chip would send at the next SSC: block-aligned plaintext with no
+	// ISO 9797-1 padding, encrypted in DO87 and covered by a valid MAC.
+	plain := []byte("P<UTOERIKSSON<<A")
+	sm.sscIncrement()
+	encrypted, err := sm.cbcCrypt(plain, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var nodes tlv.TlvNodes
+	nodes.AddNode(tlv.NewTlvSimpleNode(0x87, append([]byte{0x01}, encrypted...)))
+	nodes.AddNode(tlv.NewTlvSimpleNode(0x99, utils.HexToBytes("9000")))
+	mac, err := sm.generateMac(sm.cryptoPad(generateMacDataForSmRApduTlv(&nodes, sm.ssc)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes.AddNode(tlv.NewTlvSimpleNode(0x8E, mac))
+	if err := sm.SetSSC(start); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = sm.Decode(append(nodes.Encode(), 0x90, 0x00))
+	if err == nil || !strings.Contains(err.Error(), "not padded") {
+		t.Fatalf("expected a padding error after the MAC verified, got %v", err)
+	}
+	testlog.AssertNoSecrets(t, logs.String()+"\n"+err.Error(), map[string]string{
+		"plaintext (hex)":   utils.BytesToHex(plain),
+		"plaintext (ascii)": string(plain),
+	})
 }
 
 func TestSecureMessageDecodeIncorrectMAC(t *testing.T) {
