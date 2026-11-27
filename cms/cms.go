@@ -972,8 +972,9 @@ RFC 5280            PKIX Certificate and CRL Profile            May 2008
 // against trustedCerts with Certificate.VerifyWithConfig. It returns the DER encodings of
 // the signer certificate followed by its trusted issuer.
 //
-// If config.ReferenceTime is nil it is set to the signing-time attribute, so config is
-// modified; if that attribute is absent or malformed, validity periods are not checked.
+// An explicit ReferenceTime applies to the signer's certificate chain. Otherwise the
+// signer's signing-time attribute supplies the reference time for this call. Validity
+// checks are skipped if neither supplies a time.
 func (si *SignerInfo) VerifyWithConfig(config *CMSConfig, sd *SignedData, trustedCerts CertPool) (certChain [][]byte, err error) {
 	var dataToHash []byte
 	var digestAlg *asn1.ObjectIdentifier
@@ -996,14 +997,13 @@ func (si *SignerInfo) VerifyWithConfig(config *CMSConfig, sd *SignedData, truste
 		return nil, fmt.Errorf("[Verify] prepareVerificationData error: %w", err)
 	}
 
-	// extract signing-time as the reference time for certificate validity checks
-	// (only if not already set externally via config)
-	if config.ReferenceTime == nil {
-		config.ReferenceTime = si.resolveSigningTime()
+	signerConfig := *config
+	if signerConfig.ReferenceTime == nil {
+		signerConfig.ReferenceTime = si.resolveSigningTime()
 	}
 
 	var digest []byte
-	digest, err = config.Hasher.CryptoHashByOid(*digestAlg, dataToHash)
+	digest, err = signerConfig.Hasher.CryptoHashByOid(*digestAlg, dataToHash)
 	if err != nil {
 		return nil, fmt.Errorf("[Verify] CryptoHashByOid error: %w", err)
 	}
@@ -1022,7 +1022,7 @@ func (si *SignerInfo) VerifyWithConfig(config *CMSConfig, sd *SignedData, truste
 	}
 
 	// enforce signer cert validity period against reference time (ICAO 9303 Part 11 §5.1)
-	if err := checkValidityPeriod(cert.TbsCertificate.Validity, config.ReferenceTime); err != nil {
+	if err := checkValidityPeriod(cert.TbsCertificate.Validity, signerConfig.ReferenceTime); err != nil {
 		return nil, fmt.Errorf("[Verify] signer cert %w", err)
 	}
 
@@ -1042,7 +1042,7 @@ func (si *SignerInfo) VerifyWithConfig(config *CMSConfig, sd *SignedData, truste
 	* so far we've just verified the signedData and enveloped-data we haven't actually verified that the certificate is signed by someone we trust
 	 */
 	{
-		tmpCertChain, err := cert.VerifyWithConfig(config, trustedCerts)
+		tmpCertChain, err := cert.VerifyWithConfig(&signerConfig, trustedCerts)
 		if err != nil {
 			return nil, fmt.Errorf("[Verify] cert.Verify error: %w", err)
 		}
@@ -1249,8 +1249,8 @@ func (si *SignerInfo) selectCertificate(sd *SignedData) (*Certificate, error) {
 
 // VerifyWithConfig verifies every SignerInfo in sd with SignerInfo.VerifyWithConfig and
 // returns their certificate chains concatenated. It fails if there are no SignerInfos or if
-// any one fails to verify. The same config is shared by all SignerInfos, so a reference
-// time taken from the first signing-time attribute also applies to later ones.
+// any one fails to verify. Each signer uses its own signing time unless the caller
+// supplies a ReferenceTime for all signers.
 func (sd *SignedData) VerifyWithConfig(config *CMSConfig, trustedCerts CertPool) (certChain [][]byte, err error) {
 	slog.Debug("SignedData.Verify")
 

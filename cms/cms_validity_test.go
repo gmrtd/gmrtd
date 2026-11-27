@@ -2,6 +2,7 @@ package cms
 
 import (
 	"encoding/asn1"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -195,4 +196,69 @@ func mustMarshalTime(t *testing.T, tm time.Time) asn1.RawValue {
 		t.Fatalf("failed to unmarshal raw value: %v", err)
 	}
 	return raw
+}
+
+// The OpenSSL test fixture has two RSA signatures over the same empty master list. Signer 0
+// signed in 2020 (valid 2019–2024), signer 1 in 2022 (valid 2021–2026).
+func TestSignedDataUsesEachSignersSigningTime(t *testing.T) {
+	raw, err := os.ReadFile("testdata/two-signing-times.cms")
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := os.ReadFile("testdata/two-signing-times-root.cer")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var trusted GenericCertPool
+	if err := trusted.Add(root); err != nil {
+		t.Fatal(err)
+	}
+	sd, err := ParseSignedData(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sd.SignerInfos) != 2 {
+		t.Fatalf("expected two signers, got %d", len(sd.SignerInfos))
+	}
+	t.Run("direct signer verification preserves caller config", func(t *testing.T) {
+		config := NewDefaultCMSConfig()
+		for i := range sd.SignerInfos {
+			if _, err := sd.SignerInfos[i].VerifyWithConfig(config, sd, &trusted); err != nil {
+				t.Fatalf("signer %d failed at its own signing time: %v", i, err)
+			}
+			if config.ReferenceTime != nil {
+				t.Fatalf("signer %d set caller ReferenceTime to %v", i, config.ReferenceTime)
+			}
+		}
+	})
+
+	overlap := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+	beforeSecondValidity := overlap.AddDate(-3, 0, 0)
+	afterFirstExpiry := overlap.AddDate(2, 0, 0)
+	for _, tc := range []struct {
+		name                 string
+		reference            *time.Time
+		wantIndex, wantCause string
+	}{
+		{"default uses each signing time", nil, "", ""},
+		{"explicit time before second signer validity", &beforeSecondValidity, "si.Verify(idx:1)", "not yet valid"},
+		{"explicit time valid for both", &overlap, "", ""},
+		{"explicit time after first expiry", &afterFirstExpiry, "si.Verify(idx:0)", "expired"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			config := NewDefaultCMSConfig()
+			config.ReferenceTime = tc.reference
+			chain, err := sd.VerifyWithConfig(config, &trusted)
+			if config.ReferenceTime != tc.reference {
+				t.Errorf("caller ReferenceTime changed from %v to %v", tc.reference, config.ReferenceTime)
+			}
+			if tc.wantCause == "" {
+				if err != nil || len(chain) != 4 {
+					t.Fatalf("expected both signer chains, got %d certificates, err=%v", len(chain), err)
+				}
+			} else if chain != nil || err == nil || !strings.Contains(err.Error(), tc.wantIndex) || !strings.Contains(err.Error(), tc.wantCause) {
+				t.Fatalf("expected no chain and %q at %s, got %d certificates, err=%v", tc.wantCause, tc.wantIndex, len(chain), err)
+			}
+		})
+	}
 }
