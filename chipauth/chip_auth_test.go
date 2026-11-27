@@ -77,7 +77,7 @@ func TestCaAdvertised(t *testing.T) {
 			// true: missing CAInfo, but PubKey present (e.g. infer use-case for some old passports)
 			document: func() document.Document {
 				doc := document.Document{}
-				err := doc.NewDG(14, utils.HexToBytes("6E82015E3182015A30820142060904007F000702020102308201333081EC06072A8648CE3D02013081E0020101302C06072A8648CE3D0101022100FFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF30440420FFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFC04205AC635D8AA3A93E7B3EBBD55769886BC651D06B0CC53B0F63BCE3C3E27D2604B0441046B17D1F2E12C4247F8BCE6E563A440F277037D812DEB33A0F4A13945D898C2964FE342E2FE1A7F9B8EE7EB4A7C0F9E162BCE33576B315ECECBB6406837BF51F5022100FFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551020101034200048367FC170D90AD53A28C6526A9C7EC4F5C59C4F7F5D992583F951A1654B4D1D6332163A33D82CBF245154887A8812ED9A55C15AD9D5C5C463851875BBA9AEABD3012060A04007F0007020204020402010202010C"))
+				err := doc.NewDG(14, utils.HexToBytes(frDG14Hex))
 				if err != nil {
 					log.Panicf("Unexpected error: %s", err)
 				}
@@ -576,6 +576,8 @@ func TestChipAuthMY(t *testing.T) {
 	}
 }
 
+const frDG14Hex = "6E82015E3182015A30820142060904007F000702020102308201333081EC06072A8648CE3D02013081E0020101302C06072A8648CE3D0101022100FFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF30440420FFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFC04205AC635D8AA3A93E7B3EBBD55769886BC651D06B0CC53B0F63BCE3C3E27D2604B0441046B17D1F2E12C4247F8BCE6E563A440F277037D812DEB33A0F4A13945D898C2964FE342E2FE1A7F9B8EE7EB4A7C0F9E162BCE33576B315ECECBB6406837BF51F5022100FFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551020101034200048367FC170D90AD53A28C6526A9C7EC4F5C59C4F7F5D992583F951A1654B4D1D6332163A33D82CBF245154887A8812ED9A55C15AD9D5C5C463851875BBA9AEABD3012060A04007F0007020204020402010202010C"
+
 func TestChipAuthFR(t *testing.T) {
 	// CA test extracted from actual session with FR passport
 	// 		DG14 CA entry         : *missing* (need to infer)
@@ -583,7 +585,7 @@ func TestChipAuthFR(t *testing.T) {
 	//
 	// NB no key-id is specified
 
-	dg14bytes := utils.HexToBytes("6E82015E3182015A30820142060904007F000702020102308201333081EC06072A8648CE3D02013081E0020101302C06072A8648CE3D0101022100FFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF30440420FFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFC04205AC635D8AA3A93E7B3EBBD55769886BC651D06B0CC53B0F63BCE3C3E27D2604B0441046B17D1F2E12C4247F8BCE6E563A440F277037D812DEB33A0F4A13945D898C2964FE342E2FE1A7F9B8EE7EB4A7C0F9E162BCE33576B315ECECBB6406837BF51F5022100FFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551020101034200048367FC170D90AD53A28C6526A9C7EC4F5C59C4F7F5D992583F951A1654B4D1D6332163A33D82CBF245154887A8812ED9A55C15AD9D5C5C463851875BBA9AEABD3012060A04007F0007020204020402010202010C")
+	dg14bytes := utils.HexToBytes(frDG14Hex)
 
 	var err error
 	var doc document.Document
@@ -605,18 +607,7 @@ func TestChipAuthFR(t *testing.T) {
 		nfc = iso7816.NewNfcSession(transceiver)
 	}
 
-	// setup SM (and SSC)
-	sm, err := iso7816.NewSecureMessaging(cryptoutils.AES, utils.HexToBytes("17da5d46e356f5b31c3d65b1369ef531ca811effc76967d2b62335e1ad9fe5cb"), utils.HexToBytes("5cb99a25e6081581fac80c8da621087939b6bde273f2f7c65693b3a0ea3051ed"))
-	if err != nil {
-		t.Errorf("Unexpected error: %s", err)
-	}
-
-	err = sm.SetSSC(utils.HexToBytes("000000000000000000000000000000c6"))
-	if err != nil {
-		t.Fatalf("Unexpected error: %s", err)
-	}
-
-	nfc.SetSecureMessaging(sm)
+	nfc.SetSecureMessaging(recordedFRSecureMessaging(t))
 
 	// setup static EC keys for test
 	getTestKeyGenEc := func() func(ec elliptic.Curve) (keypair cryptoutils.EcKeypair) {
@@ -1315,5 +1306,56 @@ func TestChipAuthRejectsMalformedGeneralAuthenticateResponse(t *testing.T) {
 	}
 	if got := len(nfc.ApduLog().Entries); got != 2 {
 		t.Fatalf("sent %d APDUs, want only MSE:Set AT and GENERAL AUTHENTICATE", got)
+	}
+}
+
+func recordedFRSecureMessaging(t *testing.T) *iso7816.SecureMessaging {
+	t.Helper()
+	sm, err := iso7816.NewSecureMessaging(cryptoutils.AES, utils.HexToBytes("17da5d46e356f5b31c3d65b1369ef531ca811effc76967d2b62335e1ad9fe5cb"), utils.HexToBytes("5cb99a25e6081581fac80c8da621087939b6bde273f2f7c65693b3a0ea3051ed"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = sm.SetSSC(utils.HexToBytes("000000000000000000000000000000c6"))
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+	return sm
+}
+
+func TestChipAuthRejectsUnusableDG14KeyBeforeSendingCommands(t *testing.T) {
+	doc := chipAuthATDG14(t)
+	key := &doc.Mf.Lds1.Dg14.SecInfos.ChipAuthPubKeyInfos[0].ChipAuthenticationPublicKey
+	key.Algorithm.Parameters = asn1.RawValue{}
+	nfc := iso7816.NewNfcSession(&iso7816.MockTransceiver{})
+	result, err := NewChipAuth(nfc, doc).DoChipAuth()
+	if err == nil || !strings.Contains(err.Error(), "EcCurveAndPubKey error") {
+		t.Fatalf("expected a DG14 key error, got %v", err)
+	}
+	if result == nil || result.Success || result.Evidence != nil || len(nfc.ApduLog().Entries) != 0 {
+		t.Fatal("unusable DG14 key produced a successful result, evidence, or a chip command")
+	}
+}
+
+func TestChipAuthRejectsLegacySetKAT(t *testing.T) {
+	var doc document.Document
+	if err := doc.NewDG(14, utils.HexToBytes(frDG14Hex)); err != nil {
+		t.Fatal(err)
+	}
+	// Protected status 6A80 with the recorded FR session's AES-CMAC at SSC C8.
+	chip := &iso7816.StaticTransceiver{RApdu: utils.HexToBytes("99026A808E0810E992157FD2310C6A80")}
+	nfc := iso7816.NewNfcSession(chip)
+	sm := recordedFRSecureMessaging(t)
+	nfc.SetSecureMessaging(sm)
+	result, err := NewChipAuth(nfc, &doc).DoChipAuth()
+	if err == nil || !strings.Contains(err.Error(), "MSE:Set AT failed (Status:6a80)") {
+		t.Fatalf("expected the chip's protected rejection, got %v", err)
+	}
+	if result == nil || result.Success || result.Evidence != nil || nfc.SM() != sm {
+		t.Fatal("rejected MSE:Set KAT produced CA success, evidence, or replacement session keys")
+	}
+	entries := nfc.ApduLog().Entries
+	if len(entries) != 1 || !bytes.HasPrefix(entries[0].Tx, utils.HexToBytes("002241A6")) {
+		t.Fatal("expected only MSE:Set KAT")
 	}
 }
