@@ -15,6 +15,10 @@ import (
 	"github.com/osanderson/brainpool"
 )
 
+// The curve fallback exists for an LTU passport (#130, #220) whose signature values exceed
+// the order of its declared curve but are valid for another curve of the same size. This
+// uses that passport's R and S against an unrelated P-224 key: whichever curves are tried,
+// a signature the key did not make must still be rejected.
 func TestVerifySignatureCurveMismatchFallback(t *testing.T) {
 	// Generate a P-224 key pair
 	privateKey, err := ecdsa.GenerateKey(elliptic.P224(), rand.Reader)
