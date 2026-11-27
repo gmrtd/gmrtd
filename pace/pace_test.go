@@ -2025,3 +2025,41 @@ func TestDoPaceCamInvalidCardSecurityFile(t *testing.T) {
 		t.Fatal("invalid EF.CardSecurity produced successful PACE, CAM evidence, or a parsed file")
 	}
 }
+
+func TestStandardizedDomainParameterID(t *testing.T) {
+	integer := func(content ...byte) asn1.RawValue {
+		return asn1.RawValue{Class: asn1.ClassUniversal, Tag: asn1.TagInteger, Bytes: content}
+	}
+	for _, tc := range []struct {
+		name   string
+		params asn1.RawValue
+		wantID int
+		wantOK bool
+	}{
+		{"one-byte ID", integer(13), 13, true},
+		{"zero", integer(0), 0, true},
+		{"leading zero byte", integer(0x00, 0x0D), 0, false},
+		{"wraps to 13 in an int", integer(0x01, 0, 0, 0, 0, 0, 0, 0, 0x0D), 0, false},
+		{"negative", integer(0xFF), 0, false},
+		{"empty", integer(), 0, false},
+		{"not an INTEGER", asn1.RawValue{Class: asn1.ClassUniversal, Tag: asn1.TagOctetString, Bytes: []byte{13}}, 0, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if id, ok := standardizedDomainParameterID(tc.params); id != tc.wantID || ok != tc.wantOK {
+				t.Errorf("got (%d, %t), want (%d, %t)", id, ok, tc.wantID, tc.wantOK)
+			}
+		})
+	}
+}
+
+// A CAM key whose parameter ID only matches after integer overflow must not be selected.
+func TestVerifyEvidenceIgnoresOverlongParameterID(t *testing.T) {
+	doc, evidence := setupDeCamEvidence(t)
+	cam := deCaPubKeyInfos(t, doc)[0]
+	cam.ChipAuthenticationPublicKey.Algorithm.Parameters.Bytes = []byte{0x01, 0, 0, 0, 0, 0, 0, 0, 0x0D}
+	doc.Mf.CardSecurity.SecurityInfos.ChipAuthPubKeyInfos = []document.ChipAuthenticationPublicKeyInfo{cam}
+	result, err := VerifyEvidence(doc, evidence)
+	if result != nil || err == nil || !strings.Contains(err.Error(), "Unable to get Public-Key for CAM") {
+		t.Fatalf("expected no usable CAM key, got result %v, err %v", result, err)
+	}
+}

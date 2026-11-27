@@ -157,6 +157,9 @@ func ByteFromBuffer(r io.Reader) (byte, error) {
 
 // BytesToInt interprets bytes as an unsigned big-endian integer; empty input gives 0. Inputs
 // longer than the size of int overflow silently, so callers must bound the length.
+//
+// Deprecated: a value that overflows can wrap into a caller's accepted range, so do not use it
+// on untrusted input. Check the length first, or decode ASN.1 INTEGERs with encoding/asn1.
 func BytesToInt(bytes []byte) int {
 	var out int
 

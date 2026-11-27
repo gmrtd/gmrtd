@@ -297,3 +297,19 @@ func TestNewDG2RejectsIncompleteSecondTemplate(t *testing.T) {
 		})
 	}
 }
+
+// The template count must be one byte: a longer value could otherwise wrap into the 1-9 range.
+func TestNewDG2RejectsMultiByteTemplateCount(t *testing.T) {
+	template := tlv.MustDecode(sampleDg2Bytes).NodeByTag(DG2Tag).NodeByTag(0x7F61).NodeByTag(0x7F60)
+	for _, count := range []string{"0001", "010000000000000001"} {
+		t.Run(count, func(t *testing.T) {
+			group := tlv.NewTlvConstructedNode(0x7F61).
+				AddChild(tlv.NewTlvSimpleNode(0x02, utils.HexToBytes(count))).
+				AddChild(template)
+			dg, err := NewDG2(tlv.NewTlvConstructedNode(DG2Tag).AddChild(group).Encode())
+			if dg != nil || err == nil || !strings.Contains(err.Error(), "must be 1 byte") {
+				t.Fatalf("expected a count length error and nil DG2, got DG2 present=%t, err=%v", dg != nil, err)
+			}
+		})
+	}
+}

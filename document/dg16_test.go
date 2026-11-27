@@ -3,10 +3,12 @@ package document
 import (
 	"bytes"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/internal/testlog"
 	"github.com/gmrtd/gmrtd/mrz"
+	"github.com/gmrtd/gmrtd/tlv"
 	"github.com/gmrtd/gmrtd/utils"
 )
 
@@ -185,4 +187,22 @@ func TestPersonalDataGroupsAreNotLogged(t *testing.T) {
 		"DG16 telephone":     "14155551212",
 		"DG16 bytes":         "42524F574E3C3C4D415259",
 	})
+}
+
+// The person count must be one byte: a longer value could otherwise wrap into the 1-15 range
+// (e.g. 01 00 00 00 00 00 00 00 02 decodes to 2 in a 64-bit int).
+func TestNewDG16RejectsMultiByteCount(t *testing.T) {
+	root := tlv.MustDecode(utils.HexToBytes(dg16Example)).NodeByTag(0x70)
+	for _, count := range []string{"0002", "010000000000000002"} {
+		t.Run(count, func(t *testing.T) {
+			rebuilt := tlv.NewTlvConstructedNode(0x70).AddChild(tlv.NewTlvSimpleNode(0x02, utils.HexToBytes(count)))
+			for _, child := range root.Children()[1:] {
+				rebuilt.AddChild(child)
+			}
+			dg16, err := NewDG16(rebuilt.Encode())
+			if dg16 != nil || err == nil || !strings.Contains(err.Error(), "must be 1 byte") {
+				t.Fatalf("expected a count length error and nil DG16, got DG16 present=%t, err=%v", dg16 != nil, err)
+			}
+		})
+	}
 }

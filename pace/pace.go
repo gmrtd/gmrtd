@@ -531,6 +531,16 @@ func (pace *Pace) mutualAuthGmEcDh(paceConfig *PaceConfig, domainParams *DomainP
 // alone cannot tell them apart. BSI TR-03110 part 3 s A.1.1.2 states that for PACE-CAM the
 // parameterId in PACEInfo also references the KeyId of the key used for the mapping, so prefer
 // that key and only fall back to the first key on the curve when no KeyId matches.
+// standardizedDomainParameterID returns the standardized domain-parameter ID carried as the
+// key's algorithm parameters: a one-byte, non-negative INTEGER (BSI TR-03110 IDs are 0-31). It
+// reports false for anything else rather than reading an arbitrary byte string as a number.
+func standardizedDomainParameterID(params asn1.RawValue) (int, bool) {
+	if params.Class != asn1.ClassUniversal || params.Tag != asn1.TagInteger || len(params.Bytes) != 1 || params.Bytes[0]&0x80 != 0 {
+		return 0, false
+	}
+	return int(params.Bytes[0]), true
+}
+
 func icPubKeyECForCAM(domainParams *DomainParams, cardSecurity *document.CardSecurity) (*cryptoutils.EcPoint, error) {
 	slog.Debug("icPubKeyECForCAM")
 
@@ -552,7 +562,7 @@ func icPubKeyECForCAM(domainParams *DomainParams, cardSecurity *document.CardSec
 			continue
 		}
 
-		if utils.BytesToInt(subjectPubKeyInfo.Algorithm.Parameters.Bytes) != domainParams.id {
+		if id, ok := standardizedDomainParameterID(subjectPubKeyInfo.Algorithm.Parameters); !ok || id != domainParams.id {
 			continue
 		}
 

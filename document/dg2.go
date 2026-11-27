@@ -22,7 +22,6 @@ import (
 	"github.com/gmrtd/gmrtd/document/iso19794"
 	"github.com/gmrtd/gmrtd/document/iso39794"
 	"github.com/gmrtd/gmrtd/tlv"
-	"github.com/gmrtd/gmrtd/utils"
 )
 
 // DG2Tag is the tag of the DG2 root data object.
@@ -114,7 +113,12 @@ func NewDG2(data []byte) (*DG2, error) {
 			return nil, fmt.Errorf("[NewDG2] missing tag (7F61)")
 		}
 
-		numInstances := utils.BytesToInt(tag7F61.NodeByTag(0x02).Value())
+		// One byte, as for the DG11/DG12 counts: a longer value could wrap into range.
+		countBytes := tag7F61.NodeByTag(0x02).Value()
+		if len(countBytes) != 1 {
+			return nil, fmt.Errorf("[NewDG2] numInstances (tag 7f61->02) must be 1 byte (act-len:%d)", len(countBytes))
+		}
+		numInstances := int(countBytes[0])
 		if (numInstances < 1) || (numInstances > 9) {
 			return nil, fmt.Errorf("[NewDG2] numInstances (tag 7f61->02) must be 1-9 (act:%d)", numInstances)
 		}
