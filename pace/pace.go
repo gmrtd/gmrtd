@@ -597,9 +597,9 @@ func decryptEcadIC(cipherAlg cryptoutils.BlockCipherAlg, ksEnc, ecadIC []byte) (
 		return nil, fmt.Errorf("[decryptEcadIC] CryptCBC error: %w", err)
 	}
 
-	caIC, err := cryptoutils.ISO9797Method2Unpad(tmpDecryptedValue)
+	caIC, err := cryptoutils.ISO9797Method2UnpadBlock(tmpDecryptedValue, blockCipher.BlockSize())
 	if err != nil {
-		return nil, fmt.Errorf("[decryptEcadIC] ISO9797Method2Unpad error: %w", err)
+		return nil, fmt.Errorf("[decryptEcadIC] ISO9797Method2UnpadBlock error: %w", err)
 	}
 
 	return caIC, nil

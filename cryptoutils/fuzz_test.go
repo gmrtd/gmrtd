@@ -1,6 +1,7 @@
 package cryptoutils
 
 import (
+	"bytes"
 	"crypto/elliptic"
 	"testing"
 
@@ -9,7 +10,8 @@ import (
 
 // FuzzISO9797Method2Unpad fuzzes the padding-removal step applied to decrypted
 // secure-messaging plaintext (iso7816.SecureMessaging.cryptoUnpad). Standalone
-// []byte -> ([]byte, error), no session/receiver needed.
+// []byte -> ([]byte, error), no session/receiver needed. Also checks that the block-aware
+// ISO9797Method2UnpadBlock round-trips with ISO9797Method2Pad.
 func FuzzISO9797Method2Unpad(f *testing.F) {
 	f.Add([]byte(nil))
 	f.Add([]byte{})
@@ -20,6 +22,12 @@ func FuzzISO9797Method2Unpad(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, data []byte) {
 		_, _ = ISO9797Method2Unpad(data)
+		// The block-aware variant used for secure messaging must round-trip with Pad.
+		for _, blockSize := range []int{8, 16} {
+			if out, err := ISO9797Method2UnpadBlock(data, blockSize); err == nil && !bytes.Equal(ISO9797Method2Pad(out, blockSize), data) {
+				t.Fatalf("UnpadBlock(%x, %d) = %x does not re-pad to the input", data, blockSize, out)
+			}
+		}
 	})
 }
 

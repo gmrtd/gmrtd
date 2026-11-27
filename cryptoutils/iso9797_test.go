@@ -87,6 +87,65 @@ func TestISO9797Method2UnpadErr(t *testing.T) {
 	}
 }
 
+func TestISO9797Method2UnpadBlock(t *testing.T) {
+	for _, tc := range []struct {
+		name, in  string
+		blockSize int
+		want      string // "" with wantErr false means empty output
+		wantErr   bool
+	}{
+		{"padding in final block", "1234567880000000", 8, "12345678", false},
+		{"full padding block", "11223344556677888000000000000000", 8, "1122334455667788", false},
+		{"0x80 data byte before padding", "1234567880800000", 8, "1234567880", false},
+		{"padding only", "8000000000000000", 8, "", false},
+		{"AES block", "000102030405060708090A0B0C0D0E80", 16, "000102030405060708090A0B0C0D0E", false},
+		{"0x80 before the final block", "1234800000000000" + "0000000000000000", 8, "", true},
+		{"no 0x80", "1234567812345678", 8, "", true},
+		{"not a block multiple", "12345680", 8, "", true},
+		{"empty", "", 8, "", true},
+		{"invalid block size", "1234567880000000", 0, "", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			in := utils.HexToBytes(tc.in)
+			got, err := ISO9797Method2UnpadBlock(in, tc.blockSize)
+			if tc.wantErr {
+				if got != nil || err == nil {
+					t.Fatalf("expected an error, got %x, %v", got, err)
+				}
+				if len(in) > 0 && strings.Contains(strings.ToUpper(err.Error()), strings.ToUpper(tc.in)) {
+					t.Fatalf("error contains the input data: %v", err)
+				}
+				return
+			}
+			if err != nil || !bytes.Equal(got, utils.HexToBytes(tc.want)) {
+				t.Fatalf("got %x, %v; want %s", got, err, tc.want)
+			}
+			if len(got) > 0 {
+				got[0] ^= 0xFF
+				if !bytes.Equal(in, utils.HexToBytes(tc.in)) {
+					t.Fatal("modifying the result changed the input: not a copy")
+				}
+			}
+		})
+	}
+}
+
+func TestISO9797Method2UnpadCopyAndErrorContent(t *testing.T) {
+	in := utils.HexToBytes("12348000")
+	got, err := ISO9797Method2Unpad(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got[0] ^= 0xFF
+	if !bytes.Equal(in, utils.HexToBytes("12348000")) {
+		t.Fatal("modifying the result changed the input: not a copy")
+	}
+	secret := utils.HexToBytes("50553C55544F45524B53")
+	if _, err := ISO9797Method2Unpad(secret); err == nil || strings.Contains(strings.ToUpper(err.Error()), "50553C55544F45524B53") {
+		t.Fatalf("expected an error without the input data, got %v", err)
+	}
+}
+
 func TestISO9797RetailMacDesErrors(t *testing.T) {
 	// NB: ISO9797 Retail MAC requires 16-byte DES key
 	testCases := []struct {

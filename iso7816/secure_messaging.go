@@ -210,9 +210,9 @@ func (sm *SecureMessaging) cryptoPad(data []byte) []byte {
 
 // NB fails if empty data passed in (as doesn't qualify the padding rules)
 func (sm *SecureMessaging) cryptoUnpad(data []byte) ([]byte, error) {
-	data, err := cryptoutils.ISO9797Method2Unpad(data)
+	data, err := cryptoutils.ISO9797Method2UnpadBlock(data, sm.encCipher.BlockSize())
 	if err != nil {
-		return nil, fmt.Errorf("[cryptoUnpad] ISO9797Method2Unpad error: %w", err)
+		return nil, fmt.Errorf("[cryptoUnpad] ISO9797Method2UnpadBlock error: %w", err)
 	}
 
 	return data, nil
