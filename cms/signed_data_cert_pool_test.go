@@ -105,3 +105,28 @@ func TestMasterListSignerPurpose(t *testing.T) {
 		})
 	}
 }
+
+func TestMasterListImportRequiresEverySignerToHaveSigningPurpose(t *testing.T) {
+	// OpenSSL signed the same empty master list with two RSA signers under one
+	// test root. Only one has the master-list EKU. Leaf serial numbers place
+	// the serverAuth-only signer first or last in the DER-ordered SignerInfos.
+	root, err := os.ReadFile("testdata/mixed-purpose-root.cer")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct{ file, index string }{
+		{"mixed-purpose-first.cms", "si.Verify(idx:0)"},
+		{"mixed-purpose-last.cms", "si.Verify(idx:1)"},
+	} {
+		t.Run(tc.file, func(t *testing.T) {
+			list, err := os.ReadFile("testdata/" + tc.file)
+			if err != nil {
+				t.Fatal(err)
+			}
+			pool, err := CreateCertPoolFromSignedData(list, root)
+			if pool != nil || err == nil || !strings.Contains(err.Error(), tc.index) || !strings.Contains(err.Error(), "missing master-list signing extended key usage") {
+				t.Fatalf("expected nil pool and master-list EKU error at %s, got pool present=%t, err=%v", tc.index, pool != nil, err)
+			}
+		})
+	}
+}

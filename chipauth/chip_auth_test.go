@@ -1285,3 +1285,35 @@ func chipAuthATDG14(t *testing.T) *document.Document {
 	}
 	return doc
 }
+
+func TestChipAuthRejectsMalformedGeneralAuthenticateResponse(t *testing.T) {
+	// AT session from TestChipAuthAT. At SSC F4 the chip returns protected
+	// status 9000 with truncated dynamic authentication data (7C01).
+	chip := &iso7816.SequenceTransceiver{RApdus: [][]byte{
+		utils.HexToBytes("990290008E083F5136E82A6C34779000"),
+		utils.HexToBytes("871101bd6c841f88035534499793bda0cd38da990290008e08bfc5c16c51d15dc69000"),
+	}}
+	sm, err := iso7816.NewSecureMessaging(cryptoutils.AES,
+		utils.HexToBytes("524170DE3419B7AF2F23E45AD6EF9595"),
+		utils.HexToBytes("97893F5FDC29A5C13A924FE7D8ED44FD"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sm.SetSSC(utils.HexToBytes("000000000000000000000000000000F0")); err != nil {
+		t.Fatal(err)
+	}
+	nfc := iso7816.NewNfcSession(chip)
+	nfc.SetSecureMessaging(sm)
+	ca := NewChipAuth(nfc, chipAuthATDG14(t))
+	ca.keyGeneratorEc = recordedATKeypair
+	result, err := ca.DoChipAuth()
+	if err == nil || !strings.Contains(err.Error(), "[doGeneralAuthenticate] tlv.Decode error") {
+		t.Fatalf("expected a GENERAL AUTHENTICATE decode error, got %v", err)
+	}
+	if result == nil || result.Success || result.Evidence != nil || nfc.SM() != sm {
+		t.Fatal("malformed response produced CA success, evidence, or a replacement secure channel")
+	}
+	if got := len(nfc.ApduLog().Entries); got != 2 {
+		t.Fatalf("sent %d APDUs, want only MSE:Set AT and GENERAL AUTHENTICATE", got)
+	}
+}

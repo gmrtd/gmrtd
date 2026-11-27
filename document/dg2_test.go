@@ -4,6 +4,8 @@ import (
 	"bytes"
 	_ "embed" // Import for loading test files
 	"encoding/asn1"
+	"errors"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -254,5 +256,21 @@ func TestNewDG2FaceRepresentations(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestNewDG2RejectsInvalidSecondISO19794Template(t *testing.T) {
+	first := tlv.MustDecode(sampleDg2Bytes).NodeByTag(DG2Tag).NodeByTag(0x7F61).NodeByTag(0x7F60)
+	record := first.NodeByTag(0x5F2E).Value()
+	second := tlv.NewTlvConstructedNode(0x7F60).
+		AddChild(first.NodeByTag(0xA1)).
+		AddChild(tlv.NewTlvSimpleNode(0x5F2E, record[:4])) // only the format identifier
+	group := tlv.NewTlvConstructedNode(0x7F61).
+		AddChild(tlv.NewTlvSimpleNode(0x02, []byte{2})).
+		AddChild(first).AddChild(second)
+
+	dg2, err := NewDG2(tlv.NewTlvConstructedNode(DG2Tag).AddChild(group).Encode())
+	if dg2 != nil || !errors.Is(err, io.ErrUnexpectedEOF) {
+		t.Fatalf("expected nil DG2 and truncated face record error, got DG2 present=%t, err=%v", dg2 != nil, err)
 	}
 }
