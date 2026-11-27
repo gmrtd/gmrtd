@@ -212,13 +212,19 @@ func NewReaderState(atr []byte, ats []byte, password *password.Password) *Reader
 	return &out
 }
 
-// reads the document using the specified transceiver and password
-// - also performs doc.Verify() and Passive Authentication!
-// - fails closed on access control, before any LDS file is read: a PACE error (unless
+// ReadDocument reads the document using password for access control, then runs Chip and
+// Active Authentication, Document.Verify and Passive Authentication. atr and ats are the
+// card's answer to reset and answer to select, if available, and may be empty.
+//
+// Access control fails closed, before any LDS file is read: a PACE error (unless
 // AllowBacFallbackOnPaceError is set), a BAC error, or no secure messaging at all (e.g. a CAN
-// password with PACE skipped or unavailable, see ErrNoSecureMessaging) returns an error;
-// Session.PaceErr/BacErr still record the cause
-// NB returns partial data (docEx, apduLog) in the event of an error
+// password with PACE skipped or unavailable, see ErrNoSecureMessaging) returns an error, and
+// Session.PaceErr / Session.BacErr still record the cause.
+//
+// On error, docEx and apduLog are still returned, holding whatever was read before the
+// failure, e.g. for diagnostics or to show why RequireAuthenticDocument rejected a document
+// (ErrDocumentNotAuthentic). A document from a read that failed part way is incomplete and
+// may not have been through Passive Authentication: never treat it as a successful read.
 func (reader *Reader) ReadDocument(password *password.Password, atr []byte, ats []byte) (docEx *document.DocumentEx, apduLog *iso7816.ApduLog, err error) {
 	// Locked for the whole call: Reader is single-use/single-session, and this
 	// also serialises accidental concurrent calls on a shared instance instead
