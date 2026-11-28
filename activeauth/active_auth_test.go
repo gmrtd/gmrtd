@@ -152,6 +152,54 @@ func TestDoActiveAuth(t *testing.T) {
 
 }
 
+func TestDoActiveAuthCapturesReplayableECDSAEvidence(t *testing.T) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dg15, err := makeDG15FromECPublicKey(&key.PublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc document.Document
+	if err := doc.NewDG(15, dg15); err != nil {
+		t.Fatal(err)
+	}
+	challenge := utils.HexToBytes("96302b0f3d7e7864")
+	// Without a DG14 ActiveAuthenticationInfo the hash isn't signalled, so verification tries
+	// each permitted hash for the curve, curve-matched first: SHA-256 for P-256. The response
+	// uses the ICAO plain r||s encoding.
+	r, s, err := ecdsa.Sign(rand.Reader, key, cryptoutils.CryptoHash(crypto.SHA256, challenge))
+	if err != nil {
+		t.Fatal(err)
+	}
+	signature := concatRSFixed(key.Curve, r, s)
+	var chip iso7816.MockTransceiver
+	chip.AddReqRsp("008800000896302b0f3d7e786400", utils.BytesToHex(signature)+"9000")
+	aa, err := NewActiveAuth(iso7816.NewNfcSession(&chip), &doc).WithChallenge(challenge)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := aa.DoActiveAuth()
+	if err != nil || result == nil || !result.Success || result.Evidence == nil {
+		t.Fatalf("expected successful ECDSA capture, err=%v", err)
+	}
+	evidence := result.Evidence
+	if !evidence.Algorithm.Equal(oid.OidEcPublicKey) || !bytes.Equal(evidence.Nonce, challenge) || !bytes.Equal(evidence.Signature, signature) {
+		t.Fatal("captured evidence differs from the EC key, challenge or signature used in the exchange")
+	}
+	replayed, err := VerifyEvidence(&doc, evidence)
+	if err != nil || replayed == nil || !replayed.Success {
+		t.Fatalf("ECDSA replay failed: %v", err)
+	}
+	changed := *evidence
+	changed.Nonce = bytes.Clone(challenge)
+	changed.Nonce[0] ^= 1
+	if got, err := VerifyEvidence(&doc, &changed); err == nil || (got != nil && got.Success) {
+		t.Fatal("accepted the captured signature for a different nonce")
+	}
+}
+
 func TestWithChallenge(t *testing.T) {
 	// "doActiveAuth","SM(pre)":"(alg:1, ksenc:b99d546108eaa251570876b6d3456dce, ksmac:e3857ca24946251c151c540e13f2cd51, ssc:00000000000000cc)"}
 	//

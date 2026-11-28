@@ -358,6 +358,39 @@ func TestNewDG2RejectsIncompleteSecondTemplate(t *testing.T) {
 	}
 }
 
+func TestNewDG2TemplateCountBoundaries(t *testing.T) {
+	template := tlv.MustDecode(sampleDg2Bytes).NodeByTag(DG2Tag).NodeByTag(0x7F61).NodeByTag(0x7F60)
+	for _, tc := range []struct {
+		name    string
+		count   byte
+		wantErr bool
+	}{
+		{"zero", 0, true},
+		{"nine", 9, false},
+		{"ten", 10, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			group := tlv.NewTlvConstructedNode(0x7F61).AddChild(tlv.NewTlvSimpleNode(0x02, []byte{tc.count}))
+			for range tc.count {
+				group.AddChild(template)
+			}
+			dg, err := NewDG2(tlv.NewTlvConstructedNode(DG2Tag).AddChild(group).Encode())
+			if tc.wantErr {
+				if dg != nil || err == nil || !strings.Contains(err.Error(), "must be 1-9") {
+					t.Fatalf("expected template count rejection, got DG2 present=%t, err=%v", dg != nil, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(dg.BITs) != 9 || len(dg.Images) != 9 {
+				t.Errorf("decoded %d templates and %d images, want nine of each", len(dg.BITs), len(dg.Images))
+			}
+		})
+	}
+}
+
 // The template count must be one byte: a longer value could otherwise wrap into the 1-9 range.
 func TestNewDG2RejectsMultiByteTemplateCount(t *testing.T) {
 	template := tlv.MustDecode(sampleDg2Bytes).NodeByTag(DG2Tag).NodeByTag(0x7F61).NodeByTag(0x7F60)

@@ -1189,6 +1189,39 @@ func TestReadFileDiscardsDataAfterLaterChunkFails(t *testing.T) {
 	}
 }
 
+func TestSecureMessagingContinuesAfterProtectedFileNotFound(t *testing.T) {
+	// The second exchange is the ICAO D.4 SELECT EF.COM vector. The preceding
+	// SELECT EF.SOD and its 6A82 response use the same keys, computed with OpenSSL.
+	var chip MockTransceiver
+	chip.AddReqRsp("0ca4020c158709017c667c01993b61778e08252b9cb8b9efe82200", "99026a828e0823a691371f8c3a8b6a82")
+	chip.AddReqRsp("0ca4020c158709016375432908c044f68e08bf8b92d635ff24f800", "990290008e08fa855a5d4c50a8ed9000")
+	nfc := NewNfcSession(&chip)
+	sm, err := NewSecureMessaging(cryptoutils.TDES, utils.HexToBytes("979EC13B1CBFE9DCD01AB0FED307EAE5"), utils.HexToBytes("F1CB1F1FB5ADF208806B89DC579DC1F8"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sm.SetSSC(utils.HexToBytes("887022120C06C224")); err != nil {
+		t.Fatal(err)
+	}
+	nfc.SetSecureMessaging(sm)
+	for _, step := range []struct {
+		file     uint16
+		selected bool
+		ssc      string
+	}{
+		{0x011D, false, "887022120C06C226"},
+		{0x011E, true, "887022120C06C228"},
+	} {
+		selected, err := nfc.SelectEF(step.file)
+		if err != nil || selected != step.selected {
+			t.Fatalf("SelectEF(%04x) = %t, %v, want selected=%t", step.file, selected, err, step.selected)
+		}
+		if !bytes.Equal(sm.SSC(), utils.HexToBytes(step.ssc)) {
+			t.Fatalf("SSC after SelectEF(%04x) = %x, want %s", step.file, sm.SSC(), step.ssc)
+		}
+	}
+}
+
 func TestSecureMessagingRetriesAfterUnprotectedStatus(t *testing.T) {
 	// ICAO 9303 Part 11 D.4 SELECT EF.COM, after a status-only rejection of the first command.
 	var retry MockTransceiver

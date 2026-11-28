@@ -1053,6 +1053,40 @@ func TestPerformChipAuthenticationUsesAAChallenge(t *testing.T) {
 	}
 }
 
+func TestReaderAttemptsCAAfterAARejection(t *testing.T) {
+	doc, err := document.SampleDocument()
+	if err != nil {
+		t.Fatal(err)
+	}
+	const aaCommand = "008800000896302b0f3d7e786400"
+	// The sample DG14 advertises ECDH-AES-256 without a key ID.
+	const caCommand = "002241a40c800a04007f00070202030204"
+	var chip iso7816.MockTransceiver
+	chip.AddReqRsp(aaCommand, "6985")
+	chip.AddReqRsp(caCommand, "6a80")
+	nfc := iso7816.NewNfcSession(&chip)
+	r, err := NewReader(&MockStatus{}, nfc, EmptyCscaTrustStore(t)).WithAAChallenge(utils.HexToBytes("96302b0f3d7e7864"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := NewReaderState(nil, nil, password.NewPasswordNil())
+	state.docEx.Document = *doc
+	if err := performChipAuthentication(r, state); err != nil {
+		t.Fatal(err)
+	}
+	entries := nfc.ApduLog().Entries
+	if len(entries) != 2 || !bytes.Equal(entries[0].Tx, utils.HexToBytes(aaCommand)) || !bytes.Equal(entries[1].Tx, utils.HexToBytes(caCommand)) {
+		t.Fatal("expected INTERNAL AUTHENTICATE followed by CA MSE:Set AT")
+	}
+	session := state.docEx.Session
+	if session.ActiveAuthErr == nil || !strings.Contains(session.ActiveAuthErr.Error(), "Status:6985") || session.ActiveAuthResult == nil || session.ActiveAuthResult.Success {
+		t.Fatalf("expected the AA rejection to be retained, got %v", session.ActiveAuthErr)
+	}
+	if session.ChipAuthErr == nil || !strings.Contains(session.ChipAuthErr.Error(), "Status:6a80") || session.ChipAuthResult == nil || session.ChipAuthResult.Success {
+		t.Fatalf("expected the CA rejection to be retained, got %v", session.ChipAuthErr)
+	}
+}
+
 func TestPerformChipAuthenticationForEmptyDocument(t *testing.T) {
 	// note: nothing in the document suggests CA/AA are supported, so they will be silently skipped
 
@@ -1521,14 +1555,21 @@ func TestCheckAuthenticDocument(t *testing.T) {
 	}
 }
 
-// TestRequireAuthenticDocumentRealVerification runs the real Document.Verify and Passive
-// Authentication steps before the check, rather than assuming a Passive Authentication result.
-func TestRequireAuthenticDocumentRealVerification(t *testing.T) {
+func readUKDocument(t *testing.T) *document.Document {
+	t.Helper()
 	ukData, err := os.ReadFile("../verifier/testdata/GBR-099250692.gmrtd")
 	if err != nil {
-		t.Fatalf("ReadFile error: %s", err)
+		t.Fatal(err)
 	}
+	doc, _, err := document.UnmarshalVerifiableDoc(ukData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return doc
+}
 
+func ukDocumentTrustStore(t *testing.T) cms.CertPool {
+	t.Helper()
 	masterList, err := cms.DefaultMasterList()
 	if err != nil {
 		t.Fatalf("DefaultMasterList error: %s", err)
@@ -1540,14 +1581,60 @@ func TestRequireAuthenticDocumentRealVerification(t *testing.T) {
 		t.Fatalf("ukCsca.Add error: %s", err)
 	}
 	masterList.AddCertPool(&ukCsca)
+	return masterList
+}
 
-	ukDocument := func(t *testing.T) *document.Document {
-		doc, _, err := document.UnmarshalVerifiableDoc(ukData)
-		if err != nil {
-			t.Fatalf("UnmarshalVerifiableDoc error: %s", err)
-		}
-		return doc
+func TestReadDocumentSkipsImagesAndVerifiesDG1(t *testing.T) {
+	uk := readUKDocument(t)
+	lds := uk.Mf.Lds1
+	if !lds.Sod.HasDgHash(2) {
+		t.Fatal("expected the signed fixture to reference DG2")
 	}
+	pass, err := password.NewPasswordMrz(lds.Dg1.RawMrz)
+	if err != nil {
+		t.Fatal(err)
+	}
+	files := &testchip.Files{ByID: map[uint16][]byte{
+		MRTDFileIdEFCOM: lds.Com.RawData,
+		MRTDFileIdEFSOD: lds.Sod.RawData,
+		MRTDFileIdDG1:   lds.Dg1.RawData,
+		MRTDFileIdDG2:   lds.Dg2.RawData,
+	}}
+	nfc := iso7816.NewNfcSession(testchip.NewBAC(t, pass, files))
+	r := NewReader(&MockStatus{}, nfc, ukDocumentTrustStore(t))
+	r.SkipImages()
+	r.RequireAuthenticDocument()
+	got, log, err := r.ReadDocument(pass, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Document.Mf.Lds1.Dg1 == nil || !bytes.Equal(got.Document.Mf.Lds1.Dg1.RawData, lds.Dg1.RawData) || got.Document.Mf.Lds1.Dg2 != nil {
+		t.Fatal("expected the UK DG1 and no DG2")
+	}
+	selectDG1 := utils.HexToBytes("00A4020C020101")
+	selectDG2 := utils.HexToBytes("00A4020C020102")
+	var selectedDG1 bool
+	for _, entry := range log.Entries {
+		if bytes.Equal(entry.Tx, selectDG1) {
+			selectedDG1 = true
+		}
+		if bytes.Equal(entry.Tx, selectDG2) {
+			t.Fatal("reader selected DG2 with SkipImages enabled")
+		}
+	}
+	if !selectedDG1 {
+		t.Fatal("expected the APDU log to contain SELECT DG1")
+	}
+	summary := got.Summary()
+	if !summary.DataTrusted || summary.PassiveAuth == nil || summary.PassiveAuth.Status != document.PASSIVE_AUTH_STATUS_VERIFIED {
+		t.Fatalf("expected trusted data and verified passive authentication, got %v, %+v", summary.DataTrusted, summary.PassiveAuth)
+	}
+}
+
+// TestRequireAuthenticDocumentRealVerification runs the real Document.Verify and Passive
+// Authentication steps before the check, rather than assuming a Passive Authentication result.
+func TestRequireAuthenticDocumentRealVerification(t *testing.T) {
+	masterList := ukDocumentTrustStore(t)
 
 	sampleDocument := func(t *testing.T) *document.Document {
 		doc, err := document.SampleDocument()
@@ -1570,14 +1657,14 @@ func TestRequireAuthenticDocumentRealVerification(t *testing.T) {
 		{
 			// trusted data, and the document offers no AA/CA/PACE-CAM
 			name:    "UK passport",
-			doc:     ukDocument,
+			doc:     readUKDocument,
 			session: func(_ *document.Session) {},
 
 			wantDataTrusted: true,
 		},
 		{
 			name: "UK passport with failed chip authentication",
-			doc:  ukDocument,
+			doc:  readUKDocument,
 			session: func(s *document.Session) {
 				s.ActiveAuthResult, s.ActiveAuthErr = &document.ActiveAuthResult{Success: false}, aaErr
 			},

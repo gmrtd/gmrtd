@@ -42,6 +42,28 @@ func TestDecodeIndefinteLength(t *testing.T) {
 	}
 }
 
+func TestDecodeEndOfContentsBoundaries(t *testing.T) {
+	const first, end, sibling = "0101AA", "0000", "0201BB"
+	for _, tc := range []struct{ name, input string }{
+		{"trailing top-level data", first + end + sibling},
+		{"end-of-contents inside definite-length container", "6108" + first + end + sibling},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			nodes, err := Decode(utils.HexToBytes(tc.input))
+			if err == nil || nodes != nil {
+				t.Fatalf("expected trailing-data error and no tree, got tree present=%t, err=%v", nodes != nil, err)
+			}
+		})
+	}
+	nodes, err := Decode(utils.HexToBytes("6180" + first + end + sibling))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := nodes.Encode(), utils.HexToBytes("6103"+first+sibling); !bytes.Equal(got, want) {
+		t.Fatalf("decoded tree encodes as %x, want %x", got, want)
+	}
+}
+
 func TestDecodeErrors(t *testing.T) {
 	testCases := []struct {
 		data []byte
