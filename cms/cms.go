@@ -138,6 +138,9 @@ type CMSConfig struct {
 	CurveLookup   CurveLookup
 	SigAlgMap     map[string]asn1.ObjectIdentifier
 	ReferenceTime *time.Time
+	// RequireDocumentSigner applies the Document Signer EKU restriction even when
+	// the content type is ambiguous, as with EF.SOD files encoded as CMS id-data.
+	RequireDocumentSigner bool
 }
 
 // NewDefaultCMSConfig creates a config with default implementations
@@ -1017,7 +1020,7 @@ func (si *SignerInfo) VerifyWithConfig(config *CMSConfig, sd *SignedData, truste
 
 	// The signer is a Document Signer for an EF.SOD or EF.CardSecurity, or a Master List
 	// Signer for a CSCA master list, so errors name the signer cert rather than assume a DS.
-	if err := validateSignerCertExtensions(cert, sd.Content.EContentType); err != nil {
+	if err := validateSignerCertExtensions(cert, sd.Content.EContentType, signerConfig.RequireDocumentSigner); err != nil {
 		return nil, fmt.Errorf("[Verify] signer cert %w", err)
 	}
 
@@ -1076,10 +1079,9 @@ func (si *SignerInfo) resolveSigningTime() *time.Time {
 // validateSignerCertExtensions enforces the RFC 5280 and ICAO Doc 9303 Part 12 extension
 // requirements on the certificate that signed a SignedData: no unrecognised critical
 // extensions, keyUsage present with digitalSignature, and a well-formed extended key usage
-// if present. When contentType is the CSCA master list type, the extended key usage must
-// also include the master-list signing purpose, so only an authorised Master List Signer
-// can add certificates to a trust pool.
-func validateSignerCertExtensions(cert *Certificate, contentType asn1.ObjectIdentifier) error {
+// if present. Document Signer certificates must omit EKU. CSCA master-list signers
+// must explicitly include the master-list signing purpose.
+func validateSignerCertExtensions(cert *Certificate, contentType asn1.ObjectIdentifier, requireDocumentSigner bool) error {
 	// reject a signer cert with unrecognized critical extensions (RFC 5280 4.2)
 	if unrecognized := cert.TbsCertificate.Extensions.UnrecognizedCriticalExtensions(); len(unrecognized) > 0 {
 		return fmt.Errorf("has unrecognized critical extension: %v", unrecognized[0].ObjectId)
@@ -1100,6 +1102,10 @@ func validateSignerCertExtensions(cert *Certificate, contentType asn1.ObjectIden
 	eku, ekuErr := cert.TbsCertificate.Extensions.ExtKeyUsage()
 	if ekuErr != nil {
 		return fmt.Errorf("ExtKeyUsage parse error: %w", ekuErr)
+	}
+	// ICAO Doc 9303 Part 12, Table 6 prohibits EKU on Document Signer certificates.
+	if eku != nil && (requireDocumentSigner || oid.IsLdsSecurityObject(contentType) || contentType.Equal(oid.OidSecurityObject)) {
+		return fmt.Errorf("extended key usage is prohibited for a Document Signer")
 	}
 	// ICAO Doc 9303 Part 12 §7.1.1.3 requires an explicit master-list signing purpose.
 	if contentType.Equal(oid.OidCscaMasterList) && !eku.HasOID(oid.OidCscaMasterListSigningKey) {

@@ -158,6 +158,12 @@ var (
 // 1.3.27 ICAO arc, accepted for EF.SOD.
 var OidLdsSecurityObjectLegacy = asn1.ObjectIdentifier{1, 3, 27, 1, 1, 1} // legacy ICAO icao(27) arc for ldsSecurityObject; seen on Belgian/French MRTDs
 
+// IsLdsSecurityObject reports whether the OID identifies an LDS Security Object,
+// including the legacy ICAO and Dutch Sdu identifiers.
+func IsLdsSecurityObject(id asn1.ObjectIdentifier) bool {
+	return id.Equal(OidLdsSecurityObject) || id.Equal(OidLdsSecurityObjectLegacy) || id.Equal(OidLdsSecurityObjectSdu)
+}
+
 // OidEfDir is id-EFDIR under the legacy 1.3.27 ICAO arc, identifying EFDIRInfo in a
 // SecurityInfos set. See OidEfDirIcao for the Doc 9303 arc; both are accepted.
 var OidEfDir = asn1.ObjectIdentifier{1, 3, 27, 1, 1, 13}

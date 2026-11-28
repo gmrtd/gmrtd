@@ -58,7 +58,7 @@ func TestSignedMasterListInvalidContent(t *testing.T) {
 	}
 }
 
-func TestMasterListSignerPurpose(t *testing.T) {
+func TestSignerPurposeByContentType(t *testing.T) {
 	sd, err := ParseSignedData(de_masterList)
 	if err != nil {
 		t.Fatal(err)
@@ -75,9 +75,9 @@ func TestMasterListSignerPurpose(t *testing.T) {
 		}
 	}
 	tests := []struct {
-		name     string
-		purposes ExtKeyUsage
-		wantOK   bool
+		name         string
+		purposes     ExtKeyUsage
+		masterListOK bool
 	}{
 		{"absent", nil, false},
 		{"any purpose only", ExtKeyUsage{oid.OidAnyExtendedKeyUsage}, false},
@@ -98,9 +98,27 @@ func TestMasterListSignerPurpose(t *testing.T) {
 					ObjectId: oid.OidCeExtKeyUsage, ExtnValue: asn1.RawValue{Bytes: der},
 				})
 			}
-			err := validateSignerCertExtensions(&cert, sd.Content.EContentType)
-			if (err == nil) != tc.wantOK {
-				t.Fatalf("expected success %t, got error %v", tc.wantOK, err)
+			documentOK := tc.purposes == nil
+			for _, usage := range []struct {
+				name                  string
+				contentType           asn1.ObjectIdentifier
+				requireDocumentSigner bool
+				wantOK                bool
+			}{
+				{"master list", sd.Content.EContentType, false, tc.masterListOK},
+				{"SOD", oid.OidLdsSecurityObject, false, documentOK},
+				{"legacy SOD", oid.OidLdsSecurityObjectLegacy, false, documentOK},
+				{"Sdu SOD", oid.OidLdsSecurityObjectSdu, false, documentOK},
+				{"CardSecurity", oid.OidSecurityObject, false, documentOK},
+				{"id-data SOD", oid.OidIdData, true, documentOK},
+				{"generic id-data", oid.OidIdData, false, true},
+			} {
+				t.Run(usage.name, func(t *testing.T) {
+					err := validateSignerCertExtensions(&cert, usage.contentType, usage.requireDocumentSigner)
+					if (err == nil) != usage.wantOK {
+						t.Fatalf("expected success %t, got error %v", usage.wantOK, err)
+					}
+				})
 			}
 		})
 	}
