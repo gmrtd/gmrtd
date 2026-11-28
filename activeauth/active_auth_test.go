@@ -166,6 +166,9 @@ func TestDoActiveAuthCapturesReplayableECDSAEvidence(t *testing.T) {
 		t.Fatal(err)
 	}
 	challenge := utils.HexToBytes("96302b0f3d7e7864")
+	// Without a DG14 ActiveAuthenticationInfo the hash isn't signalled, so verification tries
+	// each permitted hash for the curve, curve-matched first: SHA-256 for P-256. The response
+	// uses the ICAO plain r||s encoding.
 	r, s, err := ecdsa.Sign(rand.Reader, key, cryptoutils.CryptoHash(crypto.SHA256, challenge))
 	if err != nil {
 		t.Fatal(err)
