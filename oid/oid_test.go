@@ -8,6 +8,23 @@ import (
 	"github.com/gmrtd/gmrtd/utils"
 )
 
+func TestIsLdsSecurityObject(t *testing.T) {
+	for _, tc := range []struct {
+		id   asn1.ObjectIdentifier
+		want bool
+	}{
+		{OidLdsSecurityObject, true},
+		{OidLdsSecurityObjectLegacy, true},
+		{OidLdsSecurityObjectSdu, true},
+		{OidIdData, false},
+		{OidSecurityObject, false},
+	} {
+		if got := IsLdsSecurityObject(tc.id); got != tc.want {
+			t.Errorf("IsLdsSecurityObject(%s) = %t, want %t", tc.id, got, tc.want)
+		}
+	}
+}
+
 func TestOidHasPrefix(t *testing.T) {
 	testCases := []struct {
 		oid       asn1.ObjectIdentifier
