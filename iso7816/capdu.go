@@ -80,7 +80,7 @@ func (apdu *CApdu) EncodeLc() []byte {
 		// Lc = 3 bytes
 		// valid range: 1..65535
 		lcBytes = append(lcBytes, 0)
-		lcBytes = append(lcBytes, byte((lc/256)%0xff))
+		lcBytes = append(lcBytes, byte((lc/256)&0xff))
 		lcBytes = append(lcBytes, byte(lc%256))
 	} else {
 		// Lc = 1 byte

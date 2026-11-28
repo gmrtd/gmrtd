@@ -60,10 +60,9 @@ func isTerminalAuthenticationInfo(theOid asn1.ObjectIdentifier) bool {
 		theOid.Equal(oid.OidTa) || oid.OidHasPrefix(theOid, oid.OidTa)
 }
 
-// EFDIRInfo
-// IF OID exactly matches... id_EFDIR
+// EFDIRInfo: id-EFDIR under either the Doc 9303 or the legacy 1.3.27 ICAO arc
 func isEFDIRInfo(theOid asn1.ObjectIdentifier) bool {
-	return theOid.Equal(oid.OidEfDir)
+	return theOid.Equal(oid.OidEfDirIcao) || theOid.Equal(oid.OidEfDir)
 }
 
 // SecurityInfoOid decodes only the protocol OID of a SecurityInfo, keeping the raw DER of

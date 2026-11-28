@@ -158,9 +158,12 @@ var (
 // 1.3.27 ICAO arc, accepted for EF.SOD.
 var OidLdsSecurityObjectLegacy = asn1.ObjectIdentifier{1, 3, 27, 1, 1, 1} // legacy ICAO icao(27) arc for ldsSecurityObject; seen on Belgian/French MRTDs
 
-// OidEfDir is id-EFDIR, identifying EFDIRInfo in a SecurityInfos set (ICAO Doc 9303
-// Part 11).
+// OidEfDir is id-EFDIR under the legacy 1.3.27 ICAO arc, identifying EFDIRInfo in a
+// SecurityInfos set. See OidEfDirIcao for the Doc 9303 arc; both are accepted.
 var OidEfDir = asn1.ObjectIdentifier{1, 3, 27, 1, 1, 13}
+
+// OidEfDirIcao is id-EFDIR as Doc 9303 Part 10 defines it, {id-icao-mrtd-security 13}.
+var OidEfDirIcao = asn1.ObjectIdentifier{2, 23, 136, 1, 1, 13}
 
 // Named elliptic curve identifiers: Brainpool (RFC 5639) and SEC 2 (secp*) curves.
 var (
@@ -305,6 +308,7 @@ var oidLookup = map[string]string{
 	OidHashAlgorithmMD5.String():                 "md5",
 	OidHashAlgorithmSHA1.String():                "sha1",
 	OidEfDir.String():                            "id-EFDIR",
+	OidEfDirIcao.String():                        "id-EFDIR",
 	OidBrainpoolP192r1.String():                  "brainpoolP192r1",
 	OidBrainpoolP224r1.String():                  "brainpoolP224r1",
 	OidBrainpoolP256r1.String():                  "brainpoolP256r1",

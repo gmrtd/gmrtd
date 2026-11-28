@@ -67,3 +67,23 @@ func TestEncode(t *testing.T) {
 		}
 	}
 }
+
+// ISO 7816-4 extended Lc: 00 followed by Nc as two bytes, big-endian.
+func TestEncodeLcExtended(t *testing.T) {
+	for _, tc := range []struct {
+		nc   int
+		want string
+	}{
+		{256, "000100"},
+		{65279, "00FEFF"},
+		{65280, "00FF00"},
+		{65535, "00FFFF"},
+	} {
+		if got := NewCApdu(0x00, 0xDA, 0x00, 0x00, make([]byte, tc.nc), 0).EncodeLc(); !bytes.Equal(got, utils.HexToBytes(tc.want)) {
+			t.Errorf("Lc for %d bytes = %x, want %s", tc.nc, got, tc.want)
+		}
+	}
+	if got := NewCApdu(0x00, 0xDA, 0x00, 0x00, make([]byte, 255), 0).EncodeLc(); !bytes.Equal(got, []byte{0xFF}) {
+		t.Errorf("Lc for 255 bytes = %x, want ff", got)
+	}
+}
