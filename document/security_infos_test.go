@@ -329,3 +329,29 @@ func TestContainsBadAsnErr(t *testing.T) {
 		t.Fatalf("error expected")
 	}
 }
+
+// Doc 9303 defines id-EFDIR under 2.23.136.1.1; the legacy 1.3.27 arc must keep working too.
+func TestDecodeSecurityInfosEFDirInfoBothArcs(t *testing.T) {
+	const efDir = "042C61094F07A000000247100161094F07A000000247200161094F07A000000247200261094F07A0000002472003"
+	for _, tc := range []struct {
+		name, hex string
+		protocol  asn1.ObjectIdentifier
+	}{
+		{"legacy 1.3.27 arc", "3137303506052B1B01010D" + efDir, oid.OidEfDir},
+		{"Doc 9303 arc", "31383036060667810801010D" + efDir, oid.OidEfDirIcao},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			infos, err := DecodeSecurityInfos(utils.HexToBytes(tc.hex))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(infos.EfDirInfos) != 1 || len(infos.UnhandledInfos) != 0 {
+				t.Fatalf("got %d EFDIRInfos and %d unhandled infos, want one EFDIRInfo", len(infos.EfDirInfos), len(infos.UnhandledInfos))
+			}
+			got := infos.EfDirInfos[0]
+			if !got.Protocol.Equal(tc.protocol) || !bytes.Equal(got.EFDir, utils.HexToBytes(efDir)[2:]) {
+				t.Fatalf("got protocol %v and EF.DIR %x", got.Protocol, got.EFDir)
+			}
+		})
+	}
+}
