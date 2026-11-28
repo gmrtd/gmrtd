@@ -1236,6 +1236,42 @@ func TestChipAuthRejectsUnselectedDG14(t *testing.T) {
 	if last := nfc.LastApdu(); last == nil || !bytes.Equal(last.Tx, utils.HexToBytes("00A4020C02010E")) || !bytes.Equal(last.Rx, utils.HexToBytes("6A82")) {
 		t.Fatal("expected a decoded file-not-found response for SELECT DG14")
 	}
+	if nfc.SM() != nil {
+		t.Fatal("unconfirmed CA keys left installed after the failed confirmation")
+	}
+}
+
+// passthroughSM stands in for the BAC or PACE secure messaging that precedes CA, without
+// protecting anything, so a test can see which secure messaging the session ends up with.
+type passthroughSM struct{}
+
+func (*passthroughSM) SSC() []byte                                     { return nil }
+func (*passthroughSM) SetSSC([]byte) error                             { return nil }
+func (*passthroughSM) KsEnc() []byte                                   { return nil }
+func (*passthroughSM) String() string                                  { return "passthrough" }
+func (*passthroughSM) Encode(c *iso7816.CApdu) (*iso7816.CApdu, error) { return c, nil }
+func (*passthroughSM) Decode(r []byte) (*iso7816.RApdu, error)         { return iso7816.ParseRApdu(r) }
+
+// The confirming SELECT is the first command under the new CA keys. If it fails, the session
+// must go back to the secure messaging it had, not keep keys the chip never confirmed.
+func TestChipAuthFailedConfirmationRestoresPriorSecureMessaging(t *testing.T) {
+	chip := &iso7816.SequenceTransceiver{RApdus: [][]byte{
+		utils.HexToBytes("9000"),     // MSE:Set AT, via the prior secure messaging
+		utils.HexToBytes("7C009000"), // GENERAL AUTHENTICATE, via the prior secure messaging
+		utils.HexToBytes("6988"),     // SELECT DG14 under the new keys: no valid SM response
+	}}
+	nfc := iso7816.NewNfcSession(chip)
+	prior := &passthroughSM{}
+	nfc.SetSecureMessaging(prior)
+	ca := NewChipAuth(nfc, chipAuthATDG14(t))
+	ca.keyGeneratorEc = recordedATKeypair
+	result, err := ca.DoChipAuth()
+	if err == nil || !strings.Contains(err.Error(), "SelectEF(DG14)") || result == nil || result.Success {
+		t.Fatalf("expected the DG14 confirmation to fail, got result %v, err %v", result, err)
+	}
+	if got := nfc.SM(); got != iso7816.SecureMessenger(prior) {
+		t.Fatalf("secure messaging after failed CA = %v, want the prior secure messaging", got)
+	}
 }
 
 // Chip Authentication must restart from MSE:Set AT (not just resend GENERAL AUTHENTICATE) when the
@@ -1263,6 +1299,9 @@ func TestChipAuthRestartsAfterExtendedLeRejected(t *testing.T) {
 			if !tc.wantSuccess {
 				if err == nil || !strings.Contains(err.Error(), "SelectEF(DG14)") || result == nil || result.Success || result.Evidence != nil {
 					t.Fatalf("expected DG14 confirmation error and no evidence, got result %v, error %v", result, err)
+				}
+				if nfc.SM() != nil {
+					t.Fatal("unconfirmed CA keys left installed after the failed confirmation")
 				}
 				return
 			}

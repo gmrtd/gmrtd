@@ -82,8 +82,10 @@ func selectChipAuthParams(doc *document.Document) (*ChipAuthParams, error) {
 // key agreement, confirms them with a SELECT of DG14, and returns a result with Success set
 // and the captured Evidence (see VerifyEvidence). It returns (nil, nil) without sending
 // anything if DG14 is absent or advertises no CA info or CA public key. On failure it
-// returns the error with a non-nil result whose Success is false; if the failure comes
-// after the new keys are installed, the session keeps them.
+// returns the error with a non-nil result whose Success is false, and the session's secure
+// messaging is put back as it was before the call, even if the failure came after the new keys
+// were installed (e.g. the confirming SELECT failed). The chip may already have discarded its
+// session keys at that point, so later commands on the session can fail.
 func (chipAuth *ChipAuth) DoChipAuth() (result *document.ChipAuthResult, err error) {
 	if !caAdvertised(*chipAuth.document) {
 		slog.Debug("doChipAuth - skipping CA as not advertised")
@@ -93,6 +95,14 @@ func (chipAuth *ChipAuth) DoChipAuth() (result *document.ChipAuthResult, err err
 
 	// setup the result (but mark as !success)
 	result = &document.ChipAuthResult{Success: false}
+
+	// Keys from a CA that was not confirmed must not stay in use.
+	prior := (*chipAuth.nfcSession).SM()
+	defer func() {
+		if err != nil {
+			(*chipAuth.nfcSession).SetSecureMessaging(prior)
+		}
+	}()
 
 	if (*chipAuth.nfcSession).SM() != nil {
 		slog.Debug("doChipAuth", "SM(pre)", (*chipAuth.nfcSession).SM().String())

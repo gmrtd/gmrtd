@@ -788,10 +788,19 @@ func (pace *Pace) doGenericMappingGmCam(paceConfig *PaceConfig, domainParams *Do
 // EF.CardAccess. On failure it returns the error with a non-nil result whose Success is
 // false; the error wraps ErrPACEUnsupportedLocally when no advertised configuration is
 // usable here and none was non-conformant, in which case no PACE command was sent. Secure
-// messaging is installed once the chip's authentication token verifies, so it remains in
-// place if a later CAM step fails.
+// messaging is installed once the chip's authentication token verifies (the CAM steps need
+// it), but on any failure the session's secure messaging is put back as it was before the
+// call, so keys from a PACE that did not complete are never left in use.
 func (pace *Pace) DoPACE() (result *document.PaceResult, camResult *document.PaceCamResult, err error) {
 	slog.Debug("DoPACE")
+
+	// A later step (e.g. BAC fallback) relies on SM() reflecting only completed access control.
+	prior := pace.nfcSession.SM()
+	defer func() {
+		if err != nil {
+			pace.nfcSession.SetSecureMessaging(prior)
+		}
+	}()
 
 	// PACE requires card-access
 	if pace.document.Mf.CardAccess == nil {
