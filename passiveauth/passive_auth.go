@@ -30,6 +30,9 @@ func PassiveAuth(doc *document.Document, trustedCerts cms.CertPool) (result *doc
 		return result, fmt.Errorf("[PassiveAuth] Cannot perform Passive-Auth as unable to locate any CSCA Certificates for the MRZ Country")
 	}
 
+	config := cms.NewDefaultCMSConfig()
+	config.RequireDocumentSigner = true
+
 	/*
 	* verify EF.SOD (mandatory)
 	 */
@@ -42,7 +45,7 @@ func PassiveAuth(doc *document.Document, trustedCerts cms.CertPool) (result *doc
 		}
 
 		result.Sod = &document.PassiveAuth{}
-		result.Sod.CertChain, err = doc.Mf.Lds1.Sod.SD.Verify(countryCscaCertPool)
+		result.Sod.CertChain, err = doc.Mf.Lds1.Sod.SD.VerifyWithConfig(config, countryCscaCertPool)
 		if err != nil {
 			return result, fmt.Errorf("[PassiveAuth] unable to verify SignedData (SOD): %w", err)
 		}
@@ -55,7 +58,7 @@ func PassiveAuth(doc *document.Document, trustedCerts cms.CertPool) (result *doc
 	 */
 	if doc.Mf.CardSecurity != nil {
 		result.CardSec = &document.PassiveAuth{}
-		result.CardSec.CertChain, err = doc.Mf.CardSecurity.SD.Verify(countryCscaCertPool)
+		result.CardSec.CertChain, err = doc.Mf.CardSecurity.SD.VerifyWithConfig(config, countryCscaCertPool)
 		if err != nil {
 			return result, fmt.Errorf("[PassiveAuth] unable to verify SignedData (CardSecurity): %w", err)
 		}

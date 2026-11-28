@@ -3,6 +3,7 @@ package passiveauth
 import (
 	"bytes"
 	"encoding/asn1"
+	"os"
 	"strings"
 	"testing"
 
@@ -138,6 +139,40 @@ func TestPassiveAuth(t *testing.T) {
 		if paResult == nil || paResult.Success != tc.expPaResultSuccess {
 			t.Errorf("Expected success result")
 		}
+	}
+}
+
+func TestPassiveAuthRequiresDocumentSigner(t *testing.T) {
+	// Use an existing, genuinely signed CMS object to exercise the signer role
+	// required by PassiveAuth independently of the object's own content type.
+	raw, err := os.ReadFile("../cms/testdata/malformed-list.cms")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sd, err := cms.ParseSignedData(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := os.ReadFile("../cms/testdata/master-list-test-root.cer")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var trusted cms.GenericCertPool
+	if err := trusted.Add(root); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sd.Verify(&trusted); err != nil {
+		t.Fatalf("master-list signer should verify for its own purpose: %v", err)
+	}
+
+	var doc document.Document
+	doc.Mf.Lds1.Sod = &document.SOD{SD: sd}
+	result, err := PassiveAuth(&doc, &trusted)
+	if err == nil || !strings.Contains(err.Error(), "extended key usage is prohibited for a Document Signer") {
+		t.Fatalf("expected Document Signer EKU error, got %v", err)
+	}
+	if result.Success || result.Sod == nil || len(result.Sod.CertChain) != 0 {
+		t.Fatal("unexpected authenticated SOD or certificate chain")
 	}
 }
 

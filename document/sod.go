@@ -139,20 +139,8 @@ func parseSignedDataWithDecodeEncodeRetry(data []byte) (*cms.SignedData, error) 
 }
 
 func isValidEContentType(eContentOid asn1.ObjectIdentifier) bool {
-	if eContentOid.Equal(oid.OidLdsSecurityObject) {
-		return true
-	} else if eContentOid.Equal(oid.OidLdsSecurityObjectLegacy) {
-		// legacy ICAO icao(27) arc; observed on Belgian/French MRTDs
-		return true
-	} else if eContentOid.Equal(oid.OidLdsSecurityObjectSdu) {
-		// Sdu Identification (NL) variant
-		return true
-	} else if eContentOid.Equal(oid.OidIdData) {
-		// observed on China passport
-		return true
-	}
-
-	return false
+	// Some Chinese passports use the generic CMS id-data content type for EF.SOD.
+	return oid.IsLdsSecurityObject(eContentOid) || eContentOid.Equal(oid.OidIdData)
 }
 
 func (sod SOD) haveLdsVersionInfo() bool {
