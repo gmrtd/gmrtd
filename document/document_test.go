@@ -446,6 +446,38 @@ func TestVerifyCardAccessWithinDg14(t *testing.T) {
 	}
 }
 
+func TestVerifyCardAccessOpaqueRecordInDG14(t *testing.T) {
+	const paceInfo = "3012060A04007F0007020204020202010202010D"
+	// The private-enterprise OID carries a single INTEGER as its opaque payload.
+	const opaqueInfo = "300E06092B0601040181FD59010201"
+	const infos = "3124" + opaqueInfo
+	dg14, err := NewDG14(utils.HexToBytes("6E26" + infos + "01" + paceInfo))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(dg14.SecInfos.UnhandledInfos) != 1 || len(dg14.SecInfos.PaceInfos) != 1 {
+		t.Fatal("expected one opaque entry and one PACE entry in DG14")
+	}
+	for _, tc := range []struct {
+		name, payload string
+		wantErr       bool
+	}{
+		{"identical", "01", false},
+		{"same OID with different payload", "02", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			access, err := NewCardAccess(utils.HexToBytes(infos + tc.payload + paceInfo))
+			if err != nil {
+				t.Fatal(err)
+			}
+			doc := Document{Mf: MasterFile{CardAccess: access, Lds1: LDS1{Dg14: dg14, Dg1: &DG1{}, Sod: &SOD{}}}}
+			if err := doc.Verify(); (err != nil) != tc.wantErr {
+				t.Fatalf("Verify() = %v, want error = %t", err, tc.wantErr)
+			}
+		})
+	}
+}
+
 func TestVerifyCardAccessWithinCardSecurity(t *testing.T) {
 	cardSecurity, err := NewCardSecurity(deCardSecurityFile)
 	if err != nil {

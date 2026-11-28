@@ -1510,26 +1510,43 @@ func TestDecryptEcadICNonBlockAligned(t *testing.T) {
 	}
 }
 
-func TestDecryptEcadICBadPadding(t *testing.T) {
+func TestDecryptEcadICPadding(t *testing.T) {
 	key := make([]byte, 16)
-
-	// Mirror what decryptEcadIC does internally to compute IV and build ecadIC
-	blockCipher, err := cryptoutils.CipherForKey(cryptoutils.AES, key)
+	block, err := cryptoutils.CipherForKey(cryptoutils.AES, key)
 	if err != nil {
-		t.Fatalf("CipherForKey error: %s", err)
+		t.Fatal(err)
 	}
-	iv := make([]byte, blockCipher.BlockSize())
-	blockCipher.Encrypt(iv, bytes.Repeat([]byte{0xff}, blockCipher.BlockSize()))
+	iv := make([]byte, block.BlockSize())
+	block.Encrypt(iv, bytes.Repeat([]byte{0xff}, block.BlockSize()))
 
-	// Encrypt all-zeros plaintext → decrypts to all-zeros → no 0x80 byte → ISO9797Method2Unpad fails
-	ecadIC, err := cryptoutils.CryptCBC(blockCipher, iv, make([]byte, 16), true)
-	if err != nil {
-		t.Fatalf("CryptCBC error: %s", err)
-	}
-
-	_, err = decryptEcadIC(cryptoutils.AES, key, ecadIC)
-	if err == nil {
-		t.Fatalf("Expected error for bad ISO9797 M2 padding")
+	data := bytes.Repeat([]byte{0x42}, block.BlockSize())
+	padded := append(bytes.Clone(data), 0x80)
+	padded = append(padded, make([]byte, block.BlockSize()-1)...)
+	for _, tc := range []struct {
+		name      string
+		plaintext []byte
+		want      []byte
+	}{
+		{"full padding block", padded, data},
+		{"marker in preceding block", append(bytes.Clone(padded), make([]byte, block.BlockSize())...), nil},
+		{"missing marker", make([]byte, block.BlockSize()), nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ecadIC, err := cryptoutils.CryptCBC(block, iv, tc.plaintext, true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := decryptEcadIC(cryptoutils.AES, key, ecadIC)
+			if tc.want == nil {
+				if err == nil || got != nil {
+					t.Fatal("expected a padding error and no chip authentication data")
+				}
+				return
+			}
+			if err != nil || !bytes.Equal(got, tc.want) {
+				t.Fatalf("decrypted chip authentication data = %x, err = %v", got, err)
+			}
+		})
 	}
 }
 
