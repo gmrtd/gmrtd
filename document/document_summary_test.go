@@ -410,6 +410,18 @@ func TestSummaryIdentityAttributesStillPopulatedWhenNotTrusted(t *testing.T) {
 	}
 }
 
+func TestSummaryPreservesUnknownMRZExpiry(t *testing.T) {
+	var doc DocumentEx
+	doc.Document.Mf.Lds1.Dg1 = &DG1{Mrz: &mrz.MRZ{DateOfExpiry: "999999"}}
+	attrs := doc.Summary().IdentityAttributes
+	if attrs == nil {
+		t.Fatal("summary missing identity attributes")
+	}
+	if attrs.DateOfExpiry != "999999" || attrs.DateOfExpiryMrzRaw != "999999" || attrs.Expired != nil {
+		t.Errorf("expiry = %q, raw = %q, expired = %v; want 999999, 999999 and nil", attrs.DateOfExpiry, attrs.DateOfExpiryMrzRaw, attrs.Expired)
+	}
+}
+
 func TestCalculateAgeAtBirthday(t *testing.T) {
 	birth := time.Date(2000, time.June, 15, 0, 0, 0, 0, time.UTC)
 	for _, tc := range []struct {

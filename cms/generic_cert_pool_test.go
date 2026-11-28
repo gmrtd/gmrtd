@@ -131,6 +131,27 @@ func TestGenericCertPoolBadCertBytes(t *testing.T) {
 	}
 }
 
+func TestGenericCertPoolRejectsBatchWithoutAddingItsValidPrefix(t *testing.T) {
+	var pool GenericCertPool
+	if err := pool.Add(de_masterListRootCA); err != nil {
+		t.Fatal(err)
+	}
+	// The Dutch root parses by itself. Only the second certificate in the batch is truncated.
+	batch := append(slices.Clone(nl_masterListRootCA), de_masterListRootCA[:len(de_masterListRootCA)-1]...)
+	if err := pool.Add(batch); err == nil {
+		t.Fatal("expected an error for the truncated certificate")
+	}
+	if got := pool.Count(); got != 1 {
+		t.Errorf("pool contains %d certificates after the failed import, want 1", got)
+	}
+	if got := pool.ByIssuerCountry("DE"); len(got) != 1 || !slices.Equal(got[0].Raw, de_masterListRootCA) {
+		t.Error("original German root missing after failed import")
+	}
+	if got := pool.ByIssuerCountry("NL"); len(got) != 0 {
+		t.Error("Dutch root from failed import is available for lookup")
+	}
+}
+
 func TestGenericCertPoolSkipsDamagedCandidates(t *testing.T) {
 	certs, err := ParseCertificates(de_masterListRootCA)
 	if err != nil || len(certs) != 1 {
