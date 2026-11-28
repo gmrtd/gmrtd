@@ -2,6 +2,7 @@ package tlv
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/gmrtd/gmrtd/utils"
@@ -111,6 +112,34 @@ func TestDecodeExceedsMaxNodes(t *testing.T) {
 	_, err := Decode(buf)
 	if err == nil {
 		t.Errorf("Expected node-count-exceeded error")
+	}
+}
+
+func TestDecodeNodeLimitAcrossSiblings(t *testing.T) {
+	const groups = 4
+	const leavesPerGroup = maxDecodeNodes/groups - 1 // The constructed parent also counts.
+	group := NewTlvConstructedNode(0x61)
+	leaf := NewTlvSimpleNode(0x01, nil)
+	for range leavesPerGroup {
+		group.AddChild(leaf)
+	}
+	siblings := bytes.Repeat(group.Encode(), groups-1)
+	nodes, err := Decode(append(siblings, group.Encode()...))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(nodes.Nodes()) != groups {
+		t.Fatalf("decoded %d groups, want %d", len(nodes.Nodes()), groups)
+	}
+	for i, node := range nodes.Nodes() {
+		if got := len(node.Children()); got != leavesPerGroup {
+			t.Fatalf("group %d has %d children, want %d", i, got, leavesPerGroup)
+		}
+	}
+	group.AddChild(leaf)
+	nodes, err = Decode(append(siblings, group.Encode()...))
+	if err == nil || !strings.Contains(err.Error(), "maximum node count") || nodes != nil {
+		t.Fatalf("expected a node-count error and no partial tree, got nodes present=%t, err=%v", nodes != nil, err)
 	}
 }
 

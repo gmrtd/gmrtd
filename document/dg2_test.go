@@ -4,6 +4,7 @@ import (
 	"bytes"
 	_ "embed" // Import for loading test files
 	"encoding/asn1"
+	"encoding/binary"
 	"errors"
 	"io"
 	"os"
@@ -256,6 +257,63 @@ func TestNewDG2FaceRepresentations(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestNewDG2MultipleFacesInISO19794Record(t *testing.T) {
+	ukExport, err := os.ReadFile("../verifier/testdata/GBR-099250692.gmrtd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	uk, _, err := UnmarshalVerifiableDoc(ukExport)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sample, err := NewDG2(sampleDg2Bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	template := func(dg *DG2) tlv.TlvNode {
+		t.Helper()
+		if dg == nil || len(dg.BITs) != 1 || len(dg.Images) != 1 {
+			t.Fatal("expected a single-face DG2 fixture")
+		}
+		return tlv.MustDecode(dg.RawData).NodeByTag(DG2Tag).NodeByTag(0x7F61).NodeByTag(0x7F60)
+	}
+	first := template(sample)
+	second := template(uk.Mf.Lds1.Dg2)
+	want := [][]byte{sample.Images[0].Image, uk.Mf.Lds1.Dg2.Images[0].Image}
+	if bytes.Equal(want[0], want[1]) {
+		t.Fatal("expected distinct fixture images")
+	}
+	// Both fixtures carry one face. Keep their face headers and image bytes under one record header.
+	const headerLen = 14
+	record := bytes.Clone(first.NodeByTag(0x5F2E).Value())
+	record = append(record, second.NodeByTag(0x5F2E).Value()[headerLen:]...)
+	binary.BigEndian.PutUint16(record[12:14], 2)
+	encodeDG2 := func(record []byte) []byte {
+		// Keep the outer length accurate even when the final face is incomplete.
+		binary.BigEndian.PutUint32(record[8:12], uint32(len(record)))
+		bit := tlv.NewTlvConstructedNode(0x7F60).AddChild(first.NodeByTag(0xA1)).AddChild(tlv.NewTlvSimpleNode(0x5F2E, record))
+		group := tlv.NewTlvConstructedNode(0x7F61).AddChild(tlv.NewTlvSimpleNode(0x02, []byte{1})).AddChild(bit)
+		return tlv.NewTlvConstructedNode(DG2Tag).AddChild(group).Encode()
+	}
+
+	dg, err := NewDG2(encodeDG2(record))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(dg.BITs) != 1 || len(dg.Images) != len(want) {
+		t.Fatalf("got %d templates and %d images, want one template and two images", len(dg.BITs), len(dg.Images))
+	}
+	for i, image := range want {
+		if !bytes.Equal(dg.Images[i].Image, image) {
+			t.Errorf("image %d differs from its source", i)
+		}
+	}
+	dg, err = NewDG2(encodeDG2(record[:len(record)-1]))
+	if dg != nil || err == nil || !strings.Contains(err.Error(), "Image Size") {
+		t.Fatalf("expected rejection of incomplete final image, got DG2 present=%t, err=%v", dg != nil, err)
 	}
 }
 

@@ -1625,6 +1625,29 @@ func TestRequireAuthenticDocumentRealVerification(t *testing.T) {
 	}
 }
 
+func TestReadDocumentStopsAtReservedPACEParameter(t *testing.T) {
+	// The first entry has locally unsupported parameters (32), the second a reserved ID (3).
+	cardAccess := utils.HexToBytes("31283012060a04007f000702020406040201020201203012060a04007f00070202040204020102020103")
+	pass, err := password.NewPasswordMrzi("123456", "100101", "301225")
+	if err != nil {
+		t.Fatal(err)
+	}
+	files := &testchip.Files{ByID: map[uint16][]byte{MRTDFileIdCardAccess: cardAccess}}
+	var status MockStatus
+	r := NewReader(&status, iso7816.NewNfcSession(testchip.NewBAC(t, pass, files)), EmptyCscaTrustStore(t))
+	doc, _, err := r.ReadDocument(pass, nil, nil)
+	if !errors.Is(err, pace.ErrPACEParamRFU) {
+		t.Fatalf("expected a reserved PACE parameter error, got %v", err)
+	}
+	if doc == nil || !errors.Is(doc.Session.PaceErr, pace.ErrPACEParamRFU) || doc.Session.BacResult != nil {
+		t.Fatal("expected the PACE error to be recorded and BAC to be skipped")
+	}
+	events := status.Recorded()
+	if len(events) == 0 || events[len(events)-1].Phase != STATUS_PHASE_ACCESS_CONTROL_PACE {
+		t.Fatalf("expected the read to stop at PACE, got phases %v", events)
+	}
+}
+
 func TestReadDocumentBACFallbackAfterPACERejection(t *testing.T) {
 	sample, err := document.SampleDocument()
 	if err != nil {

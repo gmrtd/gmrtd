@@ -259,7 +259,8 @@ func TestVerifyCombinedChipEvidence(t *testing.T) {
 	}
 }
 
-func TestReverifyExportWithAllChipEvidence(t *testing.T) {
+func allChipEvidenceFixture(t *testing.T) ([]byte, *cms.GenericCertPool) {
+	t.Helper()
 	doc, ev, pool := readEvidenceFixture(t)
 	// The recorded AA signature uses the DG15 covered by this fixture's signed SOD.
 	input := document.DocumentEx{Document: *doc, Session: document.Session{
@@ -273,6 +274,11 @@ func TestReverifyExportWithAllChipEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	return data, pool
+}
+
+func TestReverifyExportWithAllChipEvidence(t *testing.T) {
+	data, pool := allChipEvidenceFixture(t)
 	bound, err := NewVerifier(pool).WithAAChallenge(testAANonce)
 	if err != nil {
 		t.Fatal(err)
@@ -290,7 +296,7 @@ func TestReverifyExportWithAllChipEvidence(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			assertReplayedChipEvidence(t, first, tc.offline, document.CHIP_AUTH_STATUS_AA)
+			assertReplayedChipEvidence(t, first, tc.offline, true, document.CHIP_AUTH_STATUS_AA)
 
 			exported, err := first.ToCbor()
 			if err != nil {
@@ -300,12 +306,40 @@ func TestReverifyExportWithAllChipEvidence(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			assertReplayedChipEvidence(t, second, document.OfflineVerification{}, document.CHIP_AUTH_STATUS_NONE)
+			assertReplayedChipEvidence(t, second, document.OfflineVerification{}, true, document.CHIP_AUTH_STATUS_NONE)
 		})
 	}
 }
 
-func assertReplayedChipEvidence(t *testing.T, doc *document.DocumentEx, wantOffline document.OfflineVerification, wantStatus document.ChipAuthStatus) {
+func TestVerifyChipEvidenceWithUntrustedSigner(t *testing.T) {
+	data, _ := allChipEvidenceFixture(t)
+	pool := ukCscaPool(t) // The evidence fixture chains to a separate test CSCA.
+	bound, err := NewVerifier(pool).WithAAChallenge(testAANonce)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name     string
+		verifier *Verifier
+		offline  document.OfflineVerification
+	}{
+		{"challenge bound", bound, document.OfflineVerification{AAChallengeBound: true}},
+		{"trusted source", NewVerifier(pool).WithTrustedSource(), document.OfflineVerification{TrustedSource: true}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := tc.verifier.Verify(data)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Session.DocumentVerifyErr != nil || got.Session.PassiveAuthErr == nil {
+				t.Fatalf("expected only passive authentication to fail, document error=%v, passive auth error=%v", got.Session.DocumentVerifyErr, got.Session.PassiveAuthErr)
+			}
+			assertReplayedChipEvidence(t, got, tc.offline, false, document.CHIP_AUTH_STATUS_NONE)
+		})
+	}
+}
+
+func assertReplayedChipEvidence(t *testing.T, doc *document.DocumentEx, wantOffline document.OfflineVerification, wantTrusted bool, wantStatus document.ChipAuthStatus) {
 	t.Helper()
 	s := doc.Session
 	if s.ActiveAuthResult == nil || !s.ActiveAuthResult.Success || s.ActiveAuthErr != nil {
@@ -320,8 +354,8 @@ func assertReplayedChipEvidence(t *testing.T, doc *document.DocumentEx, wantOffl
 	if s.Offline == nil || *s.Offline != wantOffline {
 		t.Errorf("offline verification = %+v, want %+v", s.Offline, wantOffline)
 	}
-	if summary := doc.Summary(); !summary.DataTrusted || summary.ChipAuthenticity != wantStatus {
-		t.Errorf("data trusted = %t, chip authenticity = %v, want true and %v", summary.DataTrusted, summary.ChipAuthenticity, wantStatus)
+	if summary := doc.Summary(); summary.DataTrusted != wantTrusted || summary.ChipAuthenticity != wantStatus {
+		t.Errorf("data trusted = %t, chip authenticity = %v, want %t and %v", summary.DataTrusted, summary.ChipAuthenticity, wantTrusted, wantStatus)
 	}
 }
 
