@@ -1980,6 +1980,39 @@ func TestDoPace_GM_ECDH_RestartsAfterExtendedLeRejected(t *testing.T) {
 	}
 }
 
+func TestDoPaceCamStopsAfterShortRetryRejected(t *testing.T) {
+	access, err := document.NewCardAccess(deCamCardAccessBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mse, shortGA := deCamRecording[0][0], deCamRecording[1][0]
+	extendedGA := "108600000000027C000000"
+	var chip iso7816.MockTransceiver
+	chip.AddReqRsp(mse, "9000")
+	chip.AddReqRsp(extendedGA, "6700")
+	chip.AddReqRsp(shortGA, "6982")
+	p, _ := newDeCamPace(t, &chip, access)
+	p.nfcSession.SetMaxLe(65536)
+
+	result, cam, err := p.DoPACE()
+	if err == nil || !strings.Contains(err.Error(), "6982") {
+		t.Fatalf("expected the restarted handshake's status 6982, got %v", err)
+	}
+	if result == nil || result.Success || cam != nil || p.nfcSession.SM() != nil {
+		t.Fatal("expected unsuccessful PACE, no CAM evidence and no secure messaging")
+	}
+	want := []string{mse, extendedGA, mse, shortGA}
+	entries := p.nfcSession.ApduLog().Entries
+	if len(entries) != len(want) {
+		t.Fatalf("sent %d commands, want %d", len(entries), len(want))
+	}
+	for i, command := range want {
+		if !bytes.Equal(entries[i].Tx, utils.HexToBytes(command)) {
+			t.Errorf("command %d = %x, want %s", i, entries[i].Tx, command)
+		}
+	}
+}
+
 // A chip rejecting MSE:Set AT fails PACE with that error (no restart).
 func TestDoPace_MseSetATRejected(t *testing.T) {
 	nfc := iso7816.NewNfcSession(&iso7816.StaticTransceiver{RApdu: utils.HexToBytes("6A80")})

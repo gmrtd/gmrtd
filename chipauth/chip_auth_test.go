@@ -219,6 +219,11 @@ func TestResolveCAInfo(t *testing.T) {
 	}
 }
 
+const (
+	atProtectedSelectDG14 = "0CA4020C1D8711011B2EE500E84960DF7F37AFE7ADFF53838E084500F3B43E192A5700"
+	atSelectDG14Response  = "990290008E0803C4B125B4218CEF9000"
+)
+
 func TestChipAuthAT(t *testing.T) {
 	logs := testlog.CaptureDebug(t)
 
@@ -247,7 +252,7 @@ func TestChipAuthAT(t *testing.T) {
 		// General Authenticate
 		transceiver.AddReqRsp("0C860000608751019E18F1BA79D805379752BB560EB70AAC3CE3BC5AFE2FDD4AEB325CA8B578B4A93B9F66A5DF40005F8E878535251D33DD974AAF77FB858773E5799FA9DC1034E89B1150EC7F0BB3DB4BF37A1B9EA4458A9701008E089D204D950C0B95DB00", "8711010B0A5DFFC7432DE4DEB604291377A05B990290008E08B3384A1F5D1579739000")
 		// Select EF (DG14)
-		transceiver.AddReqRsp("0CA4020C1D8711011B2EE500E84960DF7F37AFE7ADFF53838E084500F3B43E192A5700", "990290008E0803C4B125B4218CEF9000")
+		transceiver.AddReqRsp(atProtectedSelectDG14, atSelectDG14Response)
 
 		nfc = iso7816.NewNfcSession(transceiver)
 	}
@@ -1178,13 +1183,14 @@ func TestAlgInfo(t *testing.T) {
 
 // abortingOnExtendedLeTransceiver models a chip that rejects an extended Le on GENERAL AUTHENTICATE
 // with 6700 and aborts the protocol in progress, answering 6985 until MSE:Set AT is re-sent.
-// It answers by INS, so it works without secure messaging.
+// The final DG14 confirmation uses the recorded protected exchange.
 type abortingOnExtendedLeTransceiver struct {
-	aborted bool
-	ins     []byte
+	confirmationResponse string
+	aborted              bool
+	ins                  []byte
 }
 
-func (t *abortingOnExtendedLeTransceiver) Transceive(_, ins, _, _ int, _ []byte, le int, _ []byte) []byte {
+func (t *abortingOnExtendedLeTransceiver) Transceive(_, ins, _, _ int, _ []byte, le int, encoded []byte) []byte {
 	t.ins = append(t.ins, byte(ins))
 	switch {
 	case ins == int(iso7816.INS_MANAGE_SE):
@@ -1197,6 +1203,8 @@ func (t *abortingOnExtendedLeTransceiver) Transceive(_, ins, _, _ int, _ []byte,
 		return utils.HexToBytes("6985")
 	case ins == int(iso7816.INS_GENERAL_AUTHENTICATE):
 		return utils.HexToBytes("7C009000")
+	case bytes.Equal(encoded, utils.HexToBytes(atProtectedSelectDG14)):
+		return utils.HexToBytes(t.confirmationResponse)
 	}
 	return utils.HexToBytes("6A82")
 }
@@ -1231,29 +1239,41 @@ func TestChipAuthRejectsUnselectedDG14(t *testing.T) {
 }
 
 // Chip Authentication must restart from MSE:Set AT (not just resend GENERAL AUTHENTICATE) when the
-// chip rejects an extended Le. Uses the AT passport's DG14 (id-CA-ECDH-AES-CBC-CMAC-128) without
-// secure messaging, so CA itself can't complete (the confirming SELECT has no valid SM response):
-// this checks the APDU sequence up to that point.
+// chip rejects an extended Le, then confirm the new keys with the AT passport's protected SELECT.
 func TestChipAuthRestartsAfterExtendedLeRejected(t *testing.T) {
-	doc := chipAuthATDG14(t)
+	for _, tc := range []struct {
+		name, confirmationResponse string
+		wantSuccess                bool
+	}{
+		{"protected DG14 confirmation", atSelectDG14Response, true},
+		{"unprotected DG14 rejection", "6A82", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			doc := chipAuthATDG14(t)
+			chip := &abortingOnExtendedLeTransceiver{confirmationResponse: tc.confirmationResponse}
+			nfc := iso7816.NewNfcSession(chip)
+			nfc.SetMaxLe(65536)
+			ca := NewChipAuth(nfc, doc)
+			ca.keyGeneratorEc = recordedATKeypair
 
-	transceiver := &abortingOnExtendedLeTransceiver{}
-	nfc := iso7816.NewNfcSession(transceiver)
-	nfc.SetMaxLe(65536)
-
-	chipAuth := NewChipAuth(nfc, doc)
-	chipAuth.keyGeneratorEc = recordedATKeypair
-
-	_, _ = chipAuth.DoChipAuth()
-
-	// MSE:Set AT, GA (extended Le) -> 6700, then restart: MSE:Set AT, GA (short Le)
-	if len(transceiver.ins) < 4 || !bytes.Equal(transceiver.ins[:4], []byte{0x22, 0x86, 0x22, 0x86}) {
-		t.Fatalf("APDU sequence (INS) = %x, want prefix 22862286", transceiver.ins)
-	}
-	for _, e := range nfc.ApduLog().Entries[:4] {
-		if bytes.Equal(e.Rx, utils.HexToBytes("6985")) {
-			t.Errorf("GENERAL AUTHENTICATE was resent without restarting CA (got 6985)")
-		}
+			result, err := ca.DoChipAuth()
+			if want := []byte{0x22, 0x86, 0x22, 0x86, 0xA4}; !bytes.Equal(chip.ins, want) {
+				t.Fatalf("APDU sequence (INS) = %x, want %x", chip.ins, want)
+			}
+			if !tc.wantSuccess {
+				if err == nil || !strings.Contains(err.Error(), "SelectEF(DG14)") || result == nil || result.Success || result.Evidence != nil {
+					t.Fatalf("expected DG14 confirmation error and no evidence, got result %v, error %v", result, err)
+				}
+				return
+			}
+			if err != nil || result == nil || !result.Success || result.Evidence == nil {
+				t.Fatalf("expected CA evidence after the restart, got result %v, error %v", result, err)
+			}
+			replayed, err := VerifyEvidence(doc, result.Evidence)
+			if err != nil || replayed == nil || !replayed.Success {
+				t.Fatalf("offline verification of captured CA evidence failed: %v", err)
+			}
+		})
 	}
 }
 

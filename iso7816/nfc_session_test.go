@@ -1151,6 +1151,23 @@ func TestReadFileReusesSuccessfulFallbackLength(t *testing.T) {
 	}
 }
 
+func TestReadFileAdvancesByShortMiddleResponse(t *testing.T) {
+	var chip MockTransceiver
+	chip.AddReqRsp("00A4020C020101", "9000")
+	chip.AddReqRsp("00B0000004", "531001029000")
+	chip.AddReqRsp("00B0000404", "030405069000")
+	chip.AddReqRsp("00B0000804", "07089000") // Only two of four requested bytes.
+	chip.AddReqRsp("00B0000A04", "090A0B0C9000")
+	chip.AddReqRsp("00B0000E04", "0D0E0F109000")
+	nfc := NewNfcSession(&chip)
+	nfc.SetMaxLe(4)
+	got, err := nfc.ReadFile(0x0101)
+	want := utils.HexToBytes("53100102030405060708090A0B0C0D0E0F10")
+	if err != nil || !bytes.Equal(got, want) {
+		t.Fatalf("ReadFile returned %x, err %v, want %x", got, err, want)
+	}
+}
+
 func TestReadFileDiscardsDataAfterLaterChunkFails(t *testing.T) {
 	chip := &SequenceTransceiver{RApdus: [][]byte{
 		utils.HexToBytes("9000"), utils.HexToBytes("530E01029000"),

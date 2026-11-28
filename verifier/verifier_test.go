@@ -259,6 +259,72 @@ func TestVerifyCombinedChipEvidence(t *testing.T) {
 	}
 }
 
+func TestReverifyExportWithAllChipEvidence(t *testing.T) {
+	doc, ev, pool := readEvidenceFixture(t)
+	// The recorded AA signature uses the DG15 covered by this fixture's signed SOD.
+	input := document.DocumentEx{Document: *doc, Session: document.Session{
+		ChipAuthResult: &document.ChipAuthResult{Evidence: ev.ChipAuth},
+		PaceCamResult:  &document.PaceCamResult{Evidence: ev.PaceCam},
+		ActiveAuthResult: &document.ActiveAuthResult{Evidence: &document.ActiveAuthEvidence{
+			Algorithm: oid.OidRsaEncryption, Nonce: testAANonce, Signature: testAASig,
+		}},
+	}}
+	data, err := input.ToCbor()
+	if err != nil {
+		t.Fatal(err)
+	}
+	bound, err := NewVerifier(pool).WithAAChallenge(testAANonce)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name    string
+		first   *Verifier
+		offline document.OfflineVerification
+	}{
+		{"challenge bound", bound, document.OfflineVerification{AAChallengeBound: true}},
+		{"trusted source", NewVerifier(pool).WithTrustedSource(), document.OfflineVerification{TrustedSource: true}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			first, err := tc.first.Verify(data)
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertReplayedChipEvidence(t, first, tc.offline, document.CHIP_AUTH_STATUS_AA)
+
+			exported, err := first.ToCbor()
+			if err != nil {
+				t.Fatal(err)
+			}
+			second, err := NewVerifier(pool).Verify(exported)
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertReplayedChipEvidence(t, second, document.OfflineVerification{}, document.CHIP_AUTH_STATUS_NONE)
+		})
+	}
+}
+
+func assertReplayedChipEvidence(t *testing.T, doc *document.DocumentEx, wantOffline document.OfflineVerification, wantStatus document.ChipAuthStatus) {
+	t.Helper()
+	s := doc.Session
+	if s.ActiveAuthResult == nil || !s.ActiveAuthResult.Success || s.ActiveAuthErr != nil {
+		t.Fatalf("AA replay failed: %v", s.ActiveAuthErr)
+	}
+	if s.ChipAuthResult == nil || !s.ChipAuthResult.Success || s.ChipAuthErr != nil {
+		t.Fatalf("CA replay failed: %v", s.ChipAuthErr)
+	}
+	if s.PaceCamResult == nil || !s.PaceCamResult.Success || s.PaceErr != nil {
+		t.Fatalf("PACE-CAM replay failed: %v", s.PaceErr)
+	}
+	if s.Offline == nil || *s.Offline != wantOffline {
+		t.Errorf("offline verification = %+v, want %+v", s.Offline, wantOffline)
+	}
+	if summary := doc.Summary(); !summary.DataTrusted || summary.ChipAuthenticity != wantStatus {
+		t.Errorf("data trusted = %t, chip authenticity = %v, want true and %v", summary.DataTrusted, summary.ChipAuthenticity, wantStatus)
+	}
+}
+
 func TestVerifyChallengeWithoutAAEvidence(t *testing.T) {
 	_, _, pool := readEvidenceFixture(t)
 	data, err := os.ReadFile("testdata/ca-cam.gmrtd")
