@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.11.3](https://github.com/gmrtd/gmrtd/compare/v1.11.2...v1.11.3) (2026-11-28)
+
+
+### Bug Fixes
+
+* accept the Doc 9303 id-EFDIR arc and encode extended Lc correctly ([#635](https://github.com/gmrtd/gmrtd/issues/635)) ([7772561](https://github.com/gmrtd/gmrtd/commit/7772561b48aee5b07617eba3076ead0a0b094b3c))
+* restore prior secure messaging when CA or PACE fails ([#633](https://github.com/gmrtd/gmrtd/issues/633)) ([cdfb0ae](https://github.com/gmrtd/gmrtd/commit/cdfb0ae568f61baab018920725b1594c9a581c82))
+
 ## [1.11.2](https://github.com/gmrtd/gmrtd/compare/v1.11.1...v1.11.2) (2026-11-27)
 
 
