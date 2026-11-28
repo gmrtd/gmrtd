@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.11.2](https://github.com/gmrtd/gmrtd/compare/v1.11.1...v1.11.2) (2026-11-27)
+
+
+### Bug Fixes
+
+* keep decrypted chip data out of ISO 9797 unpad errors ([#626](https://github.com/gmrtd/gmrtd/issues/626)) ([2579560](https://github.com/gmrtd/gmrtd/commit/2579560c94d9dfba41b0b4b77368fe1bd5d23c97))
+* reject multi-byte counts and parameter IDs that could wrap ([#628](https://github.com/gmrtd/gmrtd/issues/628)) ([e9b0e04](https://github.com/gmrtd/gmrtd/commit/e9b0e04e7acb7218e098943a313fb65aa647d999))
+
 ## [1.11.1](https://github.com/gmrtd/gmrtd/compare/v1.11.0...v1.11.1) (2026-11-27)
 
 
