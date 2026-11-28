@@ -118,6 +118,9 @@ func TestDecodeExceedsMaxNodes(t *testing.T) {
 func TestDecodeNodeLimitAcrossSiblings(t *testing.T) {
 	const groups = 4
 	const leavesPerGroup = maxDecodeNodes/groups - 1 // The constructed parent also counts.
+	if groups*(leavesPerGroup+1) != maxDecodeNodes {
+		t.Fatalf("%d groups of %d nodes do not reach the limit of %d exactly", groups, leavesPerGroup+1, maxDecodeNodes)
+	}
 	group := NewTlvConstructedNode(0x61)
 	leaf := NewTlvSimpleNode(0x01, nil)
 	for range leavesPerGroup {

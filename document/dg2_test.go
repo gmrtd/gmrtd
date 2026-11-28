@@ -292,7 +292,9 @@ func TestNewDG2MultipleFacesInISO19794Record(t *testing.T) {
 	record = append(record, second.NodeByTag(0x5F2E).Value()[headerLen:]...)
 	binary.BigEndian.PutUint16(record[12:14], 2)
 	encodeDG2 := func(record []byte) []byte {
-		// Keep the outer length accurate even when the final face is incomplete.
+		// Keep the outer length accurate even when the final face is incomplete. Work on a copy:
+		// a truncated record shares the full record's header bytes.
+		record = bytes.Clone(record)
 		binary.BigEndian.PutUint32(record[8:12], uint32(len(record)))
 		bit := tlv.NewTlvConstructedNode(0x7F60).AddChild(first.NodeByTag(0xA1)).AddChild(tlv.NewTlvSimpleNode(0x5F2E, record))
 		group := tlv.NewTlvConstructedNode(0x7F61).AddChild(tlv.NewTlvSimpleNode(0x02, []byte{1})).AddChild(bit)
