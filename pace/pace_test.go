@@ -1986,6 +1986,8 @@ func TestDoPaceCamStopsAfterShortRetryRejected(t *testing.T) {
 		t.Fatal(err)
 	}
 	mse, shortGA := deCamRecording[0][0], deCamRecording[1][0]
+	// The recorded first GENERAL AUTHENTICATE (10 86 00 00 | Lc 02 | 7C00 | Le 00) in
+	// extended-length form, as sent while the session allows Le 65536: Lc 00 0002, Le 0000.
 	extendedGA := "108600000000027C000000"
 	var chip iso7816.MockTransceiver
 	chip.AddReqRsp(mse, "9000")
