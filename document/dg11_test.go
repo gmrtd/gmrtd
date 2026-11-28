@@ -121,6 +121,23 @@ func TestNewDG11Happy(t *testing.T) {
 	}
 }
 
+func TestNewDG11AdditionalPersonalDetails(t *testing.T) {
+	root := tlv.NewTlvConstructedNode(DG11Tag).
+		AddChild(tlv.NewTlvSimpleNode(0x5C, utils.HexToBytes("5F145F155F175F18"))).
+		AddChild(tlv.NewTlvSimpleNode(0x5F14, []byte("DR<"))).
+		AddChild(tlv.NewTlvSimpleNode(0x5F15, []byte("RESEARCH<FELLOW"))).
+		AddChild(tlv.NewTlvSimpleNode(0x5F17, []byte("<P12345<<P67890<"))).
+		AddChild(tlv.NewTlvSimpleNode(0x5F18, []byte("JOINT<CUSTODY")))
+	dg, err := NewDG11(root.Encode())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := PersonDetails{Title: "DR", PersonalSummary: "RESEARCH FELLOW", OtherTravelDocuments: []string{"P12345", "P67890"}, CustodyInformation: "JOINT CUSTODY"}
+	if !reflect.DeepEqual(dg.Details, want) {
+		t.Errorf("DG11 details = %+v, want %+v", dg.Details, want)
+	}
+}
+
 func TestNewDG11China(t *testing.T) {
 	testCases := []struct {
 		dg11bytes  []byte
