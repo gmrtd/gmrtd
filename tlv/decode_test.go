@@ -46,7 +46,7 @@ func TestDecodeEndOfContentsBoundaries(t *testing.T) {
 	const first, end, sibling = "0101AA", "0000", "0201BB"
 	for _, tc := range []struct{ name, input string }{
 		{"trailing top-level data", first + end + sibling},
-		{"trailing data inside definite-length container", "6108" + first + end + sibling},
+		{"end-of-contents inside definite-length container", "6108" + first + end + sibling},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			nodes, err := Decode(utils.HexToBytes(tc.input))
