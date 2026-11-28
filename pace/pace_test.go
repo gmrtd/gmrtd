@@ -1119,6 +1119,9 @@ func TestDoPaceCamRejectsInvalidChipData(t *testing.T) {
 			if result == nil || result.Success || cam != nil {
 				t.Fatalf("expected unsuccessful PACE without CAM evidence, got result %v, CAM %v", result, cam)
 			}
+			if p.nfcSession.SM() != nil {
+				t.Fatal("keys from the failed PACE left installed")
+			}
 		})
 	}
 }
@@ -1134,8 +1137,8 @@ func TestDoPaceCamRejectsMappingKeyMismatch(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "PACE CAM verification failed") {
 		t.Fatalf("expected CAM mapping-key mismatch, got %v", err)
 	}
-	if result == nil || result.Success || cam != nil {
-		t.Fatal("mapping-key mismatch produced successful PACE or CAM evidence")
+	if result == nil || result.Success || cam != nil || p.nfcSession.SM() != nil {
+		t.Fatal("mapping-key mismatch produced successful PACE, CAM evidence, or secure messaging")
 	}
 }
 
@@ -1435,8 +1438,8 @@ func TestDoPaceCamMissingSecurityInfos(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "EF.CardSecurity") {
 		t.Fatalf("expected an EF.CardSecurity error, got %v", err)
 	}
-	if result == nil || result.Success || camResult != nil {
-		t.Fatalf("unexpected authentication results: PACE %v, CAM %v", result, camResult)
+	if result == nil || result.Success || camResult != nil || p.nfcSession.SM() != nil {
+		t.Fatalf("unexpected authentication results: PACE %v, CAM %v, SM present %t", result, camResult, p.nfcSession.SM() != nil)
 	}
 }
 
@@ -2073,8 +2076,8 @@ func TestDoPaceCamInvalidCardSecurityFile(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "[loadCardSecurityFile] NewCardSecurity error") {
 		t.Fatalf("expected EF.CardSecurity parse error, got %v", err)
 	}
-	if result == nil || result.Success || cam != nil || doc.Mf.CardSecurity != nil {
-		t.Fatal("invalid EF.CardSecurity produced successful PACE, CAM evidence, or a parsed file")
+	if result == nil || result.Success || cam != nil || doc.Mf.CardSecurity != nil || p.nfcSession.SM() != nil {
+		t.Fatal("invalid EF.CardSecurity produced successful PACE, CAM evidence, a parsed file, or secure messaging")
 	}
 }
 
